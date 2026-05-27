@@ -11,7 +11,7 @@ export const createCopilotTools = (accountId) => {
   return {
     get_store_analytics: tool({
       description: "Get basic store analytics for a given time period (e.g. recent orders, revenue). Use this when the seller asks 'how are my sales?'",
-      parameters: z.object({
+      inputSchema: z.object({
         days: z.number().describe("Number of past days to analyze (e.g. 7, 30)"),
         start_date: z.string().optional().describe("ISO format start date (optional)"),
         startDate: z.string().optional().describe("Alternative start date parameter"),
@@ -63,7 +63,7 @@ export const createCopilotTools = (accountId) => {
 
     get_recent_conversations: tool({
       description: "Get a summary of recent active conversations and their status.",
-      parameters: z.object({
+      inputSchema: z.object({
         limit: z.number().describe("Number of conversations to fetch (e.g. 5)"),
       }),
       execute: async ({ limit }) => {
@@ -82,7 +82,7 @@ export const createCopilotTools = (accountId) => {
 
     get_top_products: tool({
       description: "Get the store's products to analyze inventory or top sellers.",
-      parameters: z.object({
+      inputSchema: z.object({
         limit: z.number().describe("Number of products to fetch (e.g. 5)"),
       }),
       execute: async ({ limit }) => {
@@ -101,7 +101,7 @@ export const createCopilotTools = (accountId) => {
 
     draft_product_description: tool({
       description: "Draft an SEO-optimized product description based on basic details provided by the seller.",
-      parameters: z.object({
+      inputSchema: z.object({
         name: z.string().optional().describe("The name of the product"),
         product_name: z.string().optional().describe("Alternative product name parameter"),
         features: z.string().describe("Key features or keywords to include"),
@@ -119,7 +119,7 @@ export const createCopilotTools = (accountId) => {
 
     create_product: tool({
       description: "Create a new product in the store. Use this when the seller asks to add a new product.",
-      parameters: z.object({
+      inputSchema: z.object({
         name: z.string().describe("Product name"),
         description: z.string().optional().describe("Product description"),
         price: z.number().describe("Product price"),

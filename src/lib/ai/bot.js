@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { getAIModelForPlan } from "@/lib/plan-limits";
 import { createOpenAI } from "@ai-sdk/openai";
+import { getAIModelForPlan } from "@/lib/plan-limits";
 import { routeMessage } from "./router";
 import { createSalesTools, createSupportTools } from "./tools";
 import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt } from "./agents";
@@ -21,6 +21,7 @@ const supabase = createClient(
 /**
  * Dynamically imports and returns the correct AI SDK model instance
  * based on the account's subscription plan.
+ * Provider chain: Groq (primary) → Google Gemini (fallback)
  */
 async function getModelInstance(plan) {
   if (process.env.VECTORENGINE_API_KEY) {
@@ -32,10 +33,11 @@ async function getModelInstance(plan) {
     return customOpenAI("gpt-5.5-pro");
   }
 
-  // Fallback to older ones if needed
-  if (process.env.GROQ_API_KEY) return groq("meta-llama/llama-4-scout-17b-16e-instruct");
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) return google("gemini-1.5-flash");
-  throw new Error("No AI provider configured");
+  // Use Groq as primary provider (fast and reliable)
+  if (process.env.GROQ_API_KEY) return groq("llama-3.3-70b-versatile");
+  // Fallback to Google Gemini
+  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) return google("gemini-2.0-flash");
+  throw new Error("No AI provider configured. Set GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.");
 }
 
 /**
@@ -99,57 +101,53 @@ export async function simulateChat(accountId, messages) {
 
     let text = "";
 
+    // Build provider fallback chain for generateText (no Cohere)
+    const providerChain = [];
+
     try {
-      const model = await getModelInstance(plan);
-      const result = await generateText({
-        model,
-        system: systemPrompt,
-        messages: formattedMessages,
-        tools: tools,
-        maxSteps: plan === "starter" ? 2 : 5, // Allow multi-step tool calls
+      const primaryModel = await getModelInstance(plan);
+      providerChain.push({ name: 'primary', model: primaryModel });
+    } catch (e) {
+      // No primary model available
+    }
+
+    // Add fallback providers
+    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) {
+      providerChain.push({ name: 'google-fallback', model: google("gemini-2.0-flash") });
+    }
+    if (process.env.VECTORENGINE_API_KEY) {
+      const customOpenAI = createOpenAI({
+        apiKey: process.env.VECTORENGINE_API_KEY,
+        baseURL: process.env.VECTORENGINE_BASE_URL || "https://api.vectorengine.ai/v1",
+        compatibility: "compatible",
       });
-      text = result.text;
-    } catch (primaryError) {
-      console.warn(`Primary AI model failed for plan '${plan}': ${primaryError.message}. Falling back...`);
+      providerChain.push({ name: 'vectorengine-fallback', model: customOpenAI("gpt-5.5-pro") });
+    }
+    if (process.env.OPENAI_API_KEY) {
+      const { openai } = await import("@ai-sdk/openai");
+      providerChain.push({ name: 'openai-fallback', model: openai("gpt-4o-mini") });
+    }
+
+    if (providerChain.length === 0) {
+      throw new Error("All AI providers exhausted. Set GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.");
+    }
+
+    let lastError = null;
+
+    for (const provider of providerChain) {
       try {
-        if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) {
-          const result = await generateText({
-            model: google("gemini-1.5-flash"),
-            system: systemPrompt,
-            messages: formattedMessages,
-            tools: tools,
-            maxSteps: 3,
-          });
-          text = result.text;
-        } else if (process.env.VECTORENGINE_API_KEY) {
-          const customOpenAI = createOpenAI({
-            apiKey: process.env.VECTORENGINE_API_KEY,
-            baseURL: process.env.VECTORENGINE_BASE_URL || "https://api.vectorengine.ai/v1",
-            compatibility: "compatible",
-          });
-          const result = await generateText({
-            model: customOpenAI("gpt-5.5-pro"),
-            system: systemPrompt,
-            messages: formattedMessages,
-            tools: tools,
-            maxSteps: 3,
-          });
-          text = result.text;
-        } else if (process.env.OPENAI_API_KEY) {
-          const { openai } = await import("@ai-sdk/openai");
-          const result = await generateText({
-            model: openai("gpt-4o-mini"),
-            system: systemPrompt,
-            messages: formattedMessages,
-            tools: tools,
-            maxSteps: 3,
-          });
-          text = result.text;
-        } else {
-          throw new Error("All AI providers exhausted");
-        }
-      } catch (fallbackError) {
-        throw fallbackError;
+        const result = await generateText({
+          model: provider.model,
+          system: systemPrompt,
+          messages: formattedMessages,
+          tools: tools,
+          maxSteps: plan === "starter" ? 2 : 5,
+        });
+        text = result.text;
+        if (text && text.trim()) break; // Success, stop trying
+      } catch (providerError) {
+        lastError = providerError; // FIX: was `lastError: providerError;` (label statement, not assignment)
+        console.warn(`simulateChat provider ${provider.name} failed: ${providerError.message}. Trying next...`);
       }
     }
 

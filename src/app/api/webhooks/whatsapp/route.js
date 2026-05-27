@@ -139,32 +139,53 @@ export async function POST(request) {
     // Fetch AI settings for this account
     const { data: account } = await supabase
       .from("accounts")
-      .select("ai_enabled, ai_personality, products:products(name, price, description)")
-      .single(); // In a multi-tenant setup, filter by account_id
+      .select("id, ai_enabled, ai_personality, business_name, country, plan")
+      .eq("id", conversation.account_id || customer.account_id)
+      .single();
 
     if (account?.ai_enabled && message.text) {
-      const aiReply = await generateAIReply({
-        customerMessage: message.text,
-        customerName: customer.name,
-        personality: account.ai_personality,
-        products: account.products || [],
-      });
+      try {
+        // Fetch recent conversation history for context
+        const { data: recentMessages } = await supabase
+          .from("messages")
+          .select("content, direction")
+          .eq("conversation_id", conversation.id)
+          .order("created_at", { ascending: false })
+          .limit(8);
 
-      if (aiReply) {
-        // Send AI reply via WhatsApp
-        await sendWhatsAppMessage({
-          to: message.from,
-          message: aiReply,
+        const history = (recentMessages || []).reverse();
+
+        const aiResult = await generateAIReply({
+          accountId: account.id,
+          customerId: customer.id,
+          customerMessage: message.text,
+          customerName: customer.name,
+          personality: account.ai_personality,
+          country: account.country,
+          businessName: account.business_name,
+          conversationHistory: history,
+          plan: account.plan,
         });
 
-        // Store AI reply in database
-        await supabase.from("messages").insert({
-          conversation_id: conversation.id,
-          direction: "outgoing",
-          content: aiReply,
-          type: "text",
-          is_ai: true,
-        });
+        if (aiResult && aiResult.reply) {
+          // Send AI reply via WhatsApp
+          await sendWhatsAppMessage({
+            to: message.from,
+            message: aiResult.reply,
+          });
+
+          // Store AI reply in database
+          await supabase.from("messages").insert({
+            conversation_id: conversation.id,
+            direction: "outgoing",
+            content: aiResult.reply,
+            type: "text",
+            is_ai: true,
+            agent_type: aiResult.intent,
+          });
+        }
+      } catch (aiErr) {
+        console.error("WhatsApp AI auto-reply failed (non-fatal):", aiErr.message);
       }
     }
   } catch (err) {

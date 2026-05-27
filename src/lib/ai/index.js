@@ -21,10 +21,11 @@ async function getModelInstance(plan) {
     return customOpenAI("gpt-5.5-pro");
   }
 
-  // Fallback to older ones if needed
-  if (process.env.GROQ_API_KEY) return groq("meta-llama/llama-4-scout-17b-16e-instruct");
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) return google("gemini-1.5-flash");
-  throw new Error("No AI provider configured");
+  // Use Groq as primary provider (fast and reliable)
+  if (process.env.GROQ_API_KEY) return groq("llama-3.3-70b-versatile");
+  // Fallback to Google Gemini
+  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) return google("gemini-2.0-flash");
+  throw new Error("No AI provider configured. Set GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.");
 }
 
 /**
@@ -91,7 +92,7 @@ export async function generateAIReply({
       console.warn(`Primary AI model failed for plan '${plan}': ${primaryError.message}. Falling back...`);
       if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) {
         const result = await generateText({
-          model: google("gemini-1.5-flash"),
+          model: google("gemini-2.0-flash"),
           system: systemPrompt,
           messages: formattedMessages,
           tools: tools,
@@ -126,7 +127,7 @@ export async function generateAIReply({
         text = result.text;
         toolCalls = result.toolCalls;
       } else {
-        throw new Error("All AI providers exhausted");
+        throw new Error("All AI providers exhausted. Please set GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.");
       }
     }
 

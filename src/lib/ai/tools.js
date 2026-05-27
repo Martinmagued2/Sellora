@@ -21,7 +21,7 @@ export const createSalesTools = (accountId, customerId) => {
   return {
     search_products: tool({
       description: "Search the store's inventory for products by name or category. Use this when the customer asks what you sell or is looking for something specific.",
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().optional().describe("Search term, product name, or category to look for (optional)"),
         search_query: z.string().optional().describe("Alternative search query parameter"),
       }),
@@ -55,7 +55,7 @@ export const createSalesTools = (accountId, customerId) => {
 
     check_stock: tool({
       description: "Check the exact stock level for a product using its ID or product name.",
-      parameters: z.object({
+      inputSchema: z.object({
         productId: z.string().optional().describe("The ID of the product to check"),
         product_id: z.string().optional().describe("Alternative product ID parameter"),
         name: z.string().optional().describe("The name of the product to check (alternative if ID is unknown)"),
@@ -91,7 +91,7 @@ export const createSalesTools = (accountId, customerId) => {
 
     calculate_cart_total: tool({
       description: "Calculate the total cost for a list of items before creating an order. Use this to confirm the total with the customer.",
-      parameters: z.object({
+      inputSchema: z.object({
         items: z.array(z.object({
           productId: z.string().optional().describe("Product ID"),
           product_id: z.string().optional().describe("Alternative product ID"),
@@ -132,7 +132,7 @@ export const createSalesTools = (accountId, customerId) => {
 
     create_order: tool({
       description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price.",
-      parameters: z.object({
+      inputSchema: z.object({
         items: z.array(z.object({
           productId: z.string().optional().describe("Product ID"),
           product_id: z.string().optional().describe("Alternative product ID"),
@@ -215,7 +215,7 @@ export const createSupportTools = (accountId, customerId) => {
   return {
     get_customer_orders: tool({
       description: "Get all recent orders for the current customer.",
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         const { data, error } = await supabase
           .from("orders")
@@ -232,7 +232,7 @@ export const createSupportTools = (accountId, customerId) => {
 
     get_order_status: tool({
       description: "Get the current status of a specific order by its order number.",
-      parameters: z.object({
+      inputSchema: z.object({
         orderNumber: z.string().optional().describe("The order number to check"),
         order_number: z.string().optional().describe("Alternative order number parameter"),
       }),

@@ -93,26 +93,7 @@ export async function POST(req) {
 Your job is to help them analyze their store data, write product descriptions, and manage their business. 
 You can use tools to fetch live data about their store. Be concise, professional, and use markdown formatting.`;
 
-    let model;
-    if (process.env.VECTORENGINE_API_KEY) {
-      const customOpenAI = createOpenAI({
-        apiKey: process.env.VECTORENGINE_API_KEY,
-        baseURL: process.env.VECTORENGINE_BASE_URL || "https://api.vectorengine.ai/v1",
-        compatibility: "compatible",
-      });
-      model = customOpenAI("gpt-5.5-pro");
-    } else if (process.env.GROQ_API_KEY) {
-      model = groq("meta-llama/llama-4-scout-17b-16e-instruct");
-    } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-      const google = createGoogleGenerativeAI({
-        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      });
-      model = google("gemini-1.5-flash");
-    } else {
-      return Response.json({ error: "AI is not configured. Please add VECTORENGINE_API_KEY, GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file." }, { status: 500 });
-    }
-
-    const tools = createCopilotTools(user.id);
+    // Build provider model list with fallback chain (no Cohere)
     const providerModels = [];
 
     if (process.env.VECTORENGINE_API_KEY) {
@@ -125,12 +106,12 @@ You can use tools to fetch live data about their store. Be concise, professional
     }
 
     if (process.env.GROQ_API_KEY) {
-      providerModels.push({ name: 'groq', model: groq('meta-llama/llama-4-scout-17b-16e-instruct') });
+      providerModels.push({ name: 'groq', model: groq('llama-3.3-70b-versatile') });
     }
 
     if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
-      providerModels.push({ name: 'google', model: google('gemini-1.5-flash') });
+      providerModels.push({ name: 'google', model: google('gemini-2.0-flash') });
     }
 
     if (process.env.OPENAI_API_KEY) {
@@ -139,10 +120,12 @@ You can use tools to fetch live data about their store. Be concise, professional
     }
 
     if (providerModels.length === 0) {
-      return Response.json({ error: 'AI is not configured. Please add GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, or OPENAI_API_KEY to your .env.local file.' }, { status: 500 });
+      return Response.json({ error: 'AI is not configured. Please add GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file.' }, { status: 500 });
     }
 
+    const tools = createCopilotTools(user.id);
     let lastError = null;
+
     for (const providerEntry of providerModels) {
       try {
         const result = await streamText({

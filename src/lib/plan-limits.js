@@ -94,22 +94,23 @@ export const PLAN_LIMITS = {
 /**
  * AI Model Mapping
  * Maps plan tier labels to actual provider + model configurations.
+ * Uses Groq and Google Gemini (no Cohere or OpenAI required).
  */
 export const AI_MODELS = {
   fast: {
     provider: "groq",
-    model: "meta-llama/llama-4-scout-17b-16e-instruct",
-    label: "Groq (Llama 4 Scout)",
+    model: "llama-3.3-70b-versatile",
+    label: "Groq (Llama 3.3 70B)",
   },
   smart: {
-    provider: "openai",
-    model: "gpt-4o-mini",
-    label: "GPT-4o Mini (Smart)",
+    provider: "google",
+    model: "gemini-2.0-flash",
+    label: "Gemini 2.0 Flash (Smart)",
   },
   premium: {
-    provider: "openai",
-    model: "gpt-4o",
-    label: "GPT-4o (Premium)",
+    provider: "google",
+    model: "gemini-2.0-flash",
+    label: "Gemini 2.0 Flash (Premium)",
   },
 };
 
