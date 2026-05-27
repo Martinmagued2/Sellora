@@ -121,10 +121,16 @@ BEHAVIOR GUIDELINES:
 CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response explaining the results. Do NOT just return tool results silently. The user needs to READ your analysis. Write at least 3-5 sentences analyzing the data from every tool call. Use bullet points, bold text, and clear formatting.`;
 
     // ─── Build provider model list with fallback chain ───
+    // Each Groq model has its own rate limit, so we add multiple as fallbacks.
     const providerModels = [];
 
     if (process.env.GROQ_API_KEY) {
-      providerModels.push({ name: 'groq', model: groq('llama-3.3-70b-versatile') });
+      // Primary: most capable model
+      providerModels.push({ name: 'groq-llama70b', model: groq('llama-3.3-70b-versatile') });
+      // Fallback: smaller model with separate rate limits
+      providerModels.push({ name: 'groq-llama8b', model: groq('llama-3.1-8b-instant') });
+      // Fallback: another model with separate rate limits
+      providerModels.push({ name: 'groq-mixtral', model: groq('mixtral-8x7b-32768') });
     }
 
     if (process.env.VECTORENGINE_API_KEY) {
@@ -138,7 +144,9 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
 
     if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
       const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
-      providerModels.push({ name: 'google', model: google('gemini-2.0-flash') });
+      // Try flash first, then pro as fallback
+      providerModels.push({ name: 'google-flash', model: google('gemini-2.0-flash') });
+      providerModels.push({ name: 'google-flash-lite', model: google('gemini-2.0-flash-lite') });
     }
 
     if (process.env.OPENAI_API_KEY) {
