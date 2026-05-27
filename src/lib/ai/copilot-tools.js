@@ -483,9 +483,9 @@ export const createCopilotTools = (accountId) => {
     }),
 
     get_customer_insights: tool({
-      description: "Get customer analytics and insights — total customers, returning customers, top spenders, and customer distribution. Use when the seller asks about their customers or wants customer analytics. Takes no parameters.",
+      description: "Get customer analytics and insights — total customers, returning customers, top spenders, and customer distribution. Use when the seller asks about their customers or wants customer analytics. Takes no required parameters.",
       inputSchema: z.object({
-        summary: z.boolean().optional().describe("Set to true for a brief summary, false for full details (default false)"),
+        summary: z.string().optional().describe("Set to 'true' for a brief summary, or omit for full details"),
       }),
       execute: async ({ summary }) => {
         const { data: customers, error } = await supabase

@@ -7,21 +7,39 @@ import { useChat } from "@ai-sdk/react";
 
 // Helper: extract text content from a UIMessage's parts array
 function getMessageText(msg) {
-  if (!msg.parts || !Array.isArray(msg.parts)) return msg.content || "";
-  return msg.parts
-    .filter((p) => p.type === "text")
-    .map((p) => p.text)
-    .join("");
+  // Try parts first (AI SDK v6 format)
+  if (msg.parts && Array.isArray(msg.parts)) {
+    const textFromParts = msg.parts
+      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("");
+    if (textFromParts) return textFromParts;
+  }
+  // Fallback to content (may be a string or array of content parts)
+  if (typeof msg.content === "string" && msg.content) return msg.content;
+  if (Array.isArray(msg.content)) {
+    return msg.content
+      .filter((c) => c.type === "text")
+      .map((c) => c.text)
+      .join("");
+  }
+  return "";
 }
 
 // Helper: get tool invocations from a message
+// AI SDK v6 uses type: 'tool-{toolName}' for each tool part
 function getToolInvocations(msg) {
   if (!msg.parts || !Array.isArray(msg.parts)) return [];
-  return msg.parts.filter((p) => p.type === "tool-invocation");
+  return msg.parts.filter((p) => p.type.startsWith("tool-") || p.type === "dynamic-tool");
 }
 
 // Extract _action from tool invocation results
 function getToolAction(inv) {
+  // AI SDK v6: output field contains the result
+  if (inv.output && inv.output._action) {
+    return inv.output._action;
+  }
+  // Fallback for older format
   if (inv.state === "result" && inv.result && inv.result._action) {
     return inv.result._action;
   }
@@ -193,8 +211,12 @@ export default function CopilotPanel() {
                       {toolInvocations.length > 0 && (
                         <div className="copilot-tool-badges">
                           {toolInvocations.map((inv, idx) => {
-                            const toolInfo = TOOL_LABELS[inv.toolName] || { label: inv.toolName, icon: "🔧" };
-                            const isComplete = inv.state === "result" || inv.state === "partial";
+                            // AI SDK v6: toolName is derived from type 'tool-{name}' or inv.toolName for dynamic tools
+                            const toolName = inv.type.startsWith('tool-') ? inv.type.slice(5) : inv.toolName;
+                            const toolInfo = TOOL_LABELS[toolName] || { label: toolName, icon: "🔧" };
+                            // AI SDK v6 states: input-streaming, input-available, approval-requested, etc.
+                            // output being present means the tool completed
+                            const isComplete = inv.output !== undefined || inv.state === "result";
                             return (
                               <span key={idx} className={`copilot-tool-badge ${isComplete ? "complete" : "running"}`}>
                                 {isComplete ? "✓" : <Loader2 size={10} className="spin" />} {toolInfo.icon} {toolInfo.label}
@@ -205,8 +227,8 @@ export default function CopilotPanel() {
                       )}
                       {/* Show text content */}
                       {text && <div className="copilot-text-content">{text}</div>}
-                      {/* Show action buttons */}
-                      {actionButtons.length > 0 && text && (
+                      {/* Show action buttons - show even without text since text may be in a different message */}
+                      {actionButtons.length > 0 && (
                         <div className="copilot-actions">
                           {actionButtons.map((action, idx) => (
                             <button
