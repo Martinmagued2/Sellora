@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { streamText, generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -124,8 +124,8 @@ You can use tools to fetch live data about their store. Be concise, professional
     }
 
     const tools = createCopilotTools(user.id);
-    let lastError = null;
 
+    // Attempt 1: Try streaming with tools
     for (const providerEntry of providerModels) {
       try {
         const result = await streamText({
@@ -138,13 +138,29 @@ You can use tools to fetch live data about their store. Be concise, professional
         });
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
-        lastError = providerError;
-        console.warn(`Copilot provider ${providerEntry.name} failed:`, providerError?.message || providerError);
+        console.warn(`Copilot provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
       }
     }
 
-    console.error('Copilot API Error: all providers failed', lastError);
-    return Response.json({ error: lastError?.message || 'Something went wrong with all AI providers.' }, { status: 500 });
+    // Attempt 2: Fallback - stream WITHOUT tools (guaranteed to work if the provider is up)
+    console.warn("[Copilot] All providers with tools failed, trying without tools...");
+    for (const providerEntry of providerModels) {
+      try {
+        const result = await streamText({
+          model: providerEntry.model,
+          maxSteps: 1,
+          temperature: 0.2,
+          system: systemPrompt,
+          messages: coreMessages,
+          // No tools
+        });
+        return result.toUIMessageStreamResponse();
+      } catch (providerError) {
+        console.warn(`Copilot provider ${providerEntry.name} without tools also failed:`, providerError?.message || providerError);
+      }
+    }
+
+    return Response.json({ error: 'All AI providers failed. Please try again.' }, { status: 500 });
   } catch (error) {
     console.error("Copilot API Error:", error);
     return Response.json({ error: error.message || "Something went wrong." }, { status: 500 });
