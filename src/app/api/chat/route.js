@@ -1,4 +1,4 @@
-import { streamText, generateText } from "ai";
+import { streamText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -37,7 +37,7 @@ export async function POST(req) {
 
     const { data: account } = await adminClient
       .from("accounts")
-      .select("plan, business_name")
+      .select("plan, business_name, country, currency")
       .eq("id", user.id)
       .single();
 
@@ -45,7 +45,7 @@ export async function POST(req) {
     const maxMsgs = planLimits.copilot_msgs_per_day;
 
     if (maxMsgs === 0) {
-      return Response.json({ error: "Copilot is not available on your current plan. Please upgrade." }, { status: 403 });
+      return Response.json({ error: "Sellora Agent is not available on your current plan. Please upgrade." }, { status: 403 });
     }
 
     // Basic rate limit check (skip in development)
@@ -59,7 +59,7 @@ export async function POST(req) {
         .gte("created_at", oneDayAgo);
 
       if (count >= maxMsgs) {
-        return Response.json({ error: "Daily Copilot limit reached. Upgrade for more." }, { status: 429 });
+        return Response.json({ error: "Daily Agent limit reached. Upgrade for more." }, { status: 429 });
       }
     }
 
@@ -89,11 +89,36 @@ export async function POST(req) {
       };
     });
 
-    const systemPrompt = `You are Sellora Copilot, a helpful AI assistant for the owner of "${account?.business_name || 'this store'}". 
-Your job is to help them analyze their store data, write product descriptions, and manage their business. 
-You can use tools to fetch live data about their store. Be concise, professional, and use markdown formatting.`;
+    const businessName = account?.business_name || "this store";
+    const currency = account?.currency || "EGP";
 
-    // Build provider model list with fallback chain (no Cohere)
+    const systemPrompt = `You are Sellora Agent, an intelligent AI business assistant for the owner of "${businessName}".
+
+YOU ARE NOT A CHATBOT — you are an AGENTIC AI that takes ACTION. You have tools to fetch real data, create products, generate reports, manage orders, and run the store. Always use your tools when relevant.
+
+CORE CAPABILITIES:
+- 📊 Sales & Revenue: Generate detailed sales reports, analyze income trends, show latest orders, get order details
+- 📦 Product Management: Create new products, update existing ones, search products, delete/archive products, check inventory, draft descriptions, get inventory alerts
+- 🛒 Order Management: View latest sales, update order status, get order details
+- 👥 Customer Insights: Analyze customer data, show top spenders, returning customer stats
+- 💬 Conversation Overview: Check recent conversations, see unread messages
+- 🔍 Search & Filter: Search products by name/category, filter inventory
+
+BEHAVIOR GUIDELINES:
+1. Be PROACTIVE — if the seller gives a vague request like "add a product", ask for the necessary details (name, price) then create it immediately.
+2. Be CONCISE but thorough — use bullet points and markdown formatting for reports.
+3. When creating products from a prompt, GENERATE a compelling product description even if the seller doesn't ask for one.
+4. Always use real data from your tools — never make up numbers or statistics.
+5. For sales reports, structure them with clear sections: Revenue Summary, Order Breakdown, Top Products, and Recommendations.
+6. Currency: Use ${currency} for all monetary values.
+7. When the seller asks "how are my sales?" or "give me a report", use get_sales_report for detailed analysis, not just get_store_analytics.
+8. After performing an action (like creating a product), confirm what was done and suggest next steps.
+9. When asked to update an order, confirm the order details before updating the status.
+10. For inventory issues, use get_inventory_alerts to show out-of-stock and low-stock products proactively.
+
+IMPORTANT: You have powerful tools. USE THEM. Don't just talk about what you could do — actually do it.`;
+
+    // Build provider model list with fallback chain
     const providerModels = [];
 
     if (process.env.VECTORENGINE_API_KEY) {
@@ -138,12 +163,12 @@ You can use tools to fetch live data about their store. Be concise, professional
         });
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
-        console.warn(`Copilot provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
+        console.warn(`Agent provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
       }
     }
 
-    // Attempt 2: Fallback - stream WITHOUT tools (guaranteed to work if the provider is up)
-    console.warn("[Copilot] All providers with tools failed, trying without tools...");
+    // Attempt 2: Fallback - stream WITHOUT tools
+    console.warn("[Agent] All providers with tools failed, trying without tools...");
     for (const providerEntry of providerModels) {
       try {
         const result = await streamText({
@@ -152,17 +177,16 @@ You can use tools to fetch live data about their store. Be concise, professional
           temperature: 0.2,
           system: systemPrompt,
           messages: coreMessages,
-          // No tools
         });
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
-        console.warn(`Copilot provider ${providerEntry.name} without tools also failed:`, providerError?.message || providerError);
+        console.warn(`Agent provider ${providerEntry.name} without tools also failed:`, providerError?.message || providerEntry);
       }
     }
 
     return Response.json({ error: 'All AI providers failed. Please try again.' }, { status: 500 });
   } catch (error) {
-    console.error("Copilot API Error:", error);
+    console.error("Agent API Error:", error);
     return Response.json({ error: error.message || "Something went wrong." }, { status: 500 });
   }
 }

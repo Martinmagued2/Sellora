@@ -255,7 +255,7 @@ export default function DashboardLayout({ children }) {
           </div>
 
           <div className="topbar-right">
-            <button className="topbar-btn" id="topbar-ai" title="AI Assistant" onClick={() => alert("Global AI Assistant search coming soon!")}>
+            <button className="topbar-btn" id="topbar-ai" title="Sellora Agent" onClick={() => document.getElementById("copilot-toggle")?.click()}>
               <Bot size={18} />
             </button>
             <button className="topbar-btn" id="topbar-notifications" title="Notifications" onClick={() => alert("Notification center coming soon!")}>

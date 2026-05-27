@@ -1,33 +1,51 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, X, Send, Bot, Loader2, MessageSquare, TrendingUp, Package, ChevronRight } from "lucide-react";
+import { Sparkles, X, Send, Bot, Loader2, TrendingUp, Package, FileText, Users, DollarSign, ChevronRight, Wrench, Trash2, AlertTriangle } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 
 // Helper: extract text content from a UIMessage's parts array
 function getMessageText(msg) {
-  if (!msg.parts || !Array.isArray(msg.parts)) return "";
+  if (!msg.parts || !Array.isArray(msg.parts)) return msg.content || "";
   return msg.parts
     .filter((p) => p.type === "text")
     .map((p) => p.text)
     .join("");
 }
 
-// Helper: check if message has tool invocations
-function hasToolInvocations(msg) {
-  if (!msg.parts || !Array.isArray(msg.parts)) return false;
-  return msg.parts.some((p) => p.type === "tool-invocation");
+// Helper: get tool invocations from a message
+function getToolInvocations(msg) {
+  if (!msg.parts || !Array.isArray(msg.parts)) return [];
+  return msg.parts.filter((p) => p.type === "tool-invocation");
 }
+
+// Tool name to friendly label mapping
+const TOOL_LABELS = {
+  get_store_analytics: { label: "Fetching store analytics...", icon: "📊" },
+  get_sales_report: { label: "Generating sales report...", icon: "📋" },
+  get_latest_sales: { label: "Fetching recent sales...", icon: "💰" },
+  get_top_products: { label: "Loading products...", icon: "📦" },
+  create_product: { label: "Creating product...", icon: "✨" },
+  update_product: { label: "Updating product...", icon: "✏️" },
+  draft_product_description: { label: "Drafting description...", icon: "📝" },
+  delete_product: { label: "Archiving product...", icon: "🗑️" },
+  search_products: { label: "Searching products...", icon: "🔍" },
+  get_inventory_alerts: { label: "Checking inventory alerts...", icon: "⚠️" },
+  update_order_status: { label: "Updating order status...", icon: "🚚" },
+  get_order_details: { label: "Loading order details...", icon: "🧾" },
+  get_recent_conversations: { label: "Loading conversations...", icon: "💬" },
+  get_customer_insights: { label: "Analyzing customers...", icon: "👥" },
+};
 
 export default function CopilotPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef(null);
 
-  const { messages, sendMessage, status, error, clearError } = useChat({
+  const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
     api: "/api/chat",
     onError: (err) => {
-      console.error("Copilot Error:", err);
+      console.error("Agent Error:", err);
     }
   });
 
@@ -47,6 +65,11 @@ export default function CopilotPanel() {
     sendMessage(text);
   };
 
+  const handleClearChat = () => {
+    setMessages([]);
+    clearError?.();
+  };
+
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -54,9 +77,11 @@ export default function CopilotPanel() {
   }, [messages, status]);
 
   const suggestions = [
-    { icon: TrendingUp, text: "How are my sales this week?", color: "#6c5ce7" },
-    { icon: Package, text: "What are my top products?", color: "#00b894" },
-    { icon: MessageSquare, text: "Draft a product description", color: "#e17055" },
+    { icon: DollarSign, text: "Give me a sales report for this month", color: "#6c5ce7" },
+    { icon: Package, text: "Add a new product: Wireless Earbuds, $49.99", color: "#00b894" },
+    { icon: TrendingUp, text: "What are my latest sales?", color: "#00d2ff" },
+    { icon: AlertTriangle, text: "Show me inventory alerts", color: "#e17055" },
+    { icon: Users, text: "Give me customer insights", color: "#a29bfe" },
   ];
 
   return (
@@ -64,7 +89,7 @@ export default function CopilotPanel() {
       <button
         className={`copilot-fab ${isOpen ? "active" : ""}`}
         onClick={() => setIsOpen(!isOpen)}
-        title="Ask Copilot"
+        title="Sellora Agent"
         id="copilot-toggle"
       >
         <div className="copilot-fab-inner">
@@ -82,15 +107,22 @@ export default function CopilotPanel() {
                 <Sparkles size={16} />
               </div>
               <div>
-                <span className="copilot-title">Sellora Copilot</span>
+                <span className="copilot-title">Sellora Agent</span>
                 <span className="copilot-subtitle">
-                  {isLoading ? "Thinking..." : "AI Assistant"}
+                  {isLoading ? "Working on it..." : "AI Business Assistant"}
                 </span>
               </div>
             </div>
-            <button className="copilot-close" onClick={() => setIsOpen(false)} id="copilot-close">
-              <X size={16} />
-            </button>
+            <div className="copilot-header-actions">
+              {messages.length > 0 && (
+                <button className="copilot-clear-btn" onClick={handleClearChat} title="Clear chat">
+                  <Trash2 size={14} />
+                </button>
+              )}
+              <button className="copilot-close" onClick={() => setIsOpen(false)} id="copilot-close">
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Messages */}
@@ -101,8 +133,8 @@ export default function CopilotPanel() {
                 <div className="copilot-empty-icon">
                   <Sparkles size={28} />
                 </div>
-                <h3>How can I help you today?</h3>
-                <p>I can analyze your sales, draft product descriptions, or provide business insights.</p>
+                <h3>Sellora Agent</h3>
+                <p>Your AI business assistant. I can manage products, generate sales reports, analyze customers, and more.</p>
                 <div className="copilot-suggestions">
                   {suggestions.map((s, i) => (
                     <button
@@ -122,8 +154,8 @@ export default function CopilotPanel() {
               </div>
             ) : (
               messages.map((msg) => {
-                const text = getMessageText(msg) || msg.content;
-                const hasTool = hasToolInvocations(msg);
+                const text = getMessageText(msg);
+                const toolInvocations = getToolInvocations(msg);
 
                 return (
                   <div key={msg.id} className={`copilot-msg ${msg.role}`}>
@@ -133,13 +165,28 @@ export default function CopilotPanel() {
                       </div>
                     )}
                     <div className="copilot-msg-bubble">
-                      {text || (hasTool ? <span className="copilot-tool-call">Analyzing your data...</span> : null)}
+                      {/* Show tool invocations as status badges */}
+                      {toolInvocations.length > 0 && (
+                        <div className="copilot-tool-badges">
+                          {toolInvocations.map((inv, idx) => {
+                            const toolInfo = TOOL_LABELS[inv.toolName] || { label: inv.toolName, icon: "🔧" };
+                            const isComplete = inv.state === "result" || inv.state === "partial";
+                            return (
+                              <span key={idx} className={`copilot-tool-badge ${isComplete ? "complete" : "running"}`}>
+                                {isComplete ? "✓" : <Loader2 size={10} className="spin" />} {toolInfo.icon} {toolInfo.label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* Show text content */}
+                      {text && <div className="copilot-text-content">{text}</div>}
                     </div>
                   </div>
                 );
               })
             )}
-            {isLoading && messages.length > 0 && (
+            {isLoading && messages.length > 0 && !messages[messages.length - 1]?.parts?.some(p => p.type === "tool-invocation") && (
               <div className="copilot-msg assistant">
                 <div className="copilot-msg-avatar">
                   <Bot size={13} />
@@ -163,7 +210,7 @@ export default function CopilotPanel() {
           <form className="copilot-input-area" onSubmit={handleSubmit}>
             <input
               type="text"
-              placeholder="Ask anything..."
+              placeholder="Ask Sellora Agent anything..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isLoading}

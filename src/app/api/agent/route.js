@@ -6,13 +6,10 @@ import { cookies } from "next/headers";
 import { createCopilotTools } from "@/lib/ai/copilot-tools";
 
 /**
- * Generic AI agent endpoint.
- * Accepts a POST request with `{ messages: [...] }` where each message has
- *   - role: "user" | "assistant"
- *   - content: string
- * Returns a streamed response using available AI providers and the same tool set as the
- * Copilot. This can be used as a base for any custom agent.
- * Provider chain: Groq (primary) → Google Gemini (fallback)
+ * Sellora Agent API endpoint (alternative route).
+ * Accepts a POST request with `{ messages: [...] }` and returns a streamed
+ * response using available AI providers and the full agent tool set.
+ * This mirrors /api/chat but is available as /api/agent for flexibility.
  */
 export async function POST(req) {
   try {
@@ -36,10 +33,42 @@ export async function POST(req) {
 
     const body = await req.json();
     const coreMessages = (body.messages || []).map((msg) => {
-      return { role: msg.role, content: msg.content ?? "" };
+      let content = "";
+      if (msg.parts && Array.isArray(msg.parts)) {
+        content = msg.parts
+          .filter((p) => p.type === "text")
+          .map((p) => p.text)
+          .join("");
+      }
+      if (!content && typeof msg.content === "string") {
+        content = msg.content;
+      }
+      return { role: msg.role, content: content || "" };
     });
 
-    // Build provider fallback chain (no Cohere)
+    const systemPrompt = `You are Sellora Agent, an intelligent AI business assistant.
+
+YOU ARE NOT A CHATBOT — you are an AGENTIC AI that takes ACTION. You have tools to fetch real data, create products, generate reports, manage orders, and run the store. Always use your tools when relevant.
+
+CORE CAPABILITIES:
+- Sales & Revenue: Generate detailed sales reports, analyze income trends, show latest orders
+- Product Management: Create, update, search, delete products, check inventory, get alerts
+- Order Management: View sales, update order status, get order details
+- Customer Insights: Analyze customer data, top spenders, returning stats
+- Conversation Overview: Check recent conversations and messages
+
+BEHAVIOR GUIDELINES:
+1. Be PROACTIVE — ask for details when needed, then take action immediately.
+2. Be CONCISE but thorough — use markdown formatting for reports.
+3. Generate compelling product descriptions when creating products.
+4. Always use real data from tools — never make up numbers.
+5. For reports, structure with: Revenue Summary, Order Breakdown, Top Products, Recommendations.
+6. After actions, confirm what was done and suggest next steps.
+7. For inventory issues, proactively show alerts.
+
+IMPORTANT: You have powerful tools. USE THEM. Don't just talk — act.`;
+
+    // Build provider fallback chain
     const providerModels = [];
 
     if (process.env.GROQ_API_KEY) {
@@ -61,27 +90,43 @@ export async function POST(req) {
     }
 
     const tools = createCopilotTools(user.id);
-    let lastError = null;
 
+    // Attempt 1: Try with tools
     for (const providerEntry of providerModels) {
       try {
         const result = await streamText({
           model: providerEntry.model,
           maxSteps: 5,
           temperature: 0.2,
-          system: "You are a helpful AI assistant. Use the provided tools when appropriate.",
+          system: systemPrompt,
           messages: coreMessages,
           tools,
         });
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
-        lastError = providerError;
-        console.warn(`Agent provider ${providerEntry.name} failed:`, providerError?.message || providerError);
+        console.warn(`Agent provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
       }
     }
 
-    console.error('Agent API Error: all providers failed', lastError);
-    return Response.json({ error: lastError?.message || 'Something went wrong with all AI providers.' }, { status: 500 });
+    // Attempt 2: Fallback without tools
+    console.warn("[Agent] All providers with tools failed, trying without tools...");
+    for (const providerEntry of providerModels) {
+      try {
+        const result = await streamText({
+          model: providerEntry.model,
+          maxSteps: 1,
+          temperature: 0.2,
+          system: systemPrompt,
+          messages: coreMessages,
+        });
+        return result.toUIMessageStreamResponse();
+      } catch (providerError) {
+        console.warn(`Agent provider ${providerEntry.name} without tools also failed:`, providerError?.message || providerError);
+      }
+    }
+
+    console.error('Agent API Error: all providers failed');
+    return Response.json({ error: 'All AI providers failed. Please try again.' }, { status: 500 });
   } catch (err) {
     console.error("Agent API error:", err);
     return Response.json({ error: err.message || "Unexpected error" }, { status: 500 });
