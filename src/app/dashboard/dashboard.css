@@ -1785,6 +1785,27 @@ select.form-input {
   align-items: center;
 }
 
+.copilot-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.copilot-generated-image {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  max-width: 220px;
+}
+
+.copilot-generated-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 7px;
+}
+
 .copilot-text-content h1,
 .copilot-text-content h2,
 .copilot-text-content h3 {

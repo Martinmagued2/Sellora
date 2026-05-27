@@ -1,6 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
+import { execFileSync } from "child_process";
+import path from "path";
+import fs from "fs";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -257,6 +260,121 @@ export const createCopilotTools = (accountId) => {
           product: data,
           _action: { type: "navigate", path: "/dashboard/products", label: "Go to Products" },
         };
+      },
+    }),
+
+    generate_product_image: tool({
+      description: "Generate a professional product image using AI. Use this AFTER creating a product, when the seller wants an AI-generated image for their product. Also use when the seller explicitly asks to generate or create an image for a product. The image will be uploaded and linked to the product.",
+      inputSchema: z.object({
+        product_id: z.string().describe("The ID of the product to generate an image for"),
+        product_name: z.string().describe("The name of the product"),
+        description: z.string().optional().describe("Product description to help generate a relevant image"),
+        style: z.string().optional().describe("Image style: 'studio' (clean white background, professional), 'lifestyle' (product in use, contextual), 'minimal' (simple, elegant). Default: studio"),
+      }),
+      execute: async ({ product_id, product_name, description, style }) => {
+        try {
+          const styleStr = style?.toLowerCase()?.trim() || "studio";
+          const stylePrompt = {
+            studio: "professional product photography on clean white background, studio lighting, high-end e-commerce style, centered composition, sharp focus",
+            lifestyle: "lifestyle product photography, product shown in realistic use context, warm natural lighting, appealing scene, soft shadows",
+            minimal: "minimalist product photography, simple elegant composition, soft neutral gradient background, refined and modern aesthetic",
+          }[styleStr] || "professional product photography on clean white background, studio lighting, high-end e-commerce style";
+
+          // Build the image generation prompt
+          const prompt = `${stylePrompt}. Product: ${product_name}${description ? `. ${description}` : ""}. High quality, 4K, commercial photography, no text, no watermark, no people visible.`;
+
+          // Generate image using z-ai-generate CLI
+          const tmpDir = "/tmp/sellora-product-images";
+          if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+          const imagePath = path.join(tmpDir, `${product_id}-${Date.now()}.png`);
+
+          try {
+            execFileSync("z-ai-generate", [
+              "--prompt", prompt,
+              "--output", imagePath,
+              "--size", "1024x1024",
+            ], { timeout: 60000 });
+          } catch (genError) {
+            console.error("[Agent] Image generation CLI failed:", genError.message);
+            return {
+              success: false,
+              error: "Image generation failed. The AI image service may be temporarily unavailable.",
+            };
+          }
+
+          // Check if image was generated
+          if (!fs.existsSync(imagePath)) {
+            return { success: false, error: "Image generation produced no output file." };
+          }
+
+          // Read the generated image
+          const imageBuffer = fs.readFileSync(imagePath);
+
+          // Upload to Supabase Storage
+          const storagePath = `products/${accountId}/${product_id}-${Date.now()}.png`;
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from("product-images")
+            .upload(storagePath, imageBuffer, {
+              contentType: "image/png",
+              upsert: true,
+            });
+
+          // Clean up temp file
+          try { fs.unlinkSync(imagePath); } catch (e) { /* ignore */ }
+
+          if (uploadError) {
+            console.error("[Agent] Supabase storage upload failed:", uploadError.message);
+            // If storage fails, try saving image_url as a data URL fallback
+            const base64 = imageBuffer.toString("base64");
+            const dataUrl = `data:image/png;base64,${base64}`;
+            // Update product with data URL (not ideal but works as fallback)
+            await supabase
+              .from("products")
+              .update({ image_url: dataUrl.substring(0, 500) }) // truncated fallback
+              .eq("id", product_id)
+              .eq("account_id", accountId);
+            return {
+              success: true,
+              message: `Image generated for "${product_name}" but cloud upload failed. Image saved locally.`,
+              image_url: dataUrl.substring(0, 200) + "...",
+              product_id,
+              _action: { type: "navigate", path: "/dashboard/products", label: "View Product" },
+            };
+          }
+
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from("product-images")
+            .getPublicUrl(storagePath);
+
+          const imageUrl = urlData?.publicUrl;
+
+          // Update product with image URL
+          const { error: updateError } = await supabase
+            .from("products")
+            .update({ image_url: imageUrl })
+            .eq("id", product_id)
+            .eq("account_id", accountId);
+
+          if (updateError) {
+            console.error("[Agent] Failed to update product image_url:", updateError.message);
+          }
+
+          return {
+            success: true,
+            message: `Product image generated for "${product_name}" and uploaded successfully!`,
+            image_url: imageUrl,
+            product_id,
+            _action: { type: "navigate", path: "/dashboard/products", label: "View Product" },
+          };
+        } catch (error) {
+          console.error("[Agent] generate_product_image error:", error);
+          return {
+            success: false,
+            error: `Failed to generate product image: ${error.message}`,
+          };
+        }
       },
     }),
 

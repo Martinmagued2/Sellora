@@ -67,6 +67,7 @@ const TOOL_LABELS = {
   get_latest_sales: { label: "Fetching recent sales...", doneLabel: "Recent sales loaded", icon: "💰" },
   get_top_products: { label: "Loading products...", doneLabel: "Products loaded", icon: "📦" },
   create_product: { label: "Creating product...", doneLabel: "Product created", icon: "✨" },
+  generate_product_image: { label: "Generating product image...", doneLabel: "Product image generated", icon: "🎨" },
   update_product: { label: "Updating product...", doneLabel: "Product updated", icon: "✏️" },
   draft_product_description: { label: "Drafting description...", doneLabel: "Description drafted", icon: "📝" },
   delete_product: { label: "Archiving product...", doneLabel: "Product archived", icon: "🗑️" },
@@ -103,6 +104,8 @@ export default function CopilotPanel() {
       return "Let me analyze your customer data...";
     if (lower.includes("product") && (lower.includes("add") || lower.includes("create")))
       return "Let me create that product for you...";
+    if (lower.includes("image") || lower.includes("photo") || lower.includes("picture"))
+      return "Let me generate a product image for you...";
     if (lower.includes("inventory") || lower.includes("stock"))
       return "Let me check your inventory for alerts...";
     if (lower.includes("order") || lower.includes("latest sale"))
@@ -154,7 +157,7 @@ export default function CopilotPanel() {
 
   const suggestions = [
     { icon: DollarSign, text: "Give me a sales report for this month", color: "#6c5ce7" },
-    { icon: Package, text: "Add a new product: Wireless Earbuds, $49.99", color: "#00b894" },
+    { icon: Package, text: "Add a new product with image: Wireless Earbuds, $49.99", color: "#00b894" },
     { icon: TrendingUp, text: "What are my latest sales?", color: "#00d2ff" },
     { icon: AlertTriangle, text: "Show me inventory alerts", color: "#e17055" },
     { icon: Users, text: "Give me customer insights", color: "#a29bfe" },
@@ -242,6 +245,15 @@ export default function CopilotPanel() {
                       action.path && self.findIndex(a => a.path === action.path) === index
                     );
 
+                  // Collect generated images from tool outputs
+                  const generatedImages = toolInvs
+                    .map((inv) => {
+                      const output = inv.output || inv.result;
+                      if (output && output.image_url) return output.image_url;
+                      return null;
+                    })
+                    .filter(Boolean);
+
                   // Skip empty user messages
                   if (msg.role === "user" && !text) return null;
 
@@ -271,6 +283,16 @@ export default function CopilotPanel() {
                         )}
                         {/* Show text content */}
                         {text && <div className="copilot-text-content">{text}</div>}
+                        {/* Show generated product images */}
+                        {generatedImages.length > 0 && (
+                          <div className="copilot-images">
+                            {generatedImages.map((imgUrl, idx) => (
+                              <div key={idx} className="copilot-generated-image">
+                                <img src={imgUrl} alt="Generated product image" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {/* Show action buttons */}
                         {actionButtons.length > 0 && (
                           <div className="copilot-actions">
