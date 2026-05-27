@@ -55,14 +55,14 @@ export default function CopilotPanel() {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
     clearError?.();
-    sendMessage(input);
+    sendMessage({ text: input });
     setInput("");
   };
 
   const handleSuggestionClick = (text) => {
     if (isLoading) return;
     clearError?.();
-    sendMessage(text);
+    sendMessage({ text });
   };
 
   const handleClearChat = () => {
