@@ -51,15 +51,18 @@ export const createCopilotTools = (accountId) => {
     }),
 
     get_sales_report: tool({
-      description: "Generate a detailed sales/income report for the store. Includes revenue breakdown, order stats, top-selling products, and trends. Use when the seller asks for a report, income summary, or detailed sales analysis.",
+      description: "Generate a detailed sales/income report for the store. Includes revenue breakdown, order stats, top-selling products, and trends. Use when the seller asks for a report, income summary, or detailed sales analysis. The period must be one of: today, week, month, quarter, year.",
       inputSchema: z.object({
-        period: z.enum(["today", "week", "month", "quarter", "year"]).describe("The time period for the report"),
+        period: z.string().describe("The time period for the report. Must be one of: today, week, month, quarter, year"),
       }),
       execute: async ({ period }) => {
+        // Normalize period string to valid value
+        const periodMap = { today: 'today', week: 'week', month: 'month', quarterly: 'quarter', quarter: 'quarter', year: 'year', yearly: 'year', annual: 'year', daily: 'today', weekly: 'week', monthly: 'month' };
+        const normalizedPeriod = periodMap[period?.toLowerCase()?.trim()] || 'month';
         const now = new Date();
         let startDate;
 
-        switch (period) {
+        switch (normalizedPeriod) {
           case "today":
             startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             break;
@@ -140,7 +143,7 @@ export const createCopilotTools = (accountId) => {
 
         return {
           success: true,
-          period,
+          period: normalizedPeriod,
           startDate: startDate.toISOString(),
           generatedAt: now.toISOString(),
           revenue: {
@@ -378,15 +381,17 @@ export const createCopilotTools = (accountId) => {
     }),
 
     update_order_status: tool({
-      description: "Update the status of an order (e.g. pending, confirmed, shipped, delivered, cancelled). Use when the seller wants to change an order's status.",
+      description: "Update the status of an order. Use when the seller wants to change an order's status. Valid statuses: pending, confirmed, shipped, delivered, cancelled.",
       inputSchema: z.object({
         order_id: z.string().describe("The ID of the order to update"),
-        status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]).describe("New order status"),
+        status: z.string().describe("New order status. Must be one of: pending, confirmed, shipped, delivered, cancelled"),
       }),
       execute: async ({ order_id, status }) => {
+        const validStatuses = ["pending", "confirmed", "shipped", "delivered", "cancelled"];
+        const normalizedStatus = validStatuses.find(s => s === status?.toLowerCase()?.trim()) || status;
         const { data, error } = await supabase
           .from("orders")
-          .update({ status })
+          .update({ status: normalizedStatus })
           .eq("id", order_id)
           .eq("account_id", accountId)
           .select("id, order_number, status, total")
@@ -396,7 +401,7 @@ export const createCopilotTools = (accountId) => {
         if (!data) return { success: false, error: "Order not found" };
         return {
           success: true,
-          message: `Order #${data.order_number || data.id} status updated to "${status}"`,
+          message: `Order #${data.order_number || data.id} status updated to "${normalizedStatus}"`,
           order: data,
           _action: { type: "navigate", path: "/dashboard/orders", label: "View Orders" },
         };

@@ -151,6 +151,11 @@ IMPORTANT: You have powerful tools. USE THEM. Don't just talk about what you cou
 
     const tools = createCopilotTools(user.id);
 
+    // ─── Streaming with provider fallback ───
+    // Note: Groq "Failed to call a function" errors surface mid-stream.
+    // We've fixed the root cause by replacing z.enum() with z.string() in tools,
+    // but we still wrap in try/catch for other potential errors.
+
     // Attempt 1: Try streaming with tools
     for (const providerEntry of providerModels) {
       try {
@@ -181,7 +186,7 @@ IMPORTANT: You have powerful tools. USE THEM. Don't just talk about what you cou
         });
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
-        console.warn(`Agent provider ${providerEntry.name} without tools also failed:`, providerError?.message || providerEntry);
+        console.warn(`Agent provider ${providerEntry.name} without tools also failed:`, providerError?.message || providerError);
       }
     }
 
