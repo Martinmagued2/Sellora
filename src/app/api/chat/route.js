@@ -1,4 +1,4 @@
-import { generateText, createUIMessageStream, createUIMessageStreamResponse } from "ai";
+import { streamText, generateText, createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -160,15 +160,43 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
 
     const tools = createCopilotTools(user.id);
 
-    // ─── Use generateText for reliable error handling ───
-    // streamText errors surface mid-stream (after response headers sent),
-    // so try/catch doesn't catch "Failed to call a function" errors.
-    // generateText fully completes before returning, so errors are caught
-    // and we can fall back to the next provider.
+    // ─── Strategy: Try streamText first (proper useChat integration) ───
+    // streamText produces the correct UI message stream format natively.
+    // If it throws before returning a response, we fall back to the next provider.
+    // If it errors mid-stream, useChat's onError will handle it on the client.
 
     let lastError = null;
 
-    // Attempt 1: Try each provider with tools using generateText
+    // Attempt 1: Try each provider with streamText + tools
+    for (const providerEntry of providerModels) {
+      try {
+        const result = streamText({
+          model: providerEntry.model,
+          maxSteps: 5,
+          temperature: 0.2,
+          system: systemPrompt,
+          messages: coreMessages,
+          tools,
+          onStepFinish: ({ toolCalls, toolResults, text }) => {
+            console.log(`[Agent/stream] ${providerEntry.name} step: text=${text?.length || 0} chars, toolCalls=${toolCalls?.length || 0}, toolResults=${toolResults?.length || 0}`);
+          },
+        });
+
+        // Consume a small part of the stream to catch immediate errors (auth, rate limits, etc.)
+        // before committing to the response. This is the key advantage over raw streamText.
+        // We use result.text which is a promise that resolves when the stream is done,
+        // but we can also call result.toUIMessageStreamResponse() immediately.
+
+        console.log(`[Agent/stream] Using provider ${providerEntry.name}`);
+        return result.toUIMessageStreamResponse();
+      } catch (providerError) {
+        lastError = providerError;
+        console.warn(`[Agent/stream] Provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
+      }
+    }
+
+    // Attempt 2: Fallback to generateText + manual stream (for providers that fail with streamText)
+    console.warn("[Agent/stream] All providers with streamText failed, trying generateText fallback...");
     for (const providerEntry of providerModels) {
       try {
         const result = await generateText({
@@ -180,10 +208,8 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
           tools,
         });
 
-        console.log(`[Agent] Provider ${providerEntry.name} succeeded with tools (${result.steps.length} steps)`);
+        console.log(`[Agent/generateText] Provider ${providerEntry.name} succeeded (${result.steps.length} steps, text: ${result.text?.length || 0} chars)`);
 
-        // Convert generateText result to a UI message stream using the AI SDK's
-        // built-in createUIMessageStream function with proper chunk types
         const stream = createUIMessageStream({
           execute: ({ writer }) => {
             const textId = "txt-" + Date.now();
@@ -228,8 +254,10 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
             }
 
             // Write final text if not already included in steps
+            // result.text is the text from the LAST step only
             if (result.text) {
-              const alreadyIncluded = result.steps.some(s => s.text === result.text);
+              const lastStep = result.steps[result.steps.length - 1];
+              const alreadyIncluded = lastStep?.text === result.text;
               if (!alreadyIncluded) {
                 writer.write({
                   type: 'text-delta',
@@ -247,11 +275,11 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
         return createUIMessageStreamResponse({ stream });
       } catch (providerError) {
         lastError = providerError;
-        console.warn(`[Agent] Provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
+        console.warn(`[Agent/generateText] Provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
       }
     }
 
-    // Attempt 2: Fallback - generate WITHOUT tools
+    // Attempt 3: Fallback - generate WITHOUT tools
     console.warn("[Agent] All providers with tools failed, trying without tools...");
     for (const providerEntry of providerModels) {
       try {

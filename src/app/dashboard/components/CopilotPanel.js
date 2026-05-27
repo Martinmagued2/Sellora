@@ -8,7 +8,7 @@ import { useChat } from "@ai-sdk/react";
 // Helper: extract text content from a UIMessage
 // Handles ALL possible formats: parts array, content string, content array
 function getMessageText(msg) {
-  // 1. Try parts first (AI SDK v6 format from createUIMessageStream)
+  // 1. Try parts first (AI SDK v6 format)
   if (msg.parts && Array.isArray(msg.parts)) {
     const textFromParts = msg.parts
       .filter((p) => p.type === "text")
@@ -16,7 +16,7 @@ function getMessageText(msg) {
       .join("");
     if (textFromParts) return textFromParts;
   }
-  // 2. Content as a plain string
+  // 2. Content as a plain string (older format)
   if (typeof msg.content === "string" && msg.content.trim()) return msg.content;
   // 3. Content as array of content parts
   if (Array.isArray(msg.content)) {
@@ -29,7 +29,7 @@ function getMessageText(msg) {
 }
 
 // Helper: get tool invocations from a message
-// Checks both parts array and toolInvocations array (older format)
+// Checks both parts array (AI SDK v6) and toolInvocations array (older format)
 function getToolInvocations(msg) {
   // AI SDK v6: parts with type starting with 'tool-'
   if (msg.parts && Array.isArray(msg.parts)) {
@@ -50,9 +50,19 @@ function getToolInvocations(msg) {
   return [];
 }
 
+// Check if a tool invocation is complete (has output)
+function isToolComplete(inv) {
+  // AI SDK v6 states: input-streaming, input-available, output-available, output-error, output-denied
+  if (inv.state === "output-available" || inv.state === "output-error" || inv.state === "result") {
+    return true;
+  }
+  // Fallback: check if output exists
+  const output = inv.output || inv.result;
+  return output !== undefined && output !== null;
+}
+
 // Extract _action from tool invocation results
 function getToolAction(inv) {
-  // Check output field (AI SDK v6)
   const output = inv.output || inv.result;
   if (output && output._action) {
     return output._action;
@@ -89,8 +99,8 @@ export default function CopilotPanel() {
   const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
     api: "/api/chat",
     onError: (err) => {
-      console.error("Agent Error:", err);
-    }
+      console.error("[Copilot] useChat error:", err);
+    },
   });
 
   const isLoading = status === "submitted" || status === "streaming";
@@ -257,6 +267,9 @@ export default function CopilotPanel() {
                   // Skip empty user messages
                   if (msg.role === "user" && !text) return null;
 
+                  // Skip completely empty assistant messages (no text, no tools)
+                  if (msg.role === "assistant" && !text && toolInvs.length === 0) return null;
+
                   return (
                     <div key={msg.id} className={`copilot-msg ${msg.role}`}>
                       {msg.role === "assistant" && (
@@ -271,11 +284,10 @@ export default function CopilotPanel() {
                             {toolInvs.map((inv, idx) => {
                               const toolName = inv.type.startsWith('tool-') ? inv.type.slice(5) : inv.toolName;
                               const toolInfo = TOOL_LABELS[toolName] || { label: `${toolName}...`, doneLabel: `${toolName} done`, icon: "🔧" };
-                              const output = inv.output || inv.result;
-                              const isComplete = output !== undefined || inv.state === "result";
+                              const complete = isToolComplete(inv);
                               return (
-                                <span key={idx} className={`copilot-tool-badge ${isComplete ? "complete" : "running"}`}>
-                                  {isComplete ? "✓" : <Loader2 size={10} className="spin" />} {toolInfo.icon} {isComplete ? toolInfo.doneLabel : toolInfo.label}
+                                <span key={idx} className={`copilot-tool-badge ${complete ? "complete" : "running"}`}>
+                                  {complete ? "✓" : <Loader2 size={10} className="spin" />} {toolInfo.icon} {complete ? toolInfo.doneLabel : toolInfo.label}
                                 </span>
                               );
                             })}
