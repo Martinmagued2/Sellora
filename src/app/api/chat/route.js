@@ -167,9 +167,16 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
     // surface mid-stream after the response headers are already sent.
 
     let lastError = null;
+    let groqRateLimited = false; // Skip remaining Groq providers after rate limit
 
     // Attempt 1: Try each provider with tools
     for (const providerEntry of providerModels) {
+      // If Groq was rate-limited, skip all remaining Groq providers
+      if (groqRateLimited && providerEntry.name.startsWith('groq-')) {
+        console.warn(`[Agent] Skipping ${providerEntry.name} because Groq rate limit was already hit`);
+        continue;
+      }
+
       try {
         const result = await generateText({
           model: providerEntry.model,
@@ -232,13 +239,27 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
         return createUIMessageStreamResponse({ stream });
       } catch (providerError) {
         lastError = providerError;
-        console.warn(`[Agent] ${providerEntry.name} failed:`, providerError?.message?.substring(0, 120) || providerError);
+        const errMsg = providerError?.message || '';
+        console.warn(`[Agent] ${providerEntry.name} failed:`, errMsg.substring(0, 200));
+
+        // Detect Groq rate limit — mark all Groq providers as unavailable
+        if (errMsg.includes('Rate limit') && providerEntry.name.startsWith('groq-')) {
+          groqRateLimited = true;
+          console.warn(`[Agent] Groq rate limit detected, skipping remaining Groq providers`);
+        }
       }
     }
 
     // Attempt 2: Fallback - generate WITHOUT tools
     console.warn("[Agent] All providers with tools failed, trying without tools...");
+    // Reset Groq rate limit flag for the without-tools attempt since daily limits may differ
+    // Actually, if rate-limited with tools, it'll still be rate-limited without tools. Keep the flag.
     for (const providerEntry of providerModels) {
+      // Skip Groq if rate-limited
+      if (groqRateLimited && providerEntry.name.startsWith('groq-')) {
+        continue;
+      }
+
       try {
         const result = await generateText({
           model: providerEntry.model,
