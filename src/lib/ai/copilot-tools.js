@@ -1,9 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import { execFileSync } from "child_process";
-import path from "path";
-import fs from "fs";
+import ZAI from "z-ai-web-dev-sdk";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -283,33 +281,29 @@ export const createCopilotTools = (accountId) => {
           // Build the image generation prompt
           const prompt = `${stylePrompt}. Product: ${product_name}${description ? `. ${description}` : ""}. High quality, 4K, commercial photography, no text, no watermark, no people visible.`;
 
-          // Generate image using z-ai-generate CLI
-          const tmpDir = "/tmp/sellora-product-images";
-          if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-
-          const imagePath = path.join(tmpDir, `${product_id}-${Date.now()}.png`);
-
+          // Generate image using z-ai-web-dev-sdk (works on server, no CLI needed)
+          let imageBase64;
           try {
-            execFileSync("z-ai-generate", [
-              "--prompt", prompt,
-              "--output", imagePath,
-              "--size", "1024x1024",
-            ], { timeout: 60000 });
+            const zai = await ZAI.create();
+            const response = await zai.images.generations.create({
+              prompt,
+              size: "1024x1024",
+            });
+            imageBase64 = response.data[0]?.base64;
+            if (!imageBase64) {
+              throw new Error("No image data returned from API");
+            }
+            console.log(`[Agent] Image generated via z-ai-web-dev-sdk for "${product_name}"`);
           } catch (genError) {
-            console.error("[Agent] Image generation CLI failed:", genError.message);
+            console.error("[Agent] Image generation API failed:", genError.message);
             return {
               success: false,
               error: "Image generation failed. The AI image service may be temporarily unavailable.",
             };
           }
 
-          // Check if image was generated
-          if (!fs.existsSync(imagePath)) {
-            return { success: false, error: "Image generation produced no output file." };
-          }
-
-          // Read the generated image
-          const imageBuffer = fs.readFileSync(imagePath);
+          // Convert base64 to buffer for upload
+          const imageBuffer = Buffer.from(imageBase64, "base64");
 
           // Upload to Supabase Storage
           const storagePath = `products/${accountId}/${product_id}-${Date.now()}.png`;
@@ -320,24 +314,19 @@ export const createCopilotTools = (accountId) => {
               upsert: true,
             });
 
-          // Clean up temp file
-          try { fs.unlinkSync(imagePath); } catch (e) { /* ignore */ }
-
           if (uploadError) {
             console.error("[Agent] Supabase storage upload failed:", uploadError.message);
-            // If storage fails, try saving image_url as a data URL fallback
-            const base64 = imageBuffer.toString("base64");
-            const dataUrl = `data:image/png;base64,${base64}`;
-            // Update product with data URL (not ideal but works as fallback)
+            // If storage fails, save base64 data URL directly to product
+            const dataUrl = `data:image/png;base64,${imageBase64}`;
             await supabase
               .from("products")
-              .update({ image_url: dataUrl.substring(0, 500) }) // truncated fallback
+              .update({ image_url: dataUrl })
               .eq("id", product_id)
               .eq("account_id", accountId);
             return {
               success: true,
-              message: `Image generated for "${product_name}" but cloud upload failed. Image saved locally.`,
-              image_url: dataUrl.substring(0, 200) + "...",
+              message: `Image generated for "${product_name}" but cloud upload failed. Image saved directly.`,
+              image_url: dataUrl,
               product_id,
               _action: { type: "navigate", path: "/dashboard/products", label: "View Product" },
             };
