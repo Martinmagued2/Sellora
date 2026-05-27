@@ -13,7 +13,7 @@ export const createCopilotTools = (accountId) => {
 
     get_store_analytics: tool({
       description: "Get basic store analytics for a given time period (e.g. recent orders, revenue). Use this when the seller asks 'how are my sales?' or wants a quick overview.",
-      parameters: z.object({
+      inputSchema: z.object({
         days: z.number().optional().describe("Number of past days to analyze (default 30)"),
       }),
       execute: async ({ days }) => {
@@ -52,7 +52,7 @@ export const createCopilotTools = (accountId) => {
 
     get_sales_report: tool({
       description: "Generate a detailed sales/income report for the store. Includes revenue breakdown, order stats, top-selling products, and trends. Use when the seller asks for a report, income summary, or detailed sales analysis.",
-      parameters: z.object({
+      inputSchema: z.object({
         period: z.enum(["today", "week", "month", "quarter", "year"]).describe("The time period for the report"),
       }),
       execute: async ({ period }) => {
@@ -170,7 +170,7 @@ export const createCopilotTools = (accountId) => {
 
     get_latest_sales: tool({
       description: "Get the most recent sales/orders with details. Use when the seller asks about recent sales, latest orders, or what sold recently.",
-      parameters: z.object({
+      inputSchema: z.object({
         limit: z.number().optional().describe("Number of recent sales to fetch (default 10)"),
       }),
       execute: async ({ limit }) => {
@@ -195,7 +195,7 @@ export const createCopilotTools = (accountId) => {
 
     get_top_products: tool({
       description: "Get the store's products to analyze inventory or top sellers.",
-      parameters: z.object({
+      inputSchema: z.object({
         limit: z.number().optional().describe("Number of products to fetch (default 5)"),
       }),
       execute: async ({ limit }) => {
@@ -218,7 +218,7 @@ export const createCopilotTools = (accountId) => {
 
     create_product: tool({
       description: "Create a new product in the store. Use this when the seller asks to add a new product. You should ask for at least the product name and price. Generate a compelling description if the seller provides a brief prompt. After creating, tell the user the product was added and suggest they can view it in the Products page.",
-      parameters: z.object({
+      inputSchema: z.object({
         name: z.string().describe("Product name"),
         description: z.string().optional().describe("Product description (generate a compelling one if not provided)"),
         price: z.number().describe("Product price"),
@@ -258,7 +258,7 @@ export const createCopilotTools = (accountId) => {
 
     update_product: tool({
       description: "Update an existing product's details (name, price, stock, description, category). Use when the seller wants to edit or modify a product. You need the product ID.",
-      parameters: z.object({
+      inputSchema: z.object({
         product_id: z.string().describe("The ID of the product to update"),
         name: z.string().optional().describe("New product name"),
         price: z.number().optional().describe("New product price"),
@@ -299,7 +299,7 @@ export const createCopilotTools = (accountId) => {
 
     draft_product_description: tool({
       description: "Draft an SEO-optimized product description based on basic details provided by the seller. Returns a drafted description for the seller to review.",
-      parameters: z.object({
+      inputSchema: z.object({
         product_name: z.string().optional().describe("The name of the product"),
         features: z.string().describe("Key features or keywords to include"),
         tone: z.string().optional().describe("The tone of the description (e.g., professional, fun, luxurious)"),
@@ -318,7 +318,7 @@ export const createCopilotTools = (accountId) => {
 
     get_inventory_alerts: tool({
       description: "Get inventory alerts for low-stock and out-of-stock products. Use when the seller asks about inventory issues, stock alerts, or products that need restocking.",
-      parameters: z.object({
+      inputSchema: z.object({
         threshold: z.number().optional().describe("Low stock threshold (default 5)"),
       }),
       execute: async ({ threshold }) => {
@@ -348,7 +348,7 @@ export const createCopilotTools = (accountId) => {
 
     search_products: tool({
       description: "Search products by name, category, or status. Use when the seller asks to find specific products or filter their catalog.",
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().optional().describe("Search term for product name"),
         category: z.string().optional().describe("Filter by category"),
         status: z.string().optional().describe("Filter by status (active, draft, archived)"),
@@ -379,7 +379,7 @@ export const createCopilotTools = (accountId) => {
 
     update_order_status: tool({
       description: "Update the status of an order (e.g. pending, confirmed, shipped, delivered, cancelled). Use when the seller wants to change an order's status.",
-      parameters: z.object({
+      inputSchema: z.object({
         order_id: z.string().describe("The ID of the order to update"),
         status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]).describe("New order status"),
       }),
@@ -405,7 +405,7 @@ export const createCopilotTools = (accountId) => {
 
     delete_product: tool({
       description: "Delete (archive) a product from the store. Sets its status to 'archived' instead of hard deleting. Use when the seller wants to remove a product.",
-      parameters: z.object({
+      inputSchema: z.object({
         product_id: z.string().describe("The ID of the product to delete"),
       }),
       execute: async ({ product_id }) => {
@@ -432,7 +432,7 @@ export const createCopilotTools = (accountId) => {
 
     get_recent_conversations: tool({
       description: "Get a summary of recent active conversations and their status. Use when the seller asks about their messages or customer interactions.",
-      parameters: z.object({
+      inputSchema: z.object({
         limit: z.number().optional().describe("Number of conversations to fetch (default 5)"),
       }),
       execute: async ({ limit }) => {
@@ -457,7 +457,7 @@ export const createCopilotTools = (accountId) => {
 
     get_order_details: tool({
       description: "Get detailed information about a specific order, including items, customer info, and payment details. Use when the seller asks about a specific order.",
-      parameters: z.object({
+      inputSchema: z.object({
         order_id: z.string().describe("The ID of the order"),
       }),
       execute: async ({ order_id }) => {
@@ -479,7 +479,7 @@ export const createCopilotTools = (accountId) => {
 
     get_customer_insights: tool({
       description: "Get customer analytics and insights — total customers, returning customers, top spenders, and customer distribution. Use when the seller asks about their customers or wants customer analytics. Takes no parameters.",
-      parameters: z.object({
+      inputSchema: z.object({
         summary: z.boolean().optional().describe("Set to true for a brief summary, false for full details (default false)"),
       }),
       execute: async ({ summary }) => {
