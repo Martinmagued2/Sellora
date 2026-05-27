@@ -1,43 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import ZAI from "z-ai-web-dev-sdk";
-import { writeFileSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
 import { createClient } from "@supabase/supabase-js";
+import { ensureZAIConfig } from "@/lib/ai/z-ai-config";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-
-// Ensure .z-ai-config exists for z-ai-web-dev-sdk
-function ensureZAIConfig() {
-  const cwd = process.cwd();
-  const projectConfigPath = join(cwd, ".z-ai-config");
-  const fallbackPaths = [
-    join(require("os").homedir(), ".z-ai-config"),
-    "/etc/.z-ai-config",
-  ];
-
-  if (existsSync(projectConfigPath)) {
-    try {
-      const config = JSON.parse(readFileSync(projectConfigPath, "utf-8"));
-      if (config.baseUrl && config.apiKey) return;
-    } catch {}
-  }
-
-  for (const fallbackPath of fallbackPaths) {
-    try {
-      if (existsSync(fallbackPath)) {
-        const config = JSON.parse(readFileSync(fallbackPath, "utf-8"));
-        if (config.baseUrl && config.apiKey) {
-          writeFileSync(projectConfigPath, JSON.stringify(config, null, 2));
-          return;
-        }
-      }
-    } catch {}
-  }
-}
 
 export async function POST(req) {
   try {

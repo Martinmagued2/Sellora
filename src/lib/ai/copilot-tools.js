@@ -2,43 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import ZAI from "z-ai-web-dev-sdk";
-import { writeFileSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
-
-// Ensure .z-ai-config exists in the project directory for z-ai-web-dev-sdk
-// The SDK searches: process.cwd()/.z-ai-config → ~/.z-ai-config → /etc/.z-ai-config
-function ensureZAIConfig() {
-  const cwd = process.cwd();
-  const projectConfigPath = join(cwd, '.z-ai-config');
-  const fallbackPaths = [
-    join(require('os').homedir(), '.z-ai-config'),
-    '/etc/.z-ai-config',
-  ];
-
-  // Check if project config exists and is valid
-  if (existsSync(projectConfigPath)) {
-    try {
-      const config = JSON.parse(readFileSync(projectConfigPath, 'utf-8'));
-      if (config.baseUrl && config.apiKey) return;
-    } catch {}
-  }
-
-  // Try to copy from fallback locations
-  for (const fallbackPath of fallbackPaths) {
-    try {
-      if (existsSync(fallbackPath)) {
-        const config = JSON.parse(readFileSync(fallbackPath, 'utf-8'));
-        if (config.baseUrl && config.apiKey) {
-          writeFileSync(projectConfigPath, JSON.stringify(config, null, 2));
-          console.log('[Agent] Copied .z-ai-config from', fallbackPath);
-          return;
-        }
-      }
-    } catch {}
-  }
-
-  console.warn('[Agent] Could not find .z-ai-config in any location. Image generation may fail.');
-}
+import { ensureZAIConfig } from "@/lib/ai/z-ai-config";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
