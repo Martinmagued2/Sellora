@@ -13,37 +13,19 @@ export const createCopilotTools = (accountId) => {
 
     get_store_analytics: tool({
       description: "Get basic store analytics for a given time period (e.g. recent orders, revenue). Use this when the seller asks 'how are my sales?' or wants a quick overview.",
-      inputSchema: z.object({
-        days: z.number().describe("Number of past days to analyze (e.g. 7, 30)"),
-        start_date: z.string().optional().describe("ISO format start date (optional)"),
-        startDate: z.string().optional().describe("Alternative start date parameter"),
-        end_date: z.string().optional().describe("ISO format end date (optional)"),
-        endDate: z.string().optional().describe("Alternative end date parameter"),
+      parameters: z.object({
+        days: z.number().optional().describe("Number of past days to analyze (default 30)"),
       }),
-      execute: async ({ days, start_date, startDate, end_date, endDate }) => {
-        const finalStartDate = start_date || startDate;
-        const finalEndDate = end_date || endDate;
-        let dateLimit;
+      execute: async ({ days }) => {
         const daysNum = days || 30;
+        const dateLimit = new Date();
+        dateLimit.setDate(dateLimit.getDate() - daysNum);
 
-        if (finalStartDate) {
-          dateLimit = new Date(finalStartDate);
-        } else {
-          dateLimit = new Date();
-          dateLimit.setDate(dateLimit.getDate() - daysNum);
-        }
-
-        let dbQuery = supabase
+        const { data, error } = await supabase
           .from("orders")
           .select("id, total, status, created_at")
           .eq("account_id", accountId)
           .gte("created_at", dateLimit.toISOString());
-
-        if (finalEndDate) {
-          dbQuery = dbQuery.lte("created_at", new Date(finalEndDate).toISOString());
-        }
-
-        const { data, error } = await dbQuery;
 
         if (error || !data) return { success: false, error: "Failed to fetch analytics" };
 
@@ -56,22 +38,21 @@ export const createCopilotTools = (accountId) => {
 
         return {
           success: true,
-          days: finalStartDate ? undefined : daysNum,
-          start_date: finalStartDate,
-          end_date: finalEndDate,
+          days: daysNum,
           totalRevenue,
           orderCount,
           pendingCount,
           deliveredCount,
           cancelledCount,
           avgOrderValue,
+          _action: { type: "navigate", path: "/dashboard/analytics", label: "View Analytics" },
         };
       },
     }),
 
     get_sales_report: tool({
       description: "Generate a detailed sales/income report for the store. Includes revenue breakdown, order stats, top-selling products, and trends. Use when the seller asks for a report, income summary, or detailed sales analysis.",
-      inputSchema: z.object({
+      parameters: z.object({
         period: z.enum(["today", "week", "month", "quarter", "year"]).describe("The time period for the report"),
       }),
       execute: async ({ period }) => {
@@ -182,13 +163,14 @@ export const createCopilotTools = (accountId) => {
             lowStock,
             totalInventoryValue,
           },
+          _action: { type: "navigate", path: "/dashboard/analytics", label: "View Full Analytics" },
         };
       },
     }),
 
     get_latest_sales: tool({
       description: "Get the most recent sales/orders with details. Use when the seller asks about recent sales, latest orders, or what sold recently.",
-      inputSchema: z.object({
+      parameters: z.object({
         limit: z.number().optional().describe("Number of recent sales to fetch (default 10)"),
       }),
       execute: async ({ limit }) => {
@@ -201,7 +183,11 @@ export const createCopilotTools = (accountId) => {
           .limit(limitNum);
 
         if (error) return { success: false, error: "Failed to fetch recent sales" };
-        return { success: true, sales: data };
+        return {
+          success: true,
+          sales: data,
+          _action: { type: "navigate", path: "/dashboard/orders", label: "View All Orders" },
+        };
       },
     }),
 
@@ -209,8 +195,8 @@ export const createCopilotTools = (accountId) => {
 
     get_top_products: tool({
       description: "Get the store's products to analyze inventory or top sellers.",
-      inputSchema: z.object({
-        limit: z.number().describe("Number of products to fetch (e.g. 5)"),
+      parameters: z.object({
+        limit: z.number().optional().describe("Number of products to fetch (default 5)"),
       }),
       execute: async ({ limit }) => {
         const limitNum = limit || 5;
@@ -222,13 +208,17 @@ export const createCopilotTools = (accountId) => {
           .limit(limitNum);
 
         if (error) return { success: false, error: "Failed to fetch products" };
-        return { success: true, products: data };
+        return {
+          success: true,
+          products: data,
+          _action: { type: "navigate", path: "/dashboard/products", label: "View All Products" },
+        };
       },
     }),
 
     create_product: tool({
-      description: "Create a new product in the store. Use this when the seller asks to add a new product. You should ask for at least the product name and price. Generate a compelling description if the seller provides a brief prompt.",
-      inputSchema: z.object({
+      description: "Create a new product in the store. Use this when the seller asks to add a new product. You should ask for at least the product name and price. Generate a compelling description if the seller provides a brief prompt. After creating, tell the user the product was added and suggest they can view it in the Products page.",
+      parameters: z.object({
         name: z.string().describe("Product name"),
         description: z.string().optional().describe("Product description (generate a compelling one if not provided)"),
         price: z.number().describe("Product price"),
@@ -261,13 +251,14 @@ export const createCopilotTools = (accountId) => {
           success: true,
           message: `Product "${name}" created successfully!`,
           product: data,
+          _action: { type: "navigate", path: "/dashboard/products", label: "Go to Products" },
         };
       },
     }),
 
     update_product: tool({
       description: "Update an existing product's details (name, price, stock, description, category). Use when the seller wants to edit or modify a product. You need the product ID.",
-      inputSchema: z.object({
+      parameters: z.object({
         product_id: z.string().describe("The ID of the product to update"),
         name: z.string().optional().describe("New product name"),
         price: z.number().optional().describe("New product price"),
@@ -301,20 +292,20 @@ export const createCopilotTools = (accountId) => {
           success: true,
           message: `Product "${data.name}" updated successfully!`,
           product: data,
+          _action: { type: "navigate", path: "/dashboard/products", label: "Go to Products" },
         };
       },
     }),
 
     draft_product_description: tool({
       description: "Draft an SEO-optimized product description based on basic details provided by the seller. Returns a drafted description for the seller to review.",
-      inputSchema: z.object({
-        name: z.string().optional().describe("The name of the product"),
-        product_name: z.string().optional().describe("Alternative product name parameter"),
+      parameters: z.object({
+        product_name: z.string().optional().describe("The name of the product"),
         features: z.string().describe("Key features or keywords to include"),
         tone: z.string().optional().describe("The tone of the description (e.g., professional, fun, luxurious)"),
       }),
-      execute: async ({ name, product_name, features, tone }) => {
-        const finalName = name || product_name || "Unnamed Product";
+      execute: async ({ product_name, features, tone }) => {
+        const finalName = product_name || "Unnamed Product";
         const toneStr = tone || "professional";
         return {
           success: true,
@@ -327,7 +318,7 @@ export const createCopilotTools = (accountId) => {
 
     get_inventory_alerts: tool({
       description: "Get inventory alerts for low-stock and out-of-stock products. Use when the seller asks about inventory issues, stock alerts, or products that need restocking.",
-      inputSchema: z.object({
+      parameters: z.object({
         threshold: z.number().optional().describe("Low stock threshold (default 5)"),
       }),
       execute: async ({ threshold }) => {
@@ -350,13 +341,14 @@ export const createCopilotTools = (accountId) => {
           lowStock: lowStock.map(p => ({ id: p.id, name: p.name, stock: p.stock, category: p.category })),
           healthyCount: healthy.length,
           totalActiveProducts: products.length,
+          _action: { type: "navigate", path: "/dashboard/products", label: "Manage Products" },
         };
       },
     }),
 
     search_products: tool({
       description: "Search products by name, category, or status. Use when the seller asks to find specific products or filter their catalog.",
-      inputSchema: z.object({
+      parameters: z.object({
         query: z.string().optional().describe("Search term for product name"),
         category: z.string().optional().describe("Filter by category"),
         status: z.string().optional().describe("Filter by status (active, draft, archived)"),
@@ -376,13 +368,18 @@ export const createCopilotTools = (accountId) => {
 
         const { data, error } = await dbQuery;
         if (error) return { success: false, error: "Failed to search products" };
-        return { success: true, products: data, count: data.length };
+        return {
+          success: true,
+          products: data,
+          count: data.length,
+          _action: { type: "navigate", path: "/dashboard/products", label: "View All Products" },
+        };
       },
     }),
 
     update_order_status: tool({
       description: "Update the status of an order (e.g. pending, confirmed, shipped, delivered, cancelled). Use when the seller wants to change an order's status.",
-      inputSchema: z.object({
+      parameters: z.object({
         order_id: z.string().describe("The ID of the order to update"),
         status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]).describe("New order status"),
       }),
@@ -401,13 +398,14 @@ export const createCopilotTools = (accountId) => {
           success: true,
           message: `Order #${data.order_number || data.id} status updated to "${status}"`,
           order: data,
+          _action: { type: "navigate", path: "/dashboard/orders", label: "View Orders" },
         };
       },
     }),
 
     delete_product: tool({
       description: "Delete (archive) a product from the store. Sets its status to 'archived' instead of hard deleting. Use when the seller wants to remove a product.",
-      inputSchema: z.object({
+      parameters: z.object({
         product_id: z.string().describe("The ID of the product to delete"),
       }),
       execute: async ({ product_id }) => {
@@ -425,6 +423,7 @@ export const createCopilotTools = (accountId) => {
           success: true,
           message: `Product "${data.name}" has been archived.`,
           product: data,
+          _action: { type: "navigate", path: "/dashboard/products", label: "Go to Products" },
         };
       },
     }),
@@ -433,8 +432,8 @@ export const createCopilotTools = (accountId) => {
 
     get_recent_conversations: tool({
       description: "Get a summary of recent active conversations and their status. Use when the seller asks about their messages or customer interactions.",
-      inputSchema: z.object({
-        limit: z.number().describe("Number of conversations to fetch (e.g. 5)"),
+      parameters: z.object({
+        limit: z.number().optional().describe("Number of conversations to fetch (default 5)"),
       }),
       execute: async ({ limit }) => {
         const limitNum = limit || 5;
@@ -446,7 +445,11 @@ export const createCopilotTools = (accountId) => {
           .limit(limitNum);
 
         if (error) return { success: false, error: "Failed to fetch conversations" };
-        return { success: true, conversations: data };
+        return {
+          success: true,
+          conversations: data,
+          _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversations" },
+        };
       },
     }),
 
@@ -454,7 +457,7 @@ export const createCopilotTools = (accountId) => {
 
     get_order_details: tool({
       description: "Get detailed information about a specific order, including items, customer info, and payment details. Use when the seller asks about a specific order.",
-      inputSchema: z.object({
+      parameters: z.object({
         order_id: z.string().describe("The ID of the order"),
       }),
       execute: async ({ order_id }) => {
@@ -466,14 +469,20 @@ export const createCopilotTools = (accountId) => {
           .single();
 
         if (error) return { success: false, error: "Order not found" };
-        return { success: true, order: data };
+        return {
+          success: true,
+          order: data,
+          _action: { type: "navigate", path: "/dashboard/orders", label: "View All Orders" },
+        };
       },
     }),
 
     get_customer_insights: tool({
-      description: "Get customer analytics and insights — total customers, returning customers, top spenders, and customer distribution. Use when the seller asks about their customers or wants customer analytics.",
-      inputSchema: z.object({}),
-      execute: async () => {
+      description: "Get customer analytics and insights — total customers, returning customers, top spenders, and customer distribution. Use when the seller asks about their customers or wants customer analytics. Takes no parameters.",
+      parameters: z.object({
+        summary: z.boolean().optional().describe("Set to true for a brief summary, false for full details (default false)"),
+      }),
+      execute: async ({ summary }) => {
         const { data: customers, error } = await supabase
           .from("customers")
           .select("id, name, total_orders, total_spent, is_returning, channel, created_at")
@@ -507,6 +516,7 @@ export const createCopilotTools = (accountId) => {
           avgSpend,
           topSpenders,
           channelDistribution: channelDist,
+          _action: { type: "navigate", path: "/dashboard/customers", label: "View Customers" },
         };
       },
     }),

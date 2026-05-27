@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Sparkles, X, Send, Bot, Loader2, TrendingUp, Package, FileText, Users, DollarSign, ChevronRight, Wrench, Trash2, AlertTriangle } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Sparkles, X, Send, Bot, Loader2, TrendingUp, Package, FileText, Users, DollarSign, ChevronRight, Trash2, AlertTriangle, ExternalLink } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 
 // Helper: extract text content from a UIMessage's parts array
@@ -17,6 +18,14 @@ function getMessageText(msg) {
 function getToolInvocations(msg) {
   if (!msg.parts || !Array.isArray(msg.parts)) return [];
   return msg.parts.filter((p) => p.type === "tool-invocation");
+}
+
+// Extract _action from tool invocation results
+function getToolAction(inv) {
+  if (inv.state === "result" && inv.result && inv.result._action) {
+    return inv.result._action;
+  }
+  return null;
 }
 
 // Tool name to friendly label mapping
@@ -41,6 +50,7 @@ export default function CopilotPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef(null);
+  const router = useRouter();
 
   const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
     api: "/api/chat",
@@ -69,6 +79,11 @@ export default function CopilotPanel() {
     setMessages([]);
     clearError?.();
   };
+
+  const handleActionClick = useCallback((path) => {
+    setIsOpen(false);
+    router.push(path);
+  }, [router]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -157,6 +172,15 @@ export default function CopilotPanel() {
                 const text = getMessageText(msg);
                 const toolInvocations = getToolInvocations(msg);
 
+                // Collect action buttons from completed tool invocations
+                const actionButtons = toolInvocations
+                  .map((inv) => getToolAction(inv))
+                  .filter(Boolean)
+                  // Deduplicate by path
+                  .filter((action, index, self) =>
+                    action.path && self.findIndex(a => a.path === action.path) === index
+                  );
+
                 return (
                   <div key={msg.id} className={`copilot-msg ${msg.role}`}>
                     {msg.role === "assistant" && (
@@ -181,6 +205,21 @@ export default function CopilotPanel() {
                       )}
                       {/* Show text content */}
                       {text && <div className="copilot-text-content">{text}</div>}
+                      {/* Show action buttons */}
+                      {actionButtons.length > 0 && text && (
+                        <div className="copilot-actions">
+                          {actionButtons.map((action, idx) => (
+                            <button
+                              key={idx}
+                              className="copilot-action-btn"
+                              onClick={() => handleActionClick(action.path)}
+                            >
+                              <ExternalLink size={12} />
+                              <span>{action.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
