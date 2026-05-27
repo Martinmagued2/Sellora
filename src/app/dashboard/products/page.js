@@ -10,6 +10,8 @@ import {
   Trash2,
   Upload,
   Image as ImageIcon,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -26,6 +28,9 @@ export default function ProductsPage() {
   const [imagePreview, setImagePreview] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [accountPlan, setAccountPlan] = useState("starter");
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [aiStyle, setAiStyle] = useState("studio");
+  const [generatedImageUrl, setGeneratedImageUrl] = useState(null); // Supabase URL for saving
   const fileInputRef = useRef(null);
 
   const supabase = createClient();
@@ -67,6 +72,7 @@ export default function ProductsPage() {
       return;
     }
     setImageFile(file);
+    setGeneratedImageUrl(null); // Clear AI-generated URL when manual file is selected
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
@@ -80,6 +86,47 @@ export default function ProductsPage() {
     handleFileSelect(e.dataTransfer.files[0]);
   };
 
+  const handleGenerateImage = async () => {
+    const form = document.querySelector('.modal form');
+    const productName = form?.elements?.name?.value;
+    const description = form?.elements?.description?.value;
+
+    if (!productName?.trim()) {
+      alert("Please enter a product name first, then generate an image.");
+      return;
+    }
+
+    setGeneratingImage(true);
+    try {
+      const res = await fetch("/api/products/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_name: productName.trim(),
+          description: description?.trim() || "",
+          style: aiStyle,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || "Image generation failed. Please try again.");
+        return;
+      }
+
+      // Set the preview to the generated image (use base64 for instant preview)
+      const dataUrl = `data:image/png;base64,${data.image_base64}`;
+      setImagePreview(dataUrl);
+      setImageFile(null); // Not a file upload — it's an AI-generated image
+      setGeneratedImageUrl(data.image_url); // Store the Supabase URL for saving
+    } catch (err) {
+      console.error("Image generation error:", err);
+      alert("Image generation failed. Please try again.");
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
   const handleAddProduct = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -88,7 +135,11 @@ export default function ProductsPage() {
 
     let imageUrl = null;
 
-    if (imageFile) {
+    // If AI-generated image, use the Supabase URL directly
+    if (generatedImageUrl) {
+      imageUrl = generatedImageUrl;
+    } else if (imageFile) {
+      // Manual file upload
       const ext = imageFile.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}.${ext}`;
 
@@ -178,6 +229,9 @@ export default function ProductsPage() {
     setEditingProduct(null);
     setImageFile(null);
     setImagePreview(null);
+    setGeneratingImage(false);
+    setAiStyle("studio");
+    setGeneratedImageUrl(null);
   };
 
   const emojis = { Bags: "👜", Jewelry: "💎", Accessories: "🧣", Electronics: "📱", Watches: "⌚", Clothing: "👗" };
@@ -277,12 +331,12 @@ export default function ProductsPage() {
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => !imagePreview && fileInputRef.current?.click()}
                   >
                     {imagePreview ? (
                       <div className="image-preview-wrapper">
                         <img src={imagePreview} alt="Preview" className="image-preview" />
-                        <button type="button" className="image-remove-btn" onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(null); }}>
+                        <button type="button" className="image-remove-btn" onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(null); setGeneratedImageUrl(null); }}>
                           <X size={14} />
                         </button>
                       </div>
@@ -294,6 +348,36 @@ export default function ProductsPage() {
                       </div>
                     )}
                     <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFileSelect(e.target.files[0])} />
+                  </div>
+                  {/* AI Image Generation */}
+                  <div className="ai-image-generator">
+                    <div className="ai-image-divider">
+                      <span>or generate with AI</span>
+                    </div>
+                    <div className="ai-image-controls">
+                      <select
+                        className="ai-style-select"
+                        value={aiStyle}
+                        onChange={(e) => setAiStyle(e.target.value)}
+                        disabled={generatingImage}
+                      >
+                        <option value="studio">Studio (White BG)</option>
+                        <option value="lifestyle">Lifestyle (In Use)</option>
+                        <option value="minimal">Minimal (Elegant)</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-ai-generate"
+                        onClick={handleGenerateImage}
+                        disabled={generatingImage}
+                      >
+                        {generatingImage ? (
+                          <><Loader2 size={14} className="spin" /> Generating...</>
+                        ) : (
+                          <><Sparkles size={14} /> Generate Image</>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="form-group">
