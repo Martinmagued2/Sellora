@@ -77,6 +77,19 @@ export default function CopilotPanel() {
     }
   });
 
+  // Debug: log message structure to understand AI SDK v6 format
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      console.log("[Copilot] Last message:", {
+        role: lastMsg.role,
+        hasParts: !!lastMsg.parts,
+        partsTypes: lastMsg.parts?.map(p => p.type),
+        content: typeof lastMsg.content === 'string' ? lastMsg.content?.substring(0, 100) : Array.isArray(lastMsg.content) ? 'array' : lastMsg.content,
+      });
+    }
+  }, [messages]);
+
   const isLoading = status === "submitted" || status === "streaming";
 
   const handleSubmit = (e) => {
@@ -199,6 +212,11 @@ export default function CopilotPanel() {
                     action.path && self.findIndex(a => a.path === action.path) === index
                   );
 
+                // Skip empty user messages (shouldn't happen but just in case)
+                if (msg.role === "user" && !text) return null;
+
+                // For assistant messages, always render even if no text yet
+                // (tool invocations might be present)
                 return (
                   <div key={msg.id} className={`copilot-msg ${msg.role}`}>
                     {msg.role === "assistant" && (
