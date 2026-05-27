@@ -28,6 +28,83 @@ function getMessageText(msg) {
   return "";
 }
 
+// Helper: generate fallback text from tool outputs when no text part exists
+// This ensures users always see useful output even if the stream format is wrong
+function getFallbackTextFromTools(toolInvs) {
+  const lines = [];
+  for (const inv of toolInvs) {
+    const output = inv.output || inv.result;
+    if (!output) continue;
+
+    const toolName = inv.type?.startsWith('tool-') ? inv.type.slice(5) : inv.toolName;
+
+    if (output.success === false) {
+      lines.push(`❌ ${toolName}: ${output.error || 'Operation failed'}`);
+      continue;
+    }
+
+    switch (toolName) {
+      case 'get_customer_insights':
+        lines.push(`**Customer Insights:**`);
+        lines.push(`• Total Customers: ${output.totalCustomers || 0}`);
+        lines.push(`• Returning Customers: ${output.returningCustomers || 0}`);
+        lines.push(`• Average Spend: ${output.avgSpend || 0}`);
+        if (output.topSpenders?.length > 0) {
+          lines.push(`• **Top Spenders:**`);
+          output.topSpenders.forEach(s => lines.push(`  - ${s.name}: ${s.total_spent} (${s.total_orders} orders)`));
+        }
+        if (output.channelDistribution) {
+          lines.push(`• **Channels:** ${Object.entries(output.channelDistribution).map(([k,v]) => `${k}: ${v}`).join(', ')}`);
+        }
+        break;
+      case 'get_sales_report':
+        lines.push(`**Sales Report (${output.period || 'N/A'}):**`);
+        if (output.revenue) lines.push(`• Total Revenue: ${output.revenue.total} | Completed: ${output.revenue.completed} | Pending: ${output.revenue.pending}`);
+        if (output.orders) lines.push(`• Orders: ${output.orders.total} total | ${output.orders.completed} completed | ${output.orders.pending} pending | ${output.orders.cancelled} cancelled`);
+        if (output.orders?.avgValue) lines.push(`• Average Order Value: ${output.orders.avgValue}`);
+        if (output.topProducts?.length > 0) {
+          lines.push(`• **Top Products:**`);
+          output.topProducts.forEach(p => lines.push(`  - ${p.name}: ${p.revenue} revenue (${p.qty} sold)`));
+        }
+        if (output.inventory) lines.push(`• Inventory: ${output.inventory.activeProducts} active, ${output.inventory.outOfStock} out of stock, ${output.inventory.lowStock} low stock`);
+        break;
+      case 'get_store_analytics':
+        lines.push(`**Store Analytics (${output.days || 30} days):**`);
+        lines.push(`• Revenue: ${output.totalRevenue} | Orders: ${output.orderCount} | Avg: ${output.avgOrderValue}`);
+        lines.push(`• Pending: ${output.pendingCount} | Delivered: ${output.deliveredCount} | Cancelled: ${output.cancelledCount}`);
+        break;
+      case 'create_product':
+        lines.push(`✅ **Product Created:** ${output.product?.name || output.message || 'Success'}`);
+        if (output.product) lines.push(`  Price: ${output.product.price} | Stock: ${output.product.stock} | Category: ${output.product.category}`);
+        break;
+      case 'generate_product_image':
+        if (output.success) {
+          lines.push(`🎨 **Image Generated:** ${output.message || 'Success'}`);
+        } else {
+          lines.push(`❌ Image generation failed: ${output.error}`);
+        }
+        break;
+      case 'get_latest_sales':
+        lines.push(`**Recent Sales:** ${output.sales?.length || 0} orders found`);
+        if (output.sales?.slice(0, 3).forEach(s => lines.push(`  - Order #${s.order_number || s.id}: ${s.total} (${s.status})`)));
+        break;
+      case 'get_inventory_alerts':
+        if (output.outOfStock?.length > 0) {
+          lines.push(`🔴 **Out of Stock:** ${output.outOfStock.map(p => p.name).join(', ')}`);
+        }
+        if (output.lowStock?.length > 0) {
+          lines.push(`🟡 **Low Stock:** ${output.lowStock.map(p => `${p.name} (${p.stock} left)`).join(', ')}`);
+        }
+        lines.push(`✅ Healthy: ${output.healthyCount} products`);
+        break;
+      default:
+        if (output.message) lines.push(output.message);
+        break;
+    }
+  }
+  return lines.join('\n');
+}
+
 // Helper: get tool invocations from a message
 // Checks both parts array (AI SDK v6) and toolInvocations array (older format)
 function getToolInvocations(msg) {
@@ -267,8 +344,11 @@ export default function CopilotPanel() {
                   // Skip empty user messages
                   if (msg.role === "user" && !text) return null;
 
-                  // Skip completely empty assistant messages (no text, no tools)
-                  if (msg.role === "assistant" && !text && toolInvs.length === 0) return null;
+                  // Fallback: if no text from stream but tools completed, generate text from tool output
+                  const displayText = text || (toolInvs.some(isToolComplete) ? getFallbackTextFromTools(toolInvs) : "");
+
+                  // Skip completely empty assistant messages (no text, no tools, no fallback)
+                  if (msg.role === "assistant" && !displayText && toolInvs.length === 0) return null;
 
                   return (
                     <div key={msg.id} className={`copilot-msg ${msg.role}`}>
@@ -293,8 +373,8 @@ export default function CopilotPanel() {
                             })}
                           </div>
                         )}
-                        {/* Show text content */}
-                        {text && <div className="copilot-text-content">{text}</div>}
+                        {/* Show text content (from stream or fallback from tool output) */}
+                        {displayText && <div className="copilot-text-content">{displayText}</div>}
                         {/* Show generated product images */}
                         {generatedImages.length > 0 && (
                           <div className="copilot-images">
