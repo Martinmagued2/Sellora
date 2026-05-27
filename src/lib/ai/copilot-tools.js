@@ -14,10 +14,10 @@ export const createCopilotTools = (accountId) => {
     get_store_analytics: tool({
       description: "Get basic store analytics for a given time period (e.g. recent orders, revenue). Use this when the seller asks 'how are my sales?' or wants a quick overview.",
       inputSchema: z.object({
-        days: z.number().optional().describe("Number of past days to analyze (default 30)"),
+        days: z.string().optional().describe("Number of past days to analyze (default 30)"),
       }),
       execute: async ({ days }) => {
-        const daysNum = days || 30;
+        const daysNum = parseInt(days) || 30;
         const dateLimit = new Date();
         dateLimit.setDate(dateLimit.getDate() - daysNum);
 
@@ -174,10 +174,10 @@ export const createCopilotTools = (accountId) => {
     get_latest_sales: tool({
       description: "Get the most recent sales/orders with details. Use when the seller asks about recent sales, latest orders, or what sold recently.",
       inputSchema: z.object({
-        limit: z.number().optional().describe("Number of recent sales to fetch (default 10)"),
+        limit: z.string().optional().describe("Number of recent sales to fetch (default 10)"),
       }),
       execute: async ({ limit }) => {
-        const limitNum = limit || 10;
+        const limitNum = parseInt(limit) || 10;
         const { data, error } = await supabase
           .from("orders")
           .select("id, order_number, total, status, created_at, items, payment_method, customers(name)")
@@ -199,10 +199,10 @@ export const createCopilotTools = (accountId) => {
     get_top_products: tool({
       description: "Get the store's products to analyze inventory or top sellers.",
       inputSchema: z.object({
-        limit: z.number().optional().describe("Number of products to fetch (default 5)"),
+        limit: z.string().optional().describe("Number of products to fetch (default 5)"),
       }),
       execute: async ({ limit }) => {
-        const limitNum = limit || 5;
+        const limitNum = parseInt(limit) || 5;
         const { data, error } = await supabase
           .from("products")
           .select("id, name, price, stock, category, status")
@@ -224,16 +224,17 @@ export const createCopilotTools = (accountId) => {
       inputSchema: z.object({
         name: z.string().describe("Product name"),
         description: z.string().optional().describe("Product description (generate a compelling one if not provided)"),
-        price: z.number().describe("Product price"),
-        stock: z.number().optional().describe("Initial stock quantity (default 0)"),
+        price: z.string().describe("Product price"),
+        stock: z.string().optional().describe("Initial stock quantity (default 0)"),
         category: z.string().optional().describe("Product category (default 'General')"),
       }),
       execute: async ({ name, description, price, stock, category }) => {
         if (!name) {
           return { success: false, error: "Product name is required" };
         }
-        if (price === undefined || price === null) {
-          return { success: false, error: "Product price is required" };
+        const priceNum = parseFloat(price);
+        if (isNaN(priceNum)) {
+          return { success: false, error: "Product price is required and must be a number" };
         }
         const { data, error } = await supabase
           .from("products")
@@ -241,8 +242,8 @@ export const createCopilotTools = (accountId) => {
             account_id: accountId,
             name,
             description: description || "",
-            price,
-            stock: stock || 0,
+            price: priceNum,
+            stock: parseInt(stock) || 0,
             category: category || "General",
             status: "active",
           })
@@ -264,16 +265,16 @@ export const createCopilotTools = (accountId) => {
       inputSchema: z.object({
         product_id: z.string().describe("The ID of the product to update"),
         name: z.string().optional().describe("New product name"),
-        price: z.number().optional().describe("New product price"),
-        stock: z.number().optional().describe("New stock quantity"),
+        price: z.string().optional().describe("New product price"),
+        stock: z.string().optional().describe("New stock quantity"),
         description: z.string().optional().describe("New product description"),
         category: z.string().optional().describe("New product category"),
       }),
       execute: async ({ product_id, name, price, stock, description, category }) => {
         const updates = {};
         if (name !== undefined) updates.name = name;
-        if (price !== undefined) updates.price = price;
-        if (stock !== undefined) updates.stock = stock;
+        if (price !== undefined) { const p = parseFloat(price); if (!isNaN(p)) updates.price = p; }
+        if (stock !== undefined) { const s = parseInt(stock); if (!isNaN(s)) updates.stock = s; }
         if (description !== undefined) updates.description = description;
         if (category !== undefined) updates.category = category;
 
@@ -322,10 +323,10 @@ export const createCopilotTools = (accountId) => {
     get_inventory_alerts: tool({
       description: "Get inventory alerts for low-stock and out-of-stock products. Use when the seller asks about inventory issues, stock alerts, or products that need restocking.",
       inputSchema: z.object({
-        threshold: z.number().optional().describe("Low stock threshold (default 5)"),
+        threshold: z.string().optional().describe("Low stock threshold (default 5)"),
       }),
       execute: async ({ threshold }) => {
-        const lowStockThreshold = threshold || 5;
+        const lowStockThreshold = parseInt(threshold) || 5;
         const { data: products, error } = await supabase
           .from("products")
           .select("id, name, price, stock, category, status")
@@ -355,10 +356,10 @@ export const createCopilotTools = (accountId) => {
         query: z.string().optional().describe("Search term for product name"),
         category: z.string().optional().describe("Filter by category"),
         status: z.string().optional().describe("Filter by status (active, draft, archived)"),
-        limit: z.number().optional().describe("Max results (default 20)"),
+        limit: z.string().optional().describe("Max results (default 20)"),
       }),
       execute: async ({ query, category, status, limit }) => {
-        const limitNum = limit || 20;
+        const limitNum = parseInt(limit) || 20;
         let dbQuery = supabase
           .from("products")
           .select("id, name, price, stock, category, status, created_at")
@@ -438,10 +439,10 @@ export const createCopilotTools = (accountId) => {
     get_recent_conversations: tool({
       description: "Get a summary of recent active conversations and their status. Use when the seller asks about their messages or customer interactions.",
       inputSchema: z.object({
-        limit: z.number().optional().describe("Number of conversations to fetch (default 5)"),
+        limit: z.string().optional().describe("Number of conversations to fetch (default 5)"),
       }),
       execute: async ({ limit }) => {
-        const limitNum = limit || 5;
+        const limitNum = parseInt(limit) || 5;
         const { data, error } = await supabase
           .from("conversations")
           .select("id, channel, status, unread_count, updated_at, customers(name)")

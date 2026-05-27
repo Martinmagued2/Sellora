@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { generateText, createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -152,15 +152,18 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
 
     const tools = createCopilotTools(user.id);
 
-    // ─── Streaming with provider fallback ───
-    // Note: Groq "Failed to call a function" errors surface mid-stream.
-    // We've fixed the root cause by replacing z.enum() with z.string() in tools,
-    // but we still wrap in try/catch for other potential errors.
+    // ─── Use generateText for reliable error handling ───
+    // streamText errors surface mid-stream (after response headers sent),
+    // so try/catch doesn't catch "Failed to call a function" errors.
+    // generateText fully completes before returning, so errors are caught
+    // and we can fall back to the next provider.
 
-    // Attempt 1: Try streaming with tools
+    let lastError = null;
+
+    // Attempt 1: Try each provider with tools using generateText
     for (const providerEntry of providerModels) {
       try {
-        const result = await streamText({
+        const result = await generateText({
           model: providerEntry.model,
           maxSteps: 5,
           temperature: 0.2,
@@ -168,30 +171,108 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
           messages: coreMessages,
           tools,
         });
-        return result.toUIMessageStreamResponse();
+
+        console.log(`[Agent] Provider ${providerEntry.name} succeeded with tools (${result.steps.length} steps)`);
+
+        // Convert generateText result to a UI message stream using the AI SDK's
+        // built-in createUIMessageStream function with proper chunk types
+        const stream = createUIMessageStream({
+          execute: ({ writer }) => {
+            const textId = "txt-" + Date.now();
+
+            // Write text-start
+            writer.write({ type: 'text-start', id: textId });
+
+            // Write all steps (tool calls, results, and text)
+            for (const step of result.steps) {
+              // Write tool calls for this step
+              for (const toolCall of step.toolCalls || []) {
+                writer.write({
+                  type: 'tool-input-start',
+                  toolCallId: toolCall.toolCallId,
+                  toolName: toolCall.toolName,
+                });
+                writer.write({
+                  type: 'tool-input-available',
+                  toolCallId: toolCall.toolCallId,
+                  toolName: toolCall.toolName,
+                  input: toolCall.args,
+                });
+              }
+
+              // Write tool results for this step
+              for (const toolResult of step.toolResults || []) {
+                writer.write({
+                  type: 'tool-output-available',
+                  toolCallId: toolResult.toolCallId,
+                  output: toolResult.result,
+                });
+              }
+
+              // Write step text as text-delta
+              if (step.text) {
+                writer.write({
+                  type: 'text-delta',
+                  id: textId,
+                  delta: step.text,
+                });
+              }
+            }
+
+            // Write final text if not already included in steps
+            if (result.text) {
+              const alreadyIncluded = result.steps.some(s => s.text === result.text);
+              if (!alreadyIncluded) {
+                writer.write({
+                  type: 'text-delta',
+                  id: textId,
+                  delta: result.text,
+                });
+              }
+            }
+
+            // Write text-end
+            writer.write({ type: 'text-end', id: textId });
+          },
+        });
+
+        return createUIMessageStreamResponse({ stream });
       } catch (providerError) {
-        console.warn(`Agent provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
+        lastError = providerError;
+        console.warn(`[Agent] Provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
       }
     }
 
-    // Attempt 2: Fallback - stream WITHOUT tools
+    // Attempt 2: Fallback - generate WITHOUT tools
     console.warn("[Agent] All providers with tools failed, trying without tools...");
     for (const providerEntry of providerModels) {
       try {
-        const result = await streamText({
+        const result = await generateText({
           model: providerEntry.model,
           maxSteps: 1,
           temperature: 0.2,
           system: systemPrompt,
           messages: coreMessages,
         });
-        return result.toUIMessageStreamResponse();
+
+        const stream = createUIMessageStream({
+          execute: ({ writer }) => {
+            const textId = "txt-" + Date.now();
+            writer.write({ type: 'text-start', id: textId });
+            if (result.text) {
+              writer.write({ type: 'text-delta', id: textId, delta: result.text });
+            }
+            writer.write({ type: 'text-end', id: textId });
+          },
+        });
+
+        return createUIMessageStreamResponse({ stream });
       } catch (providerError) {
         console.warn(`Agent provider ${providerEntry.name} without tools also failed:`, providerError?.message || providerError);
       }
     }
 
-    return Response.json({ error: 'All AI providers failed. Please try again.' }, { status: 500 });
+    return Response.json({ error: lastError?.message || 'All AI providers failed. Please try again.' }, { status: 500 });
   } catch (error) {
     console.error("Agent API Error:", error);
     return Response.json({ error: error.message || "Something went wrong." }, { status: 500 });
