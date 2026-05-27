@@ -1,0 +1,121 @@
+export const ar = {
+  // Navbar
+  nav_features: "المميزات",
+  nav_how: "كيف يعمل",
+  nav_pricing: "الأسعار",
+  nav_testimonials: "آراء العملاء",
+  nav_faq: "الأسئلة الشائعة",
+  nav_login: "تسجيل الدخول",
+  nav_get_started: "ابدأ الآن",
+
+  // Hero
+  hero_badge: "المنصة الأولى للتجارة الاجتماعية",
+  hero_title_1: "حوّل",
+  hero_title_2: "رسائلك",
+  hero_title_3: "إلى",
+  hero_title_4: "ماكينة مبيعات",
+  hero_subtitle: "توقف عن نسخ ولصق الأسعار. توقف عن فقدان الرسائل في منتصف الليل. دع الذكاء الاصطناعي يتولى مبيعاتك على واتساب وإنستاجرام وفيسبوك — بينما تركز أنت على تنمية عملك.",
+  hero_cta_primary: "ابدأ التجربة المجانية",
+  hero_cta_secondary: "تسجيل الدخول",
+  hero_stat_sellers: "بائع نشط",
+  hero_stat_messages: "رسالة/شهر",
+  hero_stat_uptime: "وقت التشغيل",
+
+  // Social proof
+  social_proof_title: "موثوق من قبل +2,500 بائع في الشرق الأوسط",
+
+  // Problem
+  problem_badge: "المشكلة",
+  problem_title_1: "أنت تخسر مبيعات",
+  problem_title_2: "كل ليلة",
+  problem_item_1_title: "رسائل منتصف الليل الضائعة",
+  problem_item_1_desc: "العملاء يراسلون الساعة 11 مساءً. أنت ترد الساعة 8 صباحاً. هم اشتروا من شخص آخر.",
+  problem_item_2_title: "فوضى النسخ واللصق",
+  problem_item_2_desc: "إرسال نفس الأسعار والصور وتفاصيل الدفع مراراً وتكراراً. إنه مرهق.",
+  problem_item_3_title: "طلبات ضائعة في المحادثات",
+  problem_item_3_desc: "لا تتبع. لا نظام. الطلبات تختلط، العملاء يحبطون، وتخسر أنت عملاء دائمين.",
+
+  // Features
+  features_badge: "كل ما تحتاجه",
+  features_title_1: "منصة واحدة.",
+  features_title_2: "صفر فوضى.",
+  features_subtitle: "من أول رسالة حتى التسليم النهائي — سيلورا تتعامل مع كل خطوة من مبيعاتك على واتساب وإنستاجرام وفيسبوك.",
+  feature_ai: "ردود الذكاء الاصطناعي",
+  feature_ai_desc: "ردود فورية وذكية عبر واتساب وإنستاجرام وفيسبوك بالعربية والإنجليزية. لا تفوّت أي بيعة — حتى الساعة 3 صباحاً.",
+  feature_catalog: "كتالوج المنتجات",
+  feature_catalog_desc: "قوائم منتجات جميلة تُشارك بسلاسة عبر جميع القنوات. العملاء يتصفحون ويسألون ويطلبون — في محادثة واحدة.",
+  feature_orders: "إدارة الطلبات",
+  feature_orders_desc: "تتبع كل طلب من لحظة الطلب حتى التسليم. تحديثات الحالة تُرسل تلقائياً للعملاء عبر جميع القنوات.",
+  feature_payments: "روابط الدفع",
+  feature_payments_desc: "إرسال روابط دفع تلقائياً عبر فوري، إنستاباي، فودافون كاش، سترايب، أو باي بال. احصل على أموالك فوراً.",
+  feature_crm: "إدارة علاقات العملاء",
+  feature_crm_desc: "صندوق وارد موحد لجميع القنوات. تتبع العملاء المتكررين وسجل الشراء والتفضيلات عبر جميع المنصات.",
+  feature_campaigns: "حملات البث",
+  feature_campaigns_desc: "أرسل عروض مستهدفة لشرائح العملاء عبر جميع المنصات. منتج جديد؟ تخفيض؟ تواصل مع الآلاف بنقرة واحدة.",
+
+  // How it works
+  how_badge: "كيف يعمل",
+  how_title_1: "جاهز في",
+  how_title_2: "10 دقائق.",
+  how_title_3: "بجد.",
+  how_step_1_title: "اربط قنواتك",
+  how_step_1_desc: "اربط حساب واتساب بيزنس وإنستاجرام وفيسبوك. يستغرق دقيقتين فقط.",
+  how_step_2_title: "أضف منتجاتك",
+  how_step_2_desc: "أضف الكتالوج يدوياً أو استورده من إكسل. حدد الأسعار والصور والمتغيرات.",
+  how_step_3_title: "دع الذكاء الاصطناعي يبيع لك",
+  how_step_3_desc: "المساعد الذكي يتعامل مع الاستفسارات، يرسل الكتالوجات، ينشئ الطلبات، ويتابع — تلقائياً.",
+
+  // Pricing
+  pricing_badge: "أسعار بسيطة",
+  pricing_title_1: "ابدأ مجاناً.",
+  pricing_title_2: "وسّع مع نموك.",
+  pricing_subtitle: "تجربة مجانية 14 يوم. لا حاجة لبطاقة ائتمان. إلغاء في أي وقت.",
+  pricing_monthly: "شهري",
+  pricing_annual: "سنوي",
+  pricing_starter: "المبتدئ",
+  pricing_starter_desc: "مثالي للبائعين المبتدئين",
+  pricing_pro: "المحترف",
+  pricing_pro_desc: "للأعمال المتنامية التي تحتاج قوة الذكاء الاصطناعي",
+  pricing_business: "الأعمال",
+  pricing_business_desc: "للفرق التي تدير علامات تجارية متعددة",
+  pricing_cta: "ابدأ التجربة المجانية",
+  pricing_most_popular: "الأكثر شعبية",
+
+  // Testimonials
+  testimonials_badge: "محبوب من البائعين",
+  testimonials_title: "لا تأخذ كلامنا فقط",
+  testimonials_subtitle: "اكتشف لماذا يثق آلاف البائعين في الشرق الأوسط بسيلورا لتنمية أعمالهم.",
+
+  // FAQ
+  faq_badge: "الأسئلة الشائعة",
+  faq_title_1: "عندك أسئلة؟",
+  faq_title_2: "عندنا إجابات.",
+
+  // CTA
+  cta_title_1: "جاهز",
+  cta_title_2: "لأتمتة",
+  cta_title_3: "مبيعاتك؟",
+  cta_subtitle: "انضم لأكثر من 2,500 بائع توقفوا عن تفويت الرسائل وبدأوا في توسيع أعمالهم مع سيلورا.",
+  cta_placeholder: "أدخل بريدك الإلكتروني",
+  cta_button: "ابدأ الآن",
+
+  // Footer
+  footer_desc: "المنصة الأولى لأتمتة رسائل واتساب وإنستاجرام وفيسبوك التجارية. مبنية للبائعين الذين يريدون النمو.",
+  footer_product: "المنتج",
+  footer_features: "المميزات",
+  footer_pricing: "الأسعار",
+  footer_how: "كيف يعمل",
+  footer_integrations: "التكاملات",
+  footer_api: "وثائق API",
+  footer_company: "الشركة",
+  footer_about: "عن سيلورا",
+  footer_blog: "المدونة",
+  footer_careers: "الوظائف",
+  footer_contact: "اتصل بنا",
+  footer_legal: "القانوني",
+  footer_privacy: "سياسة الخصوصية",
+  footer_terms: "شروط الخدمة",
+  footer_gdpr: "GDPR",
+  footer_security: "الأمان",
+  footer_copyright: "© 2026 سيلورا. جميع الحقوق محفوظة.",
+};

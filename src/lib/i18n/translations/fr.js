@@ -1,0 +1,121 @@
+export const fr = {
+  // Navbar
+  nav_features: "Fonctionnalités",
+  nav_how: "Comment ça marche",
+  nav_pricing: "Tarifs",
+  nav_testimonials: "Témoignages",
+  nav_faq: "FAQ",
+  nav_login: "Connexion",
+  nav_get_started: "Commencer",
+
+  // Hero
+  hero_badge: "PLATEFORME N°1 DU COMMERCE SOCIAL",
+  hero_title_1: "Transformez vos",
+  hero_title_2: "DMs",
+  hero_title_3: "en",
+  hero_title_4: "Machine à Ventes",
+  hero_subtitle: "Arrêtez de copier-coller les prix. Arrêtez de manquer des messages à minuit. Laissez l'IA gérer vos ventes WhatsApp, Instagram & Facebook — pendant que vous vous concentrez sur la croissance.",
+  hero_cta_primary: "Essai Gratuit",
+  hero_cta_secondary: "Connexion",
+  hero_stat_sellers: "Vendeurs Actifs",
+  hero_stat_messages: "Messages/mois",
+  hero_stat_uptime: "Disponibilité",
+
+  // Social proof
+  social_proof_title: "Approuvé par plus de 2 500 vendeurs au Moyen-Orient",
+
+  // Problem
+  problem_badge: "Le Problème",
+  problem_title_1: "Vous perdez des ventes",
+  problem_title_2: "chaque nuit",
+  problem_item_1_title: "Messages de minuit manqués",
+  problem_item_1_desc: "Les clients écrivent à 23h. Vous répondez à 8h. Ils ont déjà acheté ailleurs.",
+  problem_item_2_title: "Chaos du copier-coller",
+  problem_item_2_desc: "Envoyer les mêmes prix, photos et détails de paiement encore et encore. C'est épuisant.",
+  problem_item_3_title: "Commandes perdues dans les chats",
+  problem_item_3_desc: "Pas de suivi. Pas de système. Les commandes se mélangent, les clients sont frustrés.",
+
+  // Features
+  features_badge: "Tout ce dont vous avez besoin",
+  features_title_1: "Une plateforme.",
+  features_title_2: "Zéro chaos.",
+  features_subtitle: "Du premier message à la livraison — Sellora gère chaque étape de vos ventes WhatsApp, Instagram et Facebook.",
+  feature_ai: "Réponses IA",
+  feature_ai_desc: "Réponses instantanées et intelligentes sur WhatsApp, Instagram & Facebook en arabe et anglais. Ne manquez jamais une vente.",
+  feature_catalog: "Catalogue Produits",
+  feature_catalog_desc: "De belles fiches produits partagées sur tous les canaux. Les clients parcourent, posent des questions et commandent.",
+  feature_orders: "Gestion des Commandes",
+  feature_orders_desc: "Suivez chaque commande de la passation à la livraison. Mises à jour automatiques envoyées aux clients.",
+  feature_payments: "Liens de Paiement",
+  feature_payments_desc: "Envoi automatique de liens de paiement via Fawry, InstaPay, Vodafone Cash, Stripe ou PayPal.",
+  feature_crm: "CRM Clients",
+  feature_crm_desc: "Boîte de réception unifiée pour tous les canaux. Suivez les acheteurs réguliers et leurs préférences.",
+  feature_campaigns: "Campagnes de Diffusion",
+  feature_campaigns_desc: "Envoyez des promotions ciblées à vos segments clients sur toutes les plateformes.",
+
+  // How it works
+  how_badge: "Comment ça marche",
+  how_title_1: "Prêt en",
+  how_title_2: "10 minutes.",
+  how_title_3: "Vraiment.",
+  how_step_1_title: "Connectez vos canaux",
+  how_step_1_desc: "Liez WhatsApp Business, Instagram et Facebook. Prend 2 minutes.",
+  how_step_2_title: "Importez vos produits",
+  how_step_2_desc: "Ajoutez votre catalogue manuellement ou importez depuis Excel.",
+  how_step_3_title: "L'IA vend pour vous",
+  how_step_3_desc: "L'assistant IA gère les demandes, envoie les catalogues, crée les commandes et relance — automatiquement.",
+
+  // Pricing
+  pricing_badge: "TARIFS SIMPLES",
+  pricing_title_1: "Commencez gratuitement.",
+  pricing_title_2: "Évoluez avec votre croissance.",
+  pricing_subtitle: "Essai gratuit de 14 jours. Pas de carte de crédit requise. Annulez quand vous voulez.",
+  pricing_monthly: "Mensuel",
+  pricing_annual: "Annuel",
+  pricing_starter: "Starter",
+  pricing_starter_desc: "Parfait pour les vendeurs solo débutants",
+  pricing_pro: "Professionnel",
+  pricing_pro_desc: "Pour les entreprises en croissance qui ont besoin de l'IA",
+  pricing_business: "Business",
+  pricing_business_desc: "Pour les équipes gérant plusieurs marques",
+  pricing_cta: "Essai Gratuit",
+  pricing_most_popular: "LE PLUS POPULAIRE",
+
+  // Testimonials
+  testimonials_badge: "Adoré par les vendeurs",
+  testimonials_title: "Ne nous croyez pas sur parole",
+  testimonials_subtitle: "Découvrez pourquoi des milliers de vendeurs au Moyen-Orient font confiance à Sellora.",
+
+  // FAQ
+  faq_badge: "FAQ",
+  faq_title_1: "Des questions ?",
+  faq_title_2: "On a les réponses.",
+
+  // CTA
+  cta_title_1: "Prêt à",
+  cta_title_2: "automatiser",
+  cta_title_3: "vos ventes ?",
+  cta_subtitle: "Rejoignez plus de 2 500 vendeurs qui ont arrêté de manquer des messages et ont commencé à développer leur business avec Sellora.",
+  cta_placeholder: "Entrez votre email",
+  cta_button: "Commencer",
+
+  // Footer
+  footer_desc: "La plateforme n°1 pour automatiser la messagerie commerciale WhatsApp, Instagram & Facebook.",
+  footer_product: "Produit",
+  footer_features: "Fonctionnalités",
+  footer_pricing: "Tarifs",
+  footer_how: "Comment ça marche",
+  footer_integrations: "Intégrations",
+  footer_api: "Documentation API",
+  footer_company: "Entreprise",
+  footer_about: "À propos",
+  footer_blog: "Blog",
+  footer_careers: "Carrières",
+  footer_contact: "Contact",
+  footer_legal: "Légal",
+  footer_privacy: "Politique de confidentialité",
+  footer_terms: "Conditions d'utilisation",
+  footer_gdpr: "RGPD",
+  footer_security: "Sécurité",
+  footer_copyright: "© 2026 Sellora. Tous droits réservés.",
+};

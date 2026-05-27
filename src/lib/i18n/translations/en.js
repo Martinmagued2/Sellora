@@ -1,0 +1,121 @@
+export const en = {
+  // Navbar
+  nav_features: "Features",
+  nav_how: "How It Works",
+  nav_pricing: "Pricing",
+  nav_testimonials: "Testimonials",
+  nav_faq: "FAQ",
+  nav_login: "Log In",
+  nav_get_started: "Get Started",
+
+  // Hero
+  hero_badge: "THE #1 SOCIAL COMMERCE PLATFORM",
+  hero_title_1: "Turn Your",
+  hero_title_2: "DMs",
+  hero_title_3: "Into a",
+  hero_title_4: "Sales Machine",
+  hero_subtitle: "Stop copy-pasting prices. Stop missing messages at midnight. Let AI handle your WhatsApp, Instagram & Facebook sales — while you focus on growing your business.",
+  hero_cta_primary: "Start Free Trial",
+  hero_cta_secondary: "Log In",
+  hero_stat_sellers: "Active Sellers",
+  hero_stat_messages: "Messages/month",
+  hero_stat_uptime: "Uptime",
+
+  // Social proof
+  social_proof_title: "Trusted by 2,500+ sellers across the Middle East",
+
+  // Problem
+  problem_badge: "The Problem",
+  problem_title_1: "You're losing sales",
+  problem_title_2: "every single night",
+  problem_item_1_title: "Missed midnight messages",
+  problem_item_1_desc: "Customers message at 11 PM. You reply at 8 AM. They already bought from someone else.",
+  problem_item_2_title: "Copy-paste chaos",
+  problem_item_2_desc: "Sending the same prices, photos, and payment details over and over. It's exhausting.",
+  problem_item_3_title: "Lost orders in chat history",
+  problem_item_3_desc: "No tracking. No system. Orders get mixed up, customers get frustrated, you lose repeat business.",
+
+  // Features
+  features_badge: "Everything You Need",
+  features_title_1: "One platform.",
+  features_title_2: "Zero chaos.",
+  features_subtitle: "From the first message to the final delivery — Sellora handles every step of your WhatsApp, Instagram, and Facebook sales.",
+  feature_ai: "AI Auto-Replies",
+  feature_ai_desc: "Instant, intelligent responses across WhatsApp, Instagram & Facebook DMs in Arabic & English. Never miss a sale — even at 3 AM.",
+  feature_catalog: "Product Catalog",
+  feature_catalog_desc: "Beautiful product listings shared seamlessly across all channels. Customers browse, ask questions, and order — all in one chat.",
+  feature_orders: "Order Management",
+  feature_orders_desc: "Track every order from placement to delivery. Status updates sent automatically to customers across WhatsApp, Instagram & Facebook.",
+  feature_payments: "Payment Links",
+  feature_payments_desc: "Auto-send payment links via Fawry, InstaPay, Vodafone Cash, Stripe, or PayPal. Get paid instantly.",
+  feature_crm: "Customer CRM",
+  feature_crm_desc: "Unified inbox for all channels. Track repeat buyers, purchase history, and preferences across WhatsApp, Instagram & Facebook.",
+  feature_campaigns: "Broadcast Campaigns",
+  feature_campaigns_desc: "Send targeted promotions to customer segments across all platforms. New product? Flash sale? Reach thousands in one click.",
+
+  // How it works
+  how_badge: "How It Works",
+  how_title_1: "Live in",
+  how_title_2: "10 minutes.",
+  how_title_3: "Seriously.",
+  how_step_1_title: "Connect your channels",
+  how_step_1_desc: "Link your WhatsApp Business, Instagram, and Facebook accounts. Takes 2 minutes.",
+  how_step_2_title: "Import your products",
+  how_step_2_desc: "Add your catalog manually or import from Excel. Set prices, photos, and variants.",
+  how_step_3_title: "Let AI sell for you",
+  how_step_3_desc: "The AI assistant handles inquiries, sends catalogs, creates orders, and follows up — automatically.",
+
+  // Pricing
+  pricing_badge: "SIMPLE PRICING",
+  pricing_title_1: "Start free.",
+  pricing_title_2: "Scale as you grow.",
+  pricing_subtitle: "14-day free trial on all plans. No credit card required. Cancel anytime.",
+  pricing_monthly: "Monthly",
+  pricing_annual: "Annual",
+  pricing_starter: "Starter",
+  pricing_starter_desc: "Perfect for solo sellers just getting started",
+  pricing_pro: "Professional",
+  pricing_pro_desc: "For growing businesses that need AI power",
+  pricing_business: "Business",
+  pricing_business_desc: "For teams managing multiple brands at scale",
+  pricing_cta: "Start Free Trial",
+  pricing_most_popular: "MOST POPULAR",
+
+  // Testimonials
+  testimonials_badge: "Loved by Sellers",
+  testimonials_title: "Don't take our word for it",
+  testimonials_subtitle: "See why thousands of sellers across the Middle East trust Sellora to grow their business.",
+
+  // FAQ
+  faq_badge: "FAQ",
+  faq_title_1: "Got questions?",
+  faq_title_2: "We've got answers.",
+
+  // CTA
+  cta_title_1: "Ready to",
+  cta_title_2: "automate",
+  cta_title_3: "your sales?",
+  cta_subtitle: "Join 2,500+ sellers who stopped missing messages and started scaling their business with Sellora.",
+  cta_placeholder: "Enter your email",
+  cta_button: "Get Started",
+
+  // Footer
+  footer_desc: "The #1 platform for automating WhatsApp, Instagram & Facebook business messaging. Built for sellers who want to grow.",
+  footer_product: "Product",
+  footer_features: "Features",
+  footer_pricing: "Pricing",
+  footer_how: "How It Works",
+  footer_integrations: "Integrations",
+  footer_api: "API Docs",
+  footer_company: "Company",
+  footer_about: "About",
+  footer_blog: "Blog",
+  footer_careers: "Careers",
+  footer_contact: "Contact",
+  footer_legal: "Legal",
+  footer_privacy: "Privacy Policy",
+  footer_terms: "Terms of Service",
+  footer_gdpr: "GDPR",
+  footer_security: "Security",
+  footer_copyright: "© 2026 Sellora. All rights reserved.",
+};

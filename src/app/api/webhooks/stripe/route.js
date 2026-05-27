@@ -1,0 +1,133 @@
+import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { stripe } from "@/lib/stripe";
+import { createClient } from "@supabase/supabase-js";
+
+// Use service role for webhook — no user session available
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+export async function POST(request) {
+  const body = await request.text();
+  const headersList = await headers();
+  const signature = headersList.get("stripe-signature");
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    console.error("Stripe webhook signature verification failed:", err.message);
+    return NextResponse.json(
+      { error: "Invalid signature" },
+      { status: 400 }
+    );
+  }
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object;
+        const { userId, plan } = session.metadata;
+
+        // Update account with Stripe customer ID and plan
+        await supabase
+          .from("accounts")
+          .update({
+            stripe_customer_id: session.customer,
+            stripe_subscription_id: session.subscription,
+            plan: plan,
+            plan_status: "trialing",
+          })
+          .eq("id", userId);
+
+        break;
+      }
+
+      case "customer.subscription.updated": {
+        const subscription = event.data.object;
+        const { userId, plan } = subscription.metadata;
+
+        const status = subscription.status === "active"
+          ? "active"
+          : subscription.status === "trialing"
+          ? "trialing"
+          : subscription.status === "past_due"
+          ? "past_due"
+          : "canceled";
+
+        await supabase
+          .from("accounts")
+          .update({
+            plan: plan || undefined,
+            plan_status: status,
+            current_period_end: new Date(
+              subscription.current_period_end * 1000
+            ).toISOString(),
+          })
+          .eq("stripe_subscription_id", subscription.id);
+
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object;
+
+        await supabase
+          .from("accounts")
+          .update({
+            plan: "starter",
+            plan_status: "canceled",
+            stripe_subscription_id: null,
+          })
+          .eq("stripe_subscription_id", subscription.id);
+
+        break;
+      }
+
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object;
+
+        // Record payment in our database
+        if (invoice.subscription) {
+          await supabase
+            .from("accounts")
+            .update({ plan_status: "active" })
+            .eq("stripe_subscription_id", invoice.subscription);
+        }
+
+        break;
+      }
+
+      case "invoice.payment_failed": {
+        const invoice = event.data.object;
+
+        if (invoice.subscription) {
+          await supabase
+            .from("accounts")
+            .update({ plan_status: "past_due" })
+            .eq("stripe_subscription_id", invoice.subscription);
+        }
+
+        break;
+      }
+
+      default:
+        console.warn(`Unhandled event type: ${event.type}`);
+    }
+  } catch (err) {
+    console.error("Error processing webhook:", err);
+    return NextResponse.json(
+      { error: "Webhook handler failed" },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ received: true });
+}

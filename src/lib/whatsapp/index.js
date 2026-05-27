@@ -1,0 +1,189 @@
+/**
+ * WhatsApp Cloud API v21.0 Integration
+ * Handles sending messages, receiving webhooks, and message templates
+ */
+
+const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
+
+/**
+ * Send a text message via WhatsApp
+ */
+export async function sendWhatsAppMessage({ to, message, phoneNumberId }) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${phoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "text",
+        text: { body: message },
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("WhatsApp API error:", data);
+    throw new Error(data.error?.message || "Failed to send WhatsApp message");
+  }
+
+  return data;
+}
+
+/**
+ * Send a template message (for initiating conversations)
+ */
+export async function sendTemplateMessage({
+  to,
+  templateName,
+  languageCode = "en",
+  parameters = [],
+  phoneNumberId,
+}) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  const components = parameters.length > 0
+    ? [
+        {
+          type: "body",
+          parameters: parameters.map((p) => ({
+            type: "text",
+            text: p,
+          })),
+        },
+      ]
+    : undefined;
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${phoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: languageCode },
+          components,
+        },
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Failed to send template message");
+  }
+
+  return data;
+}
+
+/**
+ * Send an interactive product list message
+ */
+export async function sendProductListMessage({
+  to,
+  headerText,
+  bodyText,
+  footerText,
+  buttonText,
+  sections,
+  phoneNumberId,
+}) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${phoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "interactive",
+        interactive: {
+          type: "list",
+          header: { type: "text", text: headerText },
+          body: { text: bodyText },
+          footer: { text: footerText },
+          action: {
+            button: buttonText,
+            sections: sections,
+          },
+        },
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Failed to send product list");
+  }
+
+  return data;
+}
+
+/**
+ * Mark a message as read
+ */
+export async function markMessageAsRead({ messageId, phoneNumberId }) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  await fetch(`${WHATSAPP_API_URL}/${phoneId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      status: "read",
+      message_id: messageId,
+    }),
+  });
+}
+
+/**
+ * Parse incoming webhook payload from WhatsApp
+ */
+export function parseWebhookMessage(body) {
+  const entry = body?.entry?.[0];
+  const changes = entry?.changes?.[0];
+  const value = changes?.value;
+
+  if (!value?.messages?.[0]) return null;
+
+  const message = value.messages[0];
+  const contact = value.contacts?.[0];
+
+  return {
+    messageId: message.id,
+    from: message.from,
+    timestamp: message.timestamp,
+    type: message.type,
+    text: message.text?.body || null,
+    contactName: contact?.profile?.name || null,
+    phoneNumberId: value.metadata?.phone_number_id,
+  };
+}
