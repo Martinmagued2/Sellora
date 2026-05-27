@@ -5,17 +5,38 @@ import { useRouter } from "next/navigation";
 import { Sparkles, X, Send, Bot, Loader2, TrendingUp, Package, FileText, Users, DollarSign, ChevronRight, Trash2, AlertTriangle, ExternalLink } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 
-// Helper: extract text content from a UIMessage's parts array
+// ─── AI SDK v6 Message Helpers ───
+// In AI SDK v6, messages use a `parts` array with specific types:
+// - Text: { type: 'text', text: '...', state: 'streaming'|'done' }
+// - Static tool: { type: 'tool-{toolName}', toolCallId, state, input, output? }
+// - Dynamic tool: { type: 'dynamic-tool', toolName, toolCallId, state, input, output? }
+// - Step start: { type: 'step-start' }
+//
+// Tool states: 'input-streaming' → 'input-available' → 'output-available' | 'output-error'
+
+function isToolPart(part) {
+  return part.type.startsWith("tool-") || part.type === "dynamic-tool";
+}
+
+function getToolName(part) {
+  if (part.type === "dynamic-tool") return part.toolName;
+  // Static tool: type is 'tool-{toolName}' — extract name after 'tool-'
+  return part.type.slice(5);
+}
+
+function isToolComplete(part) {
+  return part.state === "output-available" || part.state === "output-error" || part.state === "output-denied";
+}
+
+// Extract text from all text parts in a message
 function getMessageText(msg) {
-  // Try parts first (AI SDK v6 format)
   if (msg.parts && Array.isArray(msg.parts)) {
-    const textFromParts = msg.parts
+    return msg.parts
       .filter((p) => p.type === "text")
       .map((p) => p.text)
       .join("");
-    if (textFromParts) return textFromParts;
   }
-  // Fallback to content (may be a string or array of content parts)
+  // Fallback for older format
   if (typeof msg.content === "string" && msg.content) return msg.content;
   if (Array.isArray(msg.content)) {
     return msg.content
@@ -26,42 +47,36 @@ function getMessageText(msg) {
   return "";
 }
 
-// Helper: get tool invocations from a message
-// AI SDK v6 uses type: 'tool-{toolName}' for each tool part
+// Get all tool invocation parts from a message
 function getToolInvocations(msg) {
   if (!msg.parts || !Array.isArray(msg.parts)) return [];
-  return msg.parts.filter((p) => p.type.startsWith("tool-") || p.type === "dynamic-tool");
+  return msg.parts.filter(isToolPart);
 }
 
-// Extract _action from tool invocation results
+// Extract _action from tool output
 function getToolAction(inv) {
-  // AI SDK v6: output field contains the result
   if (inv.output && inv.output._action) {
     return inv.output._action;
-  }
-  // Fallback for older format
-  if (inv.state === "result" && inv.result && inv.result._action) {
-    return inv.result._action;
   }
   return null;
 }
 
 // Tool name to friendly label mapping
 const TOOL_LABELS = {
-  get_store_analytics: { label: "Fetching store analytics...", icon: "📊" },
-  get_sales_report: { label: "Generating sales report...", icon: "📋" },
-  get_latest_sales: { label: "Fetching recent sales...", icon: "💰" },
-  get_top_products: { label: "Loading products...", icon: "📦" },
-  create_product: { label: "Creating product...", icon: "✨" },
-  update_product: { label: "Updating product...", icon: "✏️" },
-  draft_product_description: { label: "Drafting description...", icon: "📝" },
-  delete_product: { label: "Archiving product...", icon: "🗑️" },
-  search_products: { label: "Searching products...", icon: "🔍" },
-  get_inventory_alerts: { label: "Checking inventory alerts...", icon: "⚠️" },
-  update_order_status: { label: "Updating order status...", icon: "🚚" },
-  get_order_details: { label: "Loading order details...", icon: "🧾" },
-  get_recent_conversations: { label: "Loading conversations...", icon: "💬" },
-  get_customer_insights: { label: "Analyzing customers...", icon: "👥" },
+  get_store_analytics: { label: "Fetching store analytics...", icon: "📊", doneLabel: "Store analytics loaded" },
+  get_sales_report: { label: "Generating sales report...", icon: "📋", doneLabel: "Sales report generated" },
+  get_latest_sales: { label: "Fetching recent sales...", icon: "💰", doneLabel: "Recent sales loaded" },
+  get_top_products: { label: "Loading products...", icon: "📦", doneLabel: "Products loaded" },
+  create_product: { label: "Creating product...", icon: "✨", doneLabel: "Product created" },
+  update_product: { label: "Updating product...", icon: "✏️", doneLabel: "Product updated" },
+  draft_product_description: { label: "Drafting description...", icon: "📝", doneLabel: "Description drafted" },
+  delete_product: { label: "Archiving product...", icon: "🗑️", doneLabel: "Product archived" },
+  search_products: { label: "Searching products...", icon: "🔍", doneLabel: "Search complete" },
+  get_inventory_alerts: { label: "Checking inventory alerts...", icon: "⚠️", doneLabel: "Inventory alerts loaded" },
+  update_order_status: { label: "Updating order status...", icon: "🚚", doneLabel: "Order status updated" },
+  get_order_details: { label: "Loading order details...", icon: "🧾", doneLabel: "Order details loaded" },
+  get_recent_conversations: { label: "Loading conversations...", icon: "💬", doneLabel: "Conversations loaded" },
+  get_customer_insights: { label: "Analyzing customers...", icon: "👥", doneLabel: "Customer insights loaded" },
 };
 
 export default function CopilotPanel() {
@@ -73,22 +88,9 @@ export default function CopilotPanel() {
   const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
     api: "/api/chat",
     onError: (err) => {
-      console.error("Agent Error:", err);
-    }
+      console.error("[Copilot] Stream error:", err);
+    },
   });
-
-  // Debug: log message structure to understand AI SDK v6 format
-  useEffect(() => {
-    if (messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      console.log("[Copilot] Last message:", {
-        role: lastMsg.role,
-        hasParts: !!lastMsg.parts,
-        partsTypes: lastMsg.parts?.map(p => p.type),
-        content: typeof lastMsg.content === 'string' ? lastMsg.content?.substring(0, 100) : Array.isArray(lastMsg.content) ? 'array' : lastMsg.content,
-      });
-    }
-  }, [messages]);
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -129,6 +131,79 @@ export default function CopilotPanel() {
     { icon: AlertTriangle, text: "Show me inventory alerts", color: "#e17055" },
     { icon: Users, text: "Give me customer insights", color: "#a29bfe" },
   ];
+
+  // ─── Render helpers ───
+
+  const renderToolBadges = (toolInvocations) => {
+    if (!toolInvocations.length) return null;
+    return (
+      <div className="copilot-tool-badges">
+        {toolInvocations.map((inv, idx) => {
+          const toolName = getToolName(inv);
+          const toolInfo = TOOL_LABELS[toolName] || { label: `${toolName}...`, icon: "🔧", doneLabel: `${toolName} done` };
+          const complete = isToolComplete(inv);
+          const hasError = inv.state === "output-error";
+          return (
+            <span
+              key={`${inv.toolCallId || idx}`}
+              className={`copilot-tool-badge ${complete ? "complete" : "running"} ${hasError ? "error" : ""}`}
+            >
+              {complete ? (hasError ? "⚠" : "✓") : <Loader2 size={10} className="spin" />}
+              {" "}{toolInfo.icon}{" "}
+              {complete ? toolInfo.doneLabel : toolInfo.label}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderActionButtons = (toolInvocations) => {
+    const actions = toolInvocations
+      .map(getToolAction)
+      .filter(Boolean)
+      .filter((action, index, self) =>
+        action.path && self.findIndex(a => a.path === action.path) === index
+      );
+    if (!actions.length) return null;
+    return (
+      <div className="copilot-actions">
+        {actions.map((action, idx) => (
+          <button
+            key={idx}
+            className="copilot-action-btn"
+            onClick={() => handleActionClick(action.path)}
+          >
+            <ExternalLink size={12} />
+            <span>{action.label}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const renderMessage = (msg) => {
+    const text = getMessageText(msg);
+    const toolInvs = getToolInvocations(msg);
+
+    // Skip empty user messages
+    if (msg.role === "user" && !text) return null;
+
+    return (
+      <div key={msg.id} className={`copilot-msg ${msg.role}`}>
+        {msg.role === "assistant" && (
+          <div className="copilot-msg-avatar">
+            <Bot size={13} />
+          </div>
+        )}
+        <div className="copilot-msg-bubble">
+          {msg.role === "assistant" && renderToolBadges(toolInvs)}
+          {text && <div className="copilot-text-content">{text}</div>}
+          {msg.role === "assistant" && renderActionButtons(toolInvs)}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -199,73 +274,10 @@ export default function CopilotPanel() {
                 </div>
               </div>
             ) : (
-              messages.map((msg) => {
-                const text = getMessageText(msg);
-                const toolInvocations = getToolInvocations(msg);
-
-                // Collect action buttons from completed tool invocations
-                const actionButtons = toolInvocations
-                  .map((inv) => getToolAction(inv))
-                  .filter(Boolean)
-                  // Deduplicate by path
-                  .filter((action, index, self) =>
-                    action.path && self.findIndex(a => a.path === action.path) === index
-                  );
-
-                // Skip empty user messages (shouldn't happen but just in case)
-                if (msg.role === "user" && !text) return null;
-
-                // For assistant messages, always render even if no text yet
-                // (tool invocations might be present)
-                return (
-                  <div key={msg.id} className={`copilot-msg ${msg.role}`}>
-                    {msg.role === "assistant" && (
-                      <div className="copilot-msg-avatar">
-                        <Bot size={13} />
-                      </div>
-                    )}
-                    <div className="copilot-msg-bubble">
-                      {/* Show tool invocations as status badges */}
-                      {toolInvocations.length > 0 && (
-                        <div className="copilot-tool-badges">
-                          {toolInvocations.map((inv, idx) => {
-                            // AI SDK v6: toolName is derived from type 'tool-{name}' or inv.toolName for dynamic tools
-                            const toolName = inv.type.startsWith('tool-') ? inv.type.slice(5) : inv.toolName;
-                            const toolInfo = TOOL_LABELS[toolName] || { label: toolName, icon: "🔧" };
-                            // AI SDK v6 states: input-streaming, input-available, approval-requested, etc.
-                            // output being present means the tool completed
-                            const isComplete = inv.output !== undefined || inv.state === "result";
-                            return (
-                              <span key={idx} className={`copilot-tool-badge ${isComplete ? "complete" : "running"}`}>
-                                {isComplete ? "✓" : <Loader2 size={10} className="spin" />} {toolInfo.icon} {toolInfo.label}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {/* Show text content */}
-                      {text && <div className="copilot-text-content">{text}</div>}
-                      {/* Show action buttons - show even without text since text may be in a different message */}
-                      {actionButtons.length > 0 && (
-                        <div className="copilot-actions">
-                          {actionButtons.map((action, idx) => (
-                            <button
-                              key={idx}
-                              className="copilot-action-btn"
-                              onClick={() => handleActionClick(action.path)}
-                            >
-                              <ExternalLink size={12} />
-                              <span>{action.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+              messages.map(renderMessage)
             )}
-            {isLoading && messages.length > 0 && !messages[messages.length - 1]?.parts?.some(p => p.type === "tool-invocation") && (
+            {/* Typing indicator — only show when streaming and last message has no text yet */}
+            {isLoading && messages.length > 0 && !getMessageText(messages[messages.length - 1]) && !getToolInvocations(messages[messages.length - 1]).length && (
               <div className="copilot-msg assistant">
                 <div className="copilot-msg-avatar">
                   <Bot size={13} />

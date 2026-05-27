@@ -51,14 +51,15 @@ export const createCopilotTools = (accountId) => {
     }),
 
     get_sales_report: tool({
-      description: "Generate a detailed sales/income report for the store. Includes revenue breakdown, order stats, top-selling products, and trends. Use when the seller asks for a report, income summary, or detailed sales analysis. The period must be one of: today, week, month, quarter, year.",
+      description: "Generate a detailed sales/income report for the store. Includes revenue breakdown, order stats, top-selling products, and trends. Use when the seller asks for a report, income summary, or detailed sales analysis. If no period is specified, default to 'month'.",
       inputSchema: z.object({
-        period: z.string().describe("The time period for the report. Must be one of: today, week, month, quarter, year"),
+        period: z.string().optional().describe("The time period for the report. Acceptable values: today, week, month, quarter, year. Defaults to month if not specified."),
       }),
       execute: async ({ period }) => {
-        // Normalize period string to valid value
-        const periodMap = { today: 'today', week: 'week', month: 'month', quarterly: 'quarter', quarter: 'quarter', year: 'year', yearly: 'year', annual: 'year', daily: 'today', weekly: 'week', monthly: 'month' };
-        const normalizedPeriod = periodMap[period?.toLowerCase()?.trim()] || 'month';
+        // Normalize period string to valid value — be very forgiving since LLMs generate various formats
+        const periodLower = (period || 'month').toLowerCase().trim();
+        const periodMap = { today: 'today', day: 'today', daily: 'today', week: 'week', weekly: 'week', 'this week': 'week', month: 'month', monthly: 'month', 'this month': 'month', quarter: 'quarter', quarterly: 'quarter', year: 'year', yearly: 'year', annual: 'year', 'this year': 'year' };
+        const normalizedPeriod = periodMap[periodLower] || 'month';
         const now = new Date();
         let startDate;
 
@@ -305,7 +306,7 @@ export const createCopilotTools = (accountId) => {
       description: "Draft an SEO-optimized product description based on basic details provided by the seller. Returns a drafted description for the seller to review.",
       inputSchema: z.object({
         product_name: z.string().optional().describe("The name of the product"),
-        features: z.string().describe("Key features or keywords to include"),
+        features: z.string().optional().describe("Key features or keywords to include. Can be a comma-separated list or a sentence."),
         tone: z.string().optional().describe("The tone of the description (e.g., professional, fun, luxurious)"),
       }),
       execute: async ({ product_name, features, tone }) => {
@@ -484,9 +485,9 @@ export const createCopilotTools = (accountId) => {
     }),
 
     get_customer_insights: tool({
-      description: "Get customer analytics and insights — total customers, returning customers, top spenders, and customer distribution. Use when the seller asks about their customers or wants customer analytics. Takes no required parameters.",
+      description: "Get customer analytics and insights — total customers, returning customers, top spenders, and customer distribution. Use when the seller asks about their customers or wants customer analytics. Takes no required parameters. Always call this tool when the user asks about customers.",
       inputSchema: z.object({
-        summary: z.string().optional().describe("Set to 'true' for a brief summary, or omit for full details"),
+        summary: z.string().optional().describe("Set to 'true' for a brief summary, or omit for full details. This parameter is optional."),
       }),
       execute: async ({ summary }) => {
         const { data: customers, error } = await supabase
