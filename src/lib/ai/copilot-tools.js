@@ -1,8 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import ZAI from "z-ai-web-dev-sdk";
-import { getZAIConfig } from "@/lib/ai/z-ai-config";
+import { generateProductImage } from "@/lib/ai/image-generator";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -282,33 +281,18 @@ export const createCopilotTools = (accountId) => {
           // Build the image generation prompt
           const prompt = `${stylePrompt}. Product: ${product_name}${description ? `. ${description}` : ""}. High quality, 4K, commercial photography, no text, no watermark, no people visible.`;
 
-          // Generate image using z-ai-web-dev-sdk (works on server, no CLI needed)
-          let imageBase64;
-          try {
-            const zaiConfig = getZAIConfig();
-            if (!zaiConfig) {
-              return {
-                success: false,
-                error: "Image generation is not configured. Set ZAI_BASE_URL and ZAI_API_KEY environment variables.",
-              };
-            }
-            const zai = new ZAI(zaiConfig);
-            const response = await zai.images.generations.create({
-              prompt,
-              size: "1024x1024",
-            });
-            imageBase64 = response.data[0]?.base64;
-            if (!imageBase64) {
-              throw new Error("No image data returned from API");
-            }
-            console.log(`[Agent] Image generated via z-ai-web-dev-sdk for "${product_name}"`);
-          } catch (genError) {
-            console.error("[Agent] Image generation API failed:", genError.message);
+          // Generate image using shared utility (ZAI first, then Google Imagen fallback)
+          const genResult = await generateProductImage(prompt, { size: "1024x1024" });
+
+          if (!genResult.success) {
             return {
               success: false,
-              error: "Image generation failed. The AI image service may be temporarily unavailable.",
+              error: genResult.error || "Image generation failed. The AI image service may be temporarily unavailable.",
             };
           }
+
+          const imageBase64 = genResult.imageBase64;
+          console.log(`[Agent] Image generated for "${product_name}" via ${genResult.source}`);
 
           // Convert base64 to buffer for upload
           const imageBuffer = Buffer.from(imageBase64, "base64");
