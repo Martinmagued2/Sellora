@@ -12,11 +12,11 @@ const execFileAsync = promisify(execFile);
 /**
  * Shared image generation utility with automatic fallback chain:
  *
- * 1. Gemini 2.5 Flash Image Generation (native image output, uses existing GOOGLE_GENERATIVE_AI_API_KEY)
- * 2. ZAI SDK (works on the deployed platform via internal network)
- * 3. z-ai-generate CLI tool (uses same SDK via CLI, works on server environments)
- * 4. Together AI FLUX.1-schnell-Free (high quality, needs TOGETHER_API_KEY)
- * 5. Pollinations.ai (free, no API key, lower quality)
+ * 1. Gemini 2.5 Flash Image Generation (uses GOOGLE_GENERATIVE_AI_API_KEY)
+ * 2. ZAI SDK (works on the deployed platform)
+ * 3. z-ai-generate CLI tool (works on server environments)
+ * 4. Together AI FLUX.1-schnell-Free (high quality, free key from together.ai)
+ * 5. Pollinations.ai (free, no key needed, decent quality with flux-realism)
  *
  * Returns: { success: true, imageBase64, source }
  */
@@ -38,53 +38,73 @@ const GEMINI_IMAGE_MODELS = [
 export async function generateProductImage(prompt, options = {}) {
   const size = options.size || "1024x1024";
 
-  // ─── Attempt 1: Gemini 2.5 Flash Image Generation ───
-  // Uses the user's existing GOOGLE_GENERATIVE_AI_API_KEY
+  // ─── Attempt 1: Gemini Image Generation (via REST API) ───
+  // Uses the existing GOOGLE_GENERATIVE_AI_API_KEY.
+  // Note: Image generation models may not be available in all regions.
+  // The SDK uses v1beta which may not list these models, so we call REST directly.
   const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (googleApiKey) {
     for (const modelName of GEMINI_IMAGE_MODELS) {
       try {
         console.log(`[ImageGen] Trying Gemini image generation (${modelName})...`);
-        const gen = new GoogleGenerativeAI(googleApiKey);
 
-        const model = gen.getGenerativeModel({
-          model: modelName,
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"],
-          },
-        });
-
-        const result = await model.generateContent(
-          `Generate a high-quality product image: ${prompt}`
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${googleApiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: `Generate a high-quality product image: ${prompt}`,
+                    },
+                  ],
+                },
+              ],
+              generationConfig: {
+                responseModalities: ["TEXT", "IMAGE"],
+              },
+            }),
+            signal: AbortSignal.timeout(30000),
+          }
         );
 
-        const response = result.response;
-        const parts = response.candidates?.[0]?.content?.parts || [];
+        if (response.ok) {
+          const data = await response.json();
+          const parts = data.candidates?.[0]?.content?.parts || [];
 
-        for (const part of parts) {
-          if (part.inlineData && part.inlineData.data) {
-            const imageBase64 = part.inlineData.data;
-            const mimeType = part.inlineData.mimeType || "image/png";
-            console.log(`[ImageGen] ✅ Image generated via Gemini (${modelName}, ${mimeType}, ${(imageBase64.length / 1024).toFixed(0)}KB base64)`);
-            return { success: true, imageBase64, source: `gemini-${modelName}` };
+          for (const part of parts) {
+            if (part.inlineData && part.inlineData.data) {
+              const imageBase64 = part.inlineData.data;
+              const mimeType = part.inlineData.mimeType || "image/png";
+              console.log(
+                `[ImageGen] ✅ Image generated via Gemini (${modelName}, ${mimeType}, ${(imageBase64.length / 1024).toFixed(0)}KB base64)`
+              );
+              return { success: true, imageBase64, source: `gemini` };
+            }
           }
+          // No image in response — model exists but didn't generate image
+          console.warn(`[ImageGen] Gemini ${modelName} returned no image data`);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          const errMsg = errorData?.error?.message || `HTTP ${response.status}`;
+          // Don't retry remaining Gemini models if it's a location/auth error
+          if (errMsg.includes("location is not supported")) {
+            console.warn(`[ImageGen] Gemini image generation not available in your region`);
+            break;
+          }
+          if (errMsg.includes("not found") || response.status === 404) {
+            console.warn(`[ImageGen] Gemini model ${modelName} not found, trying next`);
+            continue;
+          }
+          console.warn(`[ImageGen] Gemini ${modelName} failed: ${errMsg.substring(0, 150)}`);
         }
-
-        // If no image in response, this model might not support image gen
-        console.warn(`[ImageGen] Gemini ${modelName} returned no image data, trying next model`);
       } catch (geminiError) {
-        const msg = geminiError?.message || "";
-        // Don't retry if it's a location/auth error — all models will fail
-        if (msg.includes("location is not supported") || msg.includes("API key not valid")) {
-          console.warn(`[ImageGen] Gemini unavailable: ${msg.substring(0, 120)}`);
-          break;
-        }
-        // Model not found or doesn't support image — try next model
-        console.warn(`[ImageGen] Gemini ${modelName} failed: ${msg.substring(0, 150)}`);
+        console.warn(`[ImageGen] Gemini ${modelName} error: ${geminiError.message?.substring(0, 150)}`);
       }
     }
-  } else {
-    console.warn("[ImageGen] No GOOGLE_GENERATIVE_AI_API_KEY set, skipping Gemini image generation");
   }
 
   // ─── Attempt 2: ZAI SDK (direct API call) ───
@@ -153,6 +173,7 @@ export async function generateProductImage(prompt, options = {}) {
   }
 
   // ─── Attempt 4: Together AI (FLUX.1-schnell-Free — high quality) ───
+  // Free to use: https://api.together.xyz — create account → get API key
   const togetherApiKey = process.env.TOGETHER_API_KEY;
   if (togetherApiKey) {
     try {
@@ -204,11 +225,13 @@ export async function generateProductImage(prompt, options = {}) {
     } catch (togetherError) {
       console.warn("[ImageGen] Together AI failed:", togetherError.message?.substring(0, 200));
     }
+  } else {
+    console.warn("[ImageGen] No TOGETHER_API_KEY — add a free key from https://api.together.xyz for high-quality FLUX images");
   }
 
-  // ─── Attempt 5: Pollinations.ai (free, no API key, lower quality) ───
+  // ─── Attempt 5: Pollinations.ai (free, no API key) ───
   try {
-    console.log("[ImageGen] Trying Pollinations.ai (last resort — lower quality)...");
+    console.log("[ImageGen] Trying Pollinations.ai (free fallback)...");
     const [width, height] = size.split("x").map(Number);
     const encodedPrompt = encodeURIComponent(prompt);
     const seed = Math.floor(Math.random() * 1000000);
@@ -232,13 +255,13 @@ export async function generateProductImage(prompt, options = {}) {
       throw new Error("Pollinations.ai returned empty or invalid image data");
     }
 
-    console.log(`[ImageGen] ⚠️ Image via Pollinations.ai fallback (${(buffer.length / 1024).toFixed(0)}KB)`);
+    console.log(`[ImageGen] ⚠️ Image via Pollinations.ai (${(buffer.length / 1024).toFixed(0)}KB). For better quality, add TOGETHER_API_KEY to .env.local`);
     return { success: true, imageBase64, source: "pollinations" };
   } catch (pollinationsError) {
     console.error("[ImageGen] All image generation methods failed");
     return {
       success: false,
-      error: `Image generation failed. All methods unavailable: ${pollinationsError.message}`,
+      error: `Image generation failed. Tips: (1) Add TOGETHER_API_KEY from https://api.together.xyz (free, FLUX model), or (2) Gemini image gen may not be available in your region. Last error: ${pollinationsError.message}`,
     };
   }
 }
