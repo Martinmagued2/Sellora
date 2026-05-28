@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -21,6 +21,10 @@ import {
   HelpCircle,
   LogOut,
   Clock,
+  ExternalLink,
+  CheckCircle,
+  AlertCircle,
+  Info,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import CopilotPanel from "./components/CopilotPanel";
@@ -31,8 +35,8 @@ const sidebarLinks = [
     section: "Main",
     links: [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-      { href: "/dashboard/conversations", icon: MessageCircle, label: "Conversations", badge: 12 },
-      { href: "/dashboard/orders", icon: ShoppingBag, label: "Orders", badge: 3 },
+      { href: "/dashboard/conversations", icon: MessageCircle, label: "Conversations", badgeKey: "conversations" },
+      { href: "/dashboard/orders", icon: ShoppingBag, label: "Orders", badgeKey: "orders" },
     ],
   },
   {
@@ -71,6 +75,14 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [accountStatus, setAccountStatus] = useState(null);
+  const [sidebarBadges, setSidebarBadges] = useState({ conversations: 0, orders: 0 });
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearch, setShowSearch] = useState(false);
+  const notifRef = useRef(null);
+  const searchRef = useRef(null);
 
   const currentTitle = pageTitles[pathname] || "Dashboard";
 
@@ -94,6 +106,71 @@ export default function DashboardLayout({ children }) {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch sidebar badges (unread conversations + pending orders)
+  useEffect(() => {
+    if (!user) return;
+    const supabase = createClient();
+
+    const fetchBadges = async () => {
+      try {
+        const [convRes, orderRes] = await Promise.all([
+          supabase.from("conversations").select("id", { count: "exact", head: true }).eq("account_id", user.id).in("status", ["new", "open"]),
+          supabase.from("orders").select("id", { count: "exact", head: true }).eq("account_id", user.id).in("status", ["pending", "processing"]),
+        ]);
+        setSidebarBadges({
+          conversations: convRes.count || 0,
+          orders: orderRes.count || 0,
+        });
+      } catch (e) {
+        // Silently fail — badges are nice-to-have
+      }
+    };
+
+    fetchBadges();
+    const interval = setInterval(fetchBadges, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Global search handler
+  useEffect(() => {
+    if (!user || !searchQuery.trim()) { setSearchResults([]); return; }
+    const supabase = createClient();
+    const q = searchQuery.trim();
+
+    const doSearch = async () => {
+      try {
+        const [convRes, orderRes, prodRes, custRes] = await Promise.all([
+          supabase.from("conversations").select("id, customer_name, status, channel").eq("account_id", user.id).ilike("customer_name", `%${q}%`).limit(3),
+          supabase.from("orders").select("id, order_number, status, total").eq("account_id", user.id).ilike("order_number", `%${q}%`).limit(3),
+          supabase.from("products").select("id, name, price, category").eq("account_id", user.id).ilike("name", `%${q}%`).limit(3),
+          supabase.from("customers").select("id, name, email, channel").eq("account_id", user.id).ilike("name", `%${q}%`).limit(3),
+        ]);
+
+        const results = [];
+        if (convRes.data?.length) results.push(...convRes.data.map(c => ({ type: "Conversation", label: c.customer_name || c.id, sub: c.channel, href: "/dashboard/conversations" })));
+        if (orderRes.data?.length) results.push(...orderRes.data.map(o => ({ type: "Order", label: o.order_number || o.id, sub: `${o.status} · EGP ${o.total}`, href: "/dashboard/orders" })));
+        if (prodRes.data?.length) results.push(...prodRes.data.map(p => ({ type: "Product", label: p.name, sub: `${p.category} · EGP ${p.price}`, href: "/dashboard/products" })));
+        if (custRes.data?.length) results.push(...custRes.data.map(c => ({ type: "Customer", label: c.name, sub: c.email || c.channel, href: "/dashboard/customers" })));
+        setSearchResults(results.slice(0, 8));
+      } catch (e) {
+        setSearchResults([]);
+      }
+    };
+
+    const debounce = setTimeout(doSearch, 300);
+    return () => clearTimeout(debounce);
+  }, [user, searchQuery]);
+
+  // Close panels on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifPanel(false);
+      if (searchRef.current && !searchRef.current.contains(e.target)) setShowSearch(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   const handleLogout = async () => {
@@ -160,8 +237,8 @@ export default function DashboardLayout({ children }) {
                       <Icon size={18} />
                     </span>
                     {link.label}
-                    {link.badge && (
-                      <span className="sidebar-link-badge">{link.badge}</span>
+                    {link.badgeKey && sidebarBadges[link.badgeKey] > 0 && (
+                      <span className="sidebar-link-badge">{sidebarBadges[link.badgeKey]}</span>
                     )}
                   </Link>
                 );
@@ -244,25 +321,105 @@ export default function DashboardLayout({ children }) {
             <h1 className="topbar-title">{currentTitle}</h1>
           </div>
 
-          <div className="topbar-search">
+          <div className="topbar-search" ref={searchRef} style={{ position: "relative" }}>
             <Search size={16} className="topbar-search-icon" />
             <input
               type="text"
               className="topbar-search-input"
               placeholder="Search conversations, orders, products..."
               id="dashboard-search"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setShowSearch(true); }}
+              onFocus={() => setShowSearch(true)}
             />
+            {showSearch && searchQuery.trim() && (
+              <div style={{
+                position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100,
+                background: "var(--bg-elevated)", borderRadius: "0 0 12px 12px",
+                boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)",
+                borderTop: "none", maxHeight: 320, overflowY: "auto"
+              }}>
+                {searchResults.length === 0 ? (
+                  <div style={{ padding: "16px", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>No results found</div>
+                ) : searchResults.map((r, i) => (
+                  <button key={i} onClick={() => { router.push(r.href); setShowSearch(false); setSearchQuery(""); }} style={{
+                    display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 16px",
+                    background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
+                    textAlign: "left", fontSize: "var(--font-size-sm)"
+                  }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-primary)", minWidth: 80 }}>{r.type}</span>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                    <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{r.sub}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="topbar-right">
             <button className="topbar-btn" id="topbar-ai" title="Sellora Agent" onClick={() => document.getElementById("copilot-toggle")?.click()}>
               <Bot size={18} />
             </button>
-            <button className="topbar-btn" id="topbar-notifications" title="Notifications" onClick={() => alert("Notification center coming soon!")}>
-              <Bell size={18} />
-              <span className="topbar-btn-dot" />
-            </button>
-            <button className="topbar-btn" id="topbar-help" title="Help" onClick={() => alert("Help Center & Documentation coming soon!")}>
+            <div ref={notifRef} style={{ position: "relative" }}>
+              <button className="topbar-btn" id="topbar-notifications" title="Notifications" onClick={() => setShowNotifPanel(!showNotifPanel)}>
+                <Bell size={18} />
+                {sidebarBadges.conversations + sidebarBadges.orders > 0 && (
+                  <span className="topbar-btn-dot" />
+                )}
+              </button>
+              {showNotifPanel && (
+                <div style={{
+                  position: "absolute", right: 0, top: "100%", width: 340, zIndex: 100,
+                  background: "var(--bg-elevated)", borderRadius: 12,
+                  boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)",
+                  marginTop: 8, overflow: "hidden"
+                }}>
+                  <div style={{ padding: "14px 16px", fontWeight: 700, borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Notifications</span>
+                    <span style={{ fontSize: 11, color: "var(--accent-primary)", fontWeight: 500 }}>
+                      {sidebarBadges.conversations + sidebarBadges.orders} active
+                    </span>
+                  </div>
+                  {sidebarBadges.conversations > 0 && (
+                    <button onClick={() => { router.push("/dashboard/conversations"); setShowNotifPanel(false); }} style={{
+                      display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 16px",
+                      background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
+                      textAlign: "left", borderBottom: "1px solid var(--border)"
+                    }}>
+                      <MessageCircle size={16} style={{ color: "var(--accent-primary)" }} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{sidebarBadges.conversations} open conversations</div>
+                        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Awaiting your response</div>
+                      </div>
+                    </button>
+                  )}
+                  {sidebarBadges.orders > 0 && (
+                    <button onClick={() => { router.push("/dashboard/orders"); setShowNotifPanel(false); }} style={{
+                      display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 16px",
+                      background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
+                      textAlign: "left", borderBottom: "1px solid var(--border)"
+                    }}>
+                      <ShoppingBag size={16} style={{ color: "var(--accent-orange)" }} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{sidebarBadges.orders} pending orders</div>
+                        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Need processing</div>
+                      </div>
+                    </button>
+                  )}
+                  {sidebarBadges.conversations === 0 && sidebarBadges.orders === 0 && (
+                    <div style={{ padding: 24, textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
+                      <CheckCircle size={24} style={{ margin: "0 auto 8px", opacity: 0.5 }} />
+                      All caught up! No pending items.
+                    </div>
+                  )}
+                  <button onClick={() => { router.push("/dashboard/conversations"); setShowNotifPanel(false); }} style={{
+                    width: "100%", padding: "10px", background: "none", border: "none",
+                    cursor: "pointer", color: "var(--accent-primary)", fontSize: 12, fontWeight: 600
+                  }}>View All</button>
+                </div>
+              )}
+            </div>
+            <button className="topbar-btn" id="topbar-help" title="Help" onClick={() => window.open("https://sellora.com/docs", "_blank")}>
               <HelpCircle size={18} />
             </button>
           </div>

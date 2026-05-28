@@ -55,6 +55,25 @@ function SettingsContent() {
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [updatingPassword, setUpdatingPassword] = useState(false);
 
+  // Notification prefs state
+  const [notifPrefs, setNotifPrefs] = useState({
+    new_message: true, new_order: true, order_status: true, daily_summary: false
+  });
+  const [notifSaving, setNotifSaving] = useState(false);
+
+  // Logo upload state
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // Auto-replies state
+  const [autoReplies, setAutoReplies] = useState([]);
+  const [showAddReply, setShowAddReply] = useState(false);
+  const [newReply, setNewReply] = useState({ keyword: "", response: "", match_type: "contains" });
+  const [replySaving, setReplySaving] = useState(false);
+
+  // Delete account state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
   const supabase = createClient();
 
   useEffect(() => {
@@ -71,6 +90,14 @@ function SettingsContent() {
       // Fetch team
       const { data: tm } = await supabase.from("team_members").select("*").eq("account_id", user.id).order("created_at");
       if (tm) setTeamMembers(tm);
+
+      // Fetch auto-replies
+      const { data: ar } = await supabase.from("auto_replies").select("*").eq("account_id", user.id).eq("is_active", true).order("created_at");
+      if (ar) setAutoReplies(ar);
+
+      // Load notification prefs from account
+      if (data?.notification_prefs) setNotifPrefs(data.notification_prefs);
+
       setLoading(false);
     };
     load();
@@ -88,6 +115,9 @@ function SettingsContent() {
       currency: account.currency,
       ai_enabled: account.ai_enabled,
       ai_personality: account.ai_personality,
+      instagram_url: account.instagram_url,
+      facebook_url: account.facebook_url,
+      website_url: account.website_url,
     }).eq("id", user.id);
     setSaving(false);
     setSaved(true);
@@ -171,8 +201,30 @@ function SettingsContent() {
                       fontSize: "28px", fontWeight: 800,
                     }}>{ account.business_name?.charAt(0) || "S" }</div>
                     <div>
-                      <button className="btn btn-secondary btn-sm" disabled style={{ opacity: 0.7 }} title="Coming Soon">
-                        <Upload size={14} /> Upload Logo (Coming Soon)
+                      <button className="btn btn-secondary btn-sm" disabled={uploadingLogo} onClick={async () => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/png,image/jpeg';
+                        input.onchange = async (e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          if (file.size > 2 * 1024 * 1024) { alert('File must be under 2MB'); return; }
+                          setUploadingLogo(true);
+                          try {
+                            const ext = file.name.split('.').pop();
+                            const { data: { user } } = await supabase.auth.getUser();
+                            const path = `${user.id}/logo.${ext}`;
+                            const { error: uploadErr } = await supabase.storage.from('logos').upload(path, file, { upsert: true });
+                            if (uploadErr) throw uploadErr;
+                            const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path);
+                            await supabase.from('accounts').update({ logo_url: urlData.publicUrl }).eq('id', user.id);
+                            setAccount(prev => ({ ...prev, logo_url: urlData.publicUrl }));
+                          } catch (err) { alert('Upload failed: ' + err.message); }
+                          finally { setUploadingLogo(false); }
+                        };
+                        input.click();
+                      }}>
+                        <Upload size={14} /> {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
                       </button>
                       <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 6 }}>
                         PNG, JPG up to 2MB. Recommended: 200x200px
@@ -220,11 +272,11 @@ function SettingsContent() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Website / Social Links <span style={{ fontSize: 10, color: "var(--accent-orange)", marginLeft: 6 }}>(Coming Soon)</span></label>
+                  <label className="form-label">Website / Social Links</label>
                   <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-                    <input type="text" className="form-input" defaultValue="instagram.com/mystore" placeholder="Instagram" readOnly style={{ opacity: 0.6 }} />
-                    <input type="text" className="form-input" defaultValue="" placeholder="Facebook page URL" readOnly style={{ opacity: 0.6 }} />
-                    <input type="text" className="form-input" defaultValue="" placeholder="Website URL" readOnly style={{ opacity: 0.6 }} />
+                    <input type="text" className="form-input" value={account.instagram_url || ""} onChange={(e) => updateField("instagram_url", e.target.value)} placeholder="instagram.com/mystore" />
+                    <input type="text" className="form-input" value={account.facebook_url || ""} onChange={(e) => updateField("facebook_url", e.target.value)} placeholder="Facebook page URL" />
+                    <input type="text" className="form-input" value={account.website_url || ""} onChange={(e) => updateField("website_url", e.target.value)} placeholder="Website URL" />
                   </div>
                 </div>
               </div>
@@ -271,7 +323,13 @@ function SettingsContent() {
                             Upgrade to Connect
                           </button>
                         ) : (
-                          <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => alert("Please securely log in from the main Onboarding screen, or wait for App Review approval to connect channels here.")}>
+                          <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
+                            if (process.env.NEXT_PUBLIC_META_APP_ID) {
+                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}&scope=instagram_manage_messages,pages_messaging,pages_read_engagement&response_type=code&state=instagram_${account.id}`;
+                            } else {
+                              alert('Instagram connection requires Meta App Review approval. This will be available once the app is approved by Meta.');
+                            }
+                          }}>
                             Connect
                           </button>
                         )}
@@ -301,7 +359,13 @@ function SettingsContent() {
                             Upgrade to Connect
                           </button>
                         ) : (
-                          <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => alert("Please securely log in from the main Onboarding screen, or wait for App Review approval to connect channels here.")}>
+                          <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
+                            if (process.env.NEXT_PUBLIC_META_APP_ID) {
+                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}&scope=pages_messaging,pages_read_engagement,pages_manage_metadata&response_type=code&state=facebook_${account.id}`;
+                            } else {
+                              alert('Facebook connection requires Meta App Review approval. This will be available once the app is approved by Meta.');
+                            }
+                          }}>
                             Connect
                           </button>
                         )}
@@ -432,10 +496,65 @@ function SettingsContent() {
                 </div>
 
                 <div style={{ marginTop: "var(--space-lg)" }}>
-                  <label className="form-label">Quick Reply Templates <span style={{ fontSize: 10, color: "var(--accent-orange)", marginLeft: 6 }}>(Coming Soon)</span></label>
-                  <button className="btn btn-secondary btn-sm" disabled style={{ marginTop: "var(--space-sm)", opacity: 0.7 }} title="Coming Soon">
-                    <Plus size={14} /> Add Quick Reply
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-md)" }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Quick Reply Templates</label>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setShowAddReply(!showAddReply)}>
+                      <Plus size={14} /> Add Quick Reply
+                    </button>
+                  </div>
+
+                  {showAddReply && (
+                    <div style={{ padding: "var(--space-lg)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", marginBottom: "var(--space-md)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-sm)", marginBottom: "var(--space-sm)" }}>
+                        <input type="text" className="form-input" placeholder="Trigger keyword (e.g. 'hours')" value={newReply.keyword} onChange={(e) => setNewReply({ ...newReply, keyword: e.target.value })} />
+                        <select className="form-input" value={newReply.match_type} onChange={(e) => setNewReply({ ...newReply, match_type: e.target.value })} style={{ padding: "8px 12px" }}>
+                          <option value="contains">Contains</option>
+                          <option value="exact">Exact match</option>
+                          <option value="starts_with">Starts with</option>
+                        </select>
+                      </div>
+                      <textarea className="form-input form-textarea" placeholder="Auto-reply message..." value={newReply.response} onChange={(e) => setNewReply({ ...newReply, response: e.target.value })} style={{ marginBottom: "var(--space-sm)" }} />
+                      <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                        <button className="btn btn-primary btn-sm" disabled={replySaving || !newReply.keyword || !newReply.response} onClick={async () => {
+                          setReplySaving(true);
+                          try {
+                            const { data: { user } } = await supabase.auth.getUser();
+                            const { data: inserted } = await supabase.from('auto_replies').insert({
+                              account_id: user.id, trigger_keyword: newReply.keyword,
+                              response: newReply.response, match_type: newReply.match_type, is_active: true
+                            }).select().single();
+                            if (inserted) { setAutoReplies([...autoReplies, inserted]); setNewReply({ keyword: "", response: "", match_type: "contains" }); setShowAddReply(false); }
+                          } catch (err) { alert('Failed to save: ' + err.message); }
+                          finally { setReplySaving(false); }
+                        }}>{replySaving ? 'Saving...' : 'Save Reply'}</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setShowAddReply(false)}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {autoReplies.length === 0 ? (
+                    <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)", border: "1px dashed var(--border-medium)", borderRadius: "var(--radius-md)", fontSize: "var(--font-size-sm)" }}>
+                      No quick reply templates yet. Add one to auto-respond to common keywords.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+                      {autoReplies.map((ar) => (
+                        <div key={ar.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                          <div style={{ flex: 1, overflow: "hidden" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                              <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>"{ar.trigger_keyword}"</span>
+                              <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(108,92,231,0.1)", color: "var(--accent-primary)" }}>{ar.match_type}</span>
+                            </div>
+                            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ar.response}</div>
+                          </div>
+                          <button className="btn btn-sm" style={{ background: "rgba(255,82,82,0.1)", color: "var(--accent-red)", border: "none" }} onClick={async () => {
+                            await supabase.from('auto_replies').delete().eq('id', ar.id);
+                            setAutoReplies(autoReplies.filter(r => r.id !== ar.id));
+                          }}><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -443,25 +562,33 @@ function SettingsContent() {
 
           {activeTab === "notifications" && (
             <div className="dashboard-panel">
-              <div className="dashboard-panel-header"><h3>Notification Preferences <span style={{ fontSize: 12, color: "var(--accent-orange)", marginLeft: 6, fontWeight: 500 }}>(Coming Soon)</span></h3></div>
+              <div className="dashboard-panel-header"><h3>Notification Preferences</h3></div>
               <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
                 {[
-                  { label: "New message received", desc: "Get notified when a customer sends a new message", on: true },
-                  { label: "New order placed", desc: "Get notified when a new order is created", on: true },
-                  { label: "Order status changed", desc: "Get notified when an order status changes", on: true },
-                  { label: "Daily summary email", desc: "Receive a daily summary of conversations and orders", on: false },
+                  { key: "new_message", label: "New message received", desc: "Get notified when a customer sends a new message" },
+                  { key: "new_order", label: "New order placed", desc: "Get notified when a new order is created" },
+                  { key: "order_status", label: "Order status changed", desc: "Get notified when an order status changes" },
+                  { key: "daily_summary", label: "Daily summary email", desc: "Receive a daily summary of conversations and orders" },
                 ].map((n, i) => (
                   <div key={i} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "var(--space-lg) 0", opacity: 0.6,
+                    padding: "var(--space-lg) 0",
                     borderBottom: i < 3 ? "1px solid var(--border-subtle)" : "none",
                   }}>
                     <div>
                       <div style={{ fontWeight: 500, marginBottom: 2 }}>{n.label}</div>
                       <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>{n.desc}</div>
                     </div>
-                    <div style={{ color: n.on ? "var(--text-secondary)" : "var(--text-tertiary)" }}>
-                      {n.on ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                    <div style={{ color: notifPrefs[n.key] ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }} onClick={async () => {
+                      const newPrefs = { ...notifPrefs, [n.key]: !notifPrefs[n.key] };
+                      setNotifPrefs(newPrefs);
+                      // Save to DB
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        await supabase.from('accounts').update({ notification_prefs: newPrefs }).eq('id', user.id);
+                      } catch (e) {}
+                    }}>
+                      {notifPrefs[n.key] ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
                     </div>
                   </div>
                 ))}
@@ -500,7 +627,7 @@ function SettingsContent() {
                         Add an extra layer of security to your account
                       </div>
                     </div>
-                    <button className="btn btn-primary btn-sm" disabled style={{ opacity: 0.7 }} title="Coming Soon">Enable 2FA (Coming Soon)</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => alert('Two-Factor Authentication will be available in a future update. For now, ensure you use a strong password.')}>Enable 2FA</button>
                   </div>
                 </div>
 
@@ -517,10 +644,33 @@ function SettingsContent() {
                         Permanently delete your account and all data
                       </div>
                     </div>
-                    <button className="btn btn-sm" disabled style={{ background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)", opacity: 0.7 }} title="Please contact support to delete account">
-                      Delete Account (Contact Support)
+                    <button className="btn btn-sm" style={{ background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)" }} onClick={() => setShowDeleteConfirm(true)}>
+                      Delete Account
                     </button>
                   </div>
+                  {showDeleteConfirm && (
+                    <div style={{ marginTop: "var(--space-md)", padding: "var(--space-lg)", background: "rgba(255, 82, 82, 0.05)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "var(--radius-md)" }}>
+                      <p style={{ fontSize: "var(--font-size-sm)", color: "var(--accent-red)", marginBottom: "var(--space-md)" }}>
+                        This action is permanent and cannot be undone. Type <strong>DELETE</strong> to confirm.
+                      </p>
+                      <input type="text" className="form-input" placeholder='Type "DELETE" to confirm' value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} style={{ marginBottom: "var(--space-md)" }} />
+                      <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                        <button className="btn btn-sm" style={{ background: "rgba(255, 82, 82, 0.2)", color: "var(--accent-red)" }} disabled={deleteConfirmText !== "DELETE"} onClick={async () => {
+                          try {
+                            const { data: { user } } = await supabase.auth.getUser();
+                            // Delete all account data
+                            await supabase.from('account_webhooks').delete().eq('account_id', user.id);
+                            await supabase.from('team_members').delete().eq('account_id', user.id);
+                            await supabase.from('auto_replies').delete().eq('account_id', user.id);
+                            await supabase.from('accounts').delete().eq('id', user.id);
+                            await supabase.auth.signOut();
+                            window.location.href = '/';
+                          } catch (err) { alert('Failed to delete account: ' + err.message); }
+                        }}>Permanently Delete</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

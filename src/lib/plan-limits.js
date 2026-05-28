@@ -109,8 +109,8 @@ export const AI_MODELS = {
   },
   premium: {
     provider: "google",
-    model: "gemini-2.0-flash",
-    label: "Gemini 2.0 Flash (Premium)",
+    model: "gemini-2.5-flash-preview-05-20",
+    label: "Gemini 2.5 Flash (Premium)",
   },
 };
 

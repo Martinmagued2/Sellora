@@ -61,7 +61,7 @@ export async function GET(req) {
     }
 
     // Fetch latest status of this specific transaction intent
-    const { data: paymentRecord } = await supabaseAdmin
+    const { data: paymentRecord } = await getSupabaseAdmin()
       .from("payments")
       .select("status, plan_purchased, updated_at")
       .eq("merchant_order_id", merchantOrderId)
@@ -73,7 +73,7 @@ export async function GET(req) {
     }
 
     // Also fetch the current account status proactively
-    const { data: account } = await supabaseAdmin
+    const { data: account } = await getSupabaseAdmin()
       .from("accounts")
       .select("plan_status, subscription_ends_at, plan")
       .eq("id", user.id)

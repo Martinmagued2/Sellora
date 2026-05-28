@@ -12,8 +12,8 @@ export const PLANS = {
     monthly: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID,
     annual: process.env.STRIPE_STARTER_ANNUAL_PRICE_ID,
     limits: {
-      whatsapp_numbers: 1,
-      products: 50,
+      channels: 1,
+      products: 25,
       conversations_per_month: 100,
     },
   },
@@ -22,7 +22,7 @@ export const PLANS = {
     monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
     annual: process.env.STRIPE_PRO_ANNUAL_PRICE_ID,
     limits: {
-      whatsapp_numbers: 1,
+      channels: 2,
       products: -1, // unlimited
       conversations_per_month: 1000,
     },
@@ -32,7 +32,7 @@ export const PLANS = {
     monthly: process.env.STRIPE_BUSINESS_MONTHLY_PRICE_ID,
     annual: process.env.STRIPE_BUSINESS_ANNUAL_PRICE_ID,
     limits: {
-      whatsapp_numbers: 3,
+      channels: 3,
       products: -1,
       conversations_per_month: -1,
     },

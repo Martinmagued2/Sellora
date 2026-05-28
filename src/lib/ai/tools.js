@@ -206,6 +206,27 @@ export const createSalesTools = (accountId, customerId) => {
           return { success: false, error: "Failed to create order" };
         }
 
+        // 3. Decrement stock for each item
+        for (const item of dbItems) {
+          await getSupabase().rpc('decrement_stock', {
+            p_id: item.product_id,
+            qty: item.qty
+          }).catch(async () => {
+            // Fallback if RPC doesn't exist: manual decrement
+            const { data: prod } = await getSupabase()
+              .from("products")
+              .select("stock")
+              .eq("id", item.product_id)
+              .single();
+            if (prod) {
+              await getSupabase()
+                .from("products")
+                .update({ stock: Math.max(0, prod.stock - item.qty) })
+                .eq("id", item.product_id);
+            }
+          });
+        }
+
         return { 
           success: true, 
           message: "Order created successfully", 

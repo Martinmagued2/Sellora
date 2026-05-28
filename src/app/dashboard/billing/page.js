@@ -6,19 +6,46 @@ import {
   Zap, Star, Crown, ChevronRight, ExternalLink, Smartphone, Building2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getPlanLimits } from "@/lib/plan-limits";
 
 export default function BillingPage() {
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [purchasingPlan, setPurchasingPlan] = useState(null);
+  const [usageStats, setUsageStats] = useState({ conversations: 0, aiReplies: 0, products: 0 });
+  const [billingAddress, setBillingAddress] = useState({ street: "", city: "", state: "", postal_code: "", country: "EG" });
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressSaving, setAddressSaving] = useState(false);
+  const [invoices, setInvoices] = useState([]);
   const supabase = createClient();
 
   useEffect(() => {
     const fetchAccount = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
-        if (data) setAccount(data);
+        const { data } = await supabase.from("accounts").select("*").eq("id", user.id).single();
+        if (data) {
+          setAccount(data);
+          if (data.billing_address) setBillingAddress(data.billing_address);
+        }
+
+        // Fetch usage stats
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        try {
+          const [aiRes, convRes, prodRes, paymentRes] = await Promise.all([
+            supabase.from("rate_limits").select("*", { count: "exact", head: true }).eq("email", user.id).eq("action", "ai_auto_reply").gte("created_at", oneDayAgo),
+            supabase.from("conversations").select("id", { count: "exact", head: true }).eq("account_id", user.id).gte("created_at", thirtyDaysAgo),
+            supabase.from("products").select("id", { count: "exact", head: true }).eq("account_id", user.id),
+            supabase.from("payments").select("*").eq("account_id", user.id).order("created_at", { ascending: false }).limit(10),
+          ]);
+          setUsageStats({
+            aiReplies: aiRes.count || 0,
+            conversations: convRes.count || 0,
+            products: prodRes.count || 0,
+          });
+          if (paymentRes.data) setInvoices(paymentRes.data);
+        } catch (e) {}
       }
       setLoading(false);
     };
@@ -150,18 +177,29 @@ export default function BillingPage() {
                 <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)", marginBottom: "var(--space-sm)" }}>
                   This billing period
                 </div>
-                <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800 }}>
-                  0<span style={{ fontSize: "var(--font-size-sm)", fontWeight: 400, color: "var(--text-tertiary)" }}> / ∞ conversations</span>
-                </div>
-                <div style={{
-                  height: 6, borderRadius: 3, background: "var(--bg-glass)",
-                  marginTop: "var(--space-sm)", width: 280,
-                }}>
-                  <div style={{
-                    height: "100%", borderRadius: 3, width: "0%",
-                    background: "var(--accent-gradient)",
-                  }} />
-                </div>
+                {(() => {
+                  const limits = getPlanLimits(currentPlanName);
+                  const maxConv = limits.conversations_per_month;
+                  const convPercent = maxConv === -1 ? 0 : Math.min((usageStats.conversations / maxConv) * 100, 100);
+                  const maxAi = limits.ai_replies_per_day;
+                  const aiPercent = maxAi === -1 ? 0 : Math.min((usageStats.aiReplies / maxAi) * 100, 100);
+                  return (
+                    <>
+                      <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 700, marginBottom: 4 }}>
+                        {usageStats.conversations}<span style={{ fontSize: "var(--font-size-sm)", fontWeight: 400, color: "var(--text-tertiary)" }}> / {maxConv === -1 ? "∞" : maxConv} conversations</span>
+                      </div>
+                      <div style={{ height: 6, borderRadius: 3, background: "var(--bg-glass)", marginTop: "var(--space-xs)", width: 280 }}>
+                        <div style={{ height: "100%", borderRadius: 3, width: `${convPercent}%`, background: convPercent > 80 ? "var(--accent-orange)" : "var(--accent-gradient)" }} />
+                      </div>
+                      <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 700, marginTop: "var(--space-sm)", marginBottom: 4 }}>
+                        {usageStats.aiReplies}<span style={{ fontSize: "var(--font-size-sm)", fontWeight: 400, color: "var(--text-tertiary)" }}> / {maxAi === -1 ? "∞" : maxAi} AI replies today</span>
+                      </div>
+                      <div style={{ height: 6, borderRadius: 3, background: "var(--bg-glass)", marginTop: "var(--space-xs)", width: 280 }}>
+                        <div style={{ height: "100%", borderRadius: 3, width: `${aiPercent}%`, background: aiPercent > 80 ? "var(--accent-orange)" : "var(--accent-gradient)" }} />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -247,13 +285,77 @@ export default function BillingPage() {
                 <h3>Billing Address</h3>
               </div>
               <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
-                <div style={{ padding: "var(--space-xl)", border: "1px dashed var(--border-medium)", borderRadius: "var(--radius-md)", textAlign: "center", color: "var(--text-tertiary)" }}>
-                  No billing address set.<br/>
-                  <button className="btn btn-secondary btn-sm" style={{ marginTop: "var(--space-md)" }} disabled>Add Address</button>
-                </div>
+                {showAddressForm ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+                    <input type="text" className="form-input" placeholder="Street address" value={billingAddress.street} onChange={(e) => setBillingAddress({ ...billingAddress, street: e.target.value })} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-sm)" }}>
+                      <input type="text" className="form-input" placeholder="City" value={billingAddress.city} onChange={(e) => setBillingAddress({ ...billingAddress, city: e.target.value })} />
+                      <input type="text" className="form-input" placeholder="State/Province" value={billingAddress.state} onChange={(e) => setBillingAddress({ ...billingAddress, state: e.target.value })} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-sm)" }}>
+                      <input type="text" className="form-input" placeholder="Postal code" value={billingAddress.postal_code} onChange={(e) => setBillingAddress({ ...billingAddress, postal_code: e.target.value })} />
+                      <input type="text" className="form-input" placeholder="Country" value={billingAddress.country} onChange={(e) => setBillingAddress({ ...billingAddress, country: e.target.value })} />
+                    </div>
+                    <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                      <button className="btn btn-primary btn-sm" disabled={addressSaving} onClick={async () => {
+                        setAddressSaving(true);
+                        try {
+                          const { data: { user } } = await supabase.auth.getUser();
+                          await supabase.from('accounts').update({ billing_address: billingAddress }).eq('id', user.id);
+                          setShowAddressForm(false);
+                        } catch (err) { alert('Failed to save address'); }
+                        finally { setAddressSaving(false); }
+                      }}>{addressSaving ? 'Saving...' : 'Save Address'}</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setShowAddressForm(false)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : billingAddress.street ? (
+                  <div>
+                    <div style={{ fontWeight: 500, marginBottom: 4 }}>{billingAddress.street}</div>
+                    <div style={{ color: "var(--text-secondary)", fontSize: "var(--font-size-sm)" }}>{billingAddress.city}, {billingAddress.state} {billingAddress.postal_code}</div>
+                    <div style={{ color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", marginBottom: "var(--space-md)" }}>{billingAddress.country}</div>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setShowAddressForm(true)}>Edit Address</button>
+                  </div>
+                ) : (
+                  <div style={{ padding: "var(--space-xl)", border: "1px dashed var(--border-medium)", borderRadius: "var(--radius-md)", textAlign: "center", color: "var(--text-tertiary)" }}>
+                    No billing address set.<br/>
+                    <button className="btn btn-secondary btn-sm" style={{ marginTop: "var(--space-md)" }} onClick={() => setShowAddressForm(true)}>Add Address</button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Invoice History */}
+          {invoices.length > 0 && (
+            <div className="dashboard-panel" style={{ marginBottom: "var(--space-2xl)" }}>
+              <div className="dashboard-panel-header"><h3>Payment History</h3></div>
+              <div className="dashboard-panel-body" style={{ padding: 0 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--text-tertiary)" }}>Date</th>
+                      <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--text-tertiary)" }}>Plan</th>
+                      <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--text-tertiary)" }}>Amount</th>
+                      <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--text-tertiary)" }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoices.map((inv) => (
+                      <tr key={inv.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                        <td style={{ padding: "12px 16px", fontSize: 13 }}>{new Date(inv.created_at).toLocaleDateString()}</td>
+                        <td style={{ padding: "12px 16px", fontSize: 13, textTransform: "capitalize" }}>{inv.plan_purchased}</td>
+                        <td style={{ padding: "12px 16px", fontSize: 13 }}>{inv.amount} {inv.currency}</td>
+                        <td style={{ padding: "12px 16px", fontSize: 13 }}>
+                          <span className={`status-badge ${inv.status === 'success' ? 'completed' : inv.status === 'pending' ? 'pending' : 'cancelled'}`}>{inv.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </>

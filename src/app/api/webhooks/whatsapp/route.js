@@ -73,14 +73,14 @@ export async function POST(request) {
     await markMessageAsRead({ messageId: message.messageId });
 
     // Find or create customer
-    let { data: customer } = await supabase
+    let { data: customer } = await getSupabase()
       .from("customers")
       .select("*")
       .eq("phone", message.from)
       .single();
 
     if (!customer) {
-      const { data: newCustomer } = await supabase
+      const { data: newCustomer } = await getSupabase()
         .from("customers")
         .insert({
           phone: message.from,
@@ -94,7 +94,7 @@ export async function POST(request) {
     }
 
     // Find or create conversation
-    let { data: conversation } = await supabase
+    let { data: conversation } = await getSupabase()
       .from("conversations")
       .select("*")
       .eq("customer_id", customer.id)
@@ -104,7 +104,7 @@ export async function POST(request) {
       .single();
 
     if (!conversation) {
-      const { data: newConv } = await supabase
+      const { data: newConv } = await getSupabase()
         .from("conversations")
         .insert({
           customer_id: customer.id,
@@ -136,14 +136,14 @@ export async function POST(request) {
     }
 
     // Update conversation last_message_at
-    await supabase
+    await getSupabase()
       .from("conversations")
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", conversation.id);
 
     // --- AI Auto-Reply ---
     // Fetch AI settings for this account
-    const { data: account } = await supabase
+    const { data: account } = await getSupabase()
       .from("accounts")
       .select("id, ai_enabled, ai_personality, business_name, country, plan")
       .eq("id", conversation.account_id || customer.account_id)
@@ -152,7 +152,7 @@ export async function POST(request) {
     if (account?.ai_enabled && message.text) {
       try {
         // Fetch recent conversation history for context
-        const { data: recentMessages } = await supabase
+        const { data: recentMessages } = await getSupabase()
           .from("messages")
           .select("content, direction")
           .eq("conversation_id", conversation.id)

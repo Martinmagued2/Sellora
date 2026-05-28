@@ -69,7 +69,7 @@ export async function POST(req) {
     }
 
     // Fetch account to get billing details (name, email)
-    const { data: account } = await supabaseAdmin
+    const { data: account } = await getSupabaseAdmin()
       .from("accounts")
       .select("*")
       .eq("id", user.id)

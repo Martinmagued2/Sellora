@@ -51,15 +51,44 @@ export async function POST(req) {
         stock: p.variants?.[0]?.inventory_quantity || 0,
         category: p.product_type || 'General',
         status: p.status === 'active' ? 'active' : 'draft',
-        image_urls: p.images?.map(img => img.src) || []
-      }, { onConflict: 'account_id, name' }); // This is a rough upsert; ideally map shopify_id
+        image_urls: p.images?.map(img => img.src) || [],
+        shopify_id: p.id?.toString() || null
+      }, { onConflict: 'account_id, shopify_id' });
+    }
+
+    // Sync Orders
+    let syncedOrders = 0;
+    for (const o of orders) {
+      if (!o.id) continue;
+      // Skip if already synced
+      const { data: existing } = await adminClient.from('orders')
+        .select('id')
+        .eq('account_id', account.id)
+        .eq('shopify_order_id', o.id.toString())
+        .maybeSingle();
+      if (existing) continue;
+
+      await adminClient.from('orders').insert({
+        account_id: account.id,
+        order_number: o.order_number || o.name || `SH-${o.id}`,
+        status: o.financial_status === 'paid' ? 'delivered' : o.fulfillment_status || 'pending',
+        total: parseFloat(o.total_price || 0),
+        currency: o.currency || 'EGP',
+        payment_method: o.gateway || 'shopify',
+        payment_status: o.financial_status || 'pending',
+        shopify_order_id: o.id.toString(),
+        items: (o.line_items || []).map(li => ({
+          name: li.title, quantity: li.quantity, price: parseFloat(li.price || 0)
+        }))
+      });
+      syncedOrders++;
     }
 
     // Register Webhooks
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     await registerShopifyWebhooks(account.shopify_shop_domain, accessToken, appUrl).catch(e => console.error('Webhook reg failed', e));
 
-    return NextResponse.json({ success: true, syncedProducts: products.length, syncedOrders: orders.length });
+    return NextResponse.json({ success: true, syncedProducts: products.length, syncedOrders });
   } catch (err) {
     console.error('Shopify Sync Error:', err);
     return NextResponse.json({ error: err.message || 'Unexpected error during sync' }, { status: 500 });

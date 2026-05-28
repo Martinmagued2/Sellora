@@ -53,7 +53,7 @@ export async function processIncomingMessage({
   try {
     // ─── 1. Find the account that owns this page ───
     const pageColumn = channel === "instagram" ? "instagram_page_id" : "facebook_page_id";
-    const { data: account, error: accountError } = await supabase
+    const { data: account, error: accountError } = await getSupabase()
       .from("accounts")
       .select("id, ai_enabled, ai_personality, plan")
       .eq(pageColumn, pageId)
@@ -65,7 +65,7 @@ export async function processIncomingMessage({
     }
 
     // ─── 2. Find or create customer ───
-    let { data: customer } = await supabase
+    let { data: customer } = await getSupabase()
       .from("customers")
       .select("*")
       .eq("account_id", account.id)
@@ -73,7 +73,7 @@ export async function processIncomingMessage({
       .single();
 
     if (!customer) {
-      const { data: newCustomer } = await supabase
+      const { data: newCustomer } = await getSupabase()
         .from("customers")
         .insert({
           account_id: account.id,
@@ -105,7 +105,7 @@ export async function processIncomingMessage({
     }
 
     // ─── 3. Find or create conversation ───
-    let { data: conversation } = await supabase
+    let { data: conversation } = await getSupabase()
       .from("conversations")
       .select("*")
       .eq("account_id", account.id)
@@ -117,7 +117,7 @@ export async function processIncomingMessage({
       .single();
 
     if (!conversation) {
-      const { data: newConv } = await supabase
+      const { data: newConv } = await getSupabase()
         .from("conversations")
         .insert({
           account_id: account.id,
@@ -192,7 +192,7 @@ export async function processIncomingMessage({
       convUpdates.status = "in_progress";
     }
 
-    await supabase
+    await getSupabase()
       .from("conversations")
       .update(convUpdates)
       .eq("id", conversation.id);
@@ -202,7 +202,7 @@ export async function processIncomingMessage({
       const currentTags = conversation.tags || [];
       const intentTag = `intent:${intent}`;
       if (!currentTags.includes(intentTag)) {
-        await supabase
+        await getSupabase()
           .from("conversations")
           .update({ tags: [...currentTags, intentTag] })
           .eq("id", conversation.id);
@@ -211,7 +211,7 @@ export async function processIncomingMessage({
 
     // ─── 8. Check keyword auto-replies first ───
     if (text) {
-      const { data: autoReplies } = await supabase
+      const { data: autoReplies } = await getSupabase()
         .from("auto_replies")
         .select("*")
         .eq("account_id", account.id)
@@ -246,7 +246,7 @@ export async function processIncomingMessage({
 
           // Track first response time
           if (!conversation.first_response_at) {
-            await supabase
+            await getSupabase()
               .from("conversations")
               .update({ first_response_at: new Date().toISOString() })
               .eq("id", conversation.id);
@@ -268,7 +268,7 @@ export async function processIncomingMessage({
         // Skip rate check if plan is unlimited (-1)
         let aiCount = 0;
         if (MAX_AI_PER_ACCOUNT_PER_DAY !== -1) {
-          const { count } = await supabase
+          const { count } = await getSupabase()
             .from("rate_limits")
             .select("*", { count: "exact", head: true })
             .eq("email", account.id)
@@ -288,7 +288,7 @@ export async function processIncomingMessage({
           });
 
           // Fetch products for AI context
-          const { data: products } = await supabase
+          const { data: products } = await getSupabase()
             .from("products")
             .select("name, price, description, category")
             .eq("account_id", account.id)
@@ -296,7 +296,7 @@ export async function processIncomingMessage({
             .limit(50);
 
           // Fetch recent conversation history for context
-          const { data: recentMessages } = await supabase
+          const { data: recentMessages } = await getSupabase()
             .from("messages")
             .select("content, direction")
             .eq("conversation_id", conversation.id)
@@ -357,7 +357,7 @@ export async function processIncomingMessage({
 
             // Track first response time
             if (!conversation.first_response_at) {
-              await supabase
+              await getSupabase()
                 .from("conversations")
                 .update({ first_response_at: new Date().toISOString() })
                 .eq("id", conversation.id);

@@ -2,8 +2,8 @@ import crypto from 'crypto';
 
 export function verifyMetaSignature(reqText, signatureHeader, appSecret) {
   if (!appSecret) {
-    console.warn("WARNING: Webhook signature verification bypassed because APP_SECRET is missing.");
-    return true; // Bypass if not configured, though highly discouraged in production
+    console.error("CRITICAL: Webhook signature verification skipped because APP_SECRET is missing. Rejecting request for security.");
+    return false; // Reject if not configured — never bypass in production
   }
   
   if (!signatureHeader || !signatureHeader.startsWith('sha256=')) {
