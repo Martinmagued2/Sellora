@@ -113,9 +113,15 @@ export default function OnboardingPage() {
     if (connected[platform]) return;
     setConnecting({ ...connecting, [platform]: true });
     
-    // Simulate connection
-    await new Promise(r => setTimeout(r, 1200));
+    // Real OAuth flow via Meta
+    if (process.env.NEXT_PUBLIC_META_APP_ID) {
+      window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=${platform === 'instagram' ? 'instagram_manage_messages,pages_messaging,pages_read_engagement,pages_show_list' : 'pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list'}&response_type=code&state=${platform}_${account?.id || userId}`;
+      // The page will redirect away, so we don't need to update state here
+      return;
+    }
     
+    // Fallback: Simulate connection if no Meta App configured
+    await new Promise(r => setTimeout(r, 1200));
     setConnected({ ...connected, [platform]: true });
     setConnecting({ ...connecting, [platform]: false });
   };

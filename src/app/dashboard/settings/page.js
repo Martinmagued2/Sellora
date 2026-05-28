@@ -28,6 +28,9 @@ function SettingsContent() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Meta connection feedback
+  const [metaStatus, setMetaStatus] = useState(null); // { type: 'success'|'error', platform: 'instagram'|'facebook', message: string }
   const [account, setAccount] = useState({
     business_name: "", business_description: "", industry: "",
     email: "", phone: "", country: "", currency: "",
@@ -83,6 +86,29 @@ function SettingsContent() {
       if (!user) return;
       const { data } = await supabase.from("accounts").select("*").eq("id", user.id).single();
       if (data) setAccount(data);
+
+      // Check for Meta OAuth callback feedback
+      const connected = searchParams.get('connected');
+      const errorParam = searchParams.get('error');
+      if (connected) {
+        const platformName = connected === 'instagram' ? 'Instagram' : 'Facebook';
+        setMetaStatus({ type: 'success', platform: connected, message: `${platformName} connected successfully!` });
+        // Clean URL
+        window.history.replaceState({}, '', '/dashboard/settings?tab=channels');
+      } else if (errorParam) {
+        const errorMessages = {
+          no_pages: 'No Facebook Pages found. Please create a Facebook Page first.',
+          no_instagram_account: 'No Instagram Business Account linked to your Facebook Page. Please convert your Instagram to a Business/Creator account and link it to your Facebook Page.',
+          token_exchange_failed: 'Failed to exchange authorization code. Please try again.',
+          server_config: 'Server is not configured for Meta integration. Contact support.',
+          invalid_state: 'Invalid OAuth state. Please try connecting again.',
+          missing_params: 'Missing authorization parameters. Please try again.',
+          user_denied: 'You denied the permission request.',
+          db_update_failed: 'Failed to save connection. Please try again.',
+        };
+        setMetaStatus({ type: 'error', platform: null, message: errorMessages[errorParam] || `Connection failed: ${errorParam}` });
+        window.history.replaceState({}, '', '/dashboard/settings?tab=channels');
+      }
 
       // Fetch webhooks
       const { data: wh } = await supabase.from("account_webhooks").select("*").eq("account_id", user.id).order("created_at");
@@ -325,6 +351,25 @@ function SettingsContent() {
               </div>
               <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
                 <p style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-xl)" }}>Receive messages from Instagram and Facebook in one place.</p>
+
+                {/* Meta connection status banner */}
+                {metaStatus && (
+                  <div style={{
+                    padding: "var(--space-md) var(--space-lg)",
+                    marginBottom: "var(--space-lg)",
+                    borderRadius: "var(--radius-md)",
+                    background: metaStatus.type === 'success' ? 'rgba(0, 200, 83, 0.1)' : 'rgba(255, 82, 82, 0.1)',
+                    border: `1px solid ${metaStatus.type === 'success' ? 'rgba(0, 200, 83, 0.3)' : 'rgba(255, 82, 82, 0.3)'}`,
+                    color: metaStatus.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)',
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    fontWeight: 500, fontSize: "var(--font-size-sm)",
+                  }}>
+                    <span>{metaStatus.message}</span>
+                    <button onClick={() => setMetaStatus(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 4 }}>
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
                 
                 {(() => {
                   const planLimits = getPlanLimits(account.plan || "starter");
@@ -367,9 +412,9 @@ function SettingsContent() {
                         ) : (
                           <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
                             if (process.env.NEXT_PUBLIC_META_APP_ID) {
-                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}&scope=instagram_manage_messages,pages_messaging,pages_read_engagement&response_type=code&state=instagram_${account.id}`;
+                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=instagram_manage_messages,pages_messaging,pages_read_engagement,pages_show_list&response_type=code&state=instagram_${account.id}`;
                             } else {
-                              alert('Instagram connection requires Meta App Review approval. This will be available once the app is approved by Meta.');
+                              alert('Instagram connection requires a Meta App. Please set NEXT_PUBLIC_META_APP_ID and META_APP_SECRET in your environment variables. See the .env.example file for details.');
                             }
                           }}>
                             Connect
@@ -410,9 +455,9 @@ function SettingsContent() {
                         ) : (
                           <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
                             if (process.env.NEXT_PUBLIC_META_APP_ID) {
-                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}&scope=pages_messaging,pages_read_engagement,pages_manage_metadata&response_type=code&state=facebook_${account.id}`;
+                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list&response_type=code&state=facebook_${account.id}`;
                             } else {
-                              alert('Facebook connection requires Meta App Review approval. This will be available once the app is approved by Meta.');
+                              alert('Facebook connection requires a Meta App. Please set NEXT_PUBLIC_META_APP_ID and META_APP_SECRET in your environment variables. See the .env.example file for details.');
                             }
                           }}>
                             Connect
