@@ -8,10 +8,16 @@
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 /**
  * Supported webhook events:
@@ -31,7 +37,7 @@ const supabase = createClient(
 export async function dispatchWebhook(accountId, eventType, payload) {
   try {
     // Fetch all active webhooks for this account that listen to this event
-    const { data: webhooks, error } = await supabase
+    const { data: webhooks, error } = await getSupabase()
       .from("account_webhooks")
       .select("*")
       .eq("account_id", accountId)
@@ -82,7 +88,7 @@ export async function dispatchWebhook(accountId, eventType, payload) {
           clearTimeout(timeout);
 
           // Update last triggered status
-          await supabase
+          await getSupabase()
             .from("account_webhooks")
             .update({
               last_triggered_at: new Date().toISOString(),
@@ -93,7 +99,7 @@ export async function dispatchWebhook(accountId, eventType, payload) {
 
           // Auto-disable after 10 consecutive failures
           if (!response.ok && (wh.failure_count || 0) + 1 >= 10) {
-            await supabase
+            await getSupabase()
               .from("account_webhooks")
               .update({ is_active: false })
               .eq("id", wh.id);
@@ -104,7 +110,7 @@ export async function dispatchWebhook(accountId, eventType, payload) {
         } catch (fetchError) {
           clearTimeout(timeout);
 
-          await supabase
+          await getSupabase()
             .from("account_webhooks")
             .update({
               last_triggered_at: new Date().toISOString(),

@@ -3,12 +3,14 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { generateProductImage } from "@/lib/ai/image-generator";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export const createCopilotTools = (accountId) => {
+  // Create Supabase client lazily inside the function to avoid build-time errors
+  // (env vars are not available during `next build`)
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
   return {
     // ─── ANALYTICS TOOLS ───
 

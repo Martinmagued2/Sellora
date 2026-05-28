@@ -6,10 +6,16 @@ import { createClient } from "@supabase/supabase-js";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 /**
  * GET — Instagram webhook verification
@@ -70,7 +76,7 @@ export async function POST(request) {
 
   try {
     // Look up the account that this page belongs to
-    const { data: account } = await supabase
+    const { data: account } = await getSupabase()
       .from("accounts")
       .select("instagram_access_token")
       .eq("instagram_page_id", parsed.pageId)

@@ -8,10 +8,17 @@ import { createCopilotTools } from "@/lib/ai/copilot-tools";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { createClient } from "@supabase/supabase-js";
 
-const adminClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Lazy-init Supabase admin client to avoid build-time errors (env vars not available during build)
+let _adminClient = null;
+function getAdminClient() {
+  if (!_adminClient) {
+    _adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _adminClient;
+}
 
 export async function POST(req) {
   try {
@@ -35,7 +42,7 @@ export async function POST(req) {
 
     const body = await req.json();
 
-    const { data: account } = await adminClient
+    const { data: account } = await getAdminClient()
       .from("accounts")
       .select("plan, business_name, country, currency")
       .eq("id", user.id)
@@ -51,7 +58,7 @@ export async function POST(req) {
     // Basic rate limit check (skip in development)
     if (maxMsgs !== -1 && process.env.NODE_ENV === "production") {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { count } = await adminClient
+      const { count } = await getAdminClient()
         .from("rate_limits")
         .select("*", { count: "exact", head: true })
         .eq("email", user.email)
@@ -65,7 +72,7 @@ export async function POST(req) {
 
     // Only log rate limits in production
     if (process.env.NODE_ENV === "production") {
-      await adminClient.from("rate_limits").insert({
+      await getAdminClient().from("rate_limits").insert({
         email: user.email,
         action: "copilot_msg",
       });

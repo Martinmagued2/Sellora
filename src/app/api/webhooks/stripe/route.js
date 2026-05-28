@@ -3,11 +3,17 @@ import { headers } from "next/headers";
 import { stripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 
-// Use service role for webhook — no user session available
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Use service role for webhook — no user session available (lazy-initialized)
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 export async function POST(request) {
   const body = await request.text();
@@ -37,7 +43,7 @@ export async function POST(request) {
         const { userId, plan } = session.metadata;
 
         // Update account with Stripe customer ID and plan
-        await supabase
+        await getSupabase()
           .from("accounts")
           .update({
             stripe_customer_id: session.customer,
@@ -62,7 +68,7 @@ export async function POST(request) {
           ? "past_due"
           : "canceled";
 
-        await supabase
+        await getSupabase()
           .from("accounts")
           .update({
             plan: plan || undefined,
@@ -79,7 +85,7 @@ export async function POST(request) {
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
 
-        await supabase
+        await getSupabase()
           .from("accounts")
           .update({
             plan: "starter",
@@ -96,7 +102,7 @@ export async function POST(request) {
 
         // Record payment in our database
         if (invoice.subscription) {
-          await supabase
+          await getSupabase()
             .from("accounts")
             .update({ plan_status: "active" })
             .eq("stripe_subscription_id", invoice.subscription);
@@ -109,7 +115,7 @@ export async function POST(request) {
         const invoice = event.data.object;
 
         if (invoice.subscription) {
-          await supabase
+          await getSupabase()
             .from("accounts")
             .update({ plan_status: "past_due" })
             .eq("stripe_subscription_id", invoice.subscription);

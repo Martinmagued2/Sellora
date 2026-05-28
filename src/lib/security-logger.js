@@ -1,16 +1,22 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 /**
  * Logs a security event to the audit_logs table.
  */
 export async function logSecurityEvent({ eventType, userId = null, ipAddress = null, route, details = {} }) {
   try {
-    const { error } = await supabase.from("audit_logs").insert({
+    const { error } = await getSupabase().from("audit_logs").insert({
       event_type: eventType,
       user_id: userId,
       ip_address: ipAddress,

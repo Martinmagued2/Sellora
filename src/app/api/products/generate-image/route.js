@@ -3,10 +3,17 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { generateProductImage } from "@/lib/ai/image-generator";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Lazy-init to avoid build-time errors (env vars not available during build)
+let _supabaseAdmin = null;
+function getSupabaseAdmin() {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabaseAdmin;
+}
 
 export async function POST(req) {
   try {
@@ -62,7 +69,7 @@ export async function POST(req) {
     // Upload to Supabase Storage
     const imageBuffer = Buffer.from(imageBase64, "base64");
     const storagePath = `products/${user.id}/${Date.now()}.png`;
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+    const { data: uploadData, error: uploadError } = await getSupabaseAdmin().storage
       .from("product-images")
       .upload(storagePath, imageBuffer, {
         contentType: "image/png",
@@ -71,7 +78,7 @@ export async function POST(req) {
 
     let imageUrl;
     if (!uploadError && uploadData) {
-      const { data: urlData } = supabaseAdmin.storage
+      const { data: urlData } = getSupabaseAdmin().storage
         .from("product-images")
         .getPublicUrl(storagePath);
       imageUrl = urlData?.publicUrl;

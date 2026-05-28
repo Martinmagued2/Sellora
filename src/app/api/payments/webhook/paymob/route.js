@@ -2,10 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from 'crypto';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let _supabaseAdmin = null;
+function getSupabaseAdmin() {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabaseAdmin;
+}
 
 // Define subscription durations dynamically
 const PLAN_DURATIONS = {
@@ -115,7 +121,7 @@ export async function POST(req) {
     // 4. Handle Failure
     if (!isSuccess) {
       console.log(`[PAYMOB_WEBHOOK] Payment marked as FAILED for ${merchantOrderId}`);
-      await supabaseAdmin.from("payments").update({
+      await getSupabaseAdmin().from("payments").update({
         status: "failed",
         paymob_transaction_id: transactionId,
         payment_method: paymentMethod,
@@ -128,7 +134,7 @@ export async function POST(req) {
     console.log(`[PAYMOB_WEBHOOK] Payment SUCCESS mapped for ${merchantOrderId}. Updating account...`);
     
     // Update Payments table
-    await supabaseAdmin.from("payments").update({
+    await getSupabaseAdmin().from("payments").update({
       status: "success",
       paymob_transaction_id: transactionId,
       payment_method: paymentMethod,
@@ -154,7 +160,7 @@ export async function POST(req) {
     nextEnd.setDate(nextEnd.getDate() + addedDays);
 
     // Update Accounts table safely
-    await supabaseAdmin.from("accounts").update({
+    await getSupabaseAdmin().from("accounts").update({
       plan: paymentRecord.plan_purchased,
       plan_status: "active",
       subscription_started_at: now.toISOString(),

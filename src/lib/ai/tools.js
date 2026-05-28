@@ -2,14 +2,20 @@ import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 // Helper to fetch account context
 const getAccountCurrency = async (accountId) => {
-  const { data } = await supabase
+  const { data } = await getSupabase()
     .from("accounts")
     .select("currency")
     .eq("id", accountId)
@@ -27,7 +33,7 @@ export const createSalesTools = (accountId, customerId) => {
       }),
       execute: async ({ query, search_query }) => {
         const finalQuery = query || search_query;
-        let dbQuery = supabase
+        let dbQuery = getSupabase()
           .from("products")
           .select("id, name, description, price, stock, category")
           .eq("account_id", accountId)
@@ -65,7 +71,7 @@ export const createSalesTools = (accountId, customerId) => {
         const finalId = productId || product_id;
         const finalName = name || product_name;
 
-        let dbQuery = supabase
+        let dbQuery = getSupabase()
           .from("products")
           .select("id, name, stock")
           .eq("account_id", accountId);
@@ -106,7 +112,7 @@ export const createSalesTools = (accountId, customerId) => {
           const finalId = item.productId || item.product_id;
           if (!finalId) continue;
 
-          const { data } = await supabase
+          const { data } = await getSupabase()
             .from("products")
             .select("id, name, price")
             .eq("id", finalId)
@@ -155,7 +161,7 @@ export const createSalesTools = (accountId, customerId) => {
           const finalId = item.productId || item.product_id;
           if (!finalId) continue;
 
-          const { data } = await supabase
+          const { data } = await getSupabase()
             .from("products")
             .select("id, name, price, stock")
             .eq("id", finalId)
@@ -180,7 +186,7 @@ export const createSalesTools = (accountId, customerId) => {
         }
 
         // 2. Insert Order
-        const { data: order, error } = await supabase
+        const { data: order, error } = await getSupabase()
           .from("orders")
           .insert({
             account_id: accountId,
@@ -217,7 +223,7 @@ export const createSupportTools = (accountId, customerId) => {
       description: "Get all recent orders for the current customer.",
       inputSchema: z.object({}),
       execute: async () => {
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
           .from("orders")
           .select("order_number, total, status, created_at, items")
           .eq("account_id", accountId)
@@ -240,7 +246,7 @@ export const createSupportTools = (accountId, customerId) => {
         const finalOrderNumber = orderNumber || order_number;
         if (!finalOrderNumber) return { success: false, error: "Order number is required" };
 
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
           .from("orders")
           .select("status, total, created_at, tracking_number")
           .eq("account_id", accountId)

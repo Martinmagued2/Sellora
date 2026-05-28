@@ -13,11 +13,17 @@ import { sendMessage } from "@/lib/channels/meta";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { dispatchWebhook } from "@/lib/webhooks";
 
-// Service role client for server-side processing
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Service role client for server-side processing (lazy-initialized)
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 /**
  * Process an incoming message from any channel
@@ -94,7 +100,7 @@ export async function processIncomingMessage({
       }
       if (Object.keys(updates).length > 0) {
         updates.last_active_at = new Date().toISOString();
-        await supabase.from("customers").update(updates).eq("id", customer.id);
+        await getSupabase().from("customers").update(updates).eq("id", customer.id);
       }
     }
 
@@ -139,7 +145,7 @@ export async function processIncomingMessage({
 
     // ─── 5. Store the incoming message ───
     const messageType = mediaUrls.length > 0 ? "image" : "text";
-    const { error: insertError } = await supabase.from("messages").insert({
+    const { error: insertError } = await getSupabase().from("messages").insert({
       conversation_id: conversation.id,
       direction: "incoming",
       content: text,
@@ -230,7 +236,7 @@ export async function processIncomingMessage({
           });
 
           // Store it
-          await supabase.from("messages").insert({
+          await getSupabase().from("messages").insert({
             conversation_id: conversation.id,
             direction: "outgoing",
             content: matchedReply.response,
@@ -276,7 +282,7 @@ export async function processIncomingMessage({
           // Skip AI reply silently — message is still stored
         } else {
           // Log the AI request
-          await supabase.from("rate_limits").insert({
+          await getSupabase().from("rate_limits").insert({
             email: account.id, // Using email column to store account_id for this action type
             action: "ai_auto_reply",
           });
@@ -325,7 +331,7 @@ export async function processIncomingMessage({
             const responseTime = Math.round((Date.now() - (conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : Date.now())) / 1000);
 
             // Store AI reply in database
-            await supabase.from("messages").insert({
+            await getSupabase().from("messages").insert({
               conversation_id: conversation.id,
               direction: "outgoing",
               content: aiReply,
@@ -338,7 +344,7 @@ export async function processIncomingMessage({
 
             if (aiResult.toolCalls && aiResult.toolCalls.length > 0) {
               for (const toolCall of aiResult.toolCalls) {
-                  await supabase.from("agent_actions").insert({
+                  await getSupabase().from("agent_actions").insert({
                       account_id: account.id,
                       conversation_id: conversation.id,
                       agent_type: aiResult.intent,

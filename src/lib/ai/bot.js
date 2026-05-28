@@ -11,11 +11,17 @@ const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
   : null;
 
-// Init Supabase with Service Role to bypass RLS for internal API calls
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Init Supabase with Service Role to bypass RLS for internal API calls (lazy-initialized)
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 /**
  * Build the provider fallback chain from available API keys.
@@ -68,7 +74,7 @@ export async function simulateChat(accountId, messages) {
   }
 
   try {
-    const { data: account, error: accountError } = await supabase
+    const { data: account, error: accountError } = await getSupabase()
       .from("accounts")
       .select("business_name, ai_personality, country, plan, currency")
       .eq("id", accountId)
@@ -116,7 +122,7 @@ export async function simulateChat(accountId, messages) {
     // without needing tool calls to work
     let productContext = "";
     try {
-      const { data: products } = await supabase
+      const { data: products } = await getSupabase()
         .from("products")
         .select("name, price, description, category, stock")
         .eq("account_id", accountId)
@@ -139,7 +145,7 @@ export async function simulateChat(accountId, messages) {
     let orderContext = "";
     if (intent === "support" || intent === "order_tracking") {
       try {
-        const { data: orders } = await supabase
+        const { data: orders } = await getSupabase()
           .from("orders")
           .select("order_number, total, status, created_at")
           .eq("account_id", accountId)

@@ -6,11 +6,17 @@ import { generateAIReply } from "@/lib/ai";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
 
-// Service role client for webhook processing
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Service role client for webhook processing (lazy-initialized)
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 /**
  * GET — WhatsApp webhook verification
@@ -112,7 +118,7 @@ export async function POST(request) {
     }
 
     // Store the incoming message
-    const { error: insertError } = await supabase.from("messages").insert({
+    const { error: insertError } = await getSupabase().from("messages").insert({
       conversation_id: conversation.id,
       direction: "incoming",
       content: message.text,
@@ -175,7 +181,7 @@ export async function POST(request) {
           });
 
           // Store AI reply in database
-          await supabase.from("messages").insert({
+          await getSupabase().from("messages").insert({
             conversation_id: conversation.id,
             direction: "outgoing",
             content: aiResult.reply,

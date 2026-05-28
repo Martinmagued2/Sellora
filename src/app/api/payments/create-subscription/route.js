@@ -3,11 +3,17 @@ import { createClient } from "@supabase/supabase-js";
 import { isRateLimited } from "@/lib/rate-limit";
 import { logSecurityEvent } from "@/lib/security-logger";
 
-// Initialize Supabase admin client for secure DB operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Initialize Supabase admin client for secure DB operations (lazy-initialized)
+let _supabaseAdmin = null;
+function getSupabaseAdmin() {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabaseAdmin;
+}
 
 // Map plan identifiers to EGP amount strictly on backend
 const PLAN_PRICES = {
@@ -39,7 +45,7 @@ export async function POST(req) {
     const token = authHeader.replace("Bearer ", "");
     
     // Validate user token
-    const { data: { user }, error: authUserError } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user }, error: authUserError } = await getSupabaseAdmin().auth.getUser(token);
     if (authUserError || !user) {
       await logSecurityEvent({
         eventType: "unauthorized_access",
@@ -147,7 +153,7 @@ export async function POST(req) {
     if (!paymentKeyData.token) throw new Error("Paymob payment key generation failed");
 
     // Pre-insert into our newly created payments table to track intent
-    await supabaseAdmin.from("payments").insert([{
+    await getSupabaseAdmin().from("payments").insert([{
       account_id: user.id,
       merchant_order_id: merchantOrderId,
       paymob_order_id: orderData.id.toString(),

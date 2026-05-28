@@ -11,11 +11,17 @@ const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
   : null;
 
-// Supabase client for fetching context
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Supabase client for fetching context (lazy-initialized)
+let _supabase = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabase;
+}
 
 /**
  * Build the provider fallback chain from available API keys.
@@ -95,7 +101,7 @@ export async function generateAIReply({
     // This ensures the AI can answer product questions even if tool calls fail
     let productContext = "";
     try {
-      const { data: accountData } = await supabase
+      const { data: accountData } = await getSupabase()
         .from("accounts")
         .select("currency")
         .eq("id", accountId)
@@ -103,7 +109,7 @@ export async function generateAIReply({
       
       const currency = accountData?.currency || "EGP";
 
-      const { data: products } = await supabase
+      const { data: products } = await getSupabase()
         .from("products")
         .select("name, price, description, category, stock")
         .eq("account_id", accountId)

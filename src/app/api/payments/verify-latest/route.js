@@ -3,10 +3,16 @@ import { createClient } from "@supabase/supabase-js";
 import { isRateLimited } from "@/lib/rate-limit";
 import { logSecurityEvent } from "@/lib/security-logger";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let _supabaseAdmin = null;
+function getSupabaseAdmin() {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabaseAdmin;
+}
 
 export async function GET(req) {
   try {
@@ -31,7 +37,7 @@ export async function GET(req) {
     }
     
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authUserError } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user }, error: authUserError } = await getSupabaseAdmin().auth.getUser(token);
     if (authUserError || !user) {
       await logSecurityEvent({
         eventType: "unauthorized_access",

@@ -6,11 +6,17 @@ import { isRateLimited } from "@/lib/rate-limit";
 import { logSecurityEvent } from "@/lib/security-logger";
 import { getPlanLimits } from "@/lib/plan-limits";
 
-// Admin client for rate limiting (bypasses RLS)
-const adminClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Admin client for rate limiting (bypasses RLS) (lazy-initialized)
+let _adminClient = null;
+function getAdminClient() {
+  if (!_adminClient) {
+    _adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _adminClient;
+}
 
 // Daily limit is now plan-aware — see below
 
@@ -107,7 +113,7 @@ export async function POST(req) {
     }
 
     // Log the request
-    await adminClient.from("rate_limits").insert({
+    await getAdminClient().from("rate_limits").insert({
       email: user.email,
       action: "ai_simulate",
     });

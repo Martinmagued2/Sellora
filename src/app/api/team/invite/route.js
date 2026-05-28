@@ -3,10 +3,16 @@ import { Resend } from "resend";
 import { NextResponse } from "next/server";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+let _supabaseAdmin = null;
+function getSupabaseAdmin() {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _supabaseAdmin;
+}
 
 export async function POST(req) {
   try {
@@ -21,7 +27,7 @@ export async function POST(req) {
     }
 
     // 1. Insert pending invite into the database
-    const { data: newMember, error: dbError } = await supabaseAdmin
+    const { data: newMember, error: dbError } = await getSupabaseAdmin()
       .from("team_members")
       .insert({
         account_id: accountId,
