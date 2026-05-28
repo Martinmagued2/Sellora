@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Package,
   Plus,
@@ -17,6 +18,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
 
 export default function ProductsPage() {
+  const router = useRouter();
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -287,7 +289,7 @@ export default function ProductsPage() {
         <h1>Products</h1>
         <div className="page-header-actions">
           {limitReached ? (
-            <button className="btn btn-primary" onClick={() => alert(`Product limit reached (${planLimits.products}). Please upgrade your plan to add more products.`)} id="add-product" style={{ opacity: 0.7 }}>
+            <button className="btn btn-primary" onClick={() => router.push('/dashboard/billing')} id="add-product" style={{ opacity: 0.7 }}>
                Upgrade to Add More
             </button>
           ) : (

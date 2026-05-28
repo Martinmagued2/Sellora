@@ -117,7 +117,7 @@ export default function DashboardLayout({ children }) {
       try {
         const [convRes, orderRes] = await Promise.all([
           supabase.from("conversations").select("id", { count: "exact", head: true }).eq("account_id", user.id).in("status", ["new", "open"]),
-          supabase.from("orders").select("id", { count: "exact", head: true }).eq("account_id", user.id).in("status", ["pending", "processing"]),
+          supabase.from("orders").select("id", { count: "exact", head: true }).eq("account_id", user.id).in("status", ["pending", "confirmed"]),
         ]);
         setSidebarBadges({
           conversations: convRes.count || 0,
@@ -142,14 +142,14 @@ export default function DashboardLayout({ children }) {
     const doSearch = async () => {
       try {
         const [convRes, orderRes, prodRes, custRes] = await Promise.all([
-          supabase.from("conversations").select("id, customer_name, status, channel").eq("account_id", user.id).ilike("customer_name", `%${q}%`).limit(3),
+          supabase.from("conversations").select("id, status, channel, customer:customers(name)").eq("account_id", user.id).ilike("customer.name", `%${q}%`).limit(3),
           supabase.from("orders").select("id, order_number, status, total").eq("account_id", user.id).ilike("order_number", `%${q}%`).limit(3),
           supabase.from("products").select("id, name, price, category").eq("account_id", user.id).ilike("name", `%${q}%`).limit(3),
           supabase.from("customers").select("id, name, email, channel").eq("account_id", user.id).ilike("name", `%${q}%`).limit(3),
         ]);
 
         const results = [];
-        if (convRes.data?.length) results.push(...convRes.data.map(c => ({ type: "Conversation", label: c.customer_name || c.id, sub: c.channel, href: "/dashboard/conversations" })));
+        if (convRes.data?.length) results.push(...convRes.data.map(c => ({ type: "Conversation", label: c.customer?.name || c.id, sub: c.channel, href: "/dashboard/conversations" })));
         if (orderRes.data?.length) results.push(...orderRes.data.map(o => ({ type: "Order", label: o.order_number || o.id, sub: `${o.status} · EGP ${o.total}`, href: "/dashboard/orders" })));
         if (prodRes.data?.length) results.push(...prodRes.data.map(p => ({ type: "Product", label: p.name, sub: `${p.category} · EGP ${p.price}`, href: "/dashboard/products" })));
         if (custRes.data?.length) results.push(...custRes.data.map(c => ({ type: "Customer", label: c.name, sub: c.email || c.channel, href: "/dashboard/customers" })));
@@ -419,7 +419,7 @@ export default function DashboardLayout({ children }) {
                 </div>
               )}
             </div>
-            <button className="topbar-btn" id="topbar-help" title="Help" onClick={() => window.open("https://sellora.com/docs", "_blank")}>
+            <button className="topbar-btn" id="topbar-help" title="Help & Support" onClick={() => alert('Sellora Help & Support\n\n📧 Email: support@sellora.com\n💬 Use the AI Copilot (purple button) to ask questions\n📋 Settings > Webhooks for API integrations')}>
               <HelpCircle size={18} />
             </button>
           </div>

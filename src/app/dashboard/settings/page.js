@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Settings, User, MessageCircle, Bot, Bell, Globe, Shield, Smartphone,
   Save, Check, Plus, X, Upload, Link as LinkIcon, Zap, ToggleLeft, ToggleRight, Loader2,
@@ -21,6 +21,7 @@ const tabs = [
 ];
 
 function SettingsContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "profile";
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -349,11 +350,18 @@ function SettingsContent() {
                         <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 16 }}>Get messages from DMs</p>
                         
                         {account.instagram_connected ? (
-                          <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
-                            <Check size={16} /> Connected
-                          </button>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
+                              <Check size={16} /> Connected
+                            </button>
+                            <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
+                              if (!confirm('Disconnect Instagram? You will stop receiving Instagram messages.')) return;
+                              await supabase.from('accounts').update({ instagram_connected: false }).eq('id', account.id);
+                              setAccount(prev => ({ ...prev, instagram_connected: false }));
+                            }}>Disconnect</button>
+                          </div>
                         ) : limitReached ? (
-                          <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => alert(`Channel limit reached (${planLimits.channels}). Please upgrade your plan to connect more channels.`)}>
+                          <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => router.push('/dashboard/billing')}>
                             Upgrade to Connect
                           </button>
                         ) : (
@@ -385,11 +393,18 @@ function SettingsContent() {
                         <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 16 }}>Messenger integration</p>
                         
                         {account.facebook_connected ? (
-                          <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
-                            <Check size={16} /> Connected
-                          </button>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
+                              <Check size={16} /> Connected
+                            </button>
+                            <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
+                              if (!confirm('Disconnect Facebook? You will stop receiving Facebook messages.')) return;
+                              await supabase.from('accounts').update({ facebook_connected: false }).eq('id', account.id);
+                              setAccount(prev => ({ ...prev, facebook_connected: false }));
+                            }}>Disconnect</button>
+                          </div>
                         ) : limitReached ? (
-                          <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => alert(`Channel limit reached (${planLimits.channels}). Please upgrade your plan to connect more channels.`)}>
+                          <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => router.push('/dashboard/billing')}>
                             Upgrade to Connect
                           </button>
                         ) : (
@@ -452,7 +467,7 @@ function SettingsContent() {
                               </div>
                             </div>
                           ) : limitReached ? (
-                            <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => alert(`Channel limit reached (${planLimits.channels}). Please upgrade your plan to connect more channels.`)}>
+                            <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => router.push('/dashboard/billing')}>
                               Upgrade to Connect
                             </button>
                           ) : (
@@ -661,7 +676,7 @@ function SettingsContent() {
                         Add an extra layer of security to your account
                       </div>
                     </div>
-                    <button className="btn btn-primary btn-sm" onClick={() => alert('Two-Factor Authentication will be available in a future update. For now, ensure you use a strong password.')}>Enable 2FA</button>
+                    <button className="btn btn-primary btn-sm" disabled style={{ opacity: 0.5, cursor: "not-allowed" }}>Enable 2FA (Coming Soon)</button>
                   </div>
                 </div>
 

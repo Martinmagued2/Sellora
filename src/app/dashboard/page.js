@@ -17,29 +17,41 @@ export default function DashboardHome() {
   useEffect(() => {
     const fetchStats = async () => {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // First get user's conversation IDs (needed to filter messages)
+      const { data: userConvs } = await supabase
+        .from("conversations")
+        .select("id, status, channel, converted, created_at")
+        .eq("account_id", user.id);
+      const convIds = (userConvs || []).map(c => c.id);
+      const conversations = userConvs || [];
 
       const [
-        ordersRes, customersRes, convsRes, messagesRes,
-        aiMsgRes, convertedRes, activeConvsRes, recentOrdersRes,
-        topCustomersRes, responseTimesRes,
+        ordersRes, customersRes, messagesRes,
+        aiMsgRes, recentOrdersRes, topCustomersRes, responseTimesRes,
       ] = await Promise.all([
-        supabase.from("orders").select("total, payment_status, created_at, status"),
-        supabase.from("customers").select("id", { count: "exact", head: true }),
-        supabase.from("conversations").select("id, status, channel, converted, created_at"),
-        supabase.from("messages").select("id, created_at, direction", { count: "exact", head: true }),
-        supabase.from("messages").select("id", { count: "exact", head: true }).eq("is_ai", true),
-        supabase.from("conversations").select("id", { count: "exact", head: true }).eq("converted", true),
-        supabase.from("conversations").select("id", { count: "exact", head: true }).in("status", ["new", "open", "in_progress"]),
-        supabase.from("orders").select("*, customer:customers(name)").order("created_at", { ascending: false }).limit(5),
-        supabase.from("customers").select("name, total_orders, total_spent, channel, platform").order("total_spent", { ascending: false }).limit(5),
-        supabase.from("messages").select("response_time_seconds").not("response_time_seconds", "is", null).limit(100),
+        supabase.from("orders").select("total, payment_status, created_at, status").eq("account_id", user.id),
+        supabase.from("customers").select("id", { count: "exact", head: true }).eq("account_id", user.id),
+        convIds.length > 0
+          ? supabase.from("messages").select("id, created_at, direction", { count: "exact", head: true }).in("conversation_id", convIds)
+          : { count: 0, data: [] },
+        convIds.length > 0
+          ? supabase.from("messages").select("id", { count: "exact", head: true }).eq("is_ai", true).in("conversation_id", convIds)
+          : { count: 0, data: [] },
+        supabase.from("orders").select("*, customer:customers(name)").eq("account_id", user.id).order("created_at", { ascending: false }).limit(5),
+        supabase.from("customers").select("name, total_orders, total_spent, channel, platform").eq("account_id", user.id).order("total_spent", { ascending: false }).limit(5),
+        convIds.length > 0
+          ? supabase.from("messages").select("response_time_seconds").in("conversation_id", convIds).not("response_time_seconds", "is", null).limit(100)
+          : { data: [] },
       ]);
 
+      const convertedCount = conversations.filter(c => c.converted).length;
+      const activeConvsCount = conversations.filter(c => ["new", "open", "in_progress"].includes(c.status)).length;
       const orders = ordersRes.data || [];
-      const conversations = convsRes.data || [];
       const totalMessages = messagesRes.count || 0;
       const aiMessages = aiMsgRes.count || 0;
-      const convertedCount = convertedRes.count || 0;
       const totalConvs = conversations.length;
       const revenue = orders.filter(o => o.payment_status === "paid").reduce((sum, o) => sum + (o.total || 0), 0);
       const pendingRevenue = orders.filter(o => o.payment_status !== "paid" && o.status !== "cancelled").reduce((sum, o) => sum + (o.total || 0), 0);
@@ -75,7 +87,7 @@ export default function DashboardHome() {
         totalOrders: orders.length,
         totalCustomers: customersRes.count || 0,
         totalConversations: totalConvs,
-        activeConversations: activeConvsRes.count || 0,
+        activeConversations: activeConvsCount,
         totalMessages,
         aiMessages,
         aiPct,

@@ -23,32 +23,46 @@ export default function AnalyticsPage() {
         const { data: account } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
         if (account?.plan) setAccountPlan(account.plan);
       }
+      if (!user) return;
+
+      // Get user's conversation IDs first (messages table doesn't have account_id)
+      const { data: userConvs } = await supabase
+        .from("conversations")
+        .select("id, status, channel, converted, created_at")
+        .eq("account_id", user.id);
+      const convIds = (userConvs || []).map(c => c.id);
+      const conversations = userConvs || [];
 
       const [
-        ordersRes, customersRes, convsRes, messagesRes,
-        aiMsgRes, convertedRes, intentMsgsRes, topProductsRes,
+        ordersRes, customersRes, messagesRes,
+        aiMsgRes, intentMsgsRes, topProductsRes,
         topCustomersRes, responseTimesRes, recentConvsRes,
       ] = await Promise.all([
-        supabase.from("orders").select("total, payment_status, created_at, status, channel, items").eq("account_id", user?.id),
-        supabase.from("customers").select("id", { count: "exact", head: true }).eq("account_id", user?.id),
-        supabase.from("conversations").select("id, status, channel, converted, created_at").eq("account_id", user?.id),
-        supabase.from("messages").select("id, created_at, direction, intent").eq("account_id", user?.id).order("created_at", { ascending: false }).limit(500),
-        supabase.from("messages").select("id", { count: "exact", head: true }).eq("account_id", user?.id).eq("is_ai", true),
-        supabase.from("conversations").select("id", { count: "exact", head: true }).eq("account_id", user?.id).eq("converted", true),
-        supabase.from("messages").select("intent").eq("account_id", user?.id).not("intent", "is", null).not("intent", "eq", "general"),
-        supabase.from("orders").select("items, total").eq("account_id", user?.id).eq("payment_status", "paid"),
-        supabase.from("customers").select("name, total_orders, total_spent, channel, platform").eq("account_id", user?.id).order("total_spent", { ascending: false }).limit(10),
-        supabase.from("messages").select("response_time_seconds").eq("account_id", user?.id).not("response_time_seconds", "is", null),
-        supabase.from("conversations").select("created_at, channel").eq("account_id", user?.id).order("created_at", { ascending: false }).limit(200),
+        supabase.from("orders").select("total, payment_status, created_at, status, channel, items").eq("account_id", user.id),
+        supabase.from("customers").select("id", { count: "exact", head: true }).eq("account_id", user.id),
+        convIds.length > 0
+          ? supabase.from("messages").select("id, created_at, direction, intent").in("conversation_id", convIds).order("created_at", { ascending: false }).limit(500)
+          : { data: [], count: 0 },
+        convIds.length > 0
+          ? supabase.from("messages").select("id", { count: "exact", head: true }).eq("is_ai", true).in("conversation_id", convIds)
+          : { count: 0, data: [] },
+        convIds.length > 0
+          ? supabase.from("messages").select("intent").in("conversation_id", convIds).not("intent", "is", null).not("intent", "eq", "general")
+          : { data: [] },
+        supabase.from("orders").select("items, total").eq("account_id", user.id).eq("payment_status", "paid"),
+        supabase.from("customers").select("name, total_orders, total_spent, channel, platform").eq("account_id", user.id).order("total_spent", { ascending: false }).limit(10),
+        convIds.length > 0
+          ? supabase.from("messages").select("response_time_seconds").in("conversation_id", convIds).not("response_time_seconds", "is", null)
+          : { data: [] },
+        supabase.from("conversations").select("created_at, channel").eq("account_id", user.id).order("created_at", { ascending: false }).limit(200),
       ]);
 
       const orders = ordersRes.data || [];
-      const conversations = convsRes.data || [];
       const messages = messagesRes.data || [];
       const allIntentMsgs = intentMsgsRes.data || [];
       const totalMessages = messagesRes.count || messages.length;
       const aiMessages = aiMsgRes.count || 0;
-      const convertedCount = convertedRes.count || 0;
+      const convertedCount = conversations.filter(c => c.converted).length;
       const totalConvs = conversations.length;
       const revenue = orders.filter(o => o.payment_status === "paid").reduce((sum, o) => sum + (o.total || 0), 0);
 
@@ -209,7 +223,7 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {planLimits.analytics === "basic" ? (
+      {!planLimits.analytics_full ? (
         <div className="dashboard-panel" style={{ padding: "var(--space-4xl)", textAlign: "center", border: "1px dashed var(--accent-primary)", background: "rgba(108, 92, 231, 0.02)" }}>
           <div style={{ width: 64, height: 64, borderRadius: 20, background: "rgba(108, 92, 231, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto var(--space-xl)", color: "var(--accent-primary)" }}>
             <Lock size={32} />

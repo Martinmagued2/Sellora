@@ -433,7 +433,7 @@ export default function OnboardingPage() {
              )}
              {step === 5 && (
                <div style={{ display: "flex", gap: "12px" }}>
-                 <button className="btn btn-secondary" onClick={() => router.push("/dashboard/settings/channels")}>
+                 <button className="btn btn-secondary" onClick={() => router.push("/dashboard/settings?tab=channels")}>
                    Connect Real Channels
                  </button>
                  <button className="btn btn-primary" onClick={handleFinish} disabled={saving}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   Send,
@@ -11,18 +12,35 @@ import {
   Pause,
   Trash2,
   MessageCircle,
+  X,
+  Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getPlanLimits } from "@/lib/plan-limits";
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [accountPlan, setAccountPlan] = useState("starter");
+
+  // Create campaign modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newCampaign, setNewCampaign] = useState({ name: "", message: "", audience: "all" });
 
   const supabase = createClient();
+  const router = useRouter();
+  const planLimits = getPlanLimits(accountPlan);
 
   const fetchCampaigns = useCallback(async () => {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: account } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
+      if (account?.plan) setAccountPlan(account.plan);
+    }
+
     let query = supabase.from("campaigns").select("*").order("created_at", { ascending: false });
     if (filter !== "all") query = query.eq("status", filter);
     const { data } = await query;
@@ -43,6 +61,34 @@ export default function CampaignsPage() {
     fetchCampaigns();
   };
 
+  const handleCreateCampaign = async (e) => {
+    e.preventDefault();
+    if (!newCampaign.name.trim()) return;
+    setSaving(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from("campaigns").insert({
+      account_id: user.id,
+      name: newCampaign.name.trim(),
+      message_template: newCampaign.message.trim(),
+      audience_filter: newCampaign.audience,
+      status: "draft",
+      sent_count: 0,
+      delivered_count: 0,
+      read_count: 0,
+      replied_count: 0,
+    });
+
+    if (!error) {
+      setShowCreateModal(false);
+      setNewCampaign({ name: "", message: "", audience: "all" });
+      fetchCampaigns();
+    } else {
+      alert("Failed to create campaign: " + error.message);
+    }
+    setSaving(false);
+  };
+
   // Compute stats
   const totalSent = campaigns.reduce((s, c) => s + (c.sent_count || 0), 0);
   const totalDelivered = campaigns.reduce((s, c) => s + (c.delivered_count || 0), 0);
@@ -51,12 +97,26 @@ export default function CampaignsPage() {
   const readRate = totalDelivered > 0 ? ((totalRead / totalDelivered) * 100).toFixed(1) : "0";
   const replyRate = totalDelivered > 0 ? ((totalReplied / totalDelivered) * 100).toFixed(1) : "0";
 
+  const campaignLimit = planLimits.campaigns_per_month;
+  const limitReached = campaignLimit !== -1 && campaignLimit === 0;
+
   const formatDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   return (
     <>
       <div className="page-header">
         <h1>Campaigns</h1>
+        <div className="page-header-actions">
+          {limitReached ? (
+            <button className="btn btn-primary" onClick={() => router.push('/dashboard/billing')} style={{ opacity: 0.7 }}>
+              Upgrade for Campaigns
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} /> Create Campaign
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -136,8 +196,76 @@ export default function CampaignsPage() {
             </div>
           ))}
           {campaigns.length === 0 && (
-            <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>No campaigns found</div>
+            <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>
+              {limitReached ? (
+                <>
+                  <p>Campaigns are available on Professional and Business plans.</p>
+                  <button className="btn btn-primary" style={{ marginTop: "var(--space-md)" }} onClick={() => router.push('/dashboard/billing')}>Upgrade Plan</button>
+                </>
+              ) : (
+                "No campaigns yet. Create your first campaign to reach your customers."
+              )}
+            </div>
           )}
+        </div>
+      )}
+
+      {/* Create Campaign Modal */}
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowCreateModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Create Campaign</h3>
+              <button className="modal-close" onClick={() => setShowCreateModal(false)}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleCreateCampaign}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Campaign Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Summer Sale Announcement"
+                    value={newCampaign.name}
+                    onChange={(e) => setNewCampaign({ ...newCampaign, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Message Template</label>
+                  <textarea
+                    className="form-input form-textarea"
+                    placeholder="Write your broadcast message here..."
+                    value={newCampaign.message}
+                    onChange={(e) => setNewCampaign({ ...newCampaign, message: e.target.value })}
+                    rows={4}
+                  />
+                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+                    Use {"{name}"} to personalize with the customer&apos;s name
+                  </p>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Audience</label>
+                  <select
+                    className="form-input"
+                    value={newCampaign.audience}
+                    onChange={(e) => setNewCampaign({ ...newCampaign, audience: e.target.value })}
+                  >
+                    <option value="all">All Customers</option>
+                    <option value="vip">VIP Customers Only</option>
+                    <option value="returning">Returning Customers</option>
+                    <option value="new">New Customers</option>
+                  </select>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving || !newCampaign.name.trim()}>
+                  {saving ? <><Loader2 size={14} className="spin" /> Creating...</> : <><Send size={14} /> Create as Draft</>}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </>
