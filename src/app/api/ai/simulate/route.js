@@ -86,7 +86,7 @@ export async function POST(req) {
     }
 
     // 3. Rate limiting — plan-aware daily AI limit
-    const { data: accountData } = await adminClient
+    const { data: accountData } = await getAdminClient()
       .from("accounts")
       .select("plan")
       .eq("id", user.id)
@@ -97,7 +97,7 @@ export async function POST(req) {
 
     if (maxPerDay !== -1) {
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { count } = await adminClient
+      const { count } = await getAdminClient()
         .from("rate_limits")
         .select("*", { count: "exact", head: true })
         .eq("email", user.email)
