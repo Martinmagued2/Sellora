@@ -51,6 +51,7 @@ function getConfigFromFile() {
           if (configPath !== join(cwd, ".z-ai-config")) {
             try {
               writeFileSync(join(cwd, ".z-ai-config"), JSON.stringify(config, null, 2));
+              console.log("[Z-AI-Config] Copied config from", configPath, "to project dir");
             } catch {}
           }
           return config;
@@ -64,35 +65,31 @@ function getConfigFromFile() {
 /**
  * Get ZAI SDK config object. Returns null if no config found.
  * Use this to construct `new ZAI(config)` directly, bypassing ZAI.create().
+ * Also writes the config to .z-ai-config file as a safety net.
  */
 export function getZAIConfig() {
   // 1. Try environment variables first (works on Vercel/production)
   const envConfig = getConfigFromEnv();
-  if (envConfig) return envConfig;
+  if (envConfig) {
+    // Safety net: write env config to file so ZAI.create() would also work
+    try {
+      const cwd = process.cwd();
+      const configPath = join(cwd, ".z-ai-config");
+      writeFileSync(configPath, JSON.stringify(envConfig, null, 2));
+    } catch {}
+    console.log("[Z-AI-Config] Using config from environment variables");
+    return envConfig;
+  }
 
   // 2. Try config files (works in development)
   const fileConfig = getConfigFromFile();
-  if (fileConfig) return fileConfig;
-
-  console.warn("[Z-AI-Config] No config found. Set ZAI_BASE_URL + ZAI_API_KEY env vars, or create .z-ai-config file.");
-  return null;
-}
-
-/**
- * Ensure .z-ai-config exists in project dir so ZAI.create() can find it.
- * @deprecated Use getZAIConfig() + new ZAI(config) instead.
- */
-export function ensureZAIConfig() {
-  const config = getZAIConfig();
-  if (!config) return false;
-
-  const cwd = process.cwd();
-  const projectConfigPath = join(cwd, ".z-ai-config");
-  if (!existsSync(projectConfigPath)) {
-    try {
-      writeFileSync(projectConfigPath, JSON.stringify(config, null, 2));
-      console.log("[Z-AI-Config] Created .z-ai-config in project dir");
-    } catch {}
+  if (fileConfig) {
+    console.log("[Z-AI-Config] Using config from file");
+    return fileConfig;
   }
-  return true;
+
+  console.error("[Z-AI-Config] No config found!");
+  console.error("[Z-AI-Config] Env vars: ZAI_BASE_URL=%s, ZAI_API_KEY=%s", process.env.ZAI_BASE_URL || "(not set)", process.env.ZAI_API_KEY ? "(set)" : "(not set)");
+  console.error("[Z-AI-Config] Set ZAI_BASE_URL + ZAI_API_KEY in .env.local, or create .z-ai-config file");
+  return null;
 }
