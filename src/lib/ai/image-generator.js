@@ -1,5 +1,6 @@
 import ZAI from "z-ai-web-dev-sdk";
 import { getZAIConfig } from "@/lib/ai/z-ai-config";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { readFile, unlink } from "fs/promises";
@@ -11,15 +12,22 @@ const execFileAsync = promisify(execFile);
 /**
  * Shared image generation utility with automatic fallback chain:
  *
- * 1. ZAI SDK (works on the deployed platform via internal network)
- * 2. z-ai-generate CLI tool (uses same SDK via CLI, works on server environments)
- * 3. Together AI FLUX.1-schnell-Free (high quality, needs TOGETHER_API_KEY — free to create)
- * 4. Pollinations.ai (free, no API key needed, lower quality)
+ * 1. Gemini 2.5 Flash Image Generation (native image output, uses existing GOOGLE_GENERATIVE_AI_API_KEY)
+ * 2. ZAI SDK (works on the deployed platform via internal network)
+ * 3. z-ai-generate CLI tool (uses same SDK via CLI, works on server environments)
+ * 4. Together AI FLUX.1-schnell-Free (high quality, needs TOGETHER_API_KEY)
+ * 5. Pollinations.ai (free, no API key, lower quality)
  *
- * Returns: { success: true, imageBase64, source: "zai" | "cli" | "together" | "pollinations" }
+ * Returns: { success: true, imageBase64, source }
  */
 
-const ZAI_TIMEOUT_MS = 8000; // 8s timeout for ZAI SDK before falling back
+const ZAI_TIMEOUT_MS = 8000;
+
+// Gemini models that support native image generation, tried in order
+const GEMINI_IMAGE_MODELS = [
+  "gemini-2.0-flash-preview-image-generation",
+  "gemini-2.5-flash-preview-image-generation",
+];
 
 /**
  * Generate a product image using AI with automatic fallback.
@@ -30,7 +38,56 @@ const ZAI_TIMEOUT_MS = 8000; // 8s timeout for ZAI SDK before falling back
 export async function generateProductImage(prompt, options = {}) {
   const size = options.size || "1024x1024";
 
-  // ─── Attempt 1: ZAI SDK (direct API call) ───
+  // ─── Attempt 1: Gemini 2.5 Flash Image Generation ───
+  // Uses the user's existing GOOGLE_GENERATIVE_AI_API_KEY
+  const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (googleApiKey) {
+    for (const modelName of GEMINI_IMAGE_MODELS) {
+      try {
+        console.log(`[ImageGen] Trying Gemini image generation (${modelName})...`);
+        const gen = new GoogleGenerativeAI(googleApiKey);
+
+        const model = gen.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+          },
+        });
+
+        const result = await model.generateContent(
+          `Generate a high-quality product image: ${prompt}`
+        );
+
+        const response = result.response;
+        const parts = response.candidates?.[0]?.content?.parts || [];
+
+        for (const part of parts) {
+          if (part.inlineData && part.inlineData.data) {
+            const imageBase64 = part.inlineData.data;
+            const mimeType = part.inlineData.mimeType || "image/png";
+            console.log(`[ImageGen] ✅ Image generated via Gemini (${modelName}, ${mimeType}, ${(imageBase64.length / 1024).toFixed(0)}KB base64)`);
+            return { success: true, imageBase64, source: `gemini-${modelName}` };
+          }
+        }
+
+        // If no image in response, this model might not support image gen
+        console.warn(`[ImageGen] Gemini ${modelName} returned no image data, trying next model`);
+      } catch (geminiError) {
+        const msg = geminiError?.message || "";
+        // Don't retry if it's a location/auth error — all models will fail
+        if (msg.includes("location is not supported") || msg.includes("API key not valid")) {
+          console.warn(`[ImageGen] Gemini unavailable: ${msg.substring(0, 120)}`);
+          break;
+        }
+        // Model not found or doesn't support image — try next model
+        console.warn(`[ImageGen] Gemini ${modelName} failed: ${msg.substring(0, 150)}`);
+      }
+    }
+  } else {
+    console.warn("[ImageGen] No GOOGLE_GENERATIVE_AI_API_KEY set, skipping Gemini image generation");
+  }
+
+  // ─── Attempt 2: ZAI SDK (direct API call) ───
   try {
     const zaiConfig = getZAIConfig();
     if (zaiConfig) {
@@ -67,7 +124,7 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 2: z-ai-generate CLI tool ───
+  // ─── Attempt 3: z-ai-generate CLI tool ───
   try {
     console.log("[ImageGen] Trying z-ai-generate CLI...");
     const tmpFile = join(tmpdir(), `sellora-img-${Date.now()}.png`);
@@ -95,8 +152,7 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 3: Together AI (FLUX.1-schnell-Free — high quality) ───
-  // Free to use: https://api.together.xyz — just create an account and get API key
+  // ─── Attempt 4: Together AI (FLUX.1-schnell-Free — high quality) ───
   const togetherApiKey = process.env.TOGETHER_API_KEY;
   if (togetherApiKey) {
     try {
@@ -129,7 +185,6 @@ export async function generateProductImage(prompt, options = {}) {
       const imageBase64 = data?.data?.[0]?.b64_json;
 
       if (!imageBase64) {
-        // Maybe it returned a URL instead of base64
         const imageUrl = data?.data?.[0]?.url;
         if (imageUrl) {
           console.log("[ImageGen] Together AI returned URL, downloading...");
@@ -137,25 +192,23 @@ export async function generateProductImage(prompt, options = {}) {
           if (imgResp.ok) {
             const imgBuf = Buffer.from(await imgResp.arrayBuffer());
             const base64 = imgBuf.toString("base64");
-            console.log(`[ImageGen] ✅ Image generated via Together AI (URL → base64, ${(imgBuf.length / 1024).toFixed(0)}KB)`);
+            console.log(`[ImageGen] ✅ Image generated via Together AI (${(imgBuf.length / 1024).toFixed(0)}KB)`);
             return { success: true, imageBase64: base64, source: "together" };
           }
         }
         throw new Error("No image data in Together AI response");
       }
 
-      console.log(`[ImageGen] ✅ Image generated via Together AI (base64, ${(imageBase64.length / 1024).toFixed(0)}KB)`);
+      console.log(`[ImageGen] ✅ Image generated via Together AI (${(imageBase64.length / 1024).toFixed(0)}KB base64)`);
       return { success: true, imageBase64, source: "together" };
     } catch (togetherError) {
       console.warn("[ImageGen] Together AI failed:", togetherError.message?.substring(0, 200));
     }
-  } else {
-    console.warn("[ImageGen] No TOGETHER_API_KEY set — skipping Together AI (recommended: add a free key for high-quality images)");
   }
 
-  // ─── Attempt 4: Pollinations.ai (free, no API key, lower quality) ───
+  // ─── Attempt 5: Pollinations.ai (free, no API key, lower quality) ───
   try {
-    console.log("[ImageGen] Trying Pollinations.ai (fallback — lower quality)...");
+    console.log("[ImageGen] Trying Pollinations.ai (last resort — lower quality)...");
     const [width, height] = size.split("x").map(Number);
     const encodedPrompt = encodeURIComponent(prompt);
     const seed = Math.floor(Math.random() * 1000000);
@@ -179,13 +232,13 @@ export async function generateProductImage(prompt, options = {}) {
       throw new Error("Pollinations.ai returned empty or invalid image data");
     }
 
-    console.log(`[ImageGen] ⚠️ Image via Pollinations.ai fallback (${(buffer.length / 1024).toFixed(0)}KB) — add TOGETHER_API_KEY for high-quality images`);
+    console.log(`[ImageGen] ⚠️ Image via Pollinations.ai fallback (${(buffer.length / 1024).toFixed(0)}KB)`);
     return { success: true, imageBase64, source: "pollinations" };
   } catch (pollinationsError) {
     console.error("[ImageGen] All image generation methods failed");
     return {
       success: false,
-      error: `Image generation failed. For high-quality images, create a free Together AI account (https://api.together.xyz) and add TOGETHER_API_KEY to your .env.local. Free fallback also failed: ${pollinationsError.message}`,
+      error: `Image generation failed. All methods unavailable: ${pollinationsError.message}`,
     };
   }
 }
