@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import ZAI from "z-ai-web-dev-sdk";
 import { createClient } from "@supabase/supabase-js";
-import { ensureZAIConfig } from "@/lib/ai/z-ai-config";
+import { getZAIConfig } from "@/lib/ai/z-ai-config";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -52,8 +52,11 @@ export async function POST(req) {
     const prompt = `${stylePrompt}. Product: ${product_name}${description ? `. ${description}` : ""}. High quality, 4K, commercial photography, no text, no watermark, no people visible.`;
 
     // Generate image using z-ai-web-dev-sdk
-    ensureZAIConfig();
-    const zai = await ZAI.create();
+    const zaiConfig = getZAIConfig();
+    if (!zaiConfig) {
+      return Response.json({ error: "Image generation is not configured. Set ZAI_BASE_URL and ZAI_API_KEY environment variables." }, { status: 500 });
+    }
+    const zai = new ZAI(zaiConfig);
     const response = await zai.images.generations.create({
       prompt,
       size: "1024x1024",

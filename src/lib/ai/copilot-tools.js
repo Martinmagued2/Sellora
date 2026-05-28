@@ -2,7 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import ZAI from "z-ai-web-dev-sdk";
-import { ensureZAIConfig } from "@/lib/ai/z-ai-config";
+import { getZAIConfig } from "@/lib/ai/z-ai-config";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -285,9 +285,14 @@ export const createCopilotTools = (accountId) => {
           // Generate image using z-ai-web-dev-sdk (works on server, no CLI needed)
           let imageBase64;
           try {
-            // Ensure the .z-ai-config file exists so ZAI.create() can find it
-            ensureZAIConfig();
-            const zai = await ZAI.create();
+            const zaiConfig = getZAIConfig();
+            if (!zaiConfig) {
+              return {
+                success: false,
+                error: "Image generation is not configured. Set ZAI_BASE_URL and ZAI_API_KEY environment variables.",
+              };
+            }
+            const zai = new ZAI(zaiConfig);
             const response = await zai.images.generations.create({
               prompt,
               size: "1024x1024",
