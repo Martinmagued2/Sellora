@@ -300,7 +300,8 @@ export const createCopilotTools = (accountId) => {
           const imageBuffer = Buffer.from(imageBase64, "base64");
 
           // Upload to Supabase Storage
-          const storagePath = `products/${accountId}/${product_id}-${Date.now()}.png`;
+          // Path format: {user_id}/{filename} to match RLS policies
+          const storagePath = `${accountId}/${product_id}-${Date.now()}.png`;
           const { data: uploadData, error: uploadError } = await supabase.storage
             .from("product-images")
             .upload(storagePath, imageBuffer, {
@@ -314,7 +315,7 @@ export const createCopilotTools = (accountId) => {
             const dataUrl = `data:image/png;base64,${imageBase64}`;
             await supabase
               .from("products")
-              .update({ image_url: dataUrl })
+              .update({ image_urls: [dataUrl] })
               .eq("id", product_id)
               .eq("account_id", accountId);
             return {
@@ -333,10 +334,10 @@ export const createCopilotTools = (accountId) => {
 
           const imageUrl = urlData?.publicUrl;
 
-          // Update product with image URL
+          // Update product with image URL (use image_urls array to match products page)
           const { error: updateError } = await supabase
             .from("products")
-            .update({ image_url: imageUrl })
+            .update({ image_urls: [imageUrl] })
             .eq("id", product_id)
             .eq("account_id", accountId);
 

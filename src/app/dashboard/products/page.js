@@ -37,6 +37,15 @@ export default function ProductsPage() {
   const planLimits = getPlanLimits(accountPlan);
   const limitReached = planLimits.products !== -1 && products.length >= planLimits.products;
 
+  // Ensure storage buckets exist (auto-creates them if missing)
+  const ensureBuckets = useCallback(async () => {
+    try {
+      await fetch("/api/storage/ensure-buckets", { method: "POST" });
+    } catch (e) {
+      console.warn("[Products] Bucket ensure failed:", e.message);
+    }
+  }, []);
+
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     
@@ -59,7 +68,7 @@ export default function ProductsPage() {
     setLoading(false);
   }, [filter, search]);
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  useEffect(() => { ensureBuckets(); fetchProducts(); }, [ensureBuckets, fetchProducts]);
 
   const handleFileSelect = (file) => {
     if (!file) return;
@@ -140,18 +149,54 @@ export default function ProductsPage() {
       imageUrl = generatedImageUrl;
     } else if (imageFile) {
       // Manual file upload
+      // Ensure buckets exist before uploading
+      try {
+        await fetch("/api/storage/ensure-buckets", { method: "POST" });
+      } catch (e) {}
+
       const ext = imageFile.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}.${ext}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      let uploadError;
+      let uploadData;
+
+      // Try client-side upload first (respects RLS with user auth)
+      const clientResult = await supabase.storage
         .from("product-images")
         .upload(fileName, imageFile, { cacheControl: "3600", upsert: false });
+      uploadError = clientResult.error;
+      uploadData = clientResult.data;
+
+      // If client upload fails (e.g., RLS issues), try server-side via admin API
+      if (uploadError) {
+        console.warn("[Products] Client upload failed, trying admin:", uploadError.message);
+        try {
+          const formData = new FormData();
+          formData.append("file", imageFile);
+          formData.append("path", fileName);
+          const adminRes = await fetch("/api/storage/upload", {
+            method: "POST",
+            body: formData,
+          });
+          if (adminRes.ok) {
+            const adminData = await adminRes.json();
+            if (adminData.url) {
+              imageUrl = adminData.url;
+              uploadError = null;
+            }
+          }
+        } catch (adminErr) {
+          console.error("[Products] Admin upload also failed:", adminErr.message);
+        }
+      }
 
       if (!uploadError && uploadData) {
         const { data: urlData } = supabase.storage
           .from("product-images")
           .getPublicUrl(fileName);
         imageUrl = urlData.publicUrl;
+      } else if (uploadError && !imageUrl) {
+        alert("Image upload failed: " + (uploadError.message || "Unknown error. The storage bucket may not exist yet. Please try again."));
       }
     }
 

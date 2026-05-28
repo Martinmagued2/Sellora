@@ -67,8 +67,27 @@ export async function POST(req) {
     const { imageBase64, source } = result;
 
     // Upload to Supabase Storage
+    // Path format: {user_id}/{filename} to match RLS policies
     const imageBuffer = Buffer.from(imageBase64, "base64");
-    const storagePath = `products/${user.id}/${Date.now()}.png`;
+    const storagePath = `${user.id}/${Date.now()}.png`;
+
+    // Ensure bucket exists before uploading
+    try {
+      const admin = getSupabaseAdmin();
+      const { data: buckets } = await admin.storage.listBuckets();
+      const bucketNames = (buckets || []).map((b) => b.name);
+      if (!bucketNames.includes("product-images")) {
+        await admin.storage.createBucket("product-images", {
+          public: true,
+          fileSizeLimit: 5242880,
+          allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "image/gif"],
+        });
+        console.log("[Generate-Image] Created product-images bucket");
+      }
+    } catch (bucketErr) {
+      console.warn("[Generate-Image] Bucket ensure check failed:", bucketErr.message);
+    }
+
     const { data: uploadData, error: uploadError } = await getSupabaseAdmin().storage
       .from("product-images")
       .upload(storagePath, imageBuffer, {

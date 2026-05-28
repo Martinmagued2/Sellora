@@ -196,10 +196,16 @@ function SettingsContent() {
                   <div style={{ display: "flex", alignItems: "center", gap: "var(--space-lg)" }}>
                     <div style={{
                       width: 80, height: 80, borderRadius: "var(--radius-lg)",
-                      background: "var(--accent-gradient)",
+                      background: account.logo_url ? "transparent" : "var(--accent-gradient)",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "28px", fontWeight: 800,
-                    }}>{ account.business_name?.charAt(0) || "S" }</div>
+                      fontSize: "28px", fontWeight: 800, overflow: "hidden",
+                    }}>
+                      {account.logo_url ? (
+                        <img src={account.logo_url} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "var(--radius-lg)" }} />
+                      ) : (
+                        account.business_name?.charAt(0) || "S"
+                      )}
+                    </div>
                     <div>
                       <button className="btn btn-secondary btn-sm" disabled={uploadingLogo} onClick={async () => {
                         const input = document.createElement('input');
@@ -214,11 +220,39 @@ function SettingsContent() {
                             const ext = file.name.split('.').pop();
                             const { data: { user } } = await supabase.auth.getUser();
                             const path = `${user.id}/logo.${ext}`;
+
+                            // Ensure the logos bucket exists before uploading
+                            try {
+                              await fetch("/api/storage/ensure-buckets", { method: "POST" });
+                            } catch (e) {}
+
+                            // Try client-side upload first
                             const { error: uploadErr } = await supabase.storage.from('logos').upload(path, file, { upsert: true });
-                            if (uploadErr) throw uploadErr;
-                            const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path);
-                            await supabase.from('accounts').update({ logo_url: urlData.publicUrl }).eq('id', user.id);
-                            setAccount(prev => ({ ...prev, logo_url: urlData.publicUrl }));
+
+                            let logoUrl;
+                            if (uploadErr) {
+                              // Fallback: upload via admin API (bypasses RLS, auto-creates bucket)
+                              console.warn('[Settings] Client logo upload failed, trying admin:', uploadErr.message);
+                              const formData = new FormData();
+                              formData.append('file', file);
+                              formData.append('path', path);
+                              formData.append('bucket', 'logos');
+                              const adminRes = await fetch('/api/storage/upload', { method: 'POST', body: formData });
+                              if (!adminRes.ok) {
+                                const errData = await adminRes.json();
+                                throw new Error(errData.error || 'Upload failed');
+                              }
+                              const adminData = await adminRes.json();
+                              logoUrl = adminData.url;
+                            } else {
+                              const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path);
+                              logoUrl = urlData.publicUrl;
+                            }
+
+                            if (logoUrl) {
+                              await supabase.from('accounts').update({ logo_url: logoUrl }).eq('id', user.id);
+                              setAccount(prev => ({ ...prev, logo_url: logoUrl }));
+                            }
                           } catch (err) { alert('Upload failed: ' + err.message); }
                           finally { setUploadingLogo(false); }
                         };
