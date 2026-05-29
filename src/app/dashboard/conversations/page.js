@@ -254,15 +254,70 @@ export default function ConversationsPage() {
   const handleSendProduct = async (product) => {
     if (!activeConv) return;
     const content = `📦 ${product.name}\n💰 ${product.price} EGP\n${product.description || ""}`;
-    await supabase.from("messages").insert({
-      conversation_id: activeConv.id,
-      direction: "outgoing",
-      content,
-      type: "product_card",
-      is_ai: false,
-    });
+
+    try {
+      // Send via Meta API for Facebook/Instagram channels
+      if (activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+        const res = await fetch("/api/messages/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversationId: activeConv.id,
+            content,
+            type: "product_card",
+            product: {
+              name: product.name,
+              price: product.price,
+              currency: "EGP",
+              description: product.description || "",
+              image_urls: product.image_urls || [],
+              id: product.id,
+            },
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          console.error("Failed to send product card to Meta:", data.error);
+          // Fallback: save locally even if Meta delivery fails
+          await supabase.from("messages").insert({
+            conversation_id: activeConv.id,
+            direction: "outgoing",
+            content,
+            type: "product_card",
+            is_ai: false,
+          });
+        }
+      } else {
+        // For other channels, just save locally
+        await supabase.from("messages").insert({
+          conversation_id: activeConv.id,
+          direction: "outgoing",
+          content,
+          type: "product_card",
+          is_ai: false,
+        });
+      }
+
+      // Update conversation timestamp
+      await supabase.from("conversations")
+        .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
+        .eq("id", activeConv.id);
+    } catch (err) {
+      console.error("Send product error:", err);
+      // Fallback: save locally
+      await supabase.from("messages").insert({
+        conversation_id: activeConv.id,
+        direction: "outgoing",
+        content,
+        type: "product_card",
+        is_ai: false,
+      });
+    }
+
     setShowProductPicker(false);
     fetchMessages();
+    fetchConversations();
   };
 
   // ─── Create order from chat ───
@@ -288,21 +343,63 @@ export default function ConversationsPage() {
     });
 
     if (!error) {
-      // Send confirmation in chat
+      // Send confirmation in chat — also deliver to customer's Meta account
       const itemsList = orderItems.map((i) => `${i.qty}x ${i.name}`).join(", ");
-      await supabase.from("messages").insert({
-        conversation_id: activeConv.id,
-        direction: "outgoing",
-        content: `✅ Order created!\n\nItems: ${itemsList}\nTotal: ${subtotal} EGP\nPayment: ${orderPaymentMethod}\n\nWe'll confirm your order shortly!`,
-        type: "text",
-        is_ai: false,
-      });
+      const confirmationContent = `✅ Order created!\n\nItems: ${itemsList}\nTotal: ${subtotal} EGP\nPayment: ${orderPaymentMethod}\n\nWe'll confirm your order shortly!`;
+
+      try {
+        if (activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+          // Send via Meta API so the customer sees the confirmation on their FB/IG
+          const res = await fetch("/api/messages/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              conversationId: activeConv.id,
+              content: confirmationContent,
+              type: "text",
+            }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) {
+            console.error("Failed to send order confirmation to Meta:", data.error);
+            // Fallback: save locally
+            await supabase.from("messages").insert({
+              conversation_id: activeConv.id,
+              direction: "outgoing",
+              content: confirmationContent,
+              type: "text",
+              is_ai: false,
+            });
+          }
+        } else {
+          // For other channels, just save locally
+          await supabase.from("messages").insert({
+            conversation_id: activeConv.id,
+            direction: "outgoing",
+            content: confirmationContent,
+            type: "text",
+            is_ai: false,
+          });
+        }
+      } catch (err) {
+        console.error("Send order confirmation error:", err);
+        // Fallback: save locally
+        await supabase.from("messages").insert({
+          conversation_id: activeConv.id,
+          direction: "outgoing",
+          content: confirmationContent,
+          type: "text",
+          is_ai: false,
+        });
+      }
 
       setShowOrderModal(false);
       setOrderItems([]);
       setOrderAddress("");
       fetchMessages();
       fetchCustomerInfo();
+      fetchConversations();
     }
     setOrderSaving(false);
   };

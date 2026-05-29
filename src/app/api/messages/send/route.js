@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sendMessage } from "@/lib/channels/meta";
+import { sendMessage, sendProductCard } from "@/lib/channels/meta";
 
 const META_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -20,13 +20,16 @@ function getSupabase() {
  * POST /api/messages/send
  *
  * Sends a message from Sellora to the customer's Facebook/Instagram inbox.
- * Called when an agent types a reply in the Conversations page.
+ * Called when an agent types a reply in the Conversations page,
+ * or when sending a product card / order confirmation.
  *
- * Body: { conversationId, content }
+ * Body: { conversationId, content, type?, product? }
+ *   - type: "text" (default) | "product_card"
+ *   - product: { name, price, currency?, description?, image_urls?, id? } (required if type="product_card")
  */
 export async function POST(request) {
   try {
-    const { conversationId, content } = await request.json();
+    const { conversationId, content, type = "text", product = null } = await request.json();
 
     if (!conversationId || !content) {
       return NextResponse.json({ error: "Missing conversationId or content" }, { status: 400 });
@@ -76,14 +79,27 @@ export async function POST(request) {
     }
 
     // 3. Send the message to Meta
-    console.log(`[MSG-SEND] Sending to ${channel} recipient ${recipientId} via page ${pageId}`);
+    let sendResult;
 
-    const sendResult = await sendMessage({
-      recipientId,
-      message: content,
-      pageId,
-      accessToken,
-    });
+    if (type === "product_card" && product) {
+      // Send as rich product card template
+      console.log(`[MSG-SEND] Sending product card to ${channel} recipient ${recipientId} via page ${pageId}`);
+      sendResult = await sendProductCard({
+        recipientId,
+        product,
+        pageId,
+        accessToken,
+      });
+    } else {
+      // Send as plain text message
+      console.log(`[MSG-SEND] Sending text to ${channel} recipient ${recipientId} via page ${pageId}`);
+      sendResult = await sendMessage({
+        recipientId,
+        message: content,
+        pageId,
+        accessToken,
+      });
+    }
 
     console.log(`[MSG-SEND] Meta API response:`, JSON.stringify(sendResult));
 
@@ -92,7 +108,7 @@ export async function POST(request) {
       conversation_id: conversationId,
       direction: "outgoing",
       content,
-      type: "text",
+      type,
       is_ai: false,
       platform_message_id: sendResult?.message_id || null,
     });
