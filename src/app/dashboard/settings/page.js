@@ -112,7 +112,7 @@ function SettingsContent() {
           token_exchange_failed: 'Failed to exchange authorization code. Please try again.',
           server_config: 'Server is not configured for Meta integration. Make sure META_APP_ID and META_APP_SECRET are set in Vercel.',
           invalid_state: 'Invalid OAuth state. Please try connecting again.',
-          missing_params: 'Missing authorization parameters. Please try again.',
+          missing_params: 'Facebook authorization incomplete — no code was received. This usually means the redirect URI in your Meta app doesn\'t match. Go to Meta Dashboard → Facebook Login → Settings and make sure "https://sellora-ruby.vercel.app/api/auth/meta-callback" is listed as a Valid OAuth Redirect URI. Also make sure you SELECT your Page in the Facebook dialog (click "Edit settings" if you see "Continue with previous settings").',
           user_denied: 'You denied the permission request.',
           db_update_failed: 'Failed to save connection. Please try again.',
         };

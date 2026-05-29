@@ -19,69 +19,65 @@ function getSupabase() {
  * GET /api/auth/meta-callback
  *
  * Meta OAuth callback handler for Instagram & Facebook connections.
- *
- * We use only Facebook Page scopes that work in Dev Mode:
- *   pages_messaging, pages_read_engagement, pages_show_list, pages_manage_metadata
- *
- * From the Page access token we can:
- *   - Connect Facebook Messenger immediately
- *   - Detect & connect Instagram Business Account linked to the Page
- *
- * Flow:
- *   1. User clicks "Connect with Meta" in Settings
- *   2. Meta OAuth dialog authorizes the app with Page scopes
- *   3. Meta redirects here with ?code=...&state=instagram_{accountId}|facebook_{accountId}
- *   4. We exchange the code for a user access token
- *   5. We fetch the user's Facebook Pages (with page access tokens)
- *   6. For Instagram state: we also try to resolve the IG Business Account
- *   7. We ALWAYS connect both platforms from the same Page
- *   8. Redirect back to /dashboard/settings?tab=channels&connected=instagram|facebook
  */
 export async function GET(request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const state = searchParams.get("state");
-  const error = searchParams.get("error");
-  const errorReason = searchParams.get("error_reason");
-  const errorMessage = searchParams.get("error_message");
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
+  const errorReason = url.searchParams.get("error_reason");
+  const errorMessage = url.searchParams.get("error_message");
 
-  // Build the redirect URL helper
+  // Debug: Log everything we receive
+  console.log("[META-CALLBACK] Full URL:", request.url);
+  console.log("[META-CALLBACK] Code:", code ? `${code.substring(0, 10)}...` : "MISSING");
+  console.log("[META-CALLBACK] State:", state || "MISSING");
+  console.log("[META-CALLBACK] Error:", error || "none");
+  console.log("[META-CALLBACK] All params:", Object.fromEntries(url.searchParams.entries()));
+
+  // Determine the public base URL
+  // On Vercel, the request.url origin is internal, so we use x-forwarded-host
   const forwardedHost = request.headers.get("x-forwarded-host");
-  const isLocalEnv = process.env.NODE_ENV === "development";
-  const getRedirectUrl = (path) => {
-    if (isLocalEnv) return `${origin}${path}`;
-    if (forwardedHost) return `https://${forwardedHost}${path}`;
-    return `${origin}${path}`;
-  };
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  const baseUrl = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}`
+    : url.origin;
+
+  console.log("[META-CALLBACK] Base URL:", baseUrl);
+  console.log("[META-CALLBACK] x-forwarded-host:", forwardedHost);
+
+  const redirectUrl = (path) => `${baseUrl}${path}`;
 
   // ─── Handle user denial or Meta errors ───
   if (error) {
-    console.warn(`Meta OAuth error: ${error} - ${errorMessage}`);
+    console.warn(`[META-CALLBACK] OAuth error: ${error} - ${errorMessage}`);
     if (error === "access_denied" || errorReason === "user_denied") {
       return NextResponse.redirect(
-        getRedirectUrl("/dashboard/settings?tab=channels&error=user_denied")
+        redirectUrl("/dashboard/settings?tab=channels&error=user_denied")
       );
     }
     return NextResponse.redirect(
-      getRedirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(errorReason || error)}`)
+      redirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(errorReason || error)}`)
     );
   }
 
   // ─── Validate required params ───
   if (!code || !state) {
+    console.error("[META-CALLBACK] Missing code or state! This usually means the redirect_uri in Meta app doesn't match the callback URL, or Facebook is not sending the auth code.");
+    console.error("[META-CALLBACK] Make sure your Meta app's Valid OAuth Redirect URI includes:", redirectUrl("/api/auth/meta-callback"));
     return NextResponse.redirect(
-      getRedirectUrl("/dashboard/settings?tab=channels&error=missing_params")
+      redirectUrl("/dashboard/settings?tab=channels&error=missing_params")
     );
   }
 
   // Parse the state: "instagram_{accountId}" or "facebook_{accountId}"
   const [platform, ...accountIdParts] = state.split("_");
-  const accountId = accountIdParts.join("_"); // Handle UUIDs
+  const accountId = accountIdParts.join("_");
 
   if (!["instagram", "facebook"].includes(platform) || !accountId) {
-    console.error(`Invalid OAuth state: ${state}`);
+    console.error(`[META-CALLBACK] Invalid OAuth state: ${state}`);
     return NextResponse.redirect(
-      getRedirectUrl("/dashboard/settings?tab=channels&error=invalid_state")
+      redirectUrl("/dashboard/settings?tab=channels&error=invalid_state")
     );
   }
 
@@ -90,34 +86,40 @@ export async function GET(request) {
   const META_APP_SECRET = process.env.META_APP_SECRET;
 
   if (!META_APP_ID || !META_APP_SECRET) {
-    console.error("Missing META_APP_ID or META_APP_SECRET environment variables");
+    console.error("[META-CALLBACK] Missing META_APP_ID or META_APP_SECRET env vars");
     return NextResponse.redirect(
-      getRedirectUrl("/dashboard/settings?tab=channels&error=server_config")
+      redirectUrl("/dashboard/settings?tab=channels&error=server_config")
     );
   }
 
+  // The redirect_uri MUST exactly match what was used in the OAuth dialog URL
+  // This is the URL Facebook redirected the user to after authorization
+  const callbackUrl = redirectUrl("/api/auth/meta-callback");
+  console.log("[META-CALLBACK] Token exchange redirect_uri:", callbackUrl);
+
   try {
     // ─── Step 1: Exchange code for short-lived user access token ───
-    const tokenResponse = await fetch(
+    const tokenUrl =
       `${META_API_URL}/oauth/access_token?` +
       `client_id=${META_APP_ID}&` +
       `client_secret=${META_APP_SECRET}&` +
       `grant_type=authorization_code&` +
-      `redirect_uri=${encodeURIComponent(getRedirectUrl("/api/auth/meta-callback"))}&` +
-      `code=${code}`,
-      { method: "GET" }
-    );
+      `redirect_uri=${encodeURIComponent(callbackUrl)}&` +
+      `code=${code}`;
 
+    console.log("[META-CALLBACK] Exchanging code for token...");
+    const tokenResponse = await fetch(tokenUrl, { method: "GET" });
     const tokenData = await tokenResponse.json();
 
     if (tokenData.error) {
-      console.error("Meta token exchange failed:", tokenData.error);
+      console.error("[META-CALLBACK] Token exchange failed:", JSON.stringify(tokenData.error));
       return NextResponse.redirect(
-        getRedirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(tokenData.error.message || "token_exchange_failed")}`)
+        redirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(tokenData.error.message || "token_exchange_failed")}`)
       );
     }
 
     const userAccessToken = tokenData.access_token;
+    console.log("[META-CALLBACK] Got short-lived token, exchanging for long-lived...");
 
     // ─── Step 2: Exchange for a long-lived user access token ───
     const longLivedResponse = await fetch(
@@ -131,6 +133,7 @@ export async function GET(request) {
 
     const longLivedData = await longLivedResponse.json();
     const longLivedToken = longLivedData.access_token || userAccessToken;
+    console.log("[META-CALLBACK] Got long-lived token");
 
     // ─── Step 3: Check what permissions were actually granted ───
     const permsResponse = await fetch(
@@ -138,12 +141,11 @@ export async function GET(request) {
       { method: "GET" }
     );
     const permsData = await permsResponse.json();
-    console.log("[META-CALLBACK] Granted permissions:", JSON.stringify(permsData, null, 2));
-
-    // Check if pages_show_list was declined
+    const grantedPerms = (permsData.data || []).filter(p => p.status === 'granted').map(p => p.permission);
     const declinedPerms = (permsData.data || []).filter(p => p.status === 'declined').map(p => p.permission);
+    console.log("[META-CALLBACK] Granted:", grantedPerms.join(", "));
     if (declinedPerms.length > 0) {
-      console.warn("[META-CALLBACK] Declined permissions:", declinedPerms);
+      console.warn("[META-CALLBACK] Declined:", declinedPerms.join(", "));
     }
 
     // ─── Step 4: Get the user's Facebook Pages (with page access tokens) ───
@@ -153,35 +155,35 @@ export async function GET(request) {
     );
 
     const pagesData = await pagesResponse.json();
-
-    console.log("[META-CALLBACK] Pages response:", JSON.stringify(pagesData, null, 2));
+    console.log("[META-CALLBACK] Pages found:", pagesData.data?.length || 0);
 
     if (!pagesData.data || pagesData.data.length === 0) {
-      console.warn("No Facebook Pages found for this user. Full response:", pagesData);
-      
-      // Check if the user declined page permissions
-      const pagesPermDeclined = declinedPerms.some(p => ['pages_show_list', 'pages_messaging', 'pages_read_engagement'].includes(p));
+      console.warn("[META-CALLBACK] No pages returned. Full response:", JSON.stringify(pagesData));
+
+      const pagesPermDeclined = declinedPerms.some(p =>
+        ['pages_show_list', 'pages_messaging', 'pages_read_engagement'].includes(p)
+      );
       if (pagesPermDeclined) {
         return NextResponse.redirect(
-          getRedirectUrl("/dashboard/settings?tab=channels&error=pages_perm_declined")
+          redirectUrl("/dashboard/settings?tab=channels&error=pages_perm_declined")
         );
       }
-      
       return NextResponse.redirect(
-        getRedirectUrl("/dashboard/settings?tab=channels&error=no_pages")
+        redirectUrl("/dashboard/settings?tab=channels&error=no_pages")
       );
     }
 
-    // Use the first page (most users have one main business page)
+    // Use the first page
     const page = pagesData.data[0];
     const pageId = page.id;
     const pageAccessToken = page.access_token;
     const pageName = page.name;
+    console.log(`[META-CALLBACK] Using Page: ${pageName} (${pageId})`);
 
     const supabase = getSupabase();
 
-    // ─── Step 4: Always connect Facebook Messenger ───
-    const fbUpdate = await supabase
+    // ─── Step 5: Always connect Facebook Messenger ───
+    const { error: fbUpdateError } = await supabase
       .from("accounts")
       .update({
         facebook_page_id: pageId,
@@ -190,14 +192,13 @@ export async function GET(request) {
       })
       .eq("id", accountId);
 
-    if (fbUpdate.error) {
-      console.error("Failed to update Facebook connection:", fbUpdate.error);
-      // Don't fail entirely - try Instagram too
+    if (fbUpdateError) {
+      console.error("[META-CALLBACK] Facebook DB update failed:", fbUpdateError);
     } else {
-      console.log(`[META-CALLBACK] Facebook connected: ${pageName} (Page ID: ${pageId})`);
+      console.log(`[META-CALLBACK] Facebook connected: ${pageName}`);
     }
 
-    // ─── Step 5: Try to connect Instagram via the Page's IG Business Account ───
+    // ─── Step 6: Try to connect Instagram via the Page's IG Business Account ───
     let instagramConnected = false;
     try {
       const igAccountResponse = await fetch(
@@ -206,14 +207,12 @@ export async function GET(request) {
       );
 
       const igAccountData = await igAccountResponse.json();
-      console.log("[META-CALLBACK] IG account response:", JSON.stringify(igAccountData, null, 2));
+      console.log("[META-CALLBACK] IG account lookup:", JSON.stringify(igAccountData));
 
       if (igAccountData.instagram_business_account) {
         const igAccount = igAccountData.instagram_business_account;
 
-        // Store Instagram connection using the same Page access token
-        // Instagram DMs are managed through the Facebook Page
-        const igUpdate = await supabase
+        const { error: igUpdateError } = await supabase
           .from("accounts")
           .update({
             instagram_page_id: pageId,
@@ -222,35 +221,34 @@ export async function GET(request) {
           })
           .eq("id", accountId);
 
-        if (igUpdate.error) {
-          console.error("Failed to update Instagram connection:", igUpdate.error);
+        if (igUpdateError) {
+          console.error("[META-CALLBACK] Instagram DB update failed:", igUpdateError);
         } else {
           instagramConnected = true;
-          console.log(`[META-CALLBACK] Instagram connected: @${igAccount.username} via Page ${pageName}`);
+          console.log(`[META-CALLBACK] Instagram connected: @${igAccount.username}`);
         }
       } else {
-        console.log("[META-CALLBACK] No Instagram Business Account linked to this Page");
+        console.log("[META-CALLBACK] No Instagram Business Account linked to Page");
       }
     } catch (igErr) {
-      console.warn("[META-CALLBACK] Could not resolve Instagram account:", igErr.message);
+      console.warn("[META-CALLBACK] IG lookup error:", igErr.message);
     }
 
-    // ─── Step 6: Redirect back to settings with success ───
-    // If user clicked Instagram connect but no IG account found, show specific message
+    // ─── Step 7: Redirect back to settings ───
     if (platform === "instagram" && !instagramConnected) {
       return NextResponse.redirect(
-        getRedirectUrl("/dashboard/settings?tab=channels&error=no_instagram_account")
+        redirectUrl("/dashboard/settings?tab=channels&error=no_instagram_account")
       );
     }
 
     return NextResponse.redirect(
-      getRedirectUrl(`/dashboard/settings?tab=channels&connected=${platform}`)
+      redirectUrl(`/dashboard/settings?tab=channels&connected=${platform}`)
     );
 
   } catch (err) {
-    console.error("Meta OAuth callback error:", err);
+    console.error("[META-CALLBACK] Unhandled error:", err);
     return NextResponse.redirect(
-      getRedirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(err.message || "unknown_error")}`)
+      redirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(err.message || "unknown_error")}`)
     );
   }
 }
