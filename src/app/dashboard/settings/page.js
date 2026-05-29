@@ -105,14 +105,15 @@ function SettingsContent() {
         // Clean URL
         window.history.replaceState({}, '', '/dashboard/settings?tab=channels');
       } else if (errorParam) {
+        const debugParam = searchParams.get('debug') || '';
         const errorMessages = {
-          no_pages: 'No Facebook Pages found. Make sure you SELECT your Facebook Page in the authorization dialog — look for a step that asks which Pages to share, and check the box next to your Page.',
-          pages_perm_declined: 'You declined Page permissions. When the Facebook dialog appears, make sure to allow all Page permissions and SELECT your Facebook Page.',
+          no_pages: `No Facebook Pages found. Debug info: ${debugParam || 'none'}. This means either: (1) You don't have a Facebook Business Page — create one at facebook.com/pages/create, or (2) You didn't select your Page in the Facebook dialog — remove Sellora from facebook.com/settings?tab=apps and try again, this time checking the box next to your Page.`,
+          pages_perm_declined: `Page permissions were declined. Debug: ${debugParam || 'none'}. Remove Sellora from facebook.com/settings?tab=apps and reconnect, making sure to allow ALL permissions and SELECT your Page.`,
           no_instagram_account: 'No Instagram Business Account linked to your Facebook Page. Make sure your Instagram is a Business/Creator account linked to your Facebook Page.',
           token_exchange_failed: 'Failed to exchange authorization code. Please try again.',
           server_config: 'Server is not configured for Meta integration. Make sure META_APP_ID and META_APP_SECRET are set in Vercel.',
           invalid_state: 'Invalid OAuth state. Please try connecting again.',
-          missing_params: 'Facebook authorization incomplete — no code was received. This usually means the redirect URI in your Meta app doesn\'t match. Go to Meta Dashboard → Facebook Login → Settings and make sure "https://sellora-ruby.vercel.app/api/auth/meta-callback" is listed as a Valid OAuth Redirect URI. Also make sure you SELECT your Page in the Facebook dialog (click "Edit settings" if you see "Continue with previous settings").',
+          missing_params: 'Facebook authorization incomplete — no code was received. Remove Sellora from facebook.com/settings?tab=apps and try again. Click "Edit settings" if you see "Continue with previous settings".',
           user_denied: 'You denied the permission request.',
           db_update_failed: 'Failed to save connection. Please try again.',
         };

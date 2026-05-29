@@ -160,16 +160,19 @@ export async function GET(request) {
     if (!pagesData.data || pagesData.data.length === 0) {
       console.warn("[META-CALLBACK] No pages returned. Full response:", JSON.stringify(pagesData));
 
+      // Pass diagnostic info so the user can see what went wrong
+      const debugInfo = `granted=${grantedPerms.join(',')}&declined=${declinedPerms.join(',')}&api_error=${pagesData.error?.message || 'none'}`;
+
       const pagesPermDeclined = declinedPerms.some(p =>
         ['pages_show_list', 'pages_messaging', 'pages_read_engagement'].includes(p)
       );
       if (pagesPermDeclined) {
         return NextResponse.redirect(
-          redirectUrl("/dashboard/settings?tab=channels&error=pages_perm_declined")
+          redirectUrl(`/dashboard/settings?tab=channels&error=pages_perm_declined&debug=${encodeURIComponent(debugInfo)}`)
         );
       }
       return NextResponse.redirect(
-        redirectUrl("/dashboard/settings?tab=channels&error=no_pages")
+        redirectUrl(`/dashboard/settings?tab=channels&error=no_pages&debug=${encodeURIComponent(debugInfo)}`)
       );
     }
 
