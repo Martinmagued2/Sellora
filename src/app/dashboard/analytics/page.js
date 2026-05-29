@@ -11,6 +11,17 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
 
+function TrendArrow({ value }) {
+  if (value == null || value === 0) return null;
+  const isUp = value > 0;
+  return (
+    <span className={`stat-card-trend ${isUp ? "up" : "down"}`}>
+      {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+      {Math.abs(value)}%
+    </span>
+  );
+}
+
 export default function AnalyticsPage() {
   const [stats, setStats] = useState(null);
   const [salesData, setSalesData] = useState(null);
@@ -200,17 +211,6 @@ export default function AnalyticsPage() {
     document.body.removeChild(link);
   };
 
-  const TrendArrow = ({ value }) => {
-    if (value == null || value === 0) return null;
-    const isUp = value > 0;
-    return (
-      <span className={`stat-card-trend ${isUp ? "up" : "down"}`}>
-        {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-        {Math.abs(value)}%
-      </span>
-    );
-  };
-
   return (
     <>
       <div className="page-header">
@@ -342,8 +342,9 @@ export default function AnalyticsPage() {
                       {[
                         { label: "Message → Product", value: funnelData.avgTimeBetweenSteps.messageToProduct, icon: <Zap size={12} /> },
                         { label: "Product → Order", value: funnelData.avgTimeBetweenSteps.productToOrder, icon: <ShoppingBag size={12} /> },
+                        { label: "Order → Paid", value: funnelData.avgTimeBetweenSteps.orderToPaid, icon: <CreditCard size={12} /> },
                       ].map((item, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-sm) 0", borderBottom: i === 0 ? "1px solid var(--border-subtle)" : "none" }}>
+                        <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-sm) 0", borderBottom: i < 2 ? "1px solid var(--border-subtle)" : "none" }}>
                           <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
                             {item.icon} {item.label}
                           </span>
@@ -404,6 +405,90 @@ export default function AnalyticsPage() {
               )}
             </div>
           </div>
+
+          {/* ═══════════════════════════════════════════════════════════════
+              Weekly Funnel Trends
+              ═══════════════════════════════════════════════════════════════ */}
+          {funnelData && funnelData.funnelOverTime && funnelData.funnelOverTime.length > 0 && (
+            <div className="dashboard-panel" style={{ marginBottom: "var(--space-lg)" }}>
+              <div className="dashboard-panel-header">
+                <h3>Weekly Funnel Trends</h3>
+                <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+                  Conversion rate by week
+                </span>
+              </div>
+              <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-md)", height: 140 }}>
+                  {funnelData.funnelOverTime.map((week, i) => {
+                    const maxConvs = Math.max(...funnelData.funnelOverTime.map(w => w.conversations), 1);
+                    const convPct = (week.conversations / maxConvs) * 100;
+                    const orderPct = week.conversations > 0 ? (week.orders / week.conversations) * 100 : 0;
+                    const paidPct = week.conversations > 0 ? (week.paid / week.conversations) * 100 : 0;
+                    return (
+                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" }}>
+                        <div style={{ width: "100%", maxWidth: 60, position: "relative", display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-end", height: "100%" }}>
+                          {/* Conversations bar (background) */}
+                          <div title={`${week.label}: ${week.conversations} convs, ${week.orders} orders, ${week.paid} paid (${week.conversionRate}% conversion)`} style={{
+                            height: `${Math.max(convPct, 4)}%`,
+                            background: "rgba(108, 92, 231, 0.15)",
+                            borderRadius: "8px 8px 0 0",
+                            position: "relative",
+                            transition: "all 0.5s ease",
+                            cursor: "default",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "flex-end",
+                          }}>
+                            {/* Orders portion */}
+                            <div style={{
+                              height: week.conversations > 0 ? `${orderPct}%` : 0,
+                              background: "rgba(248, 165, 50, 0.4)",
+                              borderRadius: week.paid > 0 ? "0" : "8px 8px 0 0",
+                              transition: "height 0.5s ease",
+                              minHeight: week.orders > 0 ? 3 : 0,
+                            }} />
+                            {/* Paid portion */}
+                            <div style={{
+                              height: week.conversations > 0 ? `${paidPct}%` : 0,
+                              background: "var(--accent-gradient)",
+                              borderRadius: "8px 8px 0 0",
+                              transition: "height 0.5s ease",
+                              minHeight: week.paid > 0 ? 3 : 0,
+                            }} />
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "center", marginTop: 6 }}>
+                          <div style={{ fontSize: "var(--font-size-xs)", fontWeight: 700, color: parseFloat(week.conversionRate) > 20 ? "var(--accent-green)" : parseFloat(week.conversionRate) > 5 ? "var(--accent-orange)" : "var(--text-tertiary)" }}>
+                            {week.conversionRate}%
+                          </div>
+                          <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 1 }}>
+                            {week.label}
+                          </div>
+                          <div style={{ fontSize: 8, color: "var(--text-tertiary)", marginTop: 1 }}>
+                            {week.conversations}C / {week.paid}P
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-lg)", marginTop: "var(--space-lg)", justifyContent: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: 3, background: "rgba(108, 92, 231, 0.15)" }} />
+                    <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Conversations</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: 3, background: "rgba(248, 165, 50, 0.4)" }} />
+                    <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Orders</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: 3, background: "var(--accent-gradient)" }} />
+                    <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Paid</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ═══════════════════════════════════════════════════════════════
               FEATURE 11: Sales Dashboard Enhancement
@@ -638,12 +723,13 @@ export default function AnalyticsPage() {
               {customerData ? (
                 <>
                   {/* Customer KPIs */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
                     {[
                       { label: "Total Customers", value: customerData.totalCustomers, color: "var(--accent-primary-light)" },
                       { label: "New This Month", value: customerData.newThisMonth, color: "var(--accent-secondary)" },
                       { label: "Returning", value: customerData.returningCustomers, color: "var(--accent-green)" },
                       { label: "Avg Lifetime Value", value: `${customerData.avgLifetimeValue.toLocaleString()} EGP`, color: "var(--accent-orange)" },
+                      { label: "Avg Order Value", value: `${customerData.avgOrderValue.toLocaleString()} EGP`, color: "var(--accent-primary-light)" },
                       { label: "Retention Rate", value: `${customerData.retentionRate}%`, color: customerData.retentionRate > 30 ? "var(--accent-green)" : "var(--accent-orange)" },
                     ].map((kpi, i) => (
                       <div key={i} style={{ textAlign: "center", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
@@ -970,6 +1056,88 @@ export default function AnalyticsPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* AI Intent Distribution + Performance by Hour */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-lg)", paddingTop: "var(--space-lg)", borderTop: "1px solid var(--border-subtle)" }}>
+                    {/* AI Intent Distribution */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        AI Intent Detection
+                      </div>
+                      {aiData.intentDistribution && aiData.intentDistribution.length > 0 ? (
+                        aiData.intentDistribution.map((item, i) => {
+                          const total = aiData.intentDistribution.reduce((s, x) => s + x.count, 0);
+                          const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                          const maxCount = aiData.intentDistribution[0]?.count || 1;
+                          const barPct = (item.count / maxCount) * 100;
+                          const aiIntentColors = ["#00D2FF", "#3BA55C", "#F8A532", "#ED4245", "#5865F2", "#EB459E", "#9B59B6", "#1ABC9C"];
+                          return (
+                            <div key={i} style={{ marginBottom: i < aiData.intentDistribution.length - 1 ? "var(--space-sm)" : 0 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                                <span style={{ fontWeight: 600, fontSize: "var(--font-size-xs)", textTransform: "capitalize", color: aiIntentColors[i % aiIntentColors.length] }}>
+                                  {item.intent.replace(/_/g, " ")}
+                                </span>
+                                <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", fontWeight: 600 }}>{item.count} ({pct}%)</span>
+                              </div>
+                              <div style={{ height: 6, borderRadius: 3, background: "var(--bg-glass)" }}>
+                                <div style={{
+                                  height: "100%", borderRadius: 3, width: `${barPct}%`,
+                                  background: aiIntentColors[i % aiIntentColors.length],
+                                  transition: "width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                                }} />
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p style={{ textAlign: "center", color: "var(--text-tertiary)", padding: "var(--space-xl)", fontSize: "var(--font-size-sm)" }}>No intent data from AI yet</p>
+                      )}
+                    </div>
+
+                    {/* AI Performance by Hour Heatmap */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        AI Activity by Hour
+                      </div>
+                      {aiData.aiPerformanceByHour ? (
+                        <>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 3 }}>
+                            {aiData.aiPerformanceByHour.map((h, i) => {
+                              const maxMsgs = Math.max(...aiData.aiPerformanceByHour.map(x => x.messages), 1);
+                              const intensity = h.messages / maxMsgs;
+                              return (
+                                <div key={i} title={`${h.hour}:00 — ${h.messages} AI msgs, avg ${formatTime(h.avgResponseTime)} response`} style={{
+                                  height: 36, borderRadius: 6, display: "flex", flexDirection: "column",
+                                  alignItems: "center", justifyContent: "flex-end",
+                                  background: intensity > 0.7 ? "rgba(0, 210, 255, 0.5)" : intensity > 0.4 ? "rgba(0, 210, 255, 0.25)" : intensity > 0.1 ? "rgba(0, 210, 255, 0.1)" : "var(--bg-glass)",
+                                  cursor: "default", transition: "all 0.3s",
+                                  padding: "2px 0",
+                                }}>
+                                  {h.messages > 0 && (
+                                    <div style={{ fontSize: 8, fontWeight: 700, color: intensity > 0.4 ? "white" : "var(--text-tertiary)" }}>
+                                      {h.messages}
+                                    </div>
+                                  )}
+                                  <div style={{ fontSize: 9, fontWeight: 600, color: intensity > 0.4 ? "white" : "var(--text-tertiary)", paddingBottom: 2 }}>
+                                    {h.hour}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: "var(--space-md)", justifyContent: "center" }}>
+                            <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Low</span>
+                            {[0.1, 0.25, 0.5].map((o, i) => (
+                              <div key={i} style={{ width: 16, height: 10, borderRadius: 3, background: `rgba(0, 210, 255, ${o})` }} />
+                            ))}
+                            <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>High</span>
+                          </div>
+                        </>
+                      ) : (
+                        <p style={{ textAlign: "center", color: "var(--text-tertiary)", padding: "var(--space-xl)", fontSize: "var(--font-size-sm)" }}>No hourly data yet</p>
+                      )}
+                    </div>
+                  </div>
                 </>
               ) : (
                 <div style={{ textAlign: "center", padding: "var(--space-xl)", color: "var(--text-tertiary)" }}>Loading AI performance data...</div>
@@ -983,6 +1151,13 @@ export default function AnalyticsPage() {
             <div className="dashboard-panel">
               <div className="dashboard-panel-header"><h3>Top Products by Revenue</h3></div>
               <div className="dashboard-panel-body" style={{ padding: "var(--space-md)" }}>
+                {/* Table Header */}
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)", padding: "4px var(--space-md)", marginBottom: 4 }}>
+                  <div style={{ width: 28, flexShrink: 0 }} />
+                  <div style={{ flex: 1, fontSize: 10, fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5 }}>Product</div>
+                  <div style={{ width: 60, textAlign: "right", fontSize: 10, fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5 }}>Qty</div>
+                  <div style={{ width: 90, textAlign: "right", fontSize: 10, fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5 }}>Revenue</div>
+                </div>
                 {salesData && salesData.topProducts.length > 0 ? salesData.topProducts.map((p, i) => (
                   <div key={i} style={{
                     display: "flex", alignItems: "center", gap: "var(--space-md)", padding: "var(--space-sm) var(--space-md)",
@@ -999,13 +1174,13 @@ export default function AnalyticsPage() {
                     }}>
                       {i + 1}
                     </div>
-                    <div style={{ flex: 1, fontWeight: 500, fontSize: "var(--font-size-sm)" }}>{p.name}</div>
-                    <div style={{ fontWeight: 800, color: "var(--accent-green)", fontSize: "var(--font-size-sm)" }}>
+                    <div style={{ flex: 1, fontWeight: 500, fontSize: "var(--font-size-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                    <div style={{ width: 60, textAlign: "right", fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", fontWeight: 600 }}>
+                      {p.quantity || "—"}
+                    </div>
+                    <div style={{ width: 90, textAlign: "right", fontWeight: 800, color: "var(--accent-green)", fontSize: "var(--font-size-sm)" }}>
                       {p.revenue.toLocaleString()} EGP
                     </div>
-                    {p.quantity && (
-                      <div style={{ fontSize: 10, color: "var(--text-tertiary)" }}>{p.quantity} sold</div>
-                    )}
                   </div>
                 )) : stats.topProducts.length > 0 ? stats.topProducts.map((p, i) => (
                   <div key={i} style={{
@@ -1023,8 +1198,8 @@ export default function AnalyticsPage() {
                     }}>
                       {i + 1}
                     </div>
-                    <div style={{ flex: 1, fontWeight: 500, fontSize: "var(--font-size-sm)" }}>{p.name}</div>
-                    <div style={{ fontWeight: 800, color: "var(--accent-green)", fontSize: "var(--font-size-sm)" }}>
+                    <div style={{ flex: 1, fontWeight: 500, fontSize: "var(--font-size-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                    <div style={{ width: 90, textAlign: "right", fontWeight: 800, color: "var(--accent-green)", fontSize: "var(--font-size-sm)" }}>
                       {p.revenue.toLocaleString()} EGP
                     </div>
                   </div>

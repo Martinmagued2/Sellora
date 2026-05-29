@@ -46,6 +46,7 @@ const sidebarLinks = [
       { href: "/dashboard/customers", icon: Users, label: "Customers" },
       { href: "/dashboard/campaigns", icon: Megaphone, label: "Campaigns" },
       { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
+      { href: "/dashboard/automation", icon: Bot, label: "Automation" },
     ],
   },
   {
@@ -67,6 +68,7 @@ const pageTitles = {
   "/dashboard/analytics": "Analytics",
   "/dashboard/settings": "Settings",
   "/dashboard/billing": "Billing",
+  "/dashboard/automation": "Automation",
 };
 
 export default function DashboardLayout({ children }) {

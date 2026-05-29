@@ -155,6 +155,104 @@ export async function sendProductListMessage({
 }
 
 /**
+ * Send an image message via WhatsApp
+ */
+export async function sendImageMessage({ to, imageUrl, caption, phoneNumberId }) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${phoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "image",
+        image: {
+          link: imageUrl,
+          caption: caption || undefined,
+        },
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Failed to send image message");
+  }
+
+  return data;
+}
+
+/**
+ * Send a document message via WhatsApp
+ */
+export async function sendDocumentMessage({ to, documentUrl, filename, caption, phoneNumberId }) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${phoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "document",
+        document: {
+          link: documentUrl,
+          filename: filename || undefined,
+          caption: caption || undefined,
+        },
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Failed to send document message");
+  }
+
+  return data;
+}
+
+/**
+ * List WhatsApp Business message templates
+ */
+export async function listTemplates({ businessAccountId, accessToken }) {
+  const wabaId = businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${wabaId}/message_templates?limit=100`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Failed to list templates");
+  }
+
+  return data.data || [];
+}
+
+/**
  * Mark a message as read
  */
 export async function markMessageAsRead({ messageId, phoneNumberId }) {

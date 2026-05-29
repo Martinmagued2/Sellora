@@ -7,6 +7,7 @@ import {
   ChevronRight, Camera, Globe, Clock, User, Mail,
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
+  Megaphone,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -83,6 +84,17 @@ export default function ConversationsPage() {
 
   // Channel filter
   const [channelFilter, setChannelFilter] = useState("all");
+
+  // Quick Broadcast
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState(null);
+
+  // Slash command
+  const [slashResults, setSlashResults] = useState([]);
+  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
 
   const messagesEndRef = useRef(null);
   const simulatorEndRef = useRef(null);
@@ -632,6 +644,15 @@ export default function ConversationsPage() {
           >
             <FlaskConical size={16} /> {simulatorMode ? "Exit Simulator" : "AI Simulator"}
           </button>
+
+          {/* Quick Broadcast button */}
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowBroadcastModal(true)}
+            style={{ width: "100%", justifyContent: "center", marginTop: 4 }}
+          >
+            <Megaphone size={16} /> Quick Broadcast
+          </button>
         </div>
 
         <div className="conv-items">
@@ -938,16 +959,20 @@ export default function ConversationsPage() {
                             <div
                               key={qr.id}
                               onClick={(e) => {
+                                // Apply variable substitution
+                                const personalized = (qr.content || "")
+                                  .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+                                  .replace(/\{business_name\}/g, "our store");
                                 if (e.shiftKey) {
                                   // Shift+Click: send immediately
-                                  setNewMsg(qr.content);
+                                  setNewMsg(personalized);
                                   setTimeout(() => {
                                     const form = document.getElementById("chat-send-form");
                                     if (form) form.requestSubmit();
                                   }, 50);
                                 } else {
                                   // Normal click: fill input
-                                  setNewMsg(qr.content);
+                                  setNewMsg(personalized);
                                 }
                                 setShowQuickReplies(false);
                                 setQrSearch("");
@@ -983,7 +1008,96 @@ export default function ConversationsPage() {
             {/* ── Input ── */}
             <form id="chat-send-form" className="chat-input-area" onSubmit={handleSend}>
               <div style={{ position: "relative", display: "flex", alignItems: "center", flex: 1, gap: 4 }}>
-                <input type="text" className="chat-input" placeholder="Type a message..." value={newMsg} onChange={(e) => setNewMsg(e.target.value)} id="chat-message-input" style={{ flex: 1 }} />
+                {/* Slash command menu */}
+                {showSlashMenu && slashResults.length > 0 && (
+                  <div style={{
+                    position: "absolute", bottom: "100%", left: 0, marginBottom: 4,
+                    background: "var(--bg-secondary)", border: "1px solid var(--border-medium)",
+                    borderRadius: "var(--radius-md)", boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                    minWidth: 300, maxHeight: 260, overflowY: "auto", zIndex: 50,
+                  }}>
+                    <div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Quick Replies</div>
+                    {slashResults.map((qr, i) => (
+                      <button
+                        key={qr.id}
+                        type="button"
+                        onClick={() => {
+                          const personalized = (qr.content || "")
+                            .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+                            .replace(/\{business_name\}/g, "our store");
+                          setNewMsg(personalized);
+                          setShowSlashMenu(false);
+                          setSlashResults([]);
+                          document.getElementById("chat-message-input")?.focus();
+                        }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px",
+                          background: i === slashActiveIndex ? "rgba(108,92,231,0.08)" : "none",
+                          border: "none", borderBottom: "1px solid var(--border-subtle)",
+                          cursor: "pointer", color: "var(--text-primary)", textAlign: "left",
+                        }}
+                      >
+                        <Zap size={12} style={{ color: "var(--accent-primary-light)", flexShrink: 0 }} />
+                        <div style={{ flex: 1, overflow: "hidden" }}>
+                          <div style={{ fontSize: 12, fontWeight: 600 }}>{qr.title} {qr.shortcut && <code style={{ fontSize: 10, color: "var(--accent-primary-light)" }}>/{qr.shortcut}</code>}</div>
+                          <div style={{ fontSize: 10, color: "var(--text-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{qr.content}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  className="chat-input"
+                  placeholder="Type a message... (type / for quick replies)"
+                  value={newMsg}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewMsg(val);
+                    // Slash command detection
+                    if (val.startsWith("/")) {
+                      const query = val.slice(1).toLowerCase();
+                      const matches = quickReplies.filter(qr =>
+                        qr.shortcut?.toLowerCase().startsWith(query) ||
+                        qr.title?.toLowerCase().includes(query) ||
+                        qr.content?.toLowerCase().includes(query)
+                      ).slice(0, 6);
+                      setSlashResults(matches);
+                      setShowSlashMenu(matches.length > 0);
+                      setSlashActiveIndex(0);
+                    } else {
+                      setShowSlashMenu(false);
+                      setSlashResults([]);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (showSlashMenu && slashResults.length > 0) {
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setSlashActiveIndex(prev => Math.min(prev + 1, slashResults.length - 1));
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setSlashActiveIndex(prev => Math.max(prev - 1, 0));
+                      } else if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                        if (slashResults[slashActiveIndex]) {
+                          e.preventDefault();
+                          const qr = slashResults[slashActiveIndex];
+                          const personalized = (qr.content || "")
+                            .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+                            .replace(/\{business_name\}/g, "our store");
+                          setNewMsg(personalized);
+                          setShowSlashMenu(false);
+                          setSlashResults([]);
+                        }
+                      } else if (e.key === "Escape") {
+                        setShowSlashMenu(false);
+                        setSlashResults([]);
+                      }
+                    }
+                  }}
+                  id="chat-message-input"
+                  style={{ flex: 1 }}
+                />
                 <button
                   type="button"
                   title="Quick Replies"
@@ -1247,6 +1361,108 @@ export default function ConversationsPage() {
               <button type="button" className="btn btn-secondary" onClick={() => setShowOrderModal(false)}>Cancel</button>
               <button type="button" className="btn btn-primary" onClick={handleCreateOrder} disabled={orderItems.length === 0 || orderSaving}>
                 {orderSaving ? <><Loader2 size={16} className="spin" /> Creating...</> : <><Check size={16} /> Create Order</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ Quick Broadcast Modal ═══════ */}
+      {showBroadcastModal && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowBroadcastModal(false)}>
+          <div className="modal" style={{ maxWidth: 560 }}>
+            <div className="modal-header">
+              <h3><Megaphone size={18} style={{ display: "inline", verticalAlign: -3, marginRight: 8 }} />Quick Broadcast</h3>
+              <button className="modal-close" onClick={() => { setShowBroadcastModal(false); setBroadcastResult(null); }}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)", marginBottom: "var(--space-lg)" }}>
+                Send a message to all open conversations at once. Each message is personalized with the customer&apos;s name.
+              </p>
+
+              {broadcastResult && (
+                <div style={{
+                  padding: "var(--space-md)", marginBottom: "var(--space-md)", borderRadius: "var(--radius-md)",
+                  background: broadcastResult.type === "success" ? "rgba(0,200,83,0.1)" : "rgba(255,82,82,0.1)",
+                  border: `1px solid ${broadcastResult.type === "success" ? "rgba(0,200,83,0.3)" : "rgba(255,82,82,0.3)"}`,
+                  color: broadcastResult.type === "success" ? "var(--accent-green)" : "var(--accent-red)",
+                  fontSize: "var(--font-size-sm)", fontWeight: 500,
+                }}>
+                  {broadcastResult.message}
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">Broadcast Message</label>
+                <textarea
+                  className="form-input form-textarea"
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  rows={4}
+                  placeholder="Hi {name}! We have an exciting new offer at {business_name}..."
+                />
+                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+                  Use {"{name}"} for customer name, {"{business_name}"} for your store name
+                </p>
+              </div>
+
+              <div style={{
+                padding: "var(--space-sm) var(--space-md)",
+                background: "rgba(108,92,231,0.08)", borderRadius: "var(--radius-sm)",
+                fontSize: "var(--font-size-sm)", color: "var(--accent-primary-light)",
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <MessageCircle size={14} />
+                {conversations.filter(c => c.status !== "closed").length} open conversations will receive this message
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => { setShowBroadcastModal(false); setBroadcastResult(null); }}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!broadcastMessage.trim() || broadcastSending}
+                onClick={async () => {
+                  setBroadcastSending(true);
+                  setBroadcastResult(null);
+                  try {
+                    const openConvIds = conversations
+                      .filter(c => c.status !== "closed")
+                      .map(c => c.id);
+
+                    if (openConvIds.length === 0) {
+                      setBroadcastResult({ type: "error", message: "No open conversations to broadcast to." });
+                      setBroadcastSending(false);
+                      return;
+                    }
+
+                    const res = await fetch("/api/broadcasts", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        conversationIds: openConvIds,
+                        message: broadcastMessage.trim(),
+                      }),
+                    });
+                    const data = await res.json();
+
+                    if (res.ok) {
+                      setBroadcastResult({
+                        type: "success",
+                        message: `Broadcast sent! ${data.sent} delivered, ${data.failed} failed out of ${data.total} conversations.`,
+                      });
+                      setBroadcastMessage("");
+                      fetchConversations();
+                    } else {
+                      setBroadcastResult({ type: "error", message: data.error || "Failed to send broadcast" });
+                    }
+                  } catch (err) {
+                    setBroadcastResult({ type: "error", message: "Broadcast failed: " + err.message });
+                  }
+                  setBroadcastSending(false);
+                }}
+              >
+                {broadcastSending ? <><Loader2 size={16} className="spin" /> Sending...</> : <><Megaphone size={16} /> Send Broadcast</>}
               </button>
             </div>
           </div>

@@ -41,18 +41,20 @@ export async function GET(req) {
     const supabase = getSupabase();
     const { data: account } = await supabase
       .from("accounts")
-      .select("auto_greeting, auto_greeting_message, auto_greeting_instagram, auto_greeting_facebook, auto_greeting_whatsapp, business_name")
+      .select("auto_greeting, auto_greeting_message, business_name, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, greeting_per_channel")
       .eq("id", user.id)
       .single();
 
     return NextResponse.json({
       success: true,
       autoGreeting: account?.auto_greeting || false,
-      autoGreetingMessage: account?.auto_greeting_message || `Hi! Welcome to ${account?.business_name || "our store"} 👋 How can I help you today?`,
-      autoGreetingInstagram: account?.auto_greeting_instagram || "",
-      autoGreetingFacebook: account?.auto_greeting_facebook || "",
-      autoGreetingWhatsapp: account?.auto_greeting_whatsapp || "",
-      businessName: account?.business_name || "",
+      autoGreetingMessage: account?.auto_greeting_message || 'Hi! Welcome to {business_name} 👋 How can I help you today?',
+      instagramGreeting: account?.instagram_greeting || '',
+      facebookGreeting: account?.facebook_greeting || '',
+      whatsappGreeting: account?.whatsapp_greeting || '',
+      greetingDelaySeconds: account?.greeting_delay_seconds || 0,
+      greetingPerChannel: account?.greeting_per_channel || false,
+      businessName: account?.business_name || '',
     });
   } catch (error) {
     console.error("Auto-greeting GET error:", error);
@@ -62,7 +64,7 @@ export async function GET(req) {
 
 /**
  * PUT /api/automation/auto-greeting - Update auto-greeting settings
- * Body: { auto_greeting?, auto_greeting_message? }
+ * Body: { auto_greeting?, auto_greeting_message?, instagram_greeting?, facebook_greeting?, whatsapp_greeting?, greeting_delay_seconds?, greeting_per_channel? }
  */
 export async function PUT(req) {
   try {
@@ -85,15 +87,17 @@ export async function PUT(req) {
     }
 
     const body = await req.json();
-    const { auto_greeting, auto_greeting_message, auto_greeting_instagram, auto_greeting_facebook, auto_greeting_whatsapp } = body;
+    const { auto_greeting, auto_greeting_message, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, greeting_per_channel } = body;
 
     const supabase = getSupabase();
     const updates = {};
     if (auto_greeting !== undefined) updates.auto_greeting = auto_greeting;
     if (auto_greeting_message !== undefined) updates.auto_greeting_message = auto_greeting_message;
-    if (auto_greeting_instagram !== undefined) updates.auto_greeting_instagram = auto_greeting_instagram;
-    if (auto_greeting_facebook !== undefined) updates.auto_greeting_facebook = auto_greeting_facebook;
-    if (auto_greeting_whatsapp !== undefined) updates.auto_greeting_whatsapp = auto_greeting_whatsapp;
+    if (instagram_greeting !== undefined) updates.instagram_greeting = instagram_greeting;
+    if (facebook_greeting !== undefined) updates.facebook_greeting = facebook_greeting;
+    if (whatsapp_greeting !== undefined) updates.whatsapp_greeting = whatsapp_greeting;
+    if (greeting_delay_seconds !== undefined) updates.greeting_delay_seconds = greeting_delay_seconds;
+    if (greeting_per_channel !== undefined) updates.greeting_per_channel = greeting_per_channel;
 
     const { error } = await supabase
       .from("accounts")

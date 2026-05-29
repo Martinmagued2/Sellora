@@ -1,7 +1,7 @@
 /**
  * Shared Channel Message Processor
  * 
- * This is the core pipeline that ALL channels (IG, FB, later WhatsApp) use.
+ * This is the core pipeline that ALL channels (IG, FB, WhatsApp) use.
  * It handles: Customer upsert → Conversation upsert → Message storage → AI reply
  * 
  * By centralizing this, we guarantee consistent behavior across channels.
@@ -10,6 +10,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateAIReply, analyzeIntent } from "@/lib/ai";
 import { sendMessage } from "@/lib/channels/meta";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { dispatchWebhook } from "@/lib/webhooks";
 
@@ -34,7 +35,7 @@ function getSupabase() {
  * @param {string} params.senderProfilePic - Profile picture URL
  * @param {string} params.text - Message text content
  * @param {string[]} params.mediaUrls - Attachment URLs
- * @param {string} params.channel - 'instagram' | 'facebook'
+ * @param {string} params.channel - 'instagram' | 'facebook' | 'whatsapp'
  * @param {string} params.pageId - The business's page ID that received the message
  * @param {string} params.platformMessageId - Original message ID from the platform
  * @param {string} params.accessToken - Page access token for replies
@@ -52,10 +53,10 @@ export async function processIncomingMessage({
 }) {
   try {
     // ─── 1. Find the account that owns this page ───
-    const pageColumn = channel === "instagram" ? "instagram_page_id" : "facebook_page_id";
+    const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : "facebook_page_id";
     const { data: account, error: accountError } = await getSupabase()
       .from("accounts")
-      .select("id, ai_enabled, ai_personality, plan, business_name, auto_greeting, auto_greeting_message, auto_greeting_instagram, auto_greeting_facebook, auto_greeting_whatsapp")
+      .select("id, ai_enabled, ai_personality, plan, business_name, country, auto_greeting, auto_greeting_message, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, greeting_per_channel, whatsapp_phone_number_id, whatsapp_access_token")
       .eq(pageColumn, pageId)
       .single();
 
@@ -237,27 +238,45 @@ export async function processIncomingMessage({
     // ─── 8. Auto-Greeting for new customers (BEFORE FAQ/keyword/AI) ───
     if (account.auto_greeting && isNewCustomer && text) {
       try {
-        // Use channel-specific greeting if available, otherwise fall back to default
-        let greetingTemplate = account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?";
-        if (channel === "instagram" && account.auto_greeting_instagram) {
-          greetingTemplate = account.auto_greeting_instagram;
-        } else if (channel === "facebook" && account.auto_greeting_facebook) {
-          greetingTemplate = account.auto_greeting_facebook;
-        } else if (channel === "whatsapp" && account.auto_greeting_whatsapp) {
-          greetingTemplate = account.auto_greeting_whatsapp;
+        // Determine greeting message based on channel
+        let greetingMessage;
+        if (account.greeting_per_channel) {
+          // Use channel-specific greeting
+          const channelGreetings = {
+            instagram: account.instagram_greeting,
+            facebook: account.facebook_greeting,
+            whatsapp: account.whatsapp_greeting,
+          };
+          greetingMessage = channelGreetings[channel] || account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?";
+        } else {
+          greetingMessage = account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?";
         }
 
-        const greetingMessage = greetingTemplate
+        greetingMessage = greetingMessage
           .replace(/\{business_name\}/g, account.business_name || "our store")
           .replace(/\{name\}/g, customer.name || "there");
 
+        // Apply greeting delay if configured
+        const delaySeconds = account.greeting_delay_seconds || 0;
+        if (delaySeconds > 0) {
+          await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+        }
+
         // Send greeting via the appropriate channel
-        await sendMessage({
-          recipientId: senderId,
-          message: greetingMessage,
-          pageId,
-          accessToken,
-        });
+        if (channel === "whatsapp") {
+          await sendWhatsAppMessage({
+            to: senderId,
+            message: greetingMessage,
+            phoneNumberId: account.whatsapp_phone_number_id,
+          });
+        } else {
+          await sendMessage({
+            recipientId: senderId,
+            message: greetingMessage,
+            pageId,
+            accessToken,
+          });
+        }
 
         // Store the greeting message
         await getSupabase().from("messages").insert({
@@ -319,13 +338,21 @@ export async function processIncomingMessage({
 
           // Only use FAQ auto-reply if the match score is high enough
           if (bestMatch && bestMatch.score >= 10) {
-            // Send the FAQ answer
-            await sendMessage({
-              recipientId: senderId,
-              message: bestMatch.answer,
-              pageId,
-              accessToken,
-            });
+            // Send the FAQ answer via the appropriate channel
+            if (channel === "whatsapp") {
+              await sendWhatsAppMessage({
+                to: senderId,
+                message: bestMatch.answer,
+                phoneNumberId: account.whatsapp_phone_number_id,
+              });
+            } else {
+              await sendMessage({
+                recipientId: senderId,
+                message: bestMatch.answer,
+                pageId,
+                accessToken,
+              });
+            }
 
             // Store it
             await getSupabase().from("messages").insert({
@@ -371,13 +398,21 @@ export async function processIncomingMessage({
         });
 
         if (matchedReply) {
-          // Send the auto-reply
-          await sendMessage({
-            recipientId: senderId,
-            message: matchedReply.response,
-            pageId,
-            accessToken,
-          });
+          // Send the auto-reply via the appropriate channel
+          if (channel === "whatsapp") {
+            await sendWhatsAppMessage({
+              to: senderId,
+              message: matchedReply.response,
+              phoneNumberId: account.whatsapp_phone_number_id,
+            });
+          } else {
+            await sendMessage({
+              recipientId: senderId,
+              message: matchedReply.response,
+              pageId,
+              accessToken,
+            });
+          }
 
           // Store it
           await getSupabase().from("messages").insert({
@@ -463,13 +498,21 @@ export async function processIncomingMessage({
 
           if (aiResult && aiResult.reply) {
             const aiReply = aiResult.reply;
-            // Send AI reply back to the customer's IG/FB
-            await sendMessage({
-              recipientId: senderId,
-              message: aiReply,
-              pageId,
-              accessToken,
-            });
+            // Send AI reply via the appropriate channel
+            if (channel === "whatsapp") {
+              await sendWhatsAppMessage({
+                to: senderId,
+                message: aiReply,
+                phoneNumberId: account.whatsapp_phone_number_id,
+              });
+            } else {
+              await sendMessage({
+                recipientId: senderId,
+                message: aiReply,
+                pageId,
+                accessToken,
+              });
+            }
 
             // Calculate response time
             const responseTime = Math.round((Date.now() - (conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : Date.now())) / 1000);
