@@ -129,8 +129,10 @@ export async function GET(request) {
 
     const pagesData = await pagesResponse.json();
 
+    console.log("[META-CALLBACK] Pages response:", JSON.stringify(pagesData, null, 2));
+
     if (!pagesData.data || pagesData.data.length === 0) {
-      console.warn("No Facebook Pages found for this user");
+      console.warn("No Facebook Pages found for this user. Full response:", pagesData);
       return NextResponse.redirect(
         getRedirectUrl("/dashboard/settings?tab=channels&error=no_pages")
       );
