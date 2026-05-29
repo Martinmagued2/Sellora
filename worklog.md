@@ -112,3 +112,22 @@ Stage Summary:
 - Feature 9: WhatsApp webhook refactored to shared processor + media sending
 - Feature 10: Per-channel greetings + delay + preview
 - Migration 016 needs to be run on Supabase dashboard
+---
+Task ID: phase2-messaging
+Agent: Main Agent
+Task: Build Phase 2 Messaging features (Features 7-10)
+
+Work Log:
+- Created 016_messaging_enhancements.sql migration with: WhatsApp columns on accounts, broadcast_logs table, per-channel greeting columns, quick_replies short_code/is_default, campaign channel/broadcast_type columns, message delivery tracking columns, customer last_contacted_at
+- Feature 7 (Broadcast/Bulk Messaging): Added broadcast_logs table for per-recipient delivery tracking, created /api/campaigns/broadcast-logs API, enhanced campaigns page with expandable delivery detail view showing per-recipient status, added duplicate campaign action, added channel badges
+- Feature 8 (Quick Reply Templates): Added short_code support (/thanks, /shipping etc), is_default per category flag, variable placeholders guide ({name}, {business_name}, {order_number}, {amount}, {status}), grouped by category in settings UI, 7 default templates instead of 4
+- Feature 9 (WhatsApp Integration): Added account-level access token support in whatsapp lib (each account can have own credentials instead of env vars), step-by-step setup guide in settings, copy-to-clipboard webhook URLs, webhook fields reference
+- Feature 10 (Auto-Greeting): Added per-channel greetings (Instagram, Facebook, WhatsApp specific messages), live preview with variable replacement in settings, fallback to default greeting when channel-specific not set
+- Updated /api/db/migrate to handle Phase 2 migrations automatically
+- Updated WhatsApp lib functions (sendMessage, sendTemplate, sendProductList) to accept account-level accessToken
+- Updated all WhatsApp API callers to pass account-level tokens
+
+Stage Summary:
+- All 4 Phase 2 features are complete and pushed to GitHub
+- Key files: 016_messaging_enhancements.sql, broadcast-logs/route.js, campaigns/page.js, settings/page.js, whatsapp/index.js, processor.js, auto-greeting/route.js, quick-replies/route.js, db/migrate/route.js
+- Commit: 11f0bd1 (Phase 2 features), ef5aca8 (migration endpoint)
