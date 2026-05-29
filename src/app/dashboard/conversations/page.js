@@ -6,7 +6,7 @@ import {
   FlaskConical, Package, ShoppingBag, Tag, X, Plus, Minus,
   ChevronRight, Camera, Globe, Clock, User, Mail,
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
-  FileText, AlertCircle, Zap, ChevronDown,
+  FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -25,7 +25,7 @@ const INTENT_CONFIG = {
 const CHANNEL_ICON = {
   instagram: <Camera size={14} />,
   facebook: <Globe size={14} />,
-  whatsapp: <Phone size={14} />,
+  whatsapp: <MessageSquare size={14} />,
 };
 
 const STATUS_OPTIONS = [
@@ -79,6 +79,10 @@ export default function ConversationsPage() {
   // Quick Replies
   const [quickReplies, setQuickReplies] = useState([]);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [qrSearch, setQrSearch] = useState("");
+
+  // Channel filter
+  const [channelFilter, setChannelFilter] = useState("all");
 
   const messagesEndRef = useRef(null);
   const simulatorEndRef = useRef(null);
@@ -327,30 +331,33 @@ export default function ConversationsPage() {
     const content = `📦 ${product.name}\n💰 ${product.price} EGP\n${product.description || ""}`;
 
     try {
-      // Send via Meta API for Facebook/Instagram channels
-      if (activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+      // Send via Meta API for Facebook/Instagram channels, or WhatsApp API
+      if (activeConv.channel === "instagram" || activeConv.channel === "facebook" || activeConv.channel === "whatsapp") {
         const res = await fetch("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             conversationId: activeConv.id,
             content,
-            type: "product_card",
-            product: {
-              name: product.name,
-              price: product.price,
-              currency: "EGP",
-              description: product.description || "",
-              image_urls: product.image_urls || [],
-              id: product.id,
-            },
+            type: activeConv.channel === "whatsapp" ? "text" : "product_card",
+            ...(activeConv.channel !== "whatsapp" && {
+              product: {
+                name: product.name,
+                price: product.price,
+                currency: "EGP",
+                description: product.description || "",
+                image_urls: product.image_urls || [],
+                id: product.id,
+              },
+            }),
+            ...(activeConv.channel === "whatsapp" && { channel: "whatsapp" }),
           }),
         });
 
         const data = await res.json();
         if (!res.ok) {
-          console.error("Failed to send product card to Meta:", data.error);
-          // Fallback: save locally even if Meta delivery fails
+          console.error(`Failed to send product card to ${activeConv.channel}:`, data.error);
+          // Fallback: save locally even if delivery fails
           await supabase.from("messages").insert({
             conversation_id: activeConv.id,
             direction: "outgoing",
@@ -442,9 +449,9 @@ export default function ConversationsPage() {
 
       confirmationContent += "\n\nWe'll confirm your order shortly!";
 
-      // Send confirmation via Meta API for Facebook/Instagram channels
+      // Send confirmation via Meta API for Facebook/Instagram channels or WhatsApp
       try {
-        if (activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+        if (activeConv.channel === "instagram" || activeConv.channel === "facebook" || activeConv.channel === "whatsapp") {
           const res = await fetch("/api/messages/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -452,12 +459,13 @@ export default function ConversationsPage() {
               conversationId: activeConv.id,
               content: confirmationContent,
               type: "text",
+              ...(activeConv.channel === "whatsapp" && { channel: "whatsapp" }),
             }),
           });
 
           const data = await res.json();
           if (!res.ok) {
-            console.error("Failed to send order confirmation to Meta:", data.error);
+            console.error(`Failed to send order confirmation to ${activeConv.channel}:`, data.error);
             // Fallback: save locally
             await supabase.from("messages").insert({
               conversation_id: activeConv.id,
@@ -537,10 +545,31 @@ export default function ConversationsPage() {
   };
   const formatDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
+  // ─── Group quick replies by category ───
+  const quickRepliesByCategory = (() => {
+    const filtered = quickReplies.filter((qr) => {
+      if (!qrSearch) return true;
+      const s = qrSearch.toLowerCase();
+      return (
+        qr.title?.toLowerCase().includes(s) ||
+        qr.content?.toLowerCase().includes(s) ||
+        qr.category?.toLowerCase().includes(s)
+      );
+    });
+    const grouped = {};
+    for (const qr of filtered) {
+      const cat = qr.category || "General";
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(qr);
+    }
+    return grouped;
+  })();
+
   // ─── Filter conversations ───
   const filteredConvs = conversations.filter((c) => {
     if (search && !c.customer?.name?.toLowerCase().includes(search.toLowerCase())) return false;
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (channelFilter !== "all" && c.channel !== channelFilter) return false;
     return true;
   });
 
@@ -568,6 +597,29 @@ export default function ConversationsPage() {
                 }}
               >
                 {s.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Channel filter tabs */}
+          <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+            {[
+              { value: "all", label: "All Channels" },
+              { value: "instagram", label: "📷 IG" },
+              { value: "facebook", label: "🌐 FB" },
+              { value: "whatsapp", label: "📱 WA" },
+            ].map((ch) => (
+              <button
+                key={ch.value}
+                onClick={() => setChannelFilter(ch.value)}
+                style={{
+                  padding: "3px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600, border: "1px solid var(--border-subtle)", cursor: "pointer",
+                  background: channelFilter === ch.value ? "var(--accent-secondary)" : "transparent",
+                  color: channelFilter === ch.value ? "white" : "var(--text-tertiary)",
+                  transition: "all 0.15s",
+                }}
+              >
+                {ch.label}
               </button>
             ))}
           </div>
@@ -841,52 +893,82 @@ export default function ConversationsPage() {
                     position: "absolute", bottom: "100%", left: 0, marginBottom: 4,
                     background: "var(--bg-secondary)", border: "1px solid var(--border-medium)",
                     borderRadius: "var(--radius-md)", boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                    minWidth: 280, maxHeight: 300, overflowY: "auto",
+                    minWidth: 320, maxHeight: 380, display: "flex", flexDirection: "column",
                     zIndex: 50,
                   }}>
-                    <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Templates</span>
-                      <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Click to fill • Shift+Click to send</span>
-                    </div>
-                    {quickReplies.length === 0 ? (
-                      <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
-                        No templates yet. Add some in Settings.
+                    <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Quick Replies</span>
+                        <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Click to fill • Shift+Click to send</span>
                       </div>
-                    ) : quickReplies.map((qr) => (
-                      <div
-                        key={qr.id}
-                        onClick={(e) => {
-                          if (e.shiftKey) {
-                            // Shift+Click: send immediately
-                            setNewMsg(qr.content);
-                            // Use setTimeout to allow state to update before sending
-                            setTimeout(() => {
-                              const form = document.getElementById("chat-send-form");
-                              if (form) form.requestSubmit();
-                            }, 50);
-                          } else {
-                            // Normal click: fill input
-                            setNewMsg(qr.content);
-                          }
-                          setShowQuickReplies(false);
-                        }}
+                      <input
+                        type="text"
+                        placeholder="Search templates..."
+                        value={qrSearch}
+                        onChange={(e) => setQrSearch(e.target.value)}
                         style={{
-                          padding: "8px 12px", cursor: "pointer",
-                          borderBottom: "1px solid var(--border-subtle)",
-                          transition: "background 0.15s",
+                          width: "100%", padding: "5px 10px", borderRadius: 8, fontSize: 11,
+                          border: "1px solid var(--border-subtle)", background: "var(--bg-glass)",
+                          color: "var(--text-primary)", outline: "none",
+                          fontFamily: "var(--font-family)",
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-glass)"}
-                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{qr.title}</span>
-                          <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 8, background: "var(--bg-glass)", color: "var(--text-tertiary)" }}>{qr.category}</span>
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                    <div style={{ overflowY: "auto", flex: 1 }}>
+                      {quickReplies.length === 0 ? (
+                        <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+                          No templates yet. Add some in Settings.
                         </div>
-                        <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {qr.content}
+                      ) : Object.keys(quickRepliesByCategory).length === 0 ? (
+                        <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+                          No matches found.
                         </div>
-                      </div>
-                    ))}
+                      ) : Object.entries(quickRepliesByCategory).map(([category, qrs]) => (
+                        <div key={category}>
+                          <div style={{
+                            padding: "6px 12px", fontSize: 10, fontWeight: 700,
+                            color: "var(--accent-primary-light)", textTransform: "uppercase",
+                            background: "var(--bg-glass)", borderBottom: "1px solid var(--border-subtle)",
+                            letterSpacing: 0.5,
+                          }}>
+                            {category}
+                          </div>
+                          {qrs.map((qr) => (
+                            <div
+                              key={qr.id}
+                              onClick={(e) => {
+                                if (e.shiftKey) {
+                                  // Shift+Click: send immediately
+                                  setNewMsg(qr.content);
+                                  setTimeout(() => {
+                                    const form = document.getElementById("chat-send-form");
+                                    if (form) form.requestSubmit();
+                                  }, 50);
+                                } else {
+                                  // Normal click: fill input
+                                  setNewMsg(qr.content);
+                                }
+                                setShowQuickReplies(false);
+                                setQrSearch("");
+                              }}
+                              style={{
+                                padding: "8px 12px", cursor: "pointer",
+                                borderBottom: "1px solid var(--border-subtle)",
+                                transition: "background 0.15s",
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-glass)"}
+                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                            >
+                              <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{qr.title}</div>
+                              <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {qr.content}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -900,8 +982,24 @@ export default function ConversationsPage() {
 
             {/* ── Input ── */}
             <form id="chat-send-form" className="chat-input-area" onSubmit={handleSend}>
-              <input type="text" className="chat-input" placeholder="Type a message..." value={newMsg} onChange={(e) => setNewMsg(e.target.value)} id="chat-message-input" />
-              <button type="submit" className="chat-send-btn" disabled={!newMsg.trim() || sending} id="chat-send"><Send size={18} /></button>
+              <div style={{ position: "relative", display: "flex", alignItems: "center", flex: 1, gap: 4 }}>
+                <input type="text" className="chat-input" placeholder="Type a message..." value={newMsg} onChange={(e) => setNewMsg(e.target.value)} id="chat-message-input" style={{ flex: 1 }} />
+                <button
+                  type="button"
+                  title="Quick Replies"
+                  onClick={() => setShowQuickReplies(!showQuickReplies)}
+                  style={{
+                    width: 36, height: 36, borderRadius: "50%", border: "1px solid var(--border-subtle)",
+                    background: showQuickReplies ? "var(--accent-primary)" : "var(--bg-glass)",
+                    color: showQuickReplies ? "white" : "var(--text-tertiary)",
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0, transition: "all 0.15s",
+                  }}
+                >
+                  <Zap size={16} />
+                </button>
+                <button type="submit" className="chat-send-btn" disabled={!newMsg.trim() || sending} id="chat-send"><Send size={18} /></button>
+              </div>
             </form>
           </>
         ) : (
