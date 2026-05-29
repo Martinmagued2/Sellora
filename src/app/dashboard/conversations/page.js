@@ -192,21 +192,51 @@ export default function ConversationsPage() {
     if (!newMsg.trim() || !activeConv || sending) return;
     setSending(true);
 
-    await supabase.from("messages").insert({
-      conversation_id: activeConv.id,
-      direction: "outgoing",
-      content: newMsg.trim(),
-      type: "text",
-      is_ai: false,
-    });
+    try {
+      // Send via Meta API (Facebook/Instagram) if the conversation is on a real channel
+      if (activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+        const res = await fetch("/api/messages/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversationId: activeConv.id,
+            content: newMsg.trim(),
+          }),
+        });
 
-    await supabase.from("conversations")
-      .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
-      .eq("id", activeConv.id);
+        const data = await res.json();
+        if (!res.ok) {
+          console.error("Failed to send message to Meta:", data.error);
+          // Still save locally even if Meta delivery fails
+          await supabase.from("messages").insert({
+            conversation_id: activeConv.id,
+            direction: "outgoing",
+            content: newMsg.trim(),
+            type: "text",
+            is_ai: false,
+          });
+        }
+      } else {
+        // For other channels (or no channel), just save locally
+        await supabase.from("messages").insert({
+          conversation_id: activeConv.id,
+          direction: "outgoing",
+          content: newMsg.trim(),
+          type: "text",
+          is_ai: false,
+        });
+      }
 
-    setNewMsg("");
-    await fetchMessages();
-    await fetchConversations();
+      await supabase.from("conversations")
+        .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
+        .eq("id", activeConv.id);
+
+      setNewMsg("");
+      await fetchMessages();
+      await fetchConversations();
+    } catch (err) {
+      console.error("Send error:", err);
+    }
     setSending(false);
   };
 
