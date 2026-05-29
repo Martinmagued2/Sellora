@@ -27,11 +27,19 @@ export async function GET(request) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
-    // Webhook verified successfully
+  const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+
+  if (!verifyToken) {
+    console.error("[FB-WEBHOOK] META_WEBHOOK_VERIFY_TOKEN is not set! Webhook verification will fail. Add it to your Vercel environment variables.");
+    return NextResponse.json({ error: "Webhook verify token not configured on server" }, { status: 500 });
+  }
+
+  if (mode === "subscribe" && token === verifyToken) {
+    console.log("[FB-WEBHOOK] Webhook verified successfully");
     return new Response(challenge, { status: 200 });
   }
 
+  console.warn(`[FB-WEBHOOK] Verification failed. Expected: ${verifyToken?.substring(0, 4)}***, Got: ${token?.substring(0, 4)}***`);
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 

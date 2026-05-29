@@ -115,7 +115,7 @@ export default function OnboardingPage() {
     
     // Real OAuth flow via Meta
     if (process.env.NEXT_PUBLIC_META_APP_ID) {
-      window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=${platform === 'instagram' ? 'pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages,business_management' : 'pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list,business_management'}&response_type=code&auth_type=rerequest&state=${platform}_${account?.id || userId}`;
+      window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata&response_type=code&auth_type=rerequest&state=${platform}_${account?.id || userId}`;
       // The page will redirect away, so we don't need to update state here
       return;
     }

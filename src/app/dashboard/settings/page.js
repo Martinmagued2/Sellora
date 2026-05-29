@@ -422,7 +422,7 @@ function SettingsContent() {
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             {process.env.NEXT_PUBLIC_META_APP_ID && (
                               <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
-                                window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages,business_management&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
+                                window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
                               }}>
                                 Connect with Meta
                               </button>
@@ -433,9 +433,9 @@ function SettingsContent() {
                             {showManualIG && (
                               <div style={{ textAlign: "left", padding: "8px 0", display: "flex", flexDirection: "column", gap: 6 }}>
                                 <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>
-                                  Get these from your Meta Dashboard → Instagram → Settings → Generate Token
+                                  Get these from Meta Dashboard → Instagram → Settings → Generate Token
                                 </p>
-                                <input type="text" className="form-input" placeholder="Facebook Page ID" value={manualIG.pageId} onChange={(e) => setManualIG({ ...manualIG, pageId: e.target.value })} style={{ fontSize: 12 }} />
+                                <input type="text" className="form-input" placeholder="Facebook Page ID (not Instagram ID)" value={manualIG.pageId} onChange={(e) => setManualIG({ ...manualIG, pageId: e.target.value })} style={{ fontSize: 12 }} />
                                 <input type="text" className="form-input" placeholder="Page Access Token" value={manualIG.accessToken} onChange={(e) => setManualIG({ ...manualIG, accessToken: e.target.value })} style={{ fontSize: 12 }} />
                                 <button className="btn btn-primary btn-sm" disabled={manualIGSaving || !manualIG.pageId || !manualIG.accessToken} onClick={async () => {
                                   setManualIGSaving(true);
@@ -500,7 +500,7 @@ function SettingsContent() {
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             {process.env.NEXT_PUBLIC_META_APP_ID && (
                               <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
-                                window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
+                                window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
                               }}>
                                 Connect with Meta
                               </button>
@@ -511,7 +511,7 @@ function SettingsContent() {
                             {showManualFB && (
                               <div style={{ textAlign: "left", padding: "8px 0", display: "flex", flexDirection: "column", gap: 6 }}>
                                 <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>
-                                  Get these from your Meta Dashboard → Messenger → Settings → Generate Token
+                                  Get these from Meta Dashboard → Messenger → Settings → Generate Token
                                 </p>
                                 <input type="text" className="form-input" placeholder="Facebook Page ID" value={manualFB.pageId} onChange={(e) => setManualFB({ ...manualFB, pageId: e.target.value })} style={{ fontSize: 12 }} />
                                 <input type="text" className="form-input" placeholder="Page Access Token" value={manualFB.accessToken} onChange={(e) => setManualFB({ ...manualFB, accessToken: e.target.value })} style={{ fontSize: 12 }} />

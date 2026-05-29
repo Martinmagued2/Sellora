@@ -20,16 +20,22 @@ function getSupabase() {
  *
  * Meta OAuth callback handler for Instagram & Facebook connections.
  *
+ * We use only Facebook Page scopes that work in Dev Mode:
+ *   pages_messaging, pages_read_engagement, pages_show_list, pages_manage_metadata
+ *
+ * From the Page access token we can:
+ *   - Connect Facebook Messenger immediately
+ *   - Detect & connect Instagram Business Account linked to the Page
+ *
  * Flow:
- *   1. User clicks "Connect Instagram/Facebook" in Settings
- *   2. Meta OAuth dialog authorizes the app
+ *   1. User clicks "Connect with Meta" in Settings
+ *   2. Meta OAuth dialog authorizes the app with Page scopes
  *   3. Meta redirects here with ?code=...&state=instagram_{accountId}|facebook_{accountId}
  *   4. We exchange the code for a user access token
  *   5. We fetch the user's Facebook Pages (with page access tokens)
- *   6. For Instagram: we resolve the Instagram Business Account linked to the first page
- *   7. We store the page ID + page access token in the accounts table
- *   8. We mark the channel as connected
- *   9. Redirect back to /dashboard/settings?tab=channels&connected=instagram|facebook
+ *   6. For Instagram state: we also try to resolve the IG Business Account
+ *   7. We ALWAYS connect both platforms from the same Page
+ *   8. Redirect back to /dashboard/settings?tab=channels&connected=instagram|facebook
  */
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
@@ -51,6 +57,11 @@ export async function GET(request) {
   // ─── Handle user denial or Meta errors ───
   if (error) {
     console.warn(`Meta OAuth error: ${error} - ${errorMessage}`);
+    if (error === "access_denied" || errorReason === "user_denied") {
+      return NextResponse.redirect(
+        getRedirectUrl("/dashboard/settings?tab=channels&error=user_denied")
+      );
+    }
     return NextResponse.redirect(
       getRedirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(errorReason || error)}`)
     );
@@ -65,7 +76,7 @@ export async function GET(request) {
 
   // Parse the state: "instagram_{accountId}" or "facebook_{accountId}"
   const [platform, ...accountIdParts] = state.split("_");
-  const accountId = accountIdParts.join("_"); // Handle UUIDs with underscores (shouldn't happen but safe)
+  const accountId = accountIdParts.join("_"); // Handle UUIDs
 
   if (!["instagram", "facebook"].includes(platform) || !accountId) {
     console.error(`Invalid OAuth state: ${state}`);
@@ -119,7 +130,7 @@ export async function GET(request) {
     );
 
     const longLivedData = await longLivedResponse.json();
-    const longLivedToken = longLivedData.access_token || userAccessToken; // Fallback to short-lived if exchange fails
+    const longLivedToken = longLivedData.access_token || userAccessToken;
 
     // ─── Step 3: Get the user's Facebook Pages (with page access tokens) ───
     const pagesResponse = await fetch(
@@ -143,71 +154,72 @@ export async function GET(request) {
     const pageId = page.id;
     const pageAccessToken = page.access_token;
     const pageName = page.name;
-    const pagePictureUrl = page.picture?.data?.url || null;
 
     const supabase = getSupabase();
 
-    // ─── Step 4: Platform-specific processing ───
-    if (platform === "instagram") {
-      // For Instagram, we need to get the Instagram Business Account ID
-      // linked to this Facebook Page
+    // ─── Step 4: Always connect Facebook Messenger ───
+    const fbUpdate = await supabase
+      .from("accounts")
+      .update({
+        facebook_page_id: pageId,
+        facebook_access_token: pageAccessToken,
+        facebook_connected: true,
+      })
+      .eq("id", accountId);
+
+    if (fbUpdate.error) {
+      console.error("Failed to update Facebook connection:", fbUpdate.error);
+      // Don't fail entirely - try Instagram too
+    } else {
+      console.log(`[META-CALLBACK] Facebook connected: ${pageName} (Page ID: ${pageId})`);
+    }
+
+    // ─── Step 5: Try to connect Instagram via the Page's IG Business Account ───
+    let instagramConnected = false;
+    try {
       const igAccountResponse = await fetch(
         `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${pageAccessToken}`,
         { method: "GET" }
       );
 
       const igAccountData = await igAccountResponse.json();
+      console.log("[META-CALLBACK] IG account response:", JSON.stringify(igAccountData, null, 2));
 
-      if (!igAccountData.instagram_business_account) {
-        console.warn("No Instagram Business Account linked to this Facebook Page");
-        return NextResponse.redirect(
-          getRedirectUrl("/dashboard/settings?tab=channels&error=no_instagram_account")
-        );
+      if (igAccountData.instagram_business_account) {
+        const igAccount = igAccountData.instagram_business_account;
+
+        // Store Instagram connection using the same Page access token
+        // Instagram DMs are managed through the Facebook Page
+        const igUpdate = await supabase
+          .from("accounts")
+          .update({
+            instagram_page_id: pageId,
+            instagram_access_token: pageAccessToken,
+            instagram_connected: true,
+          })
+          .eq("id", accountId);
+
+        if (igUpdate.error) {
+          console.error("Failed to update Instagram connection:", igUpdate.error);
+        } else {
+          instagramConnected = true;
+          console.log(`[META-CALLBACK] Instagram connected: @${igAccount.username} via Page ${pageName}`);
+        }
+      } else {
+        console.log("[META-CALLBACK] No Instagram Business Account linked to this Page");
       }
-
-      const igAccount = igAccountData.instagram_business_account;
-
-      // Store Instagram connection data
-      const { error: updateError } = await supabase
-        .from("accounts")
-        .update({
-          instagram_page_id: pageId,
-          instagram_access_token: pageAccessToken,
-          instagram_connected: true,
-        })
-        .eq("id", accountId);
-
-      if (updateError) {
-        console.error("Failed to update Instagram connection:", updateError);
-        return NextResponse.redirect(
-          getRedirectUrl("/dashboard/settings?tab=channels&error=db_update_failed")
-        );
-      }
-
-      console.log(`Instagram connected: @${igAccount.username} (Page: ${pageName}) for account ${accountId}`);
-
-    } else if (platform === "facebook") {
-      // For Facebook Messenger, we just need the page ID and page access token
-      const { error: updateError } = await supabase
-        .from("accounts")
-        .update({
-          facebook_page_id: pageId,
-          facebook_access_token: pageAccessToken,
-          facebook_connected: true,
-        })
-        .eq("id", accountId);
-
-      if (updateError) {
-        console.error("Failed to update Facebook connection:", updateError);
-        return NextResponse.redirect(
-          getRedirectUrl("/dashboard/settings?tab=channels&error=db_update_failed")
-        );
-      }
-
-      console.log(`Facebook connected: ${pageName} (Page ID: ${pageId}) for account ${accountId}`);
+    } catch (igErr) {
+      console.warn("[META-CALLBACK] Could not resolve Instagram account:", igErr.message);
     }
 
-    // ─── Step 5: Redirect back to settings with success ───
+    // ─── Step 6: Redirect back to settings with success ───
+    // If user clicked Instagram connect but no IG account found, show specific message
+    if (platform === "instagram" && !instagramConnected) {
+      return NextResponse.redirect(
+        getRedirectUrl("/dashboard/settings?tab=channels&error=no_instagram_account")
+      );
+    }
+
     return NextResponse.redirect(
       getRedirectUrl(`/dashboard/settings?tab=channels&connected=${platform}`)
     );
