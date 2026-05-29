@@ -440,14 +440,20 @@ function SettingsContent() {
                                 <button className="btn btn-primary btn-sm" disabled={manualIGSaving || !manualIG.pageId || !manualIG.accessToken} onClick={async () => {
                                   setManualIGSaving(true);
                                   try {
-                                    const { error } = await supabase.from('accounts').update({
-                                      instagram_page_id: manualIG.pageId,
-                                      instagram_access_token: manualIG.accessToken,
-                                      instagram_connected: true,
-                                    }).eq('id', account.id);
-                                    if (error) throw error;
+                                    const res = await fetch('/api/meta/connect', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        accountId: account.id,
+                                        platform: 'instagram',
+                                        pageId: manualIG.pageId,
+                                        accessToken: manualIG.accessToken,
+                                      }),
+                                    });
+                                    const data = await res.json();
+                                    if (!res.ok) throw new Error(data.error || 'Connection failed');
                                     setAccount(prev => ({ ...prev, instagram_connected: true, instagram_page_id: manualIG.pageId, instagram_access_token: manualIG.accessToken }));
-                                    setMetaStatus({ type: 'success', platform: 'instagram', message: 'Instagram connected successfully!' });
+                                    setMetaStatus({ type: 'success', platform: 'instagram', message: data.message || 'Instagram connected successfully!' });
                                     setShowManualIG(false);
                                   } catch (err) { alert('Failed: ' + err.message); }
                                   finally { setManualIGSaving(false); }
@@ -512,14 +518,20 @@ function SettingsContent() {
                                 <button className="btn btn-primary btn-sm" disabled={manualFBSaving || !manualFB.pageId || !manualFB.accessToken} onClick={async () => {
                                   setManualFBSaving(true);
                                   try {
-                                    const { error } = await supabase.from('accounts').update({
-                                      facebook_page_id: manualFB.pageId,
-                                      facebook_access_token: manualFB.accessToken,
-                                      facebook_connected: true,
-                                    }).eq('id', account.id);
-                                    if (error) throw error;
+                                    const res = await fetch('/api/meta/connect', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        accountId: account.id,
+                                        platform: 'facebook',
+                                        pageId: manualFB.pageId,
+                                        accessToken: manualFB.accessToken,
+                                      }),
+                                    });
+                                    const data = await res.json();
+                                    if (!res.ok) throw new Error(data.error || 'Connection failed');
                                     setAccount(prev => ({ ...prev, facebook_connected: true, facebook_page_id: manualFB.pageId, facebook_access_token: manualFB.accessToken }));
-                                    setMetaStatus({ type: 'success', platform: 'facebook', message: 'Facebook connected successfully!' });
+                                    setMetaStatus({ type: 'success', platform: 'facebook', message: data.message || 'Facebook connected successfully!' });
                                     setShowManualFB(false);
                                   } catch (err) { alert('Failed: ' + err.message); }
                                   finally { setManualFBSaving(false); }
