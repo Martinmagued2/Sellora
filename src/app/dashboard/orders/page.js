@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote } from "lucide-react";
+import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote, Link2, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const statusColors = {
@@ -22,6 +22,7 @@ export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [viewOrder, setViewOrder] = useState(null);
+  const [generatingLink, setGeneratingLink] = useState(null); // order ID being generated
 
   const supabase = createClient();
 
@@ -45,6 +46,34 @@ export default function OrdersPage() {
   const updateStatus = async (id, newStatus) => {
     await supabase.from("orders").update({ status: newStatus }).eq("id", id);
     fetchOrders();
+  };
+
+  const generatePaymentLink = async (orderId) => {
+    setGeneratingLink(orderId);
+    try {
+      const res = await fetch("/api/paymob/order-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.paymentLink) {
+        // Copy to clipboard
+        await navigator.clipboard.writeText(data.paymentLink);
+        alert("Payment link copied to clipboard!\n\n" + data.paymentLink);
+        // Update the viewed order
+        if (viewOrder?.id === orderId) {
+          setViewOrder((prev) => ({ ...prev, payment_link: data.paymentLink, payment_method: "paymob" }));
+        }
+        fetchOrders();
+      } else {
+        alert("Failed to generate payment link: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+    setGeneratingLink(null);
   };
 
   const formatDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -134,6 +163,11 @@ export default function OrdersPage() {
                       <button className="topbar-btn" style={{ width: 30, height: 30 }} title="View" onClick={() => setViewOrder(order)}>
                         <Eye size={14} />
                       </button>
+                      {order.payment_status !== "paid" && (
+                        <button className="topbar-btn" style={{ width: 30, height: 30, marginLeft: 4 }} title="Generate Payment Link" onClick={() => generatePaymentLink(order.id)} disabled={generatingLink === order.id}>
+                          {generatingLink === order.id ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Link2 size={14} />}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -232,6 +266,12 @@ export default function OrdersPage() {
               )}
             </div>
             <div className="modal-footer">
+              {viewOrder.payment_status !== "paid" && (
+                <button className="btn btn-secondary" onClick={() => generatePaymentLink(viewOrder.id)} disabled={generatingLink === viewOrder.id} style={{ marginRight: "auto" }}>
+                  {generatingLink === viewOrder.id ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Link2 size={14} />}
+                  {viewOrder.payment_link ? "Copy Payment Link" : "Generate Payment Link"}
+                </button>
+              )}
               <button className="btn btn-secondary" onClick={() => setViewOrder(null)}>Close</button>
             </div>
           </div>

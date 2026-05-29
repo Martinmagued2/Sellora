@@ -59,6 +59,7 @@ export default function ConversationsPage() {
   const [orderPaymentMethod, setOrderPaymentMethod] = useState("cod");
   const [orderAddress, setOrderAddress] = useState("");
   const [orderSaving, setOrderSaving] = useState(false);
+  const [sendPaymentLink, setSendPaymentLink] = useState(false);
 
   // Simulator
   const [simulatorMode, setSimulatorMode] = useState(false);
@@ -328,7 +329,7 @@ export default function ConversationsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     const subtotal = orderItems.reduce((s, item) => s + item.price * item.qty, 0);
 
-    const { error } = await supabase.from("orders").insert({
+    const { data: orderData, error } = await supabase.from("orders").insert({
       account_id: user.id,
       customer_id: activeConv.customer.id,
       conversation_id: activeConv.id,
@@ -340,16 +341,40 @@ export default function ConversationsPage() {
       shipping_address: orderAddress,
       channel: activeConv.channel || "instagram",
       source: "chat",
-    });
+    }).select("id, order_number").single();
 
-    if (!error) {
-      // Send confirmation in chat — also deliver to customer's Meta account
+    if (!error && orderData) {
+      // Build confirmation message
       const itemsList = orderItems.map((i) => `${i.qty}x ${i.name}`).join(", ");
-      const confirmationContent = `✅ Order created!\n\nItems: ${itemsList}\nTotal: ${subtotal} EGP\nPayment: ${orderPaymentMethod}\n\nWe'll confirm your order shortly!`;
+      let confirmationContent = `✅ Order created!\n\nItems: ${itemsList}\nTotal: ${subtotal} EGP\nPayment: ${orderPaymentMethod === "paymob" ? "Online Payment" : orderPaymentMethod.toUpperCase()}`;
 
+      // Generate Paymob payment link if requested
+      let paymentUrl = null;
+      if (sendPaymentLink || orderPaymentMethod === "paymob") {
+        try {
+          const paymobRes = await fetch("/api/paymob/order-checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: orderData.id }),
+          });
+          const paymobData = await paymobRes.json();
+
+          if (paymobRes.ok && paymobData.paymentLink) {
+            paymentUrl = paymobData.paymentLink;
+            confirmationContent += `\n\n💳 Pay now: ${paymentUrl}`;
+          } else {
+            console.error("Failed to generate Paymob link:", paymobData.error);
+          }
+        } catch (err) {
+          console.error("Paymob checkout error:", err);
+        }
+      }
+
+      confirmationContent += "\n\nWe'll confirm your order shortly!";
+
+      // Send confirmation via Meta API for Facebook/Instagram channels
       try {
         if (activeConv.channel === "instagram" || activeConv.channel === "facebook") {
-          // Send via Meta API so the customer sees the confirmation on their FB/IG
           const res = await fetch("/api/messages/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -397,6 +422,7 @@ export default function ConversationsPage() {
       setShowOrderModal(false);
       setOrderItems([]);
       setOrderAddress("");
+      setSendPaymentLink(false);
       fetchMessages();
       fetchCustomerInfo();
       fetchConversations();
@@ -901,13 +927,26 @@ export default function ConversationsPage() {
               {/* Payment method */}
               <div className="form-group">
                 <label className="form-label">Payment Method</label>
-                <select className="form-input" value={orderPaymentMethod} onChange={(e) => setOrderPaymentMethod(e.target.value)}>
+                <select className="form-input" value={orderPaymentMethod} onChange={(e) => { setOrderPaymentMethod(e.target.value); if (e.target.value === "paymob") setSendPaymentLink(true); }}>
                   <option value="cod">Cash on Delivery</option>
+                  <option value="paymob">💳 Paymob — Online Payment</option>
                   <option value="vodafone_cash">Vodafone Cash</option>
                   <option value="instapay">InstaPay</option>
                   <option value="fawry">Fawry</option>
                   <option value="card">Card / Online</option>
                 </select>
+                {/* Paymob payment link toggle */}
+                {orderPaymentMethod !== "cod" && orderPaymentMethod !== "paymob" && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}>
+                    <input type="checkbox" checked={sendPaymentLink} onChange={(e) => setSendPaymentLink(e.target.checked)} style={{ accentColor: "var(--accent-primary)" }} />
+                    Send Paymob payment link to customer
+                  </label>
+                )}
+                {orderPaymentMethod === "paymob" && (
+                  <div style={{ marginTop: 6, padding: "8px 12px", background: "rgba(108,92,231,0.1)", borderRadius: 8, border: "1px solid rgba(108,92,231,0.2)", fontSize: 11, color: "var(--accent-primary-light)" }}>
+                    💳 A Paymob payment link will be sent to the customer. They can pay with card, Fawry, Vodafone Cash, or InstaPay.
+                  </div>
+                )}
               </div>
 
               {/* Address */}

@@ -130,8 +130,8 @@ export async function POST(req) {
       return NextResponse.json({ message: "Payment failed logged" });
     }
 
-    // 5. Handle Success & Update Subscription
-    console.log(`[PAYMOB_WEBHOOK] Payment SUCCESS mapped for ${merchantOrderId}. Updating account...`);
+    // 5. Handle Success
+    console.log(`[PAYMOB_WEBHOOK] Payment SUCCESS mapped for ${merchantOrderId}. Type: ${paymentRecord.plan_purchased ? 'subscription' : 'order'}`);
     
     // Update Payments table
     await getSupabaseAdmin().from("payments").update({
@@ -141,6 +141,36 @@ export async function POST(req) {
       updated_at: new Date().toISOString()
     }).eq("id", paymentRecord.id);
 
+    // ─── ORDER PAYMENT (not a subscription) ───
+    if (!paymentRecord.plan_purchased) {
+      // Find the order by the merchant_order_id pattern: ord_ORD-XXX_timestamp
+      const orderNumber = merchantOrderId?.split("_")?.[1]; // Extract "ORD-XXX" from "ord_ORD-XXX_timestamp"
+      
+      if (orderNumber) {
+        const { data: order } = await getSupabaseAdmin()
+          .from("orders")
+          .select("id, order_number")
+          .eq("order_number", orderNumber)
+          .single();
+
+        if (order) {
+          await getSupabaseAdmin().from("orders").update({
+            payment_status: "paid",
+            payment_method: `paymob_${paymentMethod}`,
+            updated_at: new Date().toISOString(),
+          }).eq("id", order.id);
+
+          console.log(`[PAYMOB_WEBHOOK] Order ${order.order_number} marked as PAID via ${paymentMethod}`);
+        } else {
+          console.warn(`[PAYMOB_WEBHOOK] Could not find order with number ${orderNumber}`);
+        }
+      }
+
+      console.log(`[PAYMOB_WEBHOOK_COMPLETE] Order payment processed for ${merchantOrderId}`);
+      return NextResponse.json({ message: "Order payment processed" });
+    }
+
+    // ─── SUBSCRIPTION PAYMENT ───
     // Get current account parameters
     const { data: account } = await supabaseAdmin
       .from("accounts")
