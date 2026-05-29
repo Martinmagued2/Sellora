@@ -68,6 +68,15 @@ function SettingsContent() {
   // Logo upload state
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
+  // Manual Meta connect state
+  const [showManualIG, setShowManualIG] = useState(false);
+  const [manualIG, setManualIG] = useState({ pageId: "", accessToken: "" });
+  const [manualIGSaving, setManualIGSaving] = useState(false);
+
+  const [showManualFB, setShowManualFB] = useState(false);
+  const [manualFB, setManualFB] = useState({ pageId: "", accessToken: "" });
+  const [manualFBSaving, setManualFBSaving] = useState(false);
+
   // Auto-replies state
   const [autoReplies, setAutoReplies] = useState([]);
   const [showAddReply, setShowAddReply] = useState(false);
@@ -401,8 +410,8 @@ function SettingsContent() {
                             </button>
                             <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
                               if (!confirm('Disconnect Instagram? You will stop receiving Instagram messages.')) return;
-                              await supabase.from('accounts').update({ instagram_connected: false }).eq('id', account.id);
-                              setAccount(prev => ({ ...prev, instagram_connected: false }));
+                              await supabase.from('accounts').update({ instagram_connected: false, instagram_page_id: null, instagram_access_token: null }).eq('id', account.id);
+                              setAccount(prev => ({ ...prev, instagram_connected: false, instagram_page_id: null, instagram_access_token: null }));
                             }}>Disconnect</button>
                           </div>
                         ) : limitReached ? (
@@ -410,15 +419,44 @@ function SettingsContent() {
                             Upgrade to Connect
                           </button>
                         ) : (
-                          <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
-                            if (process.env.NEXT_PUBLIC_META_APP_ID) {
-                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages,business_management&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
-                            } else {
-                              alert('Instagram connection requires a Meta App. Please set NEXT_PUBLIC_META_APP_ID and META_APP_SECRET in your environment variables. See the .env.example file for details.');
-                            }
-                          }}>
-                            Connect
-                          </button>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {process.env.NEXT_PUBLIC_META_APP_ID && (
+                              <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
+                                window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages,business_management&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
+                              }}>
+                                Connect with Meta
+                              </button>
+                            )}
+                            <button className="btn btn-secondary" style={{ width: "100%", fontSize: 12 }} onClick={() => setShowManualIG(!showManualIG)}>
+                              <LinkIcon size={14} /> Enter Credentials Manually
+                            </button>
+                            {showManualIG && (
+                              <div style={{ textAlign: "left", padding: "8px 0", display: "flex", flexDirection: "column", gap: 6 }}>
+                                <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>
+                                  Get these from your Meta Dashboard → Instagram → Settings → Generate Token
+                                </p>
+                                <input type="text" className="form-input" placeholder="Facebook Page ID" value={manualIG.pageId} onChange={(e) => setManualIG({ ...manualIG, pageId: e.target.value })} style={{ fontSize: 12 }} />
+                                <input type="text" className="form-input" placeholder="Page Access Token" value={manualIG.accessToken} onChange={(e) => setManualIG({ ...manualIG, accessToken: e.target.value })} style={{ fontSize: 12 }} />
+                                <button className="btn btn-primary btn-sm" disabled={manualIGSaving || !manualIG.pageId || !manualIG.accessToken} onClick={async () => {
+                                  setManualIGSaving(true);
+                                  try {
+                                    const { error } = await supabase.from('accounts').update({
+                                      instagram_page_id: manualIG.pageId,
+                                      instagram_access_token: manualIG.accessToken,
+                                      instagram_connected: true,
+                                    }).eq('id', account.id);
+                                    if (error) throw error;
+                                    setAccount(prev => ({ ...prev, instagram_connected: true, instagram_page_id: manualIG.pageId, instagram_access_token: manualIG.accessToken }));
+                                    setMetaStatus({ type: 'success', platform: 'instagram', message: 'Instagram connected successfully!' });
+                                    setShowManualIG(false);
+                                  } catch (err) { alert('Failed: ' + err.message); }
+                                  finally { setManualIGSaving(false); }
+                                }}>
+                                  {manualIGSaving ? 'Saving...' : 'Save & Connect'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
 
@@ -444,8 +482,8 @@ function SettingsContent() {
                             </button>
                             <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
                               if (!confirm('Disconnect Facebook? You will stop receiving Facebook messages.')) return;
-                              await supabase.from('accounts').update({ facebook_connected: false }).eq('id', account.id);
-                              setAccount(prev => ({ ...prev, facebook_connected: false }));
+                              await supabase.from('accounts').update({ facebook_connected: false, facebook_page_id: null, facebook_access_token: null }).eq('id', account.id);
+                              setAccount(prev => ({ ...prev, facebook_connected: false, facebook_page_id: null, facebook_access_token: null }));
                             }}>Disconnect</button>
                           </div>
                         ) : limitReached ? (
@@ -453,15 +491,44 @@ function SettingsContent() {
                             Upgrade to Connect
                           </button>
                         ) : (
-                          <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
-                            if (process.env.NEXT_PUBLIC_META_APP_ID) {
-                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
-                            } else {
-                              alert('Facebook connection requires a Meta App. Please set NEXT_PUBLIC_META_APP_ID and META_APP_SECRET in your environment variables. See the .env.example file for details.');
-                            }
-                          }}>
-                            Connect
-                          </button>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {process.env.NEXT_PUBLIC_META_APP_ID && (
+                              <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
+                                window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_manage_metadata,pages_show_list&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
+                              }}>
+                                Connect with Meta
+                              </button>
+                            )}
+                            <button className="btn btn-secondary" style={{ width: "100%", fontSize: 12 }} onClick={() => setShowManualFB(!showManualFB)}>
+                              <LinkIcon size={14} /> Enter Credentials Manually
+                            </button>
+                            {showManualFB && (
+                              <div style={{ textAlign: "left", padding: "8px 0", display: "flex", flexDirection: "column", gap: 6 }}>
+                                <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>
+                                  Get these from your Meta Dashboard → Messenger → Settings → Generate Token
+                                </p>
+                                <input type="text" className="form-input" placeholder="Facebook Page ID" value={manualFB.pageId} onChange={(e) => setManualFB({ ...manualFB, pageId: e.target.value })} style={{ fontSize: 12 }} />
+                                <input type="text" className="form-input" placeholder="Page Access Token" value={manualFB.accessToken} onChange={(e) => setManualFB({ ...manualFB, accessToken: e.target.value })} style={{ fontSize: 12 }} />
+                                <button className="btn btn-primary btn-sm" disabled={manualFBSaving || !manualFB.pageId || !manualFB.accessToken} onClick={async () => {
+                                  setManualFBSaving(true);
+                                  try {
+                                    const { error } = await supabase.from('accounts').update({
+                                      facebook_page_id: manualFB.pageId,
+                                      facebook_access_token: manualFB.accessToken,
+                                      facebook_connected: true,
+                                    }).eq('id', account.id);
+                                    if (error) throw error;
+                                    setAccount(prev => ({ ...prev, facebook_connected: true, facebook_page_id: manualFB.pageId, facebook_access_token: manualFB.accessToken }));
+                                    setMetaStatus({ type: 'success', platform: 'facebook', message: 'Facebook connected successfully!' });
+                                    setShowManualFB(false);
+                                  } catch (err) { alert('Failed: ' + err.message); }
+                                  finally { setManualFBSaving(false); }
+                                }}>
+                                  {manualFBSaving ? 'Saving...' : 'Save & Connect'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
 
