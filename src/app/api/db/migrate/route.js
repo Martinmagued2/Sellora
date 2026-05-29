@@ -108,23 +108,103 @@ export async function POST() {
       results.push("accounts.whatsapp columns: OK");
     }
 
-    // Check per-channel greeting columns
+    // Check per-channel greeting columns (actual column names: instagram_greeting, facebook_greeting, whatsapp_greeting)
     const { error: testGreetErr } = await admin
       .from("accounts")
-      .select("auto_greeting_instagram, auto_greeting_facebook, auto_greeting_whatsapp")
+      .select("instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, greeting_per_channel")
       .limit(1);
 
     if (testGreetErr && testGreetErr.message?.includes("column")) {
       results.push(await tryExecSql(
         admin,
-        `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_greeting_instagram TEXT DEFAULT 'Hi {name}! Welcome to {business_name} 👋 How can we help you today?';
-         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_greeting_facebook TEXT DEFAULT 'Hi {name}! Welcome to {business_name} 👋 How can we help you today?';
-         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_greeting_whatsapp TEXT DEFAULT 'Hi {name}! Welcome to {business_name} 👋 How can we help you today?';`,
+        `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS instagram_greeting TEXT;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS facebook_greeting TEXT;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS whatsapp_greeting TEXT;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS greeting_delay_seconds INTEGER DEFAULT 0;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS greeting_per_channel BOOLEAN DEFAULT FALSE;`,
         "Added per-channel greeting columns to accounts",
         "Add per-channel greeting columns to accounts (see migration 016)"
       ));
     } else {
       results.push("accounts.greeting columns: OK");
+    }
+
+    // Check auto_greeting and auto_greeting_message columns
+    const { error: testAutoGreetErr } = await admin
+      .from("accounts")
+      .select("auto_greeting, auto_greeting_message, auto_follow_up_enabled")
+      .limit(1);
+
+    if (testAutoGreetErr && testAutoGreetErr.message?.includes("column")) {
+      results.push(await tryExecSql(
+        admin,
+        `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_greeting BOOLEAN DEFAULT FALSE;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_greeting_message TEXT DEFAULT 'Hi! Welcome to {business_name} 👋 How can I help you today?';
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auto_follow_up_enabled BOOLEAN DEFAULT FALSE;`,
+        "Added auto_greeting columns to accounts",
+        "Add auto_greeting/auto_follow_up columns to accounts (see migration 015)"
+      ));
+    } else {
+      results.push("accounts.auto_greeting columns: OK");
+    }
+
+    // Check faqs table
+    const { error: testFaqErr } = await admin
+      .from("faqs")
+      .select("id")
+      .limit(1);
+
+    if (testFaqErr && (testFaqErr.message?.includes("relation") || testFaqErr.code === "42P01")) {
+      results.push(await tryExecSql(
+        admin,
+        `CREATE TABLE IF NOT EXISTS faqs (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          question TEXT NOT NULL,
+          answer TEXT NOT NULL,
+          category TEXT DEFAULT 'General',
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_faqs_account ON faqs(account_id);
+        ALTER TABLE faqs ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Users can manage own faqs" ON faqs;
+        CREATE POLICY "Users can manage own faqs" ON faqs FOR ALL USING (account_id = auth.uid());`,
+        "Created faqs table",
+        "Create faqs table (see migration 015)"
+      ));
+    } else {
+      results.push("faqs table: OK");
+    }
+
+    // Check quick_replies table
+    const { error: testQrTableErr } = await admin
+      .from("quick_replies")
+      .select("id")
+      .limit(1);
+
+    if (testQrTableErr && (testQrTableErr.message?.includes("relation") || testQrTableErr.code === "42P01")) {
+      results.push(await tryExecSql(
+        admin,
+        `CREATE TABLE IF NOT EXISTS quick_replies (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          category TEXT DEFAULT 'General',
+          shortcut TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_quick_replies_account ON quick_replies(account_id);
+        ALTER TABLE quick_replies ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Users can manage own quick_replies" ON quick_replies;
+        CREATE POLICY "Users can manage own quick_replies" ON quick_replies FOR ALL USING (account_id = auth.uid());`,
+        "Created quick_replies table",
+        "Create quick_replies table (see migration 015)"
+      ));
+    } else {
+      results.push("quick_replies table: OK");
     }
 
     // Check broadcast_logs table

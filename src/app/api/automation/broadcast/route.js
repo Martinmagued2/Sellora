@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { sendMessage } from "@/lib/channels/meta";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -58,7 +57,7 @@ export async function POST(req) {
     // Fetch account info for channel credentials and business_name
     const { data: account } = await supabase
       .from("accounts")
-      .select("id, business_name, instagram_connected, instagram_page_id, instagram_access_token, facebook_connected, facebook_page_id, facebook_access_token, whatsapp_connected, whatsapp_phone_number_id")
+      .select("id, business_name, instagram_connected, instagram_page_id, instagram_access_token, facebook_connected, facebook_page_id, facebook_access_token, whatsapp_connected, whatsapp_phone_number_id, whatsapp_access_token")
       .eq("id", user.id)
       .single();
 
@@ -143,15 +142,37 @@ export async function POST(req) {
             });
           }
         } else if (channel === "whatsapp") {
+          // WhatsApp Cloud API integration
           const phone = customer.phone || customer.platform_id;
           if (!phone) {
             sendError = "No phone number for customer";
+          } else if (!account.whatsapp_access_token) {
+            sendError = "WhatsApp access token not configured";
           } else {
-            await sendWhatsAppMessage({
-              to: phone,
-              message: personalizedMessage,
-              phoneNumberId: selectedChannel.phoneNumberId,
-            });
+            try {
+              const waRes = await fetch(
+                `https://graph.facebook.com/v21.0/${selectedChannel.phoneNumberId}/messages`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${account.whatsapp_access_token}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    messaging_product: "whatsapp",
+                    to: phone.startsWith("+") ? phone.slice(1) : phone,
+                    type: "text",
+                    text: { body: personalizedMessage },
+                  }),
+                }
+              );
+              if (!waRes.ok) {
+                const waErr = await waRes.json().catch(() => ({}));
+                throw new Error(waErr.error?.message || `WhatsApp API error: ${waRes.status}`);
+              }
+            } catch (waErr) {
+              sendError = waErr.message || "WhatsApp send failed";
+            }
           }
         }
       } catch (err) {
@@ -162,11 +183,9 @@ export async function POST(req) {
       await supabase.from("broadcast_logs").insert({
         account_id: user.id,
         channel,
-        audience,
         customer_id: customer.id,
-        message: personalizedMessage,
         status: sendError ? "failed" : "sent",
-        error: sendError || null,
+        error_message: sendError || null,
       }).then(({ error }) => {
         // Silently handle broadcast_logs insert errors (table may not exist yet)
         if (error) console.warn("Broadcast log insert failed:", error.message);
