@@ -148,20 +148,117 @@ export async function GET(request) {
       console.warn("[META-CALLBACK] Declined:", declinedPerms.join(", "));
     }
 
-    // ─── Step 4: Get the user's Facebook Pages (with page access tokens) ───
+    // ─── Step 4: Get the user's Facebook Pages (multiple fallback strategies) ───
+
+    let pageId = null;
+    let pageAccessToken = null;
+    let pageName = null;
+
+    // Strategy A: Standard /me/accounts endpoint
     const pagesResponse = await fetch(
       `${META_API_URL}/me/accounts?fields=id,name,access_token,picture{url}&access_token=${longLivedToken}`,
       { method: "GET" }
     );
-
     const pagesData = await pagesResponse.json();
-    console.log("[META-CALLBACK] Pages found:", pagesData.data?.length || 0);
+    console.log("[META-CALLBACK] Strategy A (/me/accounts):", pagesData.data?.length || 0, "pages");
 
-    if (!pagesData.data || pagesData.data.length === 0) {
-      console.warn("[META-CALLBACK] No pages returned. Full response:", JSON.stringify(pagesData));
+    if (pagesData.data && pagesData.data.length > 0) {
+      const page = pagesData.data[0];
+      pageId = page.id;
+      pageAccessToken = page.access_token;
+      pageName = page.name;
+      console.log(`[META-CALLBACK] Found Page via Strategy A: ${pageName} (${pageId})`);
+    }
 
-      // Pass diagnostic info so the user can see what went wrong
-      const debugInfo = `granted=${grantedPerms.join(',')}&declined=${declinedPerms.join(',')}&api_error=${pagesData.error?.message || 'none'}`;
+    // Strategy B: Try /me/accounts with broader fields (sometimes needed for New Pages Experience)
+    if (!pageId) {
+      console.log("[META-CALLBACK] Strategy A failed, trying Strategy B...");
+      const pagesResponse2 = await fetch(
+        `${META_API_URL}/me/accounts?fields=id,name,access_token&limit=100&access_token=${longLivedToken}`,
+        { method: "GET" }
+      );
+      const pagesData2 = await pagesResponse2.json();
+      console.log("[META-CALLBACK] Strategy B result:", JSON.stringify(pagesData2));
+
+      if (pagesData2.data && pagesData2.data.length > 0) {
+        const page = pagesData2.data[0];
+        pageId = page.id;
+        pageAccessToken = page.access_token;
+        pageName = page.name;
+        console.log(`[META-CALLBACK] Found Page via Strategy B: ${pageName} (${pageId})`);
+      }
+    }
+
+    // Strategy C: Get user ID first, then try /{user-id}/accounts
+    if (!pageId) {
+      console.log("[META-CALLBACK] Strategy B failed, trying Strategy C (user-id based)...");
+      const meResponse = await fetch(
+        `${META_API_URL}/me?fields=id,name&access_token=${longLivedToken}`,
+        { method: "GET" }
+      );
+      const meData = await meResponse.json();
+      console.log("[META-CALLBACK] User info:", JSON.stringify(meData));
+
+      if (meData.id) {
+        const userPagesResponse = await fetch(
+          `${META_API_URL}/${meData.id}/accounts?fields=id,name,access_token&access_token=${longLivedToken}`,
+          { method: "GET" }
+        );
+        const userPagesData = await userPagesResponse.json();
+        console.log("[META-CALLBACK] Strategy C result:", JSON.stringify(userPagesData));
+
+        if (userPagesData.data && userPagesData.data.length > 0) {
+          const page = userPagesData.data[0];
+          pageId = page.id;
+          pageAccessToken = page.access_token;
+          pageName = page.name;
+          console.log(`[META-CALLBACK] Found Page via Strategy C: ${pageName} (${pageId})`);
+        }
+      }
+    }
+
+    // Strategy D: Try /me/businesses → owned_pages (for Business Manager accounts)
+    if (!pageId) {
+      console.log("[META-CALLBACK] Strategy C failed, trying Strategy D (Business Manager)...");
+      try {
+        const bizResponse = await fetch(
+          `${META_API_URL}/me/businesses?fields=id,name,owned_pages{id,name,access_token}&access_token=${longLivedToken}`,
+          { method: "GET" }
+        );
+        const bizData = await bizResponse.json();
+        console.log("[META-CALLBACK] Strategy D result:", JSON.stringify(bizData));
+
+        if (bizData.data) {
+          for (const biz of bizData.data) {
+            if (biz.owned_pages?.data?.length > 0) {
+              const page = biz.owned_pages.data[0];
+              pageId = page.id;
+              pageName = page.name;
+              // owned_pages may not return access_token, try to get it separately
+              if (page.access_token) {
+                pageAccessToken = page.access_token;
+              } else {
+                const tokenRes = await fetch(
+                  `${META_API_URL}/${page.id}?fields=access_token&access_token=${longLivedToken}`,
+                  { method: "GET" }
+                );
+                const tokenData = await tokenRes.json();
+                pageAccessToken = tokenData.access_token;
+              }
+              console.log(`[META-CALLBACK] Found Page via Strategy D: ${pageName} (${pageId})`);
+              break;
+            }
+          }
+        }
+      } catch (bizErr) {
+        console.warn("[META-CALLBACK] Strategy D error:", bizErr.message);
+      }
+    }
+
+    if (!pageId) {
+      console.warn("[META-CALLBACK] ALL strategies failed. User has no accessible Facebook Pages.");
+
+      const debugInfo = `granted=${grantedPerms.join(',')}&declined=${declinedPerms.join(',')}`;
 
       const pagesPermDeclined = declinedPerms.some(p =>
         ['pages_show_list', 'pages_messaging', 'pages_read_engagement'].includes(p)
@@ -176,11 +273,6 @@ export async function GET(request) {
       );
     }
 
-    // Use the first page
-    const page = pagesData.data[0];
-    const pageId = page.id;
-    const pageAccessToken = page.access_token;
-    const pageName = page.name;
     console.log(`[META-CALLBACK] Using Page: ${pageName} (${pageId})`);
 
     const supabase = getSupabase();
