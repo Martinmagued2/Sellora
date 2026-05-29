@@ -412,7 +412,7 @@ function SettingsContent() {
                         ) : (
                           <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
                             if (process.env.NEXT_PUBLIC_META_APP_ID) {
-                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
+                              window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages,business_management&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
                             } else {
                               alert('Instagram connection requires a Meta App. Please set NEXT_PUBLIC_META_APP_ID and META_APP_SECRET in your environment variables. See the .env.example file for details.');
                             }
