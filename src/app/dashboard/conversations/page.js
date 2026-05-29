@@ -489,7 +489,7 @@ export default function ConversationsPage() {
         ) : activeConv ? (
           <>
             {/* ── Chat Header ── */}
-            <div className="chat-header">
+            <div className="chat-header" style={{ flexShrink: 0 }}>
               <div className="chat-header-info">
                 <div className="conv-avatar" style={{ width: 38, height: 38, fontSize: 12, background: activeConv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
                   {activeConv.customer?.profile_pic_url ? (
@@ -563,6 +563,7 @@ export default function ConversationsPage() {
             <div style={{
               display: "flex", alignItems: "center", gap: 6, padding: "8px 16px",
               borderTop: "1px solid var(--border-subtle)", background: "var(--bg-secondary)",
+              flexShrink: 0,
             }}>
               <button onClick={() => setShowProductPicker(true)} style={{
                 padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "1px solid var(--border-subtle)",
