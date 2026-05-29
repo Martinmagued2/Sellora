@@ -106,10 +106,11 @@ function SettingsContent() {
         window.history.replaceState({}, '', '/dashboard/settings?tab=channels');
       } else if (errorParam) {
         const errorMessages = {
-          no_pages: 'No Facebook Pages found. Please create a Facebook Page first.',
-          no_instagram_account: 'No Instagram Business Account linked to your Facebook Page. Please convert your Instagram to a Business/Creator account and link it to your Facebook Page.',
+          no_pages: 'No Facebook Pages found. Make sure you SELECT your Facebook Page in the authorization dialog — look for a step that asks which Pages to share, and check the box next to your Page.',
+          pages_perm_declined: 'You declined Page permissions. When the Facebook dialog appears, make sure to allow all Page permissions and SELECT your Facebook Page.',
+          no_instagram_account: 'No Instagram Business Account linked to your Facebook Page. Make sure your Instagram is a Business/Creator account linked to your Facebook Page.',
           token_exchange_failed: 'Failed to exchange authorization code. Please try again.',
-          server_config: 'Server is not configured for Meta integration. Contact support.',
+          server_config: 'Server is not configured for Meta integration. Make sure META_APP_ID and META_APP_SECRET are set in Vercel.',
           invalid_state: 'Invalid OAuth state. Please try connecting again.',
           missing_params: 'Missing authorization parameters. Please try again.',
           user_denied: 'You denied the permission request.',

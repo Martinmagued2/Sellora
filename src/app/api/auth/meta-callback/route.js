@@ -132,7 +132,21 @@ export async function GET(request) {
     const longLivedData = await longLivedResponse.json();
     const longLivedToken = longLivedData.access_token || userAccessToken;
 
-    // ─── Step 3: Get the user's Facebook Pages (with page access tokens) ───
+    // ─── Step 3: Check what permissions were actually granted ───
+    const permsResponse = await fetch(
+      `${META_API_URL}/me/permissions?access_token=${longLivedToken}`,
+      { method: "GET" }
+    );
+    const permsData = await permsResponse.json();
+    console.log("[META-CALLBACK] Granted permissions:", JSON.stringify(permsData, null, 2));
+
+    // Check if pages_show_list was declined
+    const declinedPerms = (permsData.data || []).filter(p => p.status === 'declined').map(p => p.permission);
+    if (declinedPerms.length > 0) {
+      console.warn("[META-CALLBACK] Declined permissions:", declinedPerms);
+    }
+
+    // ─── Step 4: Get the user's Facebook Pages (with page access tokens) ───
     const pagesResponse = await fetch(
       `${META_API_URL}/me/accounts?fields=id,name,access_token,picture{url}&access_token=${longLivedToken}`,
       { method: "GET" }
@@ -144,6 +158,15 @@ export async function GET(request) {
 
     if (!pagesData.data || pagesData.data.length === 0) {
       console.warn("No Facebook Pages found for this user. Full response:", pagesData);
+      
+      // Check if the user declined page permissions
+      const pagesPermDeclined = declinedPerms.some(p => ['pages_show_list', 'pages_messaging', 'pages_read_engagement'].includes(p));
+      if (pagesPermDeclined) {
+        return NextResponse.redirect(
+          getRedirectUrl("/dashboard/settings?tab=channels&error=pages_perm_declined")
+        );
+      }
+      
       return NextResponse.redirect(
         getRedirectUrl("/dashboard/settings?tab=channels&error=no_pages")
       );
