@@ -61,10 +61,13 @@ export async function GET(req) {
     // If no quick replies exist, seed with defaults
     if (!data || data.length === 0) {
       const defaults = [
-        { account_id: user.id, title: "Thanks for your order!", content: "Thanks for your order! 🎉 We're processing it now and will send you a confirmation shortly.", category: "Orders" },
-        { account_id: user.id, title: "Shipping takes 2-3 days", content: "Shipping typically takes 2-3 business days. We'll send you a tracking number once your order ships!", category: "Shipping" },
-        { account_id: user.id, title: "Our hours are 9AM-9PM", content: "Our business hours are 9AM-9PM daily. We'll get back to you as soon as possible during those hours!", category: "General" },
-        { account_id: user.id, title: "Let me check and get back to you", content: "Let me check on that for you and get back to you shortly! 👍", category: "General" },
+        { account_id: user.id, title: "Thanks for your order!", content: "Thanks for your order! 🎉 We're processing it now and will send you a confirmation shortly.", category: "Orders", short_code: "/thanks", is_default: true },
+        { account_id: user.id, title: "Shipping takes 2-3 days", content: "Shipping typically takes 2-3 business days. We'll send you a tracking number once your order ships!", category: "Shipping", short_code: "/shipping", is_default: true },
+        { account_id: user.id, title: "Our hours are 9AM-9PM", content: "Our business hours are 9AM-9PM daily. We'll get back to you as soon as possible during those hours!", category: "General", short_code: "/hours", is_default: true },
+        { account_id: user.id, title: "Let me check and get back to you", content: "Let me check on that for you and get back to you shortly! 👍", category: "General", short_code: "/check", is_default: false },
+        { account_id: user.id, title: "Order status update", content: "Hi {name}! Your order {order_number} is currently {status}. Let us know if you have any questions!", category: "Orders", short_code: "/status", is_default: false },
+        { account_id: user.id, title: "Return policy", content: "You can return items within 14 days of delivery. Items must be in original condition. Just reply here and we'll help you process the return!", category: "Returns", short_code: "/return", is_default: true },
+        { account_id: user.id, title: "Payment received", content: "We've received your payment of {amount} for order {order_number}. Thank you! 🎉", category: "Payment", short_code: "/paid", is_default: true },
       ];
 
       const { data: seeded, error: seedError } = await supabase
@@ -109,13 +112,24 @@ export async function POST(req) {
     }
 
     const body = await req.json();
-    const { title, content, category } = body;
+    const { title, content, category, short_code, is_default } = body;
 
     if (!title || !content) {
       return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
     }
 
     const supabase = getSupabase();
+
+    // If this is set as default, unset any existing default in same category
+    if (is_default) {
+      await supabase
+        .from("quick_replies")
+        .update({ is_default: false })
+        .eq("account_id", user.id)
+        .eq("category", category || "General")
+        .eq("is_default", true);
+    }
+
     const { data, error } = await supabase
       .from("quick_replies")
       .insert({
@@ -123,6 +137,8 @@ export async function POST(req) {
         title: title.trim(),
         content: content.trim(),
         category: category || "General",
+        short_code: short_code?.trim() || null,
+        is_default: is_default || false,
       })
       .select()
       .single();
@@ -163,17 +179,30 @@ export async function PUT(req) {
     }
 
     const body = await req.json();
-    const { id, title, content, category } = body;
+    const { id, title, content, category, short_code, is_default } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Quick reply ID is required" }, { status: 400 });
     }
 
     const supabase = getSupabase();
+
+    // If this is set as default, unset any existing default in same category
+    if (is_default) {
+      await supabase
+        .from("quick_replies")
+        .update({ is_default: false })
+        .eq("account_id", user.id)
+        .eq("category", category || "General")
+        .eq("is_default", true);
+    }
+
     const updates = {};
     if (title !== undefined) updates.title = title.trim();
     if (content !== undefined) updates.content = content.trim();
     if (category !== undefined) updates.category = category;
+    if (short_code !== undefined) updates.short_code = short_code?.trim() || null;
+    if (is_default !== undefined) updates.is_default = is_default;
 
     const { data, error } = await supabase
       .from("quick_replies")

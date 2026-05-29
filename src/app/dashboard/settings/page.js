@@ -677,8 +677,8 @@ function SettingsContent() {
                         </button>
                         <div style={{ fontSize: 11, color: "var(--text-tertiary)", padding: "8px 12px", background: "var(--bg-glass)", borderRadius: 8, textAlign: "left" }}>
                           <div style={{ marginBottom: 4 }}><strong>Phone Number ID:</strong> {account.whatsapp_phone_number_id || "Not set"}</div>
-                          <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 10, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4 }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'}</code></div>
-                          <div><strong>Verify Token:</strong> Set via WHATSAPP_WEBHOOK_VERIFY_TOKEN env var</div>
+                          <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 10, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4, cursor: "pointer" }} onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/whatsapp`); }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'} 📋</code></div>
+                          <div><strong>Verify Token:</strong> Set via WHATSAPP_WEBHOOK_VERIFY_TOKEN env var or enter below</div>
                         </div>
                         <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
                           if (!confirm('Disconnect WhatsApp? You will stop receiving WhatsApp messages.')) return;
@@ -688,16 +688,29 @@ function SettingsContent() {
                       </div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {/* Setup guide */}
+                        <div style={{
+                          fontSize: 11, color: "var(--text-tertiary)", padding: "12px",
+                          background: "rgba(37, 211, 102, 0.06)", borderRadius: 8, textAlign: "left",
+                          border: "1px solid rgba(37, 211, 102, 0.15)",
+                        }}>
+                          <div style={{ fontWeight: 700, marginBottom: 6, color: "#25D366" }}>Setup Guide</div>
+                          <ol style={{ paddingLeft: 16, margin: 0, lineHeight: 1.8 }}>
+                            <li>Go to <a href="https://business.facebook.com/wa/manage/phone-numbers/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-primary-light)" }}>Meta WhatsApp Manager</a></li>
+                            <li>Add your phone number and get the Phone Number ID</li>
+                            <li>Generate a Permanent Access Token in App Settings</li>
+                            <li>Configure the webhook URL below in your WhatsApp app settings</li>
+                            <li>Enter credentials below to connect</li>
+                          </ol>
+                        </div>
+
                         <button className="btn btn-secondary" style={{ width: "100%", fontSize: 12 }} onClick={() => setShowManualWA(!showManualWA)}>
                           <LinkIcon size={14} /> Enter WhatsApp Credentials
                         </button>
                         {showManualWA && (
                           <div style={{ textAlign: "left", padding: "8px 0", display: "flex", flexDirection: "column", gap: 6 }}>
-                            <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>
-                              Get these from Meta Dashboard → WhatsApp → Phone Numbers → Settings
-                            </p>
-                            <input type="text" className="form-input" placeholder="Phone Number ID" value={manualWA.phoneNumberId} onChange={(e) => setManualWA({ ...manualWA, phoneNumberId: e.target.value })} style={{ fontSize: 12 }} />
-                            <input type="text" className="form-input" placeholder="Access Token" value={manualWA.accessToken} onChange={(e) => setManualWA({ ...manualWA, accessToken: e.target.value })} style={{ fontSize: 12 }} />
+                            <input type="text" className="form-input" placeholder="Phone Number ID (from Meta Dashboard)" value={manualWA.phoneNumberId} onChange={(e) => setManualWA({ ...manualWA, phoneNumberId: e.target.value })} style={{ fontSize: 12 }} />
+                            <input type="text" className="form-input" placeholder="Permanent Access Token" value={manualWA.accessToken} onChange={(e) => setManualWA({ ...manualWA, accessToken: e.target.value })} style={{ fontSize: 12 }} />
                             <button className="btn btn-primary btn-sm" disabled={manualWASaving || !manualWA.phoneNumberId || !manualWA.accessToken} onClick={async () => {
                               setManualWASaving(true);
                               try {
@@ -715,13 +728,14 @@ function SettingsContent() {
                               } catch (err) { alert('Failed: ' + err.message); }
                               finally { setManualWASaving(false); }
                             }}>
-                              {manualWASaving ? 'Saving...' : 'Save & Connect'}
+                              {manualWASaving ? 'Connecting...' : 'Connect WhatsApp'}
                             </button>
                           </div>
                         )}
                         <div style={{ fontSize: 10, color: "var(--text-tertiary)", padding: "8px 12px", background: "var(--bg-glass)", borderRadius: 8, textAlign: "left" }}>
-                          <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 9, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4 }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'}</code></div>
-                          <div><strong>Note:</strong> Configure webhook in Meta Dashboard with this URL</div>
+                          <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 9, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4, cursor: "pointer" }} onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/whatsapp`); }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'} 📋</code></div>
+                          <div style={{ marginBottom: 4 }}><strong>Webhook Fields:</strong> messages, messaging_postbacks, message_status</div>
+                          <div><strong>Note:</strong> Set the verify token to match your WHATSAPP_WEBHOOK_VERIFY_TOKEN env var</div>
                         </div>
                       </div>
                     )}
@@ -1066,24 +1080,102 @@ function SettingsContent() {
                   </div>
                 </div>
 
-                {/* Auto-Greeting Message Customization */}
+                {/* Auto-Greeting Message Customization - Per Channel */}
                 {autoGreeting && (
-                  <div className="form-group" style={{ marginBottom: "var(--space-xl)" }}>
-                    <label className="form-label">Greeting Message</label>
-                    <textarea
-                      className="form-input form-textarea"
-                      value={autoGreetingMessage}
-                      onChange={(e) => setAutoGreetingMessage(e.target.value)}
-                      onBlur={async () => {
-                        const { data: { user } } = await supabase.auth.getUser();
-                        await supabase.from("accounts").update({ auto_greeting_message: autoGreetingMessage }).eq("id", user.id);
-                      }}
-                      rows={3}
-                      placeholder="Hi! Welcome to {business_name} 👋 How can I help you today?"
-                    />
+                  <div style={{ marginBottom: "var(--space-xl)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-md)" }}>
+                      <label className="form-label" style={{ marginBottom: 0 }}>Greeting Messages (per channel)</label>
+                    </div>
+
+                    {/* Default / Legacy greeting */}
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
+                        <Globe size={12} /> Default Greeting
+                      </label>
+                      <textarea
+                        className="form-input form-textarea"
+                        value={autoGreetingMessage}
+                        onChange={(e) => setAutoGreetingMessage(e.target.value)}
+                        onBlur={async () => {
+                          const { data: { user } } = await supabase.auth.getUser();
+                          await supabase.from("accounts").update({ auto_greeting_message: autoGreetingMessage }).eq("id", user.id);
+                        }}
+                        rows={2}
+                        placeholder="Hi! Welcome to {business_name} 👋 How can I help you today?"
+                      />
+                    </div>
+
+                    {/* Instagram greeting */}
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
+                        <Camera size={12} style={{ color: "#E1306C" }} /> Instagram Greeting
+                      </label>
+                      <textarea
+                        className="form-input form-textarea"
+                        value={account.auto_greeting_instagram || ""}
+                        onChange={(e) => setAccount(prev => ({ ...prev, auto_greeting_instagram: e.target.value }))}
+                        onBlur={async () => {
+                          const { data: { user } } = await supabase.auth.getUser();
+                          await supabase.from("accounts").update({ auto_greeting_instagram: account.auto_greeting_instagram }).eq("id", user.id);
+                        }}
+                        rows={2}
+                        placeholder="Hi {name}! Welcome to {business_name} on Instagram 👋"
+                      />
+                    </div>
+
+                    {/* Facebook greeting */}
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
+                        <Globe size={12} style={{ color: "#1877F2" }} /> Facebook Greeting
+                      </label>
+                      <textarea
+                        className="form-input form-textarea"
+                        value={account.auto_greeting_facebook || ""}
+                        onChange={(e) => setAccount(prev => ({ ...prev, auto_greeting_facebook: e.target.value }))}
+                        onBlur={async () => {
+                          const { data: { user } } = await supabase.auth.getUser();
+                          await supabase.from("accounts").update({ auto_greeting_facebook: account.auto_greeting_facebook }).eq("id", user.id);
+                        }}
+                        rows={2}
+                        placeholder="Hi {name}! Welcome to {business_name} on Messenger 👋"
+                      />
+                    </div>
+
+                    {/* WhatsApp greeting */}
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
+                        <MessageCircle size={12} style={{ color: "#25D366" }} /> WhatsApp Greeting
+                      </label>
+                      <textarea
+                        className="form-input form-textarea"
+                        value={account.auto_greeting_whatsapp || ""}
+                        onChange={(e) => setAccount(prev => ({ ...prev, auto_greeting_whatsapp: e.target.value }))}
+                        onBlur={async () => {
+                          const { data: { user } } = await supabase.auth.getUser();
+                          await supabase.from("accounts").update({ auto_greeting_whatsapp: account.auto_greeting_whatsapp }).eq("id", user.id);
+                        }}
+                        rows={2}
+                        placeholder="Hi {name}! Welcome to {business_name} on WhatsApp 👋"
+                      />
+                    </div>
+
                     <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
-                      Use {"{business_name}"} for your store name, {"{name}"} for the customer&apos;s name. This message is sent instantly (not AI-generated).
+                      Use {"{business_name}"} for your store name, {"{name}"} for the customer&apos;s name. Leave channel-specific greetings empty to use the default. This message is sent instantly (not AI-generated).
                     </p>
+
+                    {/* Live Preview */}
+                    <div style={{
+                      marginTop: "var(--space-md)", padding: "var(--space-md)",
+                      background: "rgba(108, 92, 231, 0.06)", borderRadius: "var(--radius-md)",
+                      border: "1px solid rgba(108, 92, 231, 0.15)",
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-primary-light)", marginBottom: 6, textTransform: "uppercase" }}>Preview</div>
+                      <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                        {(autoGreetingMessage || "Hi! Welcome to {business_name} 👋 How can I help you today?")
+                          .replace(/\{business_name\}/g, account.business_name || "Sellora Store")
+                          .replace(/\{name\}/g, "Ahmed")}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1174,35 +1266,74 @@ function SettingsContent() {
               </div>
               <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
                 <p style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-lg)", fontSize: "var(--font-size-sm)" }}>
-                  Save commonly used replies as templates. Use them in conversations with one click, or Shift+Click to send instantly.
+                  Save commonly used replies as templates. Use them in conversations with one click, or type a short code like <code style={{ background: "var(--bg-tertiary)", padding: "1px 6px", borderRadius: 4, fontSize: 11 }}>/thanks</code> to insert instantly.
                 </p>
 
+                {/* Variable placeholders guide */}
+                <div style={{
+                  padding: "var(--space-md)", background: "rgba(108, 92, 231, 0.06)",
+                  borderRadius: "var(--radius-md)", border: "1px solid rgba(108, 92, 231, 0.15)",
+                  marginBottom: "var(--space-lg)",
+                }}>
+                  <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6, color: "var(--accent-primary-light)" }}>
+                    Dynamic Variables
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", lineHeight: 1.8 }}>
+                    Use these placeholders in your message content. They will be replaced with real data when sent:<br />
+                    <code style={{ background: "var(--bg-tertiary)", padding: "1px 4px", borderRadius: 3 }}>{`{name}`}</code> Customer&apos;s name &nbsp;
+                    <code style={{ background: "var(--bg-tertiary)", padding: "1px 4px", borderRadius: 3 }}>{`{business_name}`}</code> Your store name &nbsp;
+                    <code style={{ background: "var(--bg-tertiary)", padding: "1px 4px", borderRadius: 3 }}>{`{order_number}`}</code> Order number &nbsp;
+                    <code style={{ background: "var(--bg-tertiary)", padding: "1px 4px", borderRadius: 3 }}>{`{amount}`}</code> Order amount &nbsp;
+                    <code style={{ background: "var(--bg-tertiary)", padding: "1px 4px", borderRadius: 3 }}>{`{status}`}</code> Order status
+                  </div>
+                </div>
+
                 <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-md)" }}>
-                  <button className="btn btn-primary btn-sm" onClick={() => { setShowAddQuickReply(true); setEditingQuickReply(null); setNewQuickReply({ title: "", content: "", category: "General" }); }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => { setShowAddQuickReply(true); setEditingQuickReply(null); setNewQuickReply({ title: "", content: "", category: "General", short_code: "", is_default: false }); }}>
                     <Plus size={14} /> Add Template
                   </button>
                 </div>
 
                 {showAddQuickReply && (
                   <div style={{ padding: "var(--space-lg)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)", border: "1px solid var(--border-subtle)" }}>
-                    <div className="form-group">
-                      <label className="form-label">Title</label>
-                      <input type="text" className="form-input" placeholder="e.g. Shipping Info" value={newQuickReply.title} onChange={(e) => setNewQuickReply({ ...newQuickReply, title: e.target.value })} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+                      <div className="form-group">
+                        <label className="form-label">Title</label>
+                        <input type="text" className="form-input" placeholder="e.g. Shipping Info" value={newQuickReply.title} onChange={(e) => setNewQuickReply({ ...newQuickReply, title: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Short Code (optional)</label>
+                        <input type="text" className="form-input" placeholder="e.g. /shipping" value={newQuickReply.short_code || ""} onChange={(e) => setNewQuickReply({ ...newQuickReply, short_code: e.target.value })} />
+                        <p style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 }}>Type this in chat to insert the template quickly</p>
+                      </div>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Message Content</label>
-                      <textarea className="form-input form-textarea" placeholder="The actual reply message..." value={newQuickReply.content} onChange={(e) => setNewQuickReply({ ...newQuickReply, content: e.target.value })} rows={3} />
+                      <textarea className="form-input form-textarea" placeholder="The actual reply message... Use {name} for personalization" value={newQuickReply.content} onChange={(e) => setNewQuickReply({ ...newQuickReply, content: e.target.value })} rows={3} />
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Category</label>
-                      <select className="form-input" value={newQuickReply.category} onChange={(e) => setNewQuickReply({ ...newQuickReply, category: e.target.value })}>
-                        <option value="General">General</option>
-                        <option value="Orders">Orders</option>
-                        <option value="Shipping">Shipping</option>
-                        <option value="Returns">Returns</option>
-                        <option value="Payment">Payment</option>
-                        <option value="Greeting">Greeting</option>
-                      </select>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+                      <div className="form-group">
+                        <label className="form-label">Category</label>
+                        <select className="form-input" value={newQuickReply.category} onChange={(e) => setNewQuickReply({ ...newQuickReply, category: e.target.value })}>
+                          <option value="General">General</option>
+                          <option value="Orders">Orders</option>
+                          <option value="Shipping">Shipping</option>
+                          <option value="Returns">Returns</option>
+                          <option value="Payment">Payment</option>
+                          <option value="Greeting">Greeting</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          Default for category
+                        </label>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                          <div style={{ color: newQuickReply.is_default ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }} onClick={() => setNewQuickReply({ ...newQuickReply, is_default: !newQuickReply.is_default })}>
+                            {newQuickReply.is_default ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+                          </div>
+                          <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Show first in this category</span>
+                        </div>
+                      </div>
                     </div>
                     <div style={{ display: "flex", gap: "var(--space-sm)" }}>
                       <button className="btn btn-primary btn-sm" disabled={quickReplySaving || !newQuickReply.title || !newQuickReply.content} onClick={async () => {
@@ -1231,7 +1362,7 @@ function SettingsContent() {
                           }
                           setShowAddQuickReply(false);
                           setEditingQuickReply(null);
-                          setNewQuickReply({ title: "", content: "", category: "General" });
+                          setNewQuickReply({ title: "", content: "", category: "General", short_code: "", is_default: false });
                         } catch (err) { console.error("Quick reply save error:", err); }
                         setQuickReplySaving(false);
                       }}>
@@ -1245,36 +1376,68 @@ function SettingsContent() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
                   {quickReplies.length === 0 ? (
                     <p style={{ color: "var(--text-tertiary)", textAlign: "center", padding: "var(--space-xl)" }}>No quick reply templates yet. Add your first one above!</p>
-                  ) : quickReplies.map((qr) => (
-                    <div key={qr.id} style={{ padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                            <Zap size={14} style={{ color: "var(--accent-primary-light)" }} />
-                            <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{qr.title}</span>
-                            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 6, background: "var(--bg-glass)", color: "var(--text-tertiary)" }}>{qr.category}</span>
+                  ) : (() => {
+                    // Group by category
+                    const grouped = {};
+                    quickReplies.forEach((qr) => {
+                      const cat = qr.category || "General";
+                      if (!grouped[cat]) grouped[cat] = [];
+                      grouped[cat].push(qr);
+                    });
+                    // Sort: defaults first within each category
+                    Object.values(grouped).forEach(arr => arr.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0)));
+
+                    return Object.entries(grouped).map(([cat, items]) => (
+                      <div key={cat}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, marginTop: 8 }}>
+                          {cat} ({items.length})
+                        </div>
+                        {items.map((qr) => (
+                          <div key={qr.id} style={{
+                            padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)",
+                            border: qr.is_default ? "1px solid rgba(108, 92, 231, 0.3)" : "1px solid var(--border-subtle)",
+                            marginBottom: 4,
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                  <Zap size={14} style={{ color: "var(--accent-primary-light)" }} />
+                                  <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{qr.title}</span>
+                                  {qr.short_code && (
+                                    <code style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(108, 92, 231, 0.1)", color: "var(--accent-primary-light)", fontWeight: 600 }}>
+                                      {qr.short_code}
+                                    </code>
+                                  )}
+                                  {qr.is_default && (
+                                    <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 6, background: "rgba(108, 92, 231, 0.1)", color: "var(--accent-primary-light)", fontWeight: 600 }}>
+                                      Default
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>{qr.content}</div>
+                              </div>
+                              <div style={{ display: "flex", gap: 4, marginLeft: "var(--space-md)" }}>
+                                <button className="topbar-btn" title="Edit" style={{ width: 24, height: 24 }} onClick={() => {
+                                  setEditingQuickReply(qr);
+                                  setShowAddQuickReply(true);
+                                  setNewQuickReply({ title: qr.title, content: qr.content, category: qr.category || "General", short_code: qr.short_code || "", is_default: qr.is_default || false });
+                                }}>
+                                  <Edit size={11} style={{ color: "var(--text-secondary)" }} />
+                                </button>
+                                <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
+                                  if (!confirm("Delete this template?")) return;
+                                  await fetch(`/api/quick-replies?id=${qr.id}`, { method: "DELETE" });
+                                  setQuickReplies((prev) => prev.filter(q => q.id !== qr.id));
+                                }}>
+                                  <Trash2 size={11} style={{ color: "var(--accent-red)" }} />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>{qr.content}</div>
-                        </div>
-                        <div style={{ display: "flex", gap: 4, marginLeft: "var(--space-md)" }}>
-                          <button className="topbar-btn" title="Edit" style={{ width: 24, height: 24 }} onClick={() => {
-                            setEditingQuickReply(qr);
-                            setShowAddQuickReply(true);
-                            setNewQuickReply({ title: qr.title, content: qr.content, category: qr.category || "General" });
-                          }}>
-                            <Edit size={11} style={{ color: "var(--text-secondary)" }} />
-                          </button>
-                          <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
-                            if (!confirm("Delete this template?")) return;
-                            await fetch(`/api/quick-replies?id=${qr.id}`, { method: "DELETE" });
-                            setQuickReplies((prev) => prev.filter(q => q.id !== qr.id));
-                          }}>
-                            <Trash2 size={11} style={{ color: "var(--accent-red)" }} />
-                          </button>
-                        </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
               </div>
             </div>

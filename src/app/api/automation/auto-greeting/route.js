@@ -41,7 +41,7 @@ export async function GET(req) {
     const supabase = getSupabase();
     const { data: account } = await supabase
       .from("accounts")
-      .select("auto_greeting, auto_greeting_message, business_name")
+      .select("auto_greeting, auto_greeting_message, auto_greeting_instagram, auto_greeting_facebook, auto_greeting_whatsapp, business_name")
       .eq("id", user.id)
       .single();
 
@@ -49,6 +49,9 @@ export async function GET(req) {
       success: true,
       autoGreeting: account?.auto_greeting || false,
       autoGreetingMessage: account?.auto_greeting_message || `Hi! Welcome to ${account?.business_name || "our store"} 👋 How can I help you today?`,
+      autoGreetingInstagram: account?.auto_greeting_instagram || "",
+      autoGreetingFacebook: account?.auto_greeting_facebook || "",
+      autoGreetingWhatsapp: account?.auto_greeting_whatsapp || "",
       businessName: account?.business_name || "",
     });
   } catch (error) {
@@ -82,12 +85,15 @@ export async function PUT(req) {
     }
 
     const body = await req.json();
-    const { auto_greeting, auto_greeting_message } = body;
+    const { auto_greeting, auto_greeting_message, auto_greeting_instagram, auto_greeting_facebook, auto_greeting_whatsapp } = body;
 
     const supabase = getSupabase();
     const updates = {};
     if (auto_greeting !== undefined) updates.auto_greeting = auto_greeting;
     if (auto_greeting_message !== undefined) updates.auto_greeting_message = auto_greeting_message;
+    if (auto_greeting_instagram !== undefined) updates.auto_greeting_instagram = auto_greeting_instagram;
+    if (auto_greeting_facebook !== undefined) updates.auto_greeting_facebook = auto_greeting_facebook;
+    if (auto_greeting_whatsapp !== undefined) updates.auto_greeting_whatsapp = auto_greeting_whatsapp;
 
     const { error } = await supabase
       .from("accounts")

@@ -79,6 +79,7 @@ export async function POST(request) {
         to: phoneNumber,
         message: content,
         phoneNumberId: account.whatsapp_phone_number_id,
+        accessToken: account.whatsapp_access_token,
       });
 
       // Save the outgoing message

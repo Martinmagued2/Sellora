@@ -3,24 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Plus,
-  Send,
-  Clock,
-  Users,
-  Eye,
-  BarChart3,
-  Pause,
-  Trash2,
-  MessageCircle,
-  X,
-  Loader2,
-  Calendar,
-  Filter,
-  Check,
-  Zap,
+  Plus, Send, Clock, Users, Eye, BarChart3, Pause, Trash2,
+  MessageCircle, X, Loader2, Calendar, Filter, Check, Zap,
+  Copy, AlertCircle, ChevronDown, ChevronUp, Globe, Camera, MessageSquare,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
+
+const CHANNEL_ICON = {
+  instagram: <Camera size={12} />,
+  facebook: <Globe size={12} />,
+  whatsapp: <MessageSquare size={12} />,
+};
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState([]);
@@ -48,6 +42,12 @@ export default function CampaignsPage() {
   // Audience estimate
   const [audienceCount, setAudienceCount] = useState(null);
   const [estimating, setEstimating] = useState(false);
+
+  // Broadcast log detail modal
+  const [expandedCampaignId, setExpandedCampaignId] = useState(null);
+  const [broadcastLogs, setBroadcastLogs] = useState([]);
+  const [logSummary, setLogSummary] = useState(null);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   const supabase = createClient();
   const router = useRouter();
@@ -118,9 +118,7 @@ export default function CampaignsPage() {
     const { data: { user } } = await supabase.auth.getUser();
 
     // Build audience_filter JSONB
-    const audienceFilter = {
-      type: newCampaign.audience,
-    };
+    const audienceFilter = { type: newCampaign.audience };
     if (newCampaign.channel && newCampaign.channel !== "all") {
       audienceFilter.channel = newCampaign.channel;
     }
@@ -131,7 +129,6 @@ export default function CampaignsPage() {
       audienceFilter.min_spent = Number(newCampaign.minSpent);
     }
 
-    // Format scheduled_at for the database
     let scheduledAt = null;
     if (newCampaign.scheduledAt) {
       scheduledAt = new Date(newCampaign.scheduledAt).toISOString();
@@ -142,6 +139,7 @@ export default function CampaignsPage() {
       name: newCampaign.name.trim(),
       message_template: newCampaign.message.trim(),
       audience_filter: audienceFilter,
+      channel: newCampaign.channel || "all",
       status: scheduledAt ? "scheduled" : "draft",
       scheduled_at: scheduledAt,
       sent_count: 0,
@@ -186,6 +184,45 @@ export default function CampaignsPage() {
     setSendingCampaignId(null);
   };
 
+  // Duplicate campaign
+  const handleDuplicateCampaign = async (campaign) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from("campaigns").insert({
+      account_id: user.id,
+      name: `${campaign.name} (Copy)`,
+      message_template: campaign.message_template,
+      audience_filter: campaign.audience_filter,
+      channel: campaign.channel || "all",
+      status: "draft",
+      sent_count: 0,
+      delivered_count: 0,
+      read_count: 0,
+      replied_count: 0,
+    });
+    if (!error) fetchCampaigns();
+  };
+
+  // Fetch broadcast logs for a campaign
+  const fetchBroadcastLogs = async (campaignId) => {
+    if (expandedCampaignId === campaignId) {
+      setExpandedCampaignId(null);
+      return;
+    }
+    setExpandedCampaignId(campaignId);
+    setLoadingLogs(true);
+    try {
+      const res = await fetch(`/api/campaigns/broadcast-logs?campaignId=${campaignId}`);
+      const data = await res.json();
+      if (data.success) {
+        setBroadcastLogs(data.logs || []);
+        setLogSummary(data.summary || null);
+      }
+    } catch (err) {
+      console.error("Failed to fetch broadcast logs:", err);
+    }
+    setLoadingLogs(false);
+  };
+
   // Compute stats
   const totalSent = campaigns.reduce((s, c) => s + (c.sent_count || 0), 0);
   const totalDelivered = campaigns.reduce((s, c) => s + (c.delivered_count || 0), 0);
@@ -211,6 +248,17 @@ export default function CampaignsPage() {
     }
   };
 
+  const getLogStatusColor = (status) => {
+    switch (status) {
+      case "sent": return "var(--accent-secondary)";
+      case "delivered": return "var(--accent-green)";
+      case "read": return "var(--accent-primary-light)";
+      case "failed": return "var(--accent-red)";
+      case "pending": return "var(--accent-orange)";
+      default: return "var(--text-tertiary)";
+    }
+  };
+
   const getAudienceLabel = (filter) => {
     if (!filter || typeof filter === "string") return filter || "All";
     const parts = [];
@@ -218,7 +266,7 @@ export default function CampaignsPage() {
     if (filter.channel && filter.channel !== "all") parts.push(filter.channel.charAt(0).toUpperCase() + filter.channel.slice(1));
     if (filter.tag && filter.tag !== "all") parts.push(filter.tag);
     if (filter.min_spent) parts.push(`Min ${filter.min_spent} EGP`);
-    return parts.length > 0 ? parts.join(" • ") : "All Customers";
+    return parts.length > 0 ? parts.join(" \u00b7 ") : "All Customers";
   };
 
   return (
@@ -304,6 +352,16 @@ export default function CampaignsPage() {
                     }}>
                       {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
                     </span>
+                    {campaign.channel && campaign.channel !== "all" && (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 3,
+                        padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600,
+                        background: "var(--bg-glass)", color: "var(--text-tertiary)",
+                        border: "1px solid var(--border-subtle)",
+                      }}>
+                        {CHANNEL_ICON[campaign.channel]} {campaign.channel}
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: "var(--space-xl)", fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)", flexWrap: "wrap" }}>
                     <span><Clock size={14} style={{ display: "inline", verticalAlign: -2, marginRight: 4 }} />{formatDate(campaign.created_at)}</span>
@@ -341,6 +399,16 @@ export default function CampaignsPage() {
                 )}
 
                 <div style={{ display: "flex", gap: "var(--space-xs)", marginLeft: "var(--space-xl)" }}>
+                  {/* View broadcast logs */}
+                  {campaign.sent_count > 0 && (
+                    <button
+                      className="topbar-btn"
+                      title="View delivery details"
+                      onClick={() => fetchBroadcastLogs(campaign.id)}
+                    >
+                      {expandedCampaignId === campaign.id ? <ChevronUp size={16} /> : <Eye size={16} />}
+                    </button>
+                  )}
                   {campaign.status === "active" && (
                     <button className="topbar-btn" title="Pause" onClick={() => handleStatusChange(campaign.id, "paused")}><Pause size={16} /></button>
                   )}
@@ -358,9 +426,91 @@ export default function CampaignsPage() {
                   {campaign.status === "draft" && (
                     <button className="topbar-btn" title="Activate" onClick={() => handleStatusChange(campaign.id, "active")}><Send size={16} /></button>
                   )}
+                  {/* Duplicate campaign */}
+                  <button className="topbar-btn" title="Duplicate" onClick={() => handleDuplicateCampaign(campaign)}><Copy size={16} /></button>
                   <button className="topbar-btn" title="Delete" onClick={() => handleDelete(campaign.id)}><Trash2 size={16} /></button>
                 </div>
               </div>
+
+              {/* Broadcast logs expanded section */}
+              {expandedCampaignId === campaign.id && (
+                <div style={{
+                  borderTop: "1px solid var(--border-subtle)",
+                  padding: "var(--space-lg) var(--space-xl)",
+                  background: "var(--bg-glass)",
+                }}>
+                  {loadingLogs ? (
+                    <div style={{ textAlign: "center", padding: "var(--space-lg)", color: "var(--text-tertiary)" }}>
+                      <Loader2 size={16} className="spin" style={{ display: "inline-block" }} /> Loading delivery details...
+                    </div>
+                  ) : (
+                    <>
+                      {/* Summary badges */}
+                      {logSummary && (
+                        <div style={{ display: "flex", gap: "var(--space-md)", marginBottom: "var(--space-md)", flexWrap: "wrap" }}>
+                          {[
+                            { label: "Sent", value: logSummary.sent, color: "var(--accent-secondary)" },
+                            { label: "Delivered", value: logSummary.delivered, color: "var(--accent-green)" },
+                            { label: "Read", value: logSummary.read, color: "var(--accent-primary-light)" },
+                            { label: "Failed", value: logSummary.failed, color: "var(--accent-red)" },
+                            { label: "Pending", value: logSummary.pending, color: "var(--accent-orange)" },
+                          ].map((s, i) => (
+                            <span key={i} style={{
+                              padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                              background: `${s.color}15`, color: s.color, border: `1px solid ${s.color}33`,
+                            }}>
+                              {s.value} {s.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Log table */}
+                      <div style={{ maxHeight: 300, overflowY: "auto", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--font-size-sm)" }}>
+                          <thead>
+                            <tr style={{ background: "var(--bg-tertiary)", position: "sticky", top: 0 }}>
+                              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-tertiary)", fontSize: 11 }}>Customer</th>
+                              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-tertiary)", fontSize: 11 }}>Channel</th>
+                              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-tertiary)", fontSize: 11 }}>Status</th>
+                              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-tertiary)", fontSize: 11 }}>Sent At</th>
+                              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "var(--text-tertiary)", fontSize: 11 }}>Error</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {broadcastLogs.map((log) => (
+                              <tr key={log.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                                <td style={{ padding: "8px 12px" }}>{log.customer?.name || "Unknown"}</td>
+                                <td style={{ padding: "8px 12px", display: "flex", alignItems: "center", gap: 4 }}>
+                                  {CHANNEL_ICON[log.channel]} {log.channel}
+                                </td>
+                                <td style={{ padding: "8px 12px" }}>
+                                  <span style={{
+                                    padding: "2px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600,
+                                    background: `${getLogStatusColor(log.status)}15`, color: getLogStatusColor(log.status),
+                                  }}>
+                                    {log.status}
+                                  </span>
+                                </td>
+                                <td style={{ padding: "8px 12px", color: "var(--text-tertiary)", fontSize: 11 }}>
+                                  {log.sent_at ? formatDateTime(log.sent_at) : "-"}
+                                </td>
+                                <td style={{ padding: "8px 12px", color: "var(--accent-red)", fontSize: 11, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {log.error_message || "-"}
+                                </td>
+                              </tr>
+                            ))}
+                            {broadcastLogs.length === 0 && (
+                              <tr>
+                                <td colSpan={5} style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)" }}>No delivery logs yet</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           {campaigns.length === 0 && (

@@ -7,9 +7,15 @@ const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
 
 /**
  * Send a text message via WhatsApp
+ * Supports both account-level tokens and global env var token
  */
-export async function sendWhatsAppMessage({ to, message, phoneNumberId }) {
+export async function sendWhatsAppMessage({ to, message, phoneNumberId, accessToken }) {
   const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+
+  if (!phoneId || !token) {
+    throw new Error("WhatsApp phone number ID and access token are required");
+  }
 
   const response = await fetch(
     `${WHATSAPP_API_URL}/${phoneId}/messages`,
@@ -17,7 +23,7 @@ export async function sendWhatsAppMessage({ to, message, phoneNumberId }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
@@ -48,8 +54,10 @@ export async function sendTemplateMessage({
   languageCode = "en",
   parameters = [],
   phoneNumberId,
+  accessToken,
 }) {
   const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
 
   const components = parameters.length > 0
     ? [
@@ -69,7 +77,7 @@ export async function sendTemplateMessage({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
@@ -105,8 +113,10 @@ export async function sendProductListMessage({
   buttonText,
   sections,
   phoneNumberId,
+  accessToken,
 }) {
   const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
 
   const response = await fetch(
     `${WHATSAPP_API_URL}/${phoneId}/messages`,
@@ -114,7 +124,7 @@ export async function sendProductListMessage({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",

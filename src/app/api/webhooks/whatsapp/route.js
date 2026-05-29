@@ -85,7 +85,7 @@ export async function POST(request) {
     // Find the account that owns this WhatsApp phone number
     let { data: account } = await getSupabase()
       .from("accounts")
-      .select("id, ai_enabled, ai_personality, plan, business_name, country, auto_greeting, auto_greeting_message, whatsapp_phone_number_id, whatsapp_access_token")
+      .select("id, ai_enabled, ai_personality, plan, business_name, country, auto_greeting, auto_greeting_message, auto_greeting_whatsapp, whatsapp_phone_number_id, whatsapp_access_token")
       .eq("whatsapp_phone_number_id", message.phoneNumberId)
       .single();
 
@@ -93,7 +93,7 @@ export async function POST(request) {
       // Fallback: try to find account with whatsapp_connected = true
       const { data: accounts } = await getSupabase()
         .from("accounts")
-        .select("id, ai_enabled, ai_personality, plan, business_name, country, auto_greeting, auto_greeting_message, whatsapp_phone_number_id, whatsapp_access_token")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, auto_greeting, auto_greeting_message, auto_greeting_whatsapp, whatsapp_phone_number_id, whatsapp_access_token")
         .eq("whatsapp_connected", true)
         .limit(1);
 
@@ -205,7 +205,13 @@ export async function POST(request) {
     // ─── Auto-Greeting: Send welcome message BEFORE AI reply for new customers ───
     if (account.auto_greeting && isNewCustomer && message.text) {
       try {
-        const greetingMessage = (account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?")
+        // Use WhatsApp-specific greeting if available, otherwise fall back to default
+        let greetingTemplate = account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?";
+        if (account.auto_greeting_whatsapp) {
+          greetingTemplate = account.auto_greeting_whatsapp;
+        }
+
+        const greetingMessage = greetingTemplate
           .replace(/\{business_name\}/g, account.business_name || "our store")
           .replace(/\{name\}/g, customer.name || "there");
 
@@ -213,6 +219,7 @@ export async function POST(request) {
           to: message.from,
           message: greetingMessage,
           phoneNumberId: account.whatsapp_phone_number_id,
+          accessToken: account.whatsapp_access_token,
         });
 
         // Store the greeting message
@@ -268,6 +275,7 @@ export async function POST(request) {
             to: message.from,
             message: aiResult.reply,
             phoneNumberId: account.whatsapp_phone_number_id,
+            accessToken: account.whatsapp_access_token,
           });
 
           // Store AI reply in database
