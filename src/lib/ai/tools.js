@@ -25,6 +25,69 @@ const getAccountCurrency = async (accountId) => {
 
 export const createSalesTools = (accountId, customerId) => {
   return {
+    recommend_products: tool({
+      description: "Recommend products based on a customer's needs, preferences, or context. Use this when a customer asks for suggestions like 'something for dry skin', 'a gift for my mom', or 'I need something casual'. Searches product names, descriptions, and categories to find the best matches.",
+      inputSchema: z.object({
+        query: z.string().describe("The customer's need, preference, or context (e.g. 'dry skin', 'gift for mom', 'casual outfit')"),
+      }),
+      execute: async ({ query }) => {
+        if (!query) {
+          return { success: false, error: "Please describe what you're looking for" };
+        }
+
+        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+        // Fetch all active products for this account
+        const { data: products, error } = await getSupabase()
+          .from("products")
+          .select("id, name, description, price, stock, category")
+          .eq("account_id", accountId)
+          .eq("status", "active");
+
+        if (error) {
+          return { success: false, error: "Failed to search products" };
+        }
+
+        if (!products || products.length === 0) {
+          return { success: true, message: "No products available at the moment.", products: [] };
+        }
+
+        // Score each product based on relevance to the query
+        const scored = products.map((product) => {
+          let score = 0;
+          const nameLower = (product.name || "").toLowerCase();
+          const descLower = (product.description || "").toLowerCase();
+          const catLower = (product.category || "").toLowerCase();
+          const allText = `${nameLower} ${descLower} ${catLower}`;
+
+          for (const term of searchTerms) {
+            if (nameLower.includes(term)) score += 10; // Name match is strongest
+            if (catLower.includes(term)) score += 8;   // Category match
+            if (descLower.includes(term)) score += 5;   // Description match
+            if (allText.includes(term)) score += 2;     // Any mention
+          }
+
+          // Boost products that are in stock
+          if (product.stock > 0) score += 3;
+
+          return { ...product, score };
+        });
+
+        // Filter to products with some relevance and sort by score
+        const recommendations = scored
+          .filter((p) => p.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+
+        if (recommendations.length === 0) {
+          return { success: true, message: `I couldn't find products matching "${query}". Let me show you what we have available.`, products: products.slice(0, 5) };
+        }
+
+        const currency = await getAccountCurrency(accountId);
+        return { success: true, currency, query, products: recommendations.map(({ score, ...rest }) => rest) };
+      },
+    }),
+
     search_products: tool({
       description: "Search the store's inventory for products by name or category. Use this when the customer asks what you sell or is looking for something specific.",
       inputSchema: z.object({
@@ -136,6 +199,64 @@ export const createSalesTools = (accountId, customerId) => {
       },
     }),
 
+    search_faq: tool({
+      description: "Search the shop's FAQ knowledge base for answers to common questions about shipping, returns, locations, hours, and policies. Use this BEFORE generating a reply when a customer asks a general question that might be covered in the FAQ.",
+      inputSchema: z.object({
+        query: z.string().describe("The customer's question or topic to search for in the FAQ (e.g. 'shipping', 'return policy', 'store hours')"),
+      }),
+      execute: async ({ query }) => {
+        if (!query) return { success: false, error: "Query is required" };
+
+        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+        const { data: faqs, error } = await getSupabase()
+          .from("faqs")
+          .select("id, question, answer, category")
+          .eq("account_id", accountId)
+          .eq("is_active", true);
+
+        if (error) {
+          return { success: false, error: "Failed to search FAQs" };
+        }
+
+        if (!faqs || faqs.length === 0) {
+          return { success: true, found: false, message: "No FAQ entries found for this store." };
+        }
+
+        const scored = faqs.map((faq) => {
+          let score = 0;
+          const qLower = (faq.question || "").toLowerCase();
+          const aLower = (faq.answer || "").toLowerCase();
+          const cLower = (faq.category || "").toLowerCase();
+          const allText = `${qLower} ${aLower} ${cLower}`;
+
+          for (const term of searchTerms) {
+            if (qLower.includes(term)) score += 10;
+            if (cLower.includes(term)) score += 8;
+            if (aLower.includes(term)) score += 5;
+            if (allText.includes(term)) score += 2;
+          }
+
+          return { ...faq, score };
+        });
+
+        const matches = scored
+          .filter((f) => f.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3);
+
+        if (matches.length === 0) {
+          return { success: true, found: false, message: "No matching FAQ found. Answer from your general knowledge." };
+        }
+
+        return {
+          success: true,
+          found: true,
+          faqs: matches.map(({ score, ...rest }) => rest),
+        };
+      },
+    }),
+
     create_order: tool({
       description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price.",
       inputSchema: z.object({
@@ -240,6 +361,124 @@ export const createSalesTools = (accountId, customerId) => {
 
 export const createSupportTools = (accountId, customerId) => {
   return {
+    recommend_products: tool({
+      description: "Recommend products based on a customer's needs, preferences, or context. Use this when a customer asks for suggestions like 'something for dry skin', 'a gift for my mom', or 'I need something casual'. Searches product names, descriptions, and categories to find the best matches.",
+      inputSchema: z.object({
+        query: z.string().describe("The customer's need, preference, or context (e.g. 'dry skin', 'gift for mom', 'casual outfit')"),
+      }),
+      execute: async ({ query }) => {
+        if (!query) {
+          return { success: false, error: "Please describe what you're looking for" };
+        }
+
+        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+        const { data: products, error } = await getSupabase()
+          .from("products")
+          .select("id, name, description, price, stock, category")
+          .eq("account_id", accountId)
+          .eq("status", "active");
+
+        if (error) {
+          return { success: false, error: "Failed to search products" };
+        }
+
+        if (!products || products.length === 0) {
+          return { success: true, message: "No products available at the moment.", products: [] };
+        }
+
+        const scored = products.map((product) => {
+          let score = 0;
+          const nameLower = (product.name || "").toLowerCase();
+          const descLower = (product.description || "").toLowerCase();
+          const catLower = (product.category || "").toLowerCase();
+          const allText = `${nameLower} ${descLower} ${catLower}`;
+
+          for (const term of searchTerms) {
+            if (nameLower.includes(term)) score += 10;
+            if (catLower.includes(term)) score += 8;
+            if (descLower.includes(term)) score += 5;
+            if (allText.includes(term)) score += 2;
+          }
+
+          if (product.stock > 0) score += 3;
+
+          return { ...product, score };
+        });
+
+        const recommendations = scored
+          .filter((p) => p.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+
+        if (recommendations.length === 0) {
+          return { success: true, message: `I couldn't find products matching "${query}".`, products: products.slice(0, 5) };
+        }
+
+        const currency = await getAccountCurrency(accountId);
+        return { success: true, currency, query, products: recommendations.map(({ score, ...rest }) => rest) };
+      },
+    }),
+
+    search_faq: tool({
+      description: "Search the shop's FAQ knowledge base for answers to common questions about shipping, returns, locations, hours, and policies. Use this BEFORE generating a reply when a customer asks a general question that might be covered in the FAQ.",
+      inputSchema: z.object({
+        query: z.string().describe("The customer's question or topic to search for in the FAQ (e.g. 'shipping', 'return policy', 'store hours')"),
+      }),
+      execute: async ({ query }) => {
+        if (!query) return { success: false, error: "Query is required" };
+
+        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+        const { data: faqs, error } = await getSupabase()
+          .from("faqs")
+          .select("id, question, answer, category")
+          .eq("account_id", accountId)
+          .eq("is_active", true);
+
+        if (error) {
+          return { success: false, error: "Failed to search FAQs" };
+        }
+
+        if (!faqs || faqs.length === 0) {
+          return { success: true, found: false, message: "No FAQ entries found for this store." };
+        }
+
+        // Score FAQs by relevance
+        const scored = faqs.map((faq) => {
+          let score = 0;
+          const qLower = (faq.question || "").toLowerCase();
+          const aLower = (faq.answer || "").toLowerCase();
+          const cLower = (faq.category || "").toLowerCase();
+          const allText = `${qLower} ${aLower} ${cLower}`;
+
+          for (const term of searchTerms) {
+            if (qLower.includes(term)) score += 10;
+            if (cLower.includes(term)) score += 8;
+            if (aLower.includes(term)) score += 5;
+            if (allText.includes(term)) score += 2;
+          }
+
+          return { ...faq, score };
+        });
+
+        const matches = scored
+          .filter((f) => f.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3);
+
+        if (matches.length === 0) {
+          return { success: true, found: false, message: "No matching FAQ found. Answer from your general knowledge." };
+        }
+
+        return {
+          success: true,
+          found: true,
+          faqs: matches.map(({ score, ...rest }) => rest),
+        };
+      },
+    }),
+
     get_customer_orders: tool({
       description: "Get all recent orders for the current customer.",
       inputSchema: z.object({}),

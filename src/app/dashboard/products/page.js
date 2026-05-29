@@ -33,6 +33,10 @@ export default function ProductsPage() {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [aiStyle, setAiStyle] = useState("studio");
   const [generatedImageUrl, setGeneratedImageUrl] = useState(null); // Supabase URL for saving
+  const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [aiDescEnglish, setAiDescEnglish] = useState("");
+  const [aiDescArabic, setAiDescArabic] = useState("");
+  const [aiPriceSuggestion, setAiPriceSuggestion] = useState("");
   const fileInputRef = useRef(null);
 
   const supabase = createClient();
@@ -279,6 +283,54 @@ export default function ProductsPage() {
     setGeneratingImage(false);
     setAiStyle("studio");
     setGeneratedImageUrl(null);
+    setGeneratingDesc(false);
+    setAiDescEnglish("");
+    setAiDescArabic("");
+    setAiPriceSuggestion("");
+  };
+
+  const handleGenerateDescription = async () => {
+    const form = document.querySelector('.modal form');
+    const productName = form?.elements?.name?.value;
+    const category = form?.elements?.category?.value;
+
+    if (!productName?.trim()) {
+      alert("Please enter a product name first, then generate a description.");
+      return;
+    }
+
+    setGeneratingDesc(true);
+    try {
+      const res = await fetch("/api/ai/generate-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_name: productName.trim(),
+          features: productName.trim(),
+          category: category || "General",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || "Description generation failed.");
+        return;
+      }
+
+      if (data.english) {
+        setAiDescEnglish(data.english);
+        // Set the description textarea value
+        const descField = form?.elements?.description;
+        if (descField) descField.value = data.english;
+      }
+      if (data.arabic) setAiDescArabic(data.arabic);
+      if (data.price_suggestion) setAiPriceSuggestion(data.price_suggestion);
+    } catch (err) {
+      console.error("Description generation error:", err);
+      alert("Description generation failed. Please try again.");
+    } finally {
+      setGeneratingDesc(false);
+    }
   };
 
   const emojis = { Bags: "👜", Jewelry: "💎", Accessories: "🧣", Electronics: "📱", Watches: "⌚", Clothing: "👗" };
@@ -434,6 +486,25 @@ export default function ProductsPage() {
                 <div className="form-group">
                   <label className="form-label">Description</label>
                   <textarea name="description" className="form-input form-textarea" placeholder="Product description..." defaultValue={editingProduct?.description || ""} />
+                  {/* AI Generate Description Button */}
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}
+                    onClick={handleGenerateDescription}
+                    disabled={generatingDesc}
+                  >
+                    {generatingDesc ? <><Loader2 size={12} className="spin" /> Generating...</> : <><Sparkles size={12} /> Generate with AI</>}
+                  </button>
+                  {aiDescArabic && (
+                    <div style={{ marginTop: 8, padding: 8, background: "var(--bg-glass)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 12 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--accent-primary-light)", fontSize: 10 }}>Arabic Description (Preview)</div>
+                      <div style={{ direction: "rtl", textAlign: "right", color: "var(--text-secondary)" }}>{aiDescArabic}</div>
+                    </div>
+                  )}
+                  {aiPriceSuggestion && (
+                    <div style={{ marginTop: 4, fontSize: 11, color: "var(--accent-green)" }}>💡 {aiPriceSuggestion}</div>
+                  )}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
                   <div className="form-group">

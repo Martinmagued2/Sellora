@@ -132,12 +132,14 @@ export async function processIncomingMessage({
       conversation = newConv;
     }
 
-    // ─── 4. Detect intent ───
+    // ─── 4. Detect intent and sentiment ───
     let intent = null;
+    let sentiment = null;
     if (text) {
       try {
         const intentResult = await analyzeIntent(text);
         intent = intentResult?.intent || null;
+        sentiment = intentResult?.sentiment || null;
       } catch (e) {
         console.warn("Intent detection failed:", e.message);
       }
@@ -153,6 +155,7 @@ export async function processIncomingMessage({
       media_urls: mediaUrls.length > 0 ? mediaUrls : null,
       platform_message_id: platformMessageId,
       intent: intent,
+      sentiment: sentiment,
       is_ai: false,
     });
 
@@ -197,7 +200,7 @@ export async function processIncomingMessage({
       .update(convUpdates)
       .eq("id", conversation.id);
 
-    // ─── 7. Auto-tag conversation based on intent ───
+    // ─── 7. Auto-tag conversation based on intent and sentiment ───
     if (intent && intent !== "general") {
       const currentTags = conversation.tags || [];
       const intentTag = `intent:${intent}`;
@@ -209,8 +212,99 @@ export async function processIncomingMessage({
       }
     }
 
-    // ─── 8. Check keyword auto-replies first ───
+    // Auto-tag and escalate conversations with negative/urgent sentiment
+    if (sentiment && (sentiment === "negative" || sentiment === "urgent")) {
+      const currentTags = conversation.tags || [];
+      const sentimentTag = `sentiment:${sentiment}`;
+      const updateData = {};
+      if (!currentTags.includes(sentimentTag)) {
+        updateData.tags = [...currentTags, sentimentTag];
+      }
+      // Auto-escalate urgent conversations to in_progress if they're new
+      if (sentiment === "urgent" && (conversation.status === "new" || conversation.status === "waiting_customer")) {
+        updateData.status = "in_progress";
+      }
+      if (Object.keys(updateData).length > 0) {
+        await getSupabase()
+          .from("conversations")
+          .update(updateData)
+          .eq("id", conversation.id);
+      }
+    }
+
+    // ─── 8. Check FAQ auto-replies first, then keyword auto-replies ───
     if (text) {
+      // ─── 8a. Check FAQ knowledge base ───
+      try {
+        const { data: faqs } = await getSupabase()
+          .from("faqs")
+          .select("id, question, answer, category")
+          .eq("account_id", account.id)
+          .eq("is_active", true);
+
+        if (faqs && faqs.length > 0) {
+          const lowerText = text.toLowerCase();
+          const searchTerms = lowerText.split(/\s+/).filter(Boolean);
+
+          const scored = faqs.map((faq) => {
+            let score = 0;
+            const qLower = (faq.question || "").toLowerCase();
+            const aLower = (faq.answer || "").toLowerCase();
+            const cLower = (faq.category || "").toLowerCase();
+            const allText = `${qLower} ${aLower} ${cLower}`;
+
+            for (const term of searchTerms) {
+              if (qLower.includes(term)) score += 10;
+              if (cLower.includes(term)) score += 8;
+              if (aLower.includes(term)) score += 5;
+              if (allText.includes(term)) score += 2;
+            }
+
+            return { ...faq, score };
+          });
+
+          const bestMatch = scored
+            .filter((f) => f.score > 0)
+            .sort((a, b) => b.score - a.score)[0];
+
+          // Only use FAQ auto-reply if the match score is high enough
+          if (bestMatch && bestMatch.score >= 10) {
+            // Send the FAQ answer
+            await sendMessage({
+              recipientId: senderId,
+              message: bestMatch.answer,
+              pageId,
+              accessToken,
+            });
+
+            // Store it
+            await getSupabase().from("messages").insert({
+              conversation_id: conversation.id,
+              direction: "outgoing",
+              content: bestMatch.answer,
+              type: "text",
+              is_ai: true,
+              agent_type: "faq_auto_reply",
+            });
+
+            // Track first response time
+            if (!conversation.first_response_at) {
+              await getSupabase()
+                .from("conversations")
+                .update({ first_response_at: new Date().toISOString() })
+                .eq("id", conversation.id);
+            }
+
+            // FAQ reply handled, skip keyword and AI
+            return;
+          }
+        }
+      } catch (faqErr) {
+        // FAQ check failure should not block the pipeline
+        console.warn("FAQ auto-reply check failed:", faqErr.message);
+      }
+
+      // ─── 8b. Check keyword auto-replies ───
       const { data: autoReplies } = await getSupabase()
         .from("auto_replies")
         .select("*")
@@ -339,6 +433,7 @@ export async function processIncomingMessage({
               is_ai: true,
               response_time_seconds: responseTime,
               agent_type: aiResult.intent,
+              sentiment: aiResult.sentiment || null,
               tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
             });
 

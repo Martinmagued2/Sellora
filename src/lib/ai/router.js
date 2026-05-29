@@ -5,7 +5,8 @@ import { createOpenAI } from "@ai-sdk/openai";
 
 /**
  * Classifies the intent of the conversation to route to the correct agent.
- * Uses text generation with intent extraction (more reliable than structured outputs).
+ * Also detects sentiment (positive/neutral/negative/urgent) for escalation.
+ * Uses text generation with intent + sentiment extraction.
  * Provider chain: Groq (primary) → Google Gemini (fallback) → OpenAI (last resort)
  */
 export async function routeMessage(message, conversationHistory = []) {
@@ -16,11 +17,9 @@ export async function routeMessage(message, conversationHistory = []) {
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n");
 
-    const prompt = `Classify the user's latest message into ONE of these categories:
-- sales: asking about products, prices, wants to buy, or needs recommendations
-- support: complaint, return/refund request, or help with an issue
-- order_tracking: asking about order status or tracking
-- general: greetings, generic questions, or ambiguous statements
+    const prompt = `Classify the user's latest message into:
+1. Intent category (ONE of): sales, support, order_tracking, general
+2. Sentiment (ONE of): positive, neutral, negative, urgent
 
 Recent Context:
 ${recentContext}
@@ -28,7 +27,10 @@ ${recentContext}
 Latest Message:
 ${message}
 
-Reply with ONLY the category name (one word): sales, support, order_tracking, or general`;
+Reply with ONLY two words separated by a pipe, like: sales|neutral
+Valid intents: sales, support, order_tracking, general
+Valid sentiments: positive, neutral, negative, urgent
+Use "urgent" sentiment for angry, very frustrated, or threatening messages.`;
 
     // Build provider fallback chain (no Cohere)
     const providers = [];
@@ -80,11 +82,16 @@ Reply with ONLY the category name (one word): sales, support, order_tracking, or
         const result = await generateText({
           model: provider.model,
           prompt: prompt,
-          maxTokens: 10,
+          maxTokens: 15,
         });
-        const intent = result.text.trim().toLowerCase().split('\n')[0];
+        const response = result.text.trim().toLowerCase().split('\n')[0];
+        const parts = response.split('|').map(s => s.trim());
+        
+        const intent = parts[0] || "sales";
+        const sentiment = parts[1] || "neutral";
+
         if (["sales", "support", "order_tracking", "general"].includes(intent)) {
-          return intent;
+          return { intent, sentiment: ["positive", "neutral", "negative", "urgent"].includes(sentiment) ? sentiment : "neutral" };
         }
       } catch (providerError) {
         console.warn(`Routing provider ${provider.name} failed:`, providerError?.message);
@@ -92,9 +99,22 @@ Reply with ONLY the category name (one word): sales, support, order_tracking, or
     }
 
     console.warn("No routing provider available, defaulting to sales");
-    return "sales";
+    return { intent: "sales", sentiment: "neutral" };
   } catch (error) {
     console.warn("Routing failed, defaulting to sales:", error?.message);
-    return "sales"; // Default to sales if routing fails
+    return { intent: "sales", sentiment: "neutral" };
+  }
+}
+
+/**
+ * Analyze sentiment of a message without full routing.
+ * Lightweight version for cases where only sentiment is needed.
+ */
+export async function analyzeSentiment(message) {
+  try {
+    const result = await routeMessage(message);
+    return { sentiment: result.sentiment || "neutral" };
+  } catch {
+    return { sentiment: "neutral" };
   }
 }

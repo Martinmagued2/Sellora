@@ -628,5 +628,253 @@ export const createCopilotTools = (accountId) => {
         };
       },
     }),
+
+    // ─── AI AUTOMATION TOOLS ───
+
+    recommend_products: tool({
+      description: "Recommend products based on customer needs or context. Use when the seller wants to find products matching a customer's needs, like 'dry skin products' or 'gift ideas'.",
+      inputSchema: z.object({
+        query: z.string().describe("The need, preference, or context to match products against"),
+      }),
+      execute: async ({ query }) => {
+        if (!query) return { success: false, error: "Query is required" };
+
+        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+        const { data: products, error } = await supabase
+          .from("products")
+          .select("id, name, description, price, stock, category")
+          .eq("account_id", accountId)
+          .eq("status", "active");
+
+        if (error) return { success: false, error: "Failed to search products" };
+        if (!products || products.length === 0) return { success: true, products: [] };
+
+        const scored = products.map((product) => {
+          let score = 0;
+          const nameLower = (product.name || "").toLowerCase();
+          const descLower = (product.description || "").toLowerCase();
+          const catLower = (product.category || "").toLowerCase();
+          const allText = `${nameLower} ${descLower} ${catLower}`;
+
+          for (const term of searchTerms) {
+            if (nameLower.includes(term)) score += 10;
+            if (catLower.includes(term)) score += 8;
+            if (descLower.includes(term)) score += 5;
+            if (allText.includes(term)) score += 2;
+          }
+
+          if (product.stock > 0) score += 3;
+          return { ...product, score };
+        });
+
+        const recommendations = scored
+          .filter((p) => p.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+
+        return {
+          success: true,
+          query,
+          products: recommendations.map(({ score, ...rest }) => rest),
+          _action: { type: "navigate", path: "/dashboard/products", label: "View Products" },
+        };
+      },
+    }),
+
+    send_follow_up: tool({
+      description: "Send a follow-up message to customers with unpaid orders older than 24 hours. Use when the seller wants to follow up on pending orders or asks about unpaid orders.",
+      inputSchema: z.object({
+        order_id: z.string().optional().describe("Specific order ID to follow up on (optional, if omitted follows up on all unpaid orders)"),
+      }),
+      execute: async ({ order_id }) => {
+        try {
+          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+          let query = supabase
+            .from("orders")
+            .select("id, order_number, total, items, customer_id, payment_status")
+            .eq("account_id", accountId)
+            .eq("payment_status", "unpaid")
+            .in("status", ["pending", "confirmed"])
+            .lt("created_at", twentyFourHoursAgo);
+
+          if (order_id) query = query.eq("id", order_id);
+
+          const { data: unpaidOrders, error } = await query;
+
+          if (error) return { success: false, error: "Failed to fetch unpaid orders" };
+          if (!unpaidOrders || unpaidOrders.length === 0) {
+            return { success: true, message: "No unpaid orders older than 24h found", sent: 0 };
+          }
+
+          let sent = 0;
+          for (const order of unpaidOrders) {
+            const { data: conversation } = await supabase
+              .from("conversations")
+              .select("id")
+              .eq("account_id", accountId)
+              .eq("customer_id", order.customer_id)
+              .in("status", ["new", "open", "in_progress", "waiting_customer"])
+              .order("last_message_at", { ascending: false })
+              .limit(1)
+              .single();
+
+            if (!conversation) continue;
+
+            const itemsSummary = (order.items || []).map(i => `${i.qty}x ${i.name}`).join(", ");
+            const followUpMessage = `👋 Hi! Just a friendly reminder — your order #${order.order_number} (${itemsSummary}) for ${order.total} EGP is still pending payment. Would you like to complete your order?`;
+
+            await supabase.from("messages").insert({
+              conversation_id: conversation.id,
+              direction: "outgoing",
+              content: followUpMessage,
+              type: "text",
+              is_ai: true,
+              agent_type: "follow_up",
+            });
+
+            await supabase
+              .from("conversations")
+              .update({ last_message_at: new Date().toISOString(), status: "in_progress" })
+              .eq("id", conversation.id);
+
+            sent++;
+          }
+
+          return {
+            success: true,
+            message: `Sent ${sent} follow-up messages for unpaid orders`,
+            sent,
+            total: unpaidOrders.length,
+            _action: { type: "navigate", path: "/dashboard/orders", label: "View Orders" },
+          };
+        } catch (err) {
+          return { success: false, error: `Follow-up failed: ${err.message}` };
+        }
+      },
+    }),
+
+    get_escalated_conversations: tool({
+      description: "Get conversations that have been flagged with negative sentiment or need human attention. Use when the seller asks about angry customers, escalation, or conversations that need attention.",
+      inputSchema: z.object({
+        limit: z.string().optional().describe("Number of conversations to fetch (default 10)"),
+      }),
+      execute: async ({ limit }) => {
+        const limitNum = parseInt(limit) || 10;
+
+        // Find conversations tagged with negative sentiment or escalation
+        const { data: conversations, error } = await supabase
+          .from("conversations")
+          .select("id, channel, status, tags, summary, unread_count, updated_at, customers(name)")
+          .eq("account_id", accountId)
+          .or("tags.cs.{sentiment:negative},tags.cs.{sentiment:urgent},tags.cs.{escalated}")
+          .order("updated_at", { ascending: false })
+          .limit(limitNum);
+
+        if (error) {
+          // Fallback: try fetching by negative sentiment messages
+          const { data: negativeMessages, error: msgError } = await supabase
+            .from("messages")
+            .select("conversation_id, content, sentiment")
+            .eq("account_id", accountId)
+            .in("sentiment", ["negative", "urgent"])
+            .order("created_at", { ascending: false })
+            .limit(limitNum);
+
+          if (msgError || !negativeMessages || negativeMessages.length === 0) {
+            return { success: true, conversations: [], message: "No escalated conversations found" };
+          }
+
+          const convIds = [...new Set(negativeMessages.map(m => m.conversation_id))];
+          const { data: convData } = await supabase
+            .from("conversations")
+            .select("id, channel, status, tags, summary, unread_count, updated_at, customers(name)")
+            .in("id", convIds)
+            .eq("account_id", accountId);
+
+          return {
+            success: true,
+            conversations: convData || [],
+            _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversations" },
+          };
+        }
+
+        return {
+          success: true,
+          conversations: conversations || [],
+          _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversations" },
+        };
+      },
+    }),
+
+    generate_description: tool({
+      description: "Generate an AI product description in English and Arabic with a price suggestion. Use when the seller wants to generate or create a product description, or when they want a compelling writeup for a product.",
+      inputSchema: z.object({
+        product_name: z.string().describe("The name of the product"),
+        features: z.string().describe("Key features or keywords to include in the description"),
+        category: z.string().optional().describe("Product category"),
+        tone: z.string().optional().describe("Description tone (e.g. professional, fun, luxurious)"),
+      }),
+      execute: async ({ product_name, features, category, tone }) => {
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/ai/generate-description`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              product_name,
+              features,
+              category: category || "General",
+              tone: tone || "professional",
+            }),
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            return { success: false, error: data.error || "Description generation failed" };
+          }
+
+          return {
+            success: true,
+            english: data.english,
+            arabic: data.arabic,
+            price_suggestion: data.price_suggestion,
+            _action: { type: "navigate", path: "/dashboard/products", label: "Go to Products" },
+          };
+        } catch (err) {
+          return { success: false, error: `Description generation failed: ${err.message}` };
+        }
+      },
+    }),
+
+    summarize_conversation: tool({
+      description: "Generate a summary of a customer conversation. Use when the seller wants a quick overview of what happened in a conversation, or asks 'what did this customer ask about?' or 'summarize this chat'.",
+      inputSchema: z.object({
+        conversation_id: z.string().describe("The ID of the conversation to summarize"),
+      }),
+      execute: async ({ conversation_id }) => {
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/ai/summarize-conversation`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ conversation_id }),
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            return { success: false, error: data.error || "Summarization failed" };
+          }
+
+          return {
+            success: true,
+            summary: data.summary,
+            customer_name: data.customer_name,
+            _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversation" },
+          };
+        } catch (err) {
+          return { success: false, error: `Summarization failed: ${err.message}` };
+        }
+      },
+    }),
   };
 };

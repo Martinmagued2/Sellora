@@ -74,8 +74,10 @@ export async function generateAIReply({
   plan = "starter",
 }) {
   try {
-    // 1. Route the message
-    const intent = plan === "starter" ? "sales" : await routeMessage(customerMessage, conversationHistory);
+    // 1. Route the message (now returns { intent, sentiment })
+    const routingResult = plan === "starter" ? { intent: "sales", sentiment: "neutral" } : await routeMessage(customerMessage, conversationHistory);
+    const intent = typeof routingResult === "string" ? routingResult : routingResult.intent;
+    const sentiment = typeof routingResult === "string" ? "neutral" : (routingResult.sentiment || "neutral");
 
     // 2. Setup Agent Prompt
     let systemPrompt = "";
@@ -182,10 +184,10 @@ export async function generateAIReply({
       }
     }
 
-    return { reply: text || null, intent, toolCalls };
+    return { reply: text || null, intent, sentiment, toolCalls };
   } catch (err) {
     console.error("Error generating AI reply:", err);
-    return { reply: null, intent: "general", toolCalls: null };
+    return { reply: null, intent: "general", sentiment: "neutral", toolCalls: null };
   }
 }
 
@@ -194,9 +196,11 @@ export async function generateAIReply({
  */
 export async function analyzeIntent(message) {
   try {
-     const intent = await routeMessage(message);
-     return { intent };
+     const result = await routeMessage(message);
+     const intent = typeof result === "string" ? result : result.intent;
+     const sentiment = typeof result === "string" ? "neutral" : (result.sentiment || "neutral");
+     return { intent, sentiment };
   } catch {
-    return { intent: "general" };
+    return { intent: "general", sentiment: "neutral" };
   }
 }

@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import {
   Settings, User, MessageCircle, Bot, Bell, Globe, Shield, Smartphone,
   Save, Check, Plus, X, Upload, Link as LinkIcon, Zap, ToggleLeft, ToggleRight, Loader2,
-  Webhook, UsersRound, Trash2, Crown, Lock
+  Webhook, UsersRound, Trash2, Crown, Lock, HelpCircle, Clock, Edit, AlertCircle
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -14,6 +14,8 @@ const tabs = [
   { key: "profile", label: "Business Profile", icon: User },
   { key: "channels", label: "Connected Channels", icon: Smartphone },
   { key: "autoreplies", label: "Auto-Replies", icon: Bot },
+  { key: "faqs", label: "FAQ Knowledge Base", icon: HelpCircle },
+  { key: "automation", label: "Automation", icon: Clock },
   { key: "webhooks", label: "Webhooks", icon: Webhook },
   { key: "team", label: "Team", icon: UsersRound },
   { key: "notifications", label: "Notifications", icon: Bell },
@@ -87,6 +89,16 @@ function SettingsContent() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
+  // FAQs state
+  const [faqs, setFaqs] = useState([]);
+  const [showAddFaq, setShowAddFaq] = useState(false);
+  const [newFaq, setNewFaq] = useState({ question: "", answer: "", category: "General" });
+  const [faqSaving, setFaqSaving] = useState(false);
+  const [editingFaq, setEditingFaq] = useState(null);
+
+  // Automation state
+  const [autoFollowUp, setAutoFollowUp] = useState(false);
+
   const supabase = createClient();
 
   useEffect(() => {
@@ -132,6 +144,13 @@ function SettingsContent() {
       // Fetch auto-replies
       const { data: ar } = await supabase.from("auto_replies").select("*").eq("account_id", user.id).eq("is_active", true).order("created_at");
       if (ar) setAutoReplies(ar);
+
+      // Fetch FAQs
+      const { data: faqData } = await supabase.from("faqs").select("*").eq("account_id", user.id).order("created_at", { ascending: false });
+      if (faqData) setFaqs(faqData);
+
+      // Load auto follow-up setting
+      if (data?.auto_follow_up_enabled !== undefined) setAutoFollowUp(data.auto_follow_up_enabled);
 
       // Load notification prefs from account
       if (data?.notification_prefs) setNotifPrefs(data.notification_prefs);
@@ -846,6 +865,190 @@ function SettingsContent() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "faqs" && (
+            <div className="dashboard-panel">
+              <div className="dashboard-panel-header">
+                <h3>FAQ Knowledge Base</h3>
+              </div>
+              <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+                <p style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-lg)" }}>
+                  Add frequently asked questions and answers. The AI will use these to auto-reply when customers ask similar questions.
+                </p>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-md)" }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => { setShowAddFaq(true); setEditingFaq(null); setNewFaq({ question: "", answer: "", category: "General" }); }}>
+                    <Plus size={14} /> Add FAQ
+                  </button>
+                </div>
+
+                {showAddFaq && (
+                  <div style={{ padding: "var(--space-lg)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)", border: "1px solid var(--border-subtle)" }}>
+                    <div className="form-group">
+                      <label className="form-label">Question</label>
+                      <input type="text" className="form-input" placeholder="e.g. What are your shipping times?" value={newFaq.question} onChange={(e) => setNewFaq({ ...newFaq, question: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Answer</label>
+                      <textarea className="form-input form-textarea" placeholder="e.g. We ship within 2-3 business days across Egypt." value={newFaq.answer} onChange={(e) => setNewFaq({ ...newFaq, answer: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Category</label>
+                      <select className="form-input" value={newFaq.category} onChange={(e) => setNewFaq({ ...newFaq, category: e.target.value })}>
+                        <option value="General">General</option>
+                        <option value="Shipping">Shipping</option>
+                        <option value="Returns">Returns</option>
+                        <option value="Payment">Payment</option>
+                        <option value="Store Hours">Store Hours</option>
+                        <option value="Location">Location</option>
+                      </select>
+                    </div>
+                    <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                      <button className="btn btn-primary btn-sm" disabled={faqSaving || !newFaq.question || !newFaq.answer} onClick={async () => {
+                        setFaqSaving(true);
+                        try {
+                          const res = await fetch("/api/faqs", {
+                            method: editingFaq ? "PUT" : "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(editingFaq ? { id: editingFaq.id, ...newFaq } : newFaq),
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            if (editingFaq) {
+                              setFaqs((prev) => prev.map(f => f.id === editingFaq.id ? data.faq : f));
+                            } else {
+                              setFaqs((prev) => [data.faq, ...prev]);
+                            }
+                            setShowAddFaq(false);
+                            setEditingFaq(null);
+                            setNewFaq({ question: "", answer: "", category: "General" });
+                          }
+                        } catch (err) { console.error("FAQ save error:", err); }
+                        setFaqSaving(false);
+                      }}>
+                        {faqSaving ? "Saving..." : editingFaq ? "Update FAQ" : "Add FAQ"}
+                      </button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => { setShowAddFaq(false); setEditingFaq(null); }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+                  {faqs.length === 0 ? (
+                    <p style={{ color: "var(--text-tertiary)", textAlign: "center", padding: "var(--space-xl)" }}>No FAQs yet. Add your first FAQ to help the AI answer common questions.</p>
+                  ) : faqs.map((faq) => (
+                    <div key={faq.id} style={{ padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{faq.question}</div>
+                          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", marginTop: 4 }}>{faq.answer}</div>
+                          <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 6, background: "var(--bg-glass)", color: "var(--text-tertiary)", marginTop: 4, display: "inline-block" }}>{faq.category}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button className="topbar-btn" title="Edit" style={{ width: 24, height: 24 }} onClick={() => { setEditingFaq(faq); setShowAddFaq(true); setNewFaq({ question: faq.question, answer: faq.answer, category: faq.category || "General" }); }}>
+                            <Edit size={11} style={{ color: "var(--text-secondary)" }} />
+                          </button>
+                          <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
+                            if (!confirm("Delete this FAQ?")) return;
+                            await fetch(`/api/faqs?id=${faq.id}`, { method: "DELETE" });
+                            setFaqs((prev) => prev.filter(f => f.id !== faq.id));
+                          }}>
+                            <Trash2 size={11} style={{ color: "var(--accent-red)" }} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "automation" && (
+            <div className="dashboard-panel">
+              <div className="dashboard-panel-header">
+                <h3>Automation Settings</h3>
+              </div>
+              <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+                {/* Auto Follow-Up Toggle */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "var(--space-lg)", background: "var(--bg-glass)",
+                  borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)",
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto Follow-Up for Unpaid Orders</div>
+                    <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+                      Automatically send follow-up messages to customers with unpaid orders after 24 hours
+                    </div>
+                  </div>
+                  <div style={{ color: autoFollowUp ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }} onClick={async () => {
+                    const newVal = !autoFollowUp;
+                    setAutoFollowUp(newVal);
+                    const { data: { user } } = await supabase.auth.getUser();
+                    await supabase.from("accounts").update({ auto_follow_up_enabled: newVal }).eq("id", user.id);
+                  }}>
+                    {autoFollowUp ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+                  </div>
+                </div>
+
+                {/* Manual follow-up trigger */}
+                <div style={{ marginTop: "var(--space-md)" }}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={async () => {
+                      const { data: { user } } = await supabase.auth.getUser();
+                      const res = await fetch("/api/automation/follow-up", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ account_id: user.id }),
+                      });
+                      const data = await res.json();
+                      alert(data.message || `Sent ${data.sent || 0} follow-up messages`);
+                    }}
+                  >
+                    <Clock size={16} /> Send Follow-Ups Now
+                  </button>
+                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+                    Manually trigger follow-up messages for all unpaid orders older than 24 hours
+                  </p>
+                </div>
+
+                {/* Sentiment Detection Info */}
+                <div style={{
+                  marginTop: "var(--space-xl)", padding: "var(--space-lg)",
+                  background: "var(--bg-glass)", borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-subtle)",
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                    <AlertCircle size={16} style={{ color: "var(--accent-primary-light)" }} />
+                    Sentiment Detection
+                  </div>
+                  <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+                    AI automatically detects negative or urgent messages and flags them with 🔴. 
+                    Urgent conversations are auto-escalated to "In Progress" status. 
+                    You can view escalated conversations in the Conversations page.
+                  </div>
+                </div>
+
+                {/* FAQ Auto-Reply Info */}
+                <div style={{
+                  marginTop: "var(--space-md)", padding: "var(--space-lg)",
+                  background: "var(--bg-glass)", borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-subtle)",
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                    <HelpCircle size={16} style={{ color: "var(--accent-green)" }} />
+                    Smart FAQ Auto-Reply
+                  </div>
+                  <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+                    When customers ask questions that match your FAQ knowledge base, the AI will automatically 
+                    send the matching answer. Go to the "FAQ Knowledge Base" tab to manage your FAQs.
+                  </div>
                 </div>
               </div>
             </div>

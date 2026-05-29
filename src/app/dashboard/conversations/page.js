@@ -6,6 +6,7 @@ import {
   FlaskConical, Package, ShoppingBag, Tag, X, Plus, Minus,
   ChevronRight, Camera, Globe, Clock, User, Mail,
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
+  FileText, AlertCircle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -70,6 +71,10 @@ export default function ConversationsPage() {
   // Status filter
   const [statusFilter, setStatusFilter] = useState("all");
   const [accountPlan, setAccountPlan] = useState("starter");
+
+  // Summarize
+  const [summarizing, setSummarizing] = useState(false);
+  const [conversationSummary, setConversationSummary] = useState("");
 
   const messagesEndRef = useRef(null);
   const simulatorEndRef = useRef(null);
@@ -249,6 +254,28 @@ export default function ConversationsPage() {
     await supabase.from("conversations").update(updates).eq("id", activeConv.id);
     setActiveConv((prev) => ({ ...prev, status }));
     fetchConversations();
+  };
+
+  // ─── Summarize conversation ───
+  const handleSummarize = async () => {
+    if (!activeConv || summarizing) return;
+    setSummarizing(true);
+    try {
+      const res = await fetch("/api/ai/summarize-conversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_id: activeConv.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setConversationSummary(data.summary);
+      } else {
+        console.error("Summarize failed:", data.error);
+      }
+    } catch (err) {
+      console.error("Summarize error:", err);
+    }
+    setSummarizing(false);
   };
 
   // ─── Send product card into chat ───
@@ -567,6 +594,12 @@ export default function ConversationsPage() {
                     background: STATUS_OPTIONS.find(s => s.value === conv.status)?.color || "var(--text-tertiary)",
                   }} />
                   <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>{STATUS_OPTIONS.find(s => s.value === conv.status)?.label || conv.status}</span>
+                  {(conv.tags || []).some(t => t.startsWith("sentiment:negative") || t.startsWith("sentiment:urgent")) && (
+                    <span style={{
+                      fontSize: 9, padding: "1px 5px", borderRadius: 6,
+                      background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+                    }}>🔴</span>
+                  )}
                 </div>
               </div>
 
@@ -631,6 +664,27 @@ export default function ConversationsPage() {
                 </div>
               </div>
               <div className="chat-header-actions" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                {/* Negative sentiment indicator */}
+                {(activeConv.tags || []).some(t => t.startsWith("sentiment:negative") || t.startsWith("sentiment:urgent")) && (
+                  <span style={{
+                    display: "flex", alignItems: "center", gap: 3,
+                    padding: "3px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600,
+                    background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+                    border: "1px solid rgba(255, 82, 82, 0.3)",
+                  }}>
+                    🔴 {(activeConv.tags || []).find(t => t.startsWith("sentiment:"))?.replace("sentiment:", "") || "Negative"}
+                  </span>
+                )}
+                {/* Summarize button */}
+                <button
+                  className="topbar-btn"
+                  title="Summarize conversation"
+                  onClick={handleSummarize}
+                  disabled={summarizing}
+                  style={{ position: "relative" }}
+                >
+                  {summarizing ? <Loader2 size={16} className="spin" /> : <FileText size={16} />}
+                </button>
                 {/* Status selector */}
                 <select
                   value={activeConv.status || "new"}
@@ -654,12 +708,38 @@ export default function ConversationsPage() {
 
             {/* ── Messages ── */}
             <div className="chat-messages">
+              {/* Conversation Summary Banner */}
+              {conversationSummary && (
+                <div style={{
+                  margin: "8px 16px", padding: "10px 14px", background: "rgba(108, 92, 231, 0.08)",
+                  border: "1px solid rgba(108, 92, 231, 0.2)", borderRadius: 12,
+                  fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5,
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                }}>
+                  <FileText size={14} style={{ color: "var(--accent-primary-light)", flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <div style={{ fontWeight: 600, color: "var(--accent-primary-light)", fontSize: 10, marginBottom: 2, textTransform: "uppercase" }}>AI Summary</div>
+                    {conversationSummary}
+                  </div>
+                  <button onClick={() => setConversationSummary("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 0, marginLeft: "auto", flexShrink: 0 }}>
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               {messages.map((msg) => (
                 <div
                   key={msg.id}
                   className={`chat-msg ${msg.direction === "incoming" ? "incoming" : msg.is_ai ? "ai-reply" : "outgoing"}`}
                 >
                   {msg.is_ai && <span className="ai-label"><Bot size={10} /> AI Auto-Reply</span>}
+                  {msg.sentiment && (msg.sentiment === "negative" || msg.sentiment === "urgent") && msg.direction === "incoming" && (
+                    <span style={{
+                      fontSize: 10, padding: "2px 8px", borderRadius: 8, marginBottom: 4, display: "inline-block",
+                      background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+                    }}>
+                      🔴 {msg.sentiment}
+                    </span>
+                  )}
                   {msg.intent && msg.intent !== "general" && msg.direction === "incoming" && (
                     <span style={{
                       fontSize: 10, padding: "2px 8px", borderRadius: 8, marginBottom: 4, display: "inline-block",
