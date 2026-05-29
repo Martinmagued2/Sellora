@@ -1,5 +1,6 @@
 -- ============================================
--- MIGRATION: FAQ table, automation columns, sentiment, conversation summaries
+-- MIGRATION 015: FAQ table, automation columns, sentiment, conversation summaries, quick replies, auto-greeting
+-- Safe to run multiple times (uses IF NOT EXISTS and DROP POLICY IF EXISTS)
 -- ============================================
 
 -- 1. Create FAQs table
@@ -20,11 +21,13 @@ CREATE INDEX IF NOT EXISTS idx_faqs_active ON faqs(account_id, is_active);
 -- Enable RLS on faqs
 ALTER TABLE faqs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own faqs" ON faqs;
 CREATE POLICY "Users can manage own faqs"
   ON faqs FOR ALL
   USING (account_id = auth.uid());
 
 -- Auto-update updated_at trigger for faqs
+DROP TRIGGER IF EXISTS update_faqs_updated_at ON faqs;
 CREATE TRIGGER update_faqs_updated_at BEFORE UPDATE ON faqs FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- 2. Add sentiment column to messages table
@@ -91,8 +94,13 @@ ALTER TABLE messages
 ADD COLUMN IF NOT EXISTS agent_type TEXT;
 
 -- 17. Add tool_calls to messages if not exists
-ALTER TABLE messages
-ADD COLUMN IF NOT EXISTS tool_calls TEXT;
+DO $$ BEGIN
+  -- Check if tool_calls column exists and is TEXT type; the original migration 003 made it JSONB
+  -- We want JSONB, so only add if column doesn't exist at all
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='tool_calls') THEN
+    ALTER TABLE messages ADD COLUMN tool_calls JSONB DEFAULT NULL;
+  END IF;
+END $$;
 
 -- 18. Add media_urls to messages if not exists (as array)
 ALTER TABLE messages
@@ -121,84 +129,67 @@ ADD COLUMN IF NOT EXISTS facebook_access_token TEXT;
 ALTER TABLE conversations
 ADD COLUMN IF NOT EXISTS platform_thread_id TEXT;
 
--- 21. Create agent_actions table if not exists
-CREATE TABLE IF NOT EXISTS agent_actions (
+-- 21. agent_actions table already created in migration 003 — skip
+-- Just ensure RLS policy exists (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'agent_actions' AND policyname = 'Users can view own agent actions'
+  ) THEN
+    CREATE POLICY "Users can view own agent actions"
+      ON agent_actions FOR SELECT
+      USING (account_id = auth.uid());
+  END IF;
+END $$;
+
+-- 22. auto_replies table already created in migration 001 — skip
+-- Policy already exists from migration 001 with DROP POLICY IF EXISTS pattern
+
+-- 23. rate_limits table already created in migration 005 — skip
+
+-- 24. team_members table already created in migration 011 — skip
+-- Policies already exist from migration 011
+
+-- 25. account_webhooks table already created in migration 011 — skip
+-- Policy already exists from migration 011
+
+-- ============================================
+-- NEW TABLES: Quick replies
+-- ============================================
+
+-- 26. Create quick_replies table
+CREATE TABLE IF NOT EXISTS quick_replies (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-  conversation_id UUID REFERENCES conversations(id),
-  agent_type TEXT,
-  tool_name TEXT,
-  tool_input JSONB,
-  success BOOLEAN DEFAULT TRUE,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  category TEXT DEFAULT 'General',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_agent_actions_account ON agent_actions(account_id);
+CREATE INDEX IF NOT EXISTS idx_quick_replies_account ON quick_replies(account_id);
 
--- Enable RLS on agent_actions
-ALTER TABLE agent_actions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quick_replies ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can manage own agent_actions"
-  ON agent_actions FOR ALL
+DROP POLICY IF EXISTS "Users can manage own quick_replies" ON quick_replies;
+CREATE POLICY "Users can manage own quick_replies"
+  ON quick_replies FOR ALL
   USING (account_id = auth.uid());
 
--- 22. Create auto_replies table if not exists
-CREATE TABLE IF NOT EXISTS auto_replies (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-  trigger_keyword TEXT NOT NULL,
-  response TEXT NOT NULL,
-  match_type TEXT DEFAULT 'contains' CHECK (match_type IN ('exact', 'starts_with', 'contains')),
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- 27. Add auto_greeting and auto_greeting_message columns to accounts table
+ALTER TABLE accounts
+ADD COLUMN IF NOT EXISTS auto_greeting BOOLEAN DEFAULT FALSE;
 
-CREATE INDEX IF NOT EXISTS idx_auto_replies_account ON auto_replies(account_id);
+ALTER TABLE accounts
+ADD COLUMN IF NOT EXISTS auto_greeting_message TEXT DEFAULT 'Hi! Welcome to {business_name} 👋 How can I help you today?';
 
-ALTER TABLE auto_replies ENABLE ROW LEVEL SECURITY;
+-- 28. Add tags column to customers if not exists (for VIP, new, returning tags)
+ALTER TABLE customers
+ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
 
-CREATE POLICY "Users can manage own auto_replies"
-  ON auto_replies FOR ALL
-  USING (account_id = auth.uid());
+-- 29. Add total_spent to customers if not exists
+ALTER TABLE customers
+ADD COLUMN IF NOT EXISTS total_spent NUMERIC DEFAULT 0;
 
--- 23. Create rate_limits table if not exists
-CREATE TABLE IF NOT EXISTS rate_limits (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email TEXT NOT NULL,
-  action TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_rate_limits_email_action ON rate_limits(email, action);
-
--- 24. Create team_members table if not exists
-CREATE TABLE IF NOT EXISTS team_members (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-  email TEXT NOT NULL,
-  role TEXT DEFAULT 'viewer' CHECK (role IN ('admin', 'editor', 'viewer')),
-  invited_at TIMESTAMPTZ DEFAULT NOW(),
-  accepted_at TIMESTAMPTZ
-);
-
-ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage own team_members"
-  ON team_members FOR ALL
-  USING (account_id = auth.uid());
-
--- 25. Create account_webhooks table if not exists
-CREATE TABLE IF NOT EXISTS account_webhooks (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-  url TEXT NOT NULL,
-  events TEXT[] DEFAULT '{}',
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE account_webhooks ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage own webhooks"
-  ON account_webhooks FOR ALL
-  USING (account_id = auth.uid());
+-- 30. Add total_orders to customers if not exists
+ALTER TABLE customers
+ADD COLUMN IF NOT EXISTS total_orders INTEGER DEFAULT 0;

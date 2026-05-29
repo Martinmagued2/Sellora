@@ -6,7 +6,7 @@ import {
   FlaskConical, Package, ShoppingBag, Tag, X, Plus, Minus,
   ChevronRight, Camera, Globe, Clock, User, Mail,
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
-  FileText, AlertCircle,
+  FileText, AlertCircle, Zap, ChevronDown,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -76,9 +76,28 @@ export default function ConversationsPage() {
   const [summarizing, setSummarizing] = useState(false);
   const [conversationSummary, setConversationSummary] = useState("");
 
+  // Quick Replies
+  const [quickReplies, setQuickReplies] = useState([]);
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
+
   const messagesEndRef = useRef(null);
   const simulatorEndRef = useRef(null);
   const supabase = createClient();
+
+  // ─── Fetch Quick Replies ───
+  const fetchQuickReplies = useCallback(async () => {
+    try {
+      const res = await fetch("/api/quick-replies");
+      const data = await res.json();
+      if (data.success) {
+        setQuickReplies(data.quickReplies || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch quick replies:", err);
+    }
+  }, []);
+
+  useEffect(() => { fetchQuickReplies(); }, [fetchQuickReplies]);
 
   // ─── Fetch conversations ───
   const fetchConversations = useCallback(async () => {
@@ -199,7 +218,7 @@ export default function ConversationsPage() {
     setSending(true);
 
     try {
-      // Send via Meta API (Facebook/Instagram) if the conversation is on a real channel
+      // Send via Meta API (Facebook/Instagram) or WhatsApp if the conversation is on a real channel
       if (activeConv.channel === "instagram" || activeConv.channel === "facebook") {
         const res = await fetch("/api/messages/send", {
           method: "POST",
@@ -214,6 +233,30 @@ export default function ConversationsPage() {
         if (!res.ok) {
           console.error("Failed to send message to Meta:", data.error);
           // Still save locally even if Meta delivery fails
+          await supabase.from("messages").insert({
+            conversation_id: activeConv.id,
+            direction: "outgoing",
+            content: newMsg.trim(),
+            type: "text",
+            is_ai: false,
+          });
+        }
+      } else if (activeConv.channel === "whatsapp") {
+        // Send via WhatsApp API
+        const res = await fetch("/api/messages/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversationId: activeConv.id,
+            content: newMsg.trim(),
+            channel: "whatsapp",
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          console.error("Failed to send message to WhatsApp:", data.error);
+          // Still save locally even if WhatsApp delivery fails
           await supabase.from("messages").insert({
             conversation_id: activeConv.id,
             direction: "outgoing",
@@ -780,6 +823,73 @@ export default function ConversationsPage() {
               }}>
                 <ShoppingBag size={13} /> Create Order
               </button>
+              {/* Quick Reply Button */}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowQuickReplies(!showQuickReplies)}
+                  style={{
+                    padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "1px solid var(--border-subtle)",
+                    background: showQuickReplies ? "var(--accent-primary)" : "var(--bg-glass)",
+                    color: showQuickReplies ? "white" : "var(--text-secondary)",
+                    cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                  }}
+                >
+                  <Zap size={13} /> Quick Reply <ChevronDown size={10} />
+                </button>
+                {showQuickReplies && (
+                  <div style={{
+                    position: "absolute", bottom: "100%", left: 0, marginBottom: 4,
+                    background: "var(--bg-secondary)", border: "1px solid var(--border-medium)",
+                    borderRadius: "var(--radius-md)", boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                    minWidth: 280, maxHeight: 300, overflowY: "auto",
+                    zIndex: 50,
+                  }}>
+                    <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Templates</span>
+                      <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Click to fill • Shift+Click to send</span>
+                    </div>
+                    {quickReplies.length === 0 ? (
+                      <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+                        No templates yet. Add some in Settings.
+                      </div>
+                    ) : quickReplies.map((qr) => (
+                      <div
+                        key={qr.id}
+                        onClick={(e) => {
+                          if (e.shiftKey) {
+                            // Shift+Click: send immediately
+                            setNewMsg(qr.content);
+                            // Use setTimeout to allow state to update before sending
+                            setTimeout(() => {
+                              const form = document.getElementById("chat-send-form");
+                              if (form) form.requestSubmit();
+                            }, 50);
+                          } else {
+                            // Normal click: fill input
+                            setNewMsg(qr.content);
+                          }
+                          setShowQuickReplies(false);
+                        }}
+                        style={{
+                          padding: "8px 12px", cursor: "pointer",
+                          borderBottom: "1px solid var(--border-subtle)",
+                          transition: "background 0.15s",
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-glass)"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{qr.title}</span>
+                          <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 8, background: "var(--bg-glass)", color: "var(--text-tertiary)" }}>{qr.category}</span>
+                        </div>
+                        <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {qr.content}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button onClick={() => updateConvStatus("closed")} style={{
                 padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "1px solid var(--border-subtle)",
                 background: "var(--bg-glass)", color: "var(--text-tertiary)", cursor: "pointer", marginLeft: "auto",
@@ -789,7 +899,7 @@ export default function ConversationsPage() {
             </div>
 
             {/* ── Input ── */}
-            <form className="chat-input-area" onSubmit={handleSend}>
+            <form id="chat-send-form" className="chat-input-area" onSubmit={handleSend}>
               <input type="text" className="chat-input" placeholder="Type a message..." value={newMsg} onChange={(e) => setNewMsg(e.target.value)} id="chat-message-input" />
               <button type="submit" className="chat-send-btn" disabled={!newMsg.trim() || sending} id="chat-send"><Send size={18} /></button>
             </form>

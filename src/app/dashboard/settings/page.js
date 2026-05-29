@@ -15,6 +15,7 @@ const tabs = [
   { key: "channels", label: "Connected Channels", icon: Smartphone },
   { key: "autoreplies", label: "Auto-Replies", icon: Bot },
   { key: "faqs", label: "FAQ Knowledge Base", icon: HelpCircle },
+  { key: "quickreplies", label: "Quick Replies", icon: Zap },
   { key: "automation", label: "Automation", icon: Clock },
   { key: "webhooks", label: "Webhooks", icon: Webhook },
   { key: "team", label: "Team", icon: UsersRound },
@@ -98,6 +99,20 @@ function SettingsContent() {
 
   // Automation state
   const [autoFollowUp, setAutoFollowUp] = useState(false);
+  const [autoGreeting, setAutoGreeting] = useState(false);
+  const [autoGreetingMessage, setAutoGreetingMessage] = useState("");
+
+  // Quick Replies state
+  const [quickReplies, setQuickReplies] = useState([]);
+  const [showAddQuickReply, setShowAddQuickReply] = useState(false);
+  const [newQuickReply, setNewQuickReply] = useState({ title: "", content: "", category: "General" });
+  const [quickReplySaving, setQuickReplySaving] = useState(false);
+  const [editingQuickReply, setEditingQuickReply] = useState(null);
+
+  // WhatsApp manual connect state
+  const [showManualWA, setShowManualWA] = useState(false);
+  const [manualWA, setManualWA] = useState({ phoneNumberId: "", accessToken: "" });
+  const [manualWASaving, setManualWASaving] = useState(false);
 
   const supabase = createClient();
 
@@ -151,6 +166,14 @@ function SettingsContent() {
 
       // Load auto follow-up setting
       if (data?.auto_follow_up_enabled !== undefined) setAutoFollowUp(data.auto_follow_up_enabled);
+
+      // Load auto-greeting settings
+      if (data?.auto_greeting !== undefined) setAutoGreeting(data.auto_greeting);
+      if (data?.auto_greeting_message) setAutoGreetingMessage(data.auto_greeting_message);
+
+      // Fetch quick replies
+      const { data: qrData } = await supabase.from("quick_replies").select("*").eq("account_id", user.id).order("created_at");
+      if (qrData) setQuickReplies(qrData);
 
       // Load notification prefs from account
       if (data?.notification_prefs) setNotifPrefs(data.notification_prefs);
@@ -631,30 +654,77 @@ function SettingsContent() {
                   );
                 })()}
 
-                {/* WhatsApp Coming Soon Info */}
+                {/* WhatsApp Connect Card */}
                 <div style={{ marginTop: "var(--space-xl)", paddingTop: "var(--space-xl)", borderTop: "1px solid var(--border-subtle)" }}>
                   <div style={{
-                    background: "rgba(255, 255, 255, 0.03)", border: "1px dashed var(--border-medium)",
-                    borderRadius: "var(--radius-lg)", padding: "var(--space-xl)",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "var(--space-xl)", background: "var(--bg-card)",
+                    border: account.whatsapp_connected ? "1px solid var(--accent-green)" : "1px solid var(--border-medium)",
+                    borderRadius: "var(--radius-xl)", textAlign: "center", position: "relative",
                   }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
-                      <div style={{
-                        width: 48, height: 48, borderRadius: "50%",
-                        background: "rgba(255, 255, 255, 0.05)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        color: "var(--text-tertiary)",
-                      }}>
-                        <MessageCircle size={22} />
+                    <div style={{
+                      width: 56, height: 56, borderRadius: 16, margin: "0 auto var(--space-md)",
+                      background: "#25D366", color: "white", display: "flex", alignItems: "center", justifyContent: "center"
+                    }}>
+                      <MessageCircle size={28} />
+                    </div>
+                    <h3 style={{ fontWeight: 600, marginBottom: 4 }}>Connect WhatsApp</h3>
+                    <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 16 }}>WhatsApp Business API integration</p>
+
+                    {account.whatsapp_connected ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
+                          <Check size={16} /> Connected
+                        </button>
+                        <div style={{ fontSize: 11, color: "var(--text-tertiary)", padding: "8px 12px", background: "var(--bg-glass)", borderRadius: 8, textAlign: "left" }}>
+                          <div style={{ marginBottom: 4 }}><strong>Phone Number ID:</strong> {account.whatsapp_phone_number_id || "Not set"}</div>
+                          <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 10, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4 }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'}</code></div>
+                          <div><strong>Verify Token:</strong> Set via WHATSAPP_WEBHOOK_VERIFY_TOKEN env var</div>
+                        </div>
+                        <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
+                          if (!confirm('Disconnect WhatsApp? You will stop receiving WhatsApp messages.')) return;
+                          await supabase.from('accounts').update({ whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }).eq('id', account.id);
+                          setAccount(prev => ({ ...prev, whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }));
+                        }}>Disconnect</button>
                       </div>
-                      <div>
-                        <div style={{ fontWeight: 600, marginBottom: 2, color: "var(--text-secondary)" }}>WhatsApp Integration</div>
-                        <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
-                          WhatsApp API integration is coming soon.
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <button className="btn btn-secondary" style={{ width: "100%", fontSize: 12 }} onClick={() => setShowManualWA(!showManualWA)}>
+                          <LinkIcon size={14} /> Enter WhatsApp Credentials
+                        </button>
+                        {showManualWA && (
+                          <div style={{ textAlign: "left", padding: "8px 0", display: "flex", flexDirection: "column", gap: 6 }}>
+                            <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>
+                              Get these from Meta Dashboard → WhatsApp → Phone Numbers → Settings
+                            </p>
+                            <input type="text" className="form-input" placeholder="Phone Number ID" value={manualWA.phoneNumberId} onChange={(e) => setManualWA({ ...manualWA, phoneNumberId: e.target.value })} style={{ fontSize: 12 }} />
+                            <input type="text" className="form-input" placeholder="Access Token" value={manualWA.accessToken} onChange={(e) => setManualWA({ ...manualWA, accessToken: e.target.value })} style={{ fontSize: 12 }} />
+                            <button className="btn btn-primary btn-sm" disabled={manualWASaving || !manualWA.phoneNumberId || !manualWA.accessToken} onClick={async () => {
+                              setManualWASaving(true);
+                              try {
+                                const { data: { user } } = await supabase.auth.getUser();
+                                const { error } = await supabase.from('accounts').update({
+                                  whatsapp_connected: true,
+                                  whatsapp_phone_number_id: manualWA.phoneNumberId,
+                                  whatsapp_access_token: manualWA.accessToken,
+                                }).eq('id', user.id);
+
+                                if (error) throw new Error(error.message);
+                                setAccount(prev => ({ ...prev, whatsapp_connected: true, whatsapp_phone_number_id: manualWA.phoneNumberId, whatsapp_access_token: manualWA.accessToken }));
+                                setShowManualWA(false);
+                                setMetaStatus({ type: 'success', platform: 'whatsapp', message: 'WhatsApp connected successfully!' });
+                              } catch (err) { alert('Failed: ' + err.message); }
+                              finally { setManualWASaving(false); }
+                            }}>
+                              {manualWASaving ? 'Saving...' : 'Save & Connect'}
+                            </button>
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: "var(--text-tertiary)", padding: "8px 12px", background: "var(--bg-glass)", borderRadius: 8, textAlign: "left" }}>
+                          <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 9, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4 }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'}</code></div>
+                          <div><strong>Note:</strong> Configure webhook in Meta Dashboard with this URL</div>
                         </div>
                       </div>
-                    </div>
-                    <span className="status-badge pending" style={{ opacity: 0.7 }}>Coming Later</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -974,6 +1044,49 @@ function SettingsContent() {
                 <h3>Automation Settings</h3>
               </div>
               <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+                {/* Auto-Greeting Toggle */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "var(--space-lg)", background: "var(--bg-glass)",
+                  borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)",
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto-Greeting</div>
+                    <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+                      Automatically send a welcome message to new customers on their first message
+                    </div>
+                  </div>
+                  <div style={{ color: autoGreeting ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }} onClick={async () => {
+                    const newVal = !autoGreeting;
+                    setAutoGreeting(newVal);
+                    const { data: { user } } = await supabase.auth.getUser();
+                    await supabase.from("accounts").update({ auto_greeting: newVal }).eq("id", user.id);
+                  }}>
+                    {autoGreeting ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+                  </div>
+                </div>
+
+                {/* Auto-Greeting Message Customization */}
+                {autoGreeting && (
+                  <div className="form-group" style={{ marginBottom: "var(--space-xl)" }}>
+                    <label className="form-label">Greeting Message</label>
+                    <textarea
+                      className="form-input form-textarea"
+                      value={autoGreetingMessage}
+                      onChange={(e) => setAutoGreetingMessage(e.target.value)}
+                      onBlur={async () => {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        await supabase.from("accounts").update({ auto_greeting_message: autoGreetingMessage }).eq("id", user.id);
+                      }}
+                      rows={3}
+                      placeholder="Hi! Welcome to {business_name} 👋 How can I help you today?"
+                    />
+                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+                      Use {"{business_name}"} for your store name, {"{name}"} for the customer&apos;s name. This message is sent instantly (not AI-generated).
+                    </p>
+                  </div>
+                )}
+
                 {/* Auto Follow-Up Toggle */}
                 <div style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -1049,6 +1162,119 @@ function SettingsContent() {
                     When customers ask questions that match your FAQ knowledge base, the AI will automatically 
                     send the matching answer. Go to the "FAQ Knowledge Base" tab to manage your FAQs.
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "quickreplies" && (
+            <div className="dashboard-panel">
+              <div className="dashboard-panel-header">
+                <h3>Quick Reply Templates</h3>
+              </div>
+              <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+                <p style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-lg)", fontSize: "var(--font-size-sm)" }}>
+                  Save commonly used replies as templates. Use them in conversations with one click, or Shift+Click to send instantly.
+                </p>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-md)" }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => { setShowAddQuickReply(true); setEditingQuickReply(null); setNewQuickReply({ title: "", content: "", category: "General" }); }}>
+                    <Plus size={14} /> Add Template
+                  </button>
+                </div>
+
+                {showAddQuickReply && (
+                  <div style={{ padding: "var(--space-lg)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)", border: "1px solid var(--border-subtle)" }}>
+                    <div className="form-group">
+                      <label className="form-label">Title</label>
+                      <input type="text" className="form-input" placeholder="e.g. Shipping Info" value={newQuickReply.title} onChange={(e) => setNewQuickReply({ ...newQuickReply, title: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Message Content</label>
+                      <textarea className="form-input form-textarea" placeholder="The actual reply message..." value={newQuickReply.content} onChange={(e) => setNewQuickReply({ ...newQuickReply, content: e.target.value })} rows={3} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Category</label>
+                      <select className="form-input" value={newQuickReply.category} onChange={(e) => setNewQuickReply({ ...newQuickReply, category: e.target.value })}>
+                        <option value="General">General</option>
+                        <option value="Orders">Orders</option>
+                        <option value="Shipping">Shipping</option>
+                        <option value="Returns">Returns</option>
+                        <option value="Payment">Payment</option>
+                        <option value="Greeting">Greeting</option>
+                      </select>
+                    </div>
+                    <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+                      <button className="btn btn-primary btn-sm" disabled={quickReplySaving || !newQuickReply.title || !newQuickReply.content} onClick={async () => {
+                        setQuickReplySaving(true);
+                        try {
+                          if (editingQuickReply) {
+                            const res = await fetch("/api/quick-replies", {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ id: editingQuickReply.id, ...newQuickReply }),
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              setQuickReplies((prev) => prev.map(qr => qr.id === editingQuickReply.id ? data.quickReply : qr));
+                            }
+                          } else {
+                            const res = await fetch("/api/quick-replies", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(newQuickReply),
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              setQuickReplies((prev) => [...prev, data.quickReply]);
+                            }
+                          }
+                          setShowAddQuickReply(false);
+                          setEditingQuickReply(null);
+                          setNewQuickReply({ title: "", content: "", category: "General" });
+                        } catch (err) { console.error("Quick reply save error:", err); }
+                        setQuickReplySaving(false);
+                      }}>
+                        {quickReplySaving ? "Saving..." : editingQuickReply ? "Update Template" : "Add Template"}
+                      </button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => { setShowAddQuickReply(false); setEditingQuickReply(null); }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+                  {quickReplies.length === 0 ? (
+                    <p style={{ color: "var(--text-tertiary)", textAlign: "center", padding: "var(--space-xl)" }}>No quick reply templates yet. Add your first one above!</p>
+                  ) : quickReplies.map((qr) => (
+                    <div key={qr.id} style={{ padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <Zap size={14} style={{ color: "var(--accent-primary-light)" }} />
+                            <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{qr.title}</span>
+                            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 6, background: "var(--bg-glass)", color: "var(--text-tertiary)" }}>{qr.category}</span>
+                          </div>
+                          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>{qr.content}</div>
+                        </div>
+                        <div style={{ display: "flex", gap: 4, marginLeft: "var(--space-md)" }}>
+                          <button className="topbar-btn" title="Edit" style={{ width: 24, height: 24 }} onClick={() => {
+                            setEditingQuickReply(qr);
+                            setShowAddQuickReply(true);
+                            setNewQuickReply({ title: qr.title, content: qr.content, category: qr.category || "General" });
+                          }}>
+                            <Edit size={11} style={{ color: "var(--text-secondary)" }} />
+                          </button>
+                          <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
+                            if (!confirm("Delete this template?")) return;
+                            await fetch(`/api/quick-replies?id=${qr.id}`, { method: "DELETE" });
+                            setQuickReplies((prev) => prev.filter(q => q.id !== qr.id));
+                          }}>
+                            <Trash2 size={11} style={{ color: "var(--accent-red)" }} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

@@ -55,7 +55,7 @@ export async function processIncomingMessage({
     const pageColumn = channel === "instagram" ? "instagram_page_id" : "facebook_page_id";
     const { data: account, error: accountError } = await getSupabase()
       .from("accounts")
-      .select("id, ai_enabled, ai_personality, plan")
+      .select("id, ai_enabled, ai_personality, plan, business_name, auto_greeting, auto_greeting_message")
       .eq(pageColumn, pageId)
       .single();
 
@@ -71,6 +71,8 @@ export async function processIncomingMessage({
       .eq("account_id", account.id)
       .eq("platform_id", senderId)
       .single();
+
+    const isNewCustomer = !customer;
 
     if (!customer) {
       const { data: newCustomer } = await getSupabase()
@@ -232,9 +234,47 @@ export async function processIncomingMessage({
       }
     }
 
-    // ─── 8. Check FAQ auto-replies first, then keyword auto-replies ───
+    // ─── 8. Auto-Greeting for new customers (BEFORE FAQ/keyword/AI) ───
+    if (account.auto_greeting && isNewCustomer && text) {
+      try {
+        const greetingMessage = (account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?")
+          .replace(/\{business_name\}/g, account.business_name || "our store")
+          .replace(/\{name\}/g, customer.name || "there");
+
+        // Send greeting via the appropriate channel
+        await sendMessage({
+          recipientId: senderId,
+          message: greetingMessage,
+          pageId,
+          accessToken,
+        });
+
+        // Store the greeting message
+        await getSupabase().from("messages").insert({
+          conversation_id: conversation.id,
+          direction: "outgoing",
+          content: greetingMessage,
+          type: "text",
+          is_ai: false,
+          agent_type: "auto_greeting",
+        });
+
+        // Track first response time
+        if (!conversation.first_response_at) {
+          await getSupabase()
+            .from("conversations")
+            .update({ first_response_at: new Date().toISOString() })
+            .eq("id", conversation.id);
+        }
+      } catch (greetingErr) {
+        // Greeting failure should not block the pipeline
+        console.warn("Auto-greeting failed:", greetingErr.message);
+      }
+    }
+
+    // ─── 9. Check FAQ auto-replies first, then keyword auto-replies ───
     if (text) {
-      // ─── 8a. Check FAQ knowledge base ───
+      // ─── 9a. Check FAQ knowledge base ───
       try {
         const { data: faqs } = await getSupabase()
           .from("faqs")
@@ -304,7 +344,7 @@ export async function processIncomingMessage({
         console.warn("FAQ auto-reply check failed:", faqErr.message);
       }
 
-      // ─── 8b. Check keyword auto-replies ───
+      // ─── 9b. Check keyword auto-replies ───
       const { data: autoReplies } = await getSupabase()
         .from("auto_replies")
         .select("*")
@@ -351,7 +391,7 @@ export async function processIncomingMessage({
       }
     }
 
-    // ─── 9. AI Auto-Reply (with rate limiting + error handling) ───
+    // ─── 10. AI Auto-Reply (with rate limiting + error handling) ───
     if (account.ai_enabled && text) {
       try {
         // Check daily AI rate limit per account (plan-aware)
