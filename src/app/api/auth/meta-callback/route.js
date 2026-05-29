@@ -119,6 +119,25 @@ export async function GET(request) {
     }
 
     const userAccessToken = tokenData.access_token;
+    console.log("[META-CALLBACK] Full token response:", JSON.stringify(tokenData));
+
+    // Extract page IDs from granular_scopes if available
+    // Facebook includes the specific page IDs the user authorized in granular_scopes
+    let pageIdsFromScopes = [];
+    if (tokenData.granular_scopes) {
+      console.log("[META-CALLBACK] Granular scopes:", JSON.stringify(tokenData.granular_scopes));
+      for (const scope of tokenData.granular_scopes) {
+        if (scope.target_ids && scope.target_ids.length > 0) {
+          for (const tid of scope.target_ids) {
+            if (!pageIdsFromScopes.includes(tid)) {
+              pageIdsFromScopes.push(tid);
+            }
+          }
+        }
+      }
+      console.log("[META-CALLBACK] Page IDs from granular_scopes:", pageIdsFromScopes);
+    }
+
     console.log("[META-CALLBACK] Got short-lived token, exchanging for long-lived...");
 
     // ─── Step 2: Exchange for a long-lived user access token ───
@@ -252,6 +271,39 @@ export async function GET(request) {
         }
       } catch (bizErr) {
         console.warn("[META-CALLBACK] Strategy D error:", bizErr.message);
+      }
+    }
+
+    // Strategy E: Use page IDs from granular_scopes (New Pages Experience)
+    // When Facebook includes granular_scopes in the token response, the target_ids
+    // are the Page IDs the user authorized. Access them directly.
+    if (!pageId && pageIdsFromScopes.length > 0) {
+      console.log("[META-CALLBACK] Trying Strategy E (direct page ID from granular_scopes)...");
+      for (const pid of pageIdsFromScopes) {
+        try {
+          const pageInfoResponse = await fetch(
+            `${META_API_URL}/${pid}?fields=id,name,access_token&access_token=${longLivedToken}`,
+            { method: "GET" }
+          );
+          const pageInfoData = await pageInfoResponse.json();
+          console.log(`[META-CALLBACK] Strategy E page ${pid}:`, JSON.stringify(pageInfoData));
+
+          if (pageInfoData.id && !pageInfoData.error) {
+            pageId = pageInfoData.id;
+            pageName = pageInfoData.name || "Sellora Page";
+            // Try to get page access token
+            if (pageInfoData.access_token) {
+              pageAccessToken = pageInfoData.access_token;
+            } else {
+              // For New Pages Experience, the user token IS the page token
+              pageAccessToken = longLivedToken;
+            }
+            console.log(`[META-CALLBACK] Found Page via Strategy E: ${pageName} (${pageId})`);
+            break;
+          }
+        } catch (e) {
+          console.warn(`[META-CALLBACK] Strategy E error for page ${pid}:`, e.message);
+        }
       }
     }
 
