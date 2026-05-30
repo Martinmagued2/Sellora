@@ -54,15 +54,41 @@ export async function processIncomingMessage({
   try {
     // ─── 1. Find the account that owns this page ───
     const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : "facebook_page_id";
+
+    // Step 1a: Fetch core columns that MUST exist
     const { data: account, error: accountError } = await getSupabase()
       .from("accounts")
-      .select("id, ai_enabled, ai_personality, plan, business_name, country, auto_greeting, auto_greeting_message, greeting_per_channel, greeting_delay_seconds, instagram_greeting, facebook_greeting, whatsapp_greeting, whatsapp_phone_number_id, whatsapp_access_token")
+      .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
       .eq(pageColumn, pageId)
       .single();
 
     if (accountError || !account) {
-      console.error(`No account found for ${channel} page ${pageId}`);
+      console.error(`[PROCESSOR] No account found for ${channel} page ${pageId}. Error: ${accountError?.message || "null result"}`);
+      console.error(`[PROCESSOR] HINT: Check that ${pageColumn}="${pageId}" exists in the accounts table`);
       return;
+    }
+
+    // Step 1b: Try to fetch optional columns (greeting features may not be migrated yet)
+    // These are optional and should not break the pipeline if missing
+    try {
+      const { data: optionalData } = await getSupabase()
+        .from("accounts")
+        .select("auto_greeting, auto_greeting_message, greeting_per_channel, greeting_delay_seconds, instagram_greeting, facebook_greeting, whatsapp_greeting")
+        .eq("id", account.id)
+        .single();
+      if (optionalData) {
+        Object.assign(account, optionalData);
+      }
+    } catch (optErr) {
+      // Optional columns don't exist yet — use defaults
+      console.log(`[PROCESSOR] Greeting columns not yet migrated, using defaults`);
+      account.auto_greeting = false;
+      account.auto_greeting_message = null;
+      account.greeting_per_channel = false;
+      account.greeting_delay_seconds = 0;
+      account.instagram_greeting = null;
+      account.facebook_greeting = null;
+      account.whatsapp_greeting = null;
     }
 
     // ─── 2. Find or create customer ───

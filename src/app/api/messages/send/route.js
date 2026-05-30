@@ -85,6 +85,7 @@ export async function POST(request) {
       // Save the outgoing message
       const { error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversationId,
+        account_id,
         direction: "outgoing",
         content,
         type,
@@ -164,6 +165,7 @@ export async function POST(request) {
     // Save the outgoing message to the database
     const { error: insertError } = await supabase.from("messages").insert({
       conversation_id: conversationId,
+      account_id,
       direction: "outgoing",
       content,
       type,
