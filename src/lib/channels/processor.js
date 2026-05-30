@@ -56,7 +56,7 @@ export async function processIncomingMessage({
     const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : "facebook_page_id";
     const { data: account, error: accountError } = await getSupabase()
       .from("accounts")
-      .select("id, ai_enabled, ai_personality, plan, business_name, country, auto_greeting, auto_greeting_message, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, greeting_per_channel, whatsapp_phone_number_id, whatsapp_access_token")
+      .select("id, ai_enabled, ai_personality, plan, business_name, country, auto_greeting, auto_greeting_message, greeting_per_channel, greeting_delay_seconds, instagram_greeting, facebook_greeting, whatsapp_greeting, whatsapp_phone_number_id, whatsapp_access_token")
       .eq(pageColumn, pageId)
       .single();
 
@@ -152,6 +152,7 @@ export async function processIncomingMessage({
     const messageType = mediaUrls.length > 0 ? "image" : "text";
     const { error: insertError } = await getSupabase().from("messages").insert({
       conversation_id: conversation.id,
+      account_id: account.id,
       direction: "incoming",
       content: text,
       type: messageType,
@@ -281,11 +282,11 @@ export async function processIncomingMessage({
         // Store the greeting message
         await getSupabase().from("messages").insert({
           conversation_id: conversation.id,
+          account_id: account.id,
           direction: "outgoing",
           content: greetingMessage,
           type: "text",
           is_ai: false,
-          agent_type: "auto_greeting",
         });
 
         // Track first response time
@@ -357,11 +358,11 @@ export async function processIncomingMessage({
             // Store it
             await getSupabase().from("messages").insert({
               conversation_id: conversation.id,
+              account_id: account.id,
               direction: "outgoing",
               content: bestMatch.answer,
               type: "text",
               is_ai: true,
-              agent_type: "faq_auto_reply",
             });
 
             // Track first response time
@@ -417,6 +418,7 @@ export async function processIncomingMessage({
           // Store it
           await getSupabase().from("messages").insert({
             conversation_id: conversation.id,
+            account_id: account.id,
             direction: "outgoing",
             content: matchedReply.response,
             type: "text",
@@ -520,12 +522,12 @@ export async function processIncomingMessage({
             // Store AI reply in database
             await getSupabase().from("messages").insert({
               conversation_id: conversation.id,
+              account_id: account.id,
               direction: "outgoing",
               content: aiReply,
               type: "text",
               is_ai: true,
               response_time_seconds: responseTime,
-              agent_type: aiResult.intent,
               sentiment: aiResult.sentiment || null,
               tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
             });

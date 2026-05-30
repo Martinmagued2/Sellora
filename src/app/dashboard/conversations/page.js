@@ -209,6 +209,12 @@ export default function ConversationsPage() {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { simulatorEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [simMessages]);
 
+  // ─── Auto-refresh conversation list every 15 seconds ───
+  useEffect(() => {
+    const interval = setInterval(fetchConversations, 15000);
+    return () => clearInterval(interval);
+  }, [fetchConversations]);
+
   // ─── Real-time subscription ───
   useEffect(() => {
     if (!activeConv) return;

@@ -118,86 +118,98 @@ export async function getUserProfile({ userId, accessToken }) {
 /**
  * Parse incoming webhook payload from Instagram
  * Instagram uses the same structure as Messenger but entry object differs
+ * Handles batched entries (Meta can send multiple entries per payload)
  */
 export function parseInstagramWebhook(body) {
-  const entry = body?.entry?.[0];
-  if (!entry?.messaging?.[0]) return null;
+  const results = [];
+  const entries = body?.entry || [];
 
-  const event = entry.messaging[0];
-  const pageId = entry.id;
+  for (const entry of entries) {
+    if (!entry?.messaging) continue;
 
-  // Skip echo messages (messages sent by the page itself)
-  if (event.message?.is_echo) return null;
+    for (const event of entry.messaging) {
+      const pageId = entry.id;
 
-  // Handle text messages
-  if (event.message) {
-    return {
-      type: "message",
-      senderId: event.sender?.id,
-      recipientId: event.recipient?.id,
-      pageId,
-      timestamp: event.timestamp,
-      messageId: event.message.mid,
-      text: event.message.text || null,
-      attachments: event.message.attachments || [],
-      isStoryReply: !!event.message.reply_to?.story,
-    };
+      // Skip echo messages (messages sent by the page itself)
+      if (event.message?.is_echo) continue;
+
+      // Handle text messages
+      if (event.message) {
+        results.push({
+          type: "message",
+          senderId: event.sender?.id,
+          recipientId: event.recipient?.id,
+          pageId,
+          timestamp: event.timestamp,
+          messageId: event.message.mid,
+          text: event.message.text || null,
+          attachments: event.message.attachments || [],
+          isStoryReply: !!event.message.reply_to?.story,
+        });
+      }
+
+      // Handle postback (button clicks like "Order Now")
+      if (event.postback) {
+        results.push({
+          type: "postback",
+          senderId: event.sender?.id,
+          recipientId: event.recipient?.id,
+          pageId,
+          timestamp: event.timestamp,
+          payload: event.postback.payload,
+          title: event.postback.title,
+        });
+      }
+    }
   }
 
-  // Handle postback (button clicks like "Order Now")
-  if (event.postback) {
-    return {
-      type: "postback",
-      senderId: event.sender?.id,
-      recipientId: event.recipient?.id,
-      pageId,
-      timestamp: event.timestamp,
-      payload: event.postback.payload,
-      title: event.postback.title,
-    };
-  }
-
-  return null;
+  return results.length > 0 ? results : null;
 }
 
 /**
  * Parse incoming webhook payload from Facebook Messenger
  * Nearly identical to Instagram but from page subscriptions
+ * Handles batched entries (Meta can send multiple entries per payload)
  */
 export function parseFacebookWebhook(body) {
-  const entry = body?.entry?.[0];
-  if (!entry?.messaging?.[0]) return null;
+  const results = [];
+  const entries = body?.entry || [];
 
-  const event = entry.messaging[0];
-  const pageId = entry.id;
+  for (const entry of entries) {
+    if (!entry?.messaging) continue;
 
-  // Skip echo messages
-  if (event.message?.is_echo) return null;
+    for (const event of entry.messaging) {
+      const pageId = entry.id;
 
-  if (event.message) {
-    return {
-      type: "message",
-      senderId: event.sender?.id,
-      recipientId: event.recipient?.id,
-      pageId,
-      timestamp: event.timestamp,
-      messageId: event.message.mid,
-      text: event.message.text || null,
-      attachments: event.message.attachments || [],
-    };
+      // Skip echo messages
+      if (event.message?.is_echo) continue;
+
+      if (event.message) {
+        results.push({
+          type: "message",
+          senderId: event.sender?.id,
+          recipientId: event.recipient?.id,
+          pageId,
+          timestamp: event.timestamp,
+          messageId: event.message.mid,
+          text: event.message.text || null,
+          attachments: event.message.attachments || [],
+        });
+      }
+
+      if (event.postback) {
+        results.push({
+          type: "postback",
+          senderId: event.sender?.id,
+          recipientId: event.recipient?.id,
+          pageId,
+          timestamp: event.timestamp,
+          payload: event.postback.payload,
+          title: event.postback.title,
+        });
+      }
+    }
   }
 
-  if (event.postback) {
-    return {
-      type: "postback",
-      senderId: event.sender?.id,
-      recipientId: event.recipient?.id,
-      pageId,
-      timestamp: event.timestamp,
-      payload: event.postback.payload,
-      title: event.postback.title,
-    };
-  }
-
-  return null;
+  return results.length > 0 ? results : null;
 }

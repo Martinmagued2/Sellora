@@ -58,7 +58,7 @@ export async function POST(request) {
 
   // Verify the webhook signature securely
   if (!verifyMetaSignature(rawBody, signature, process.env.META_APP_SECRET)) {
-    console.error("Invalid Instagram webhook signature");
+    console.error("[IG-WEBHOOK] Invalid Instagram webhook signature");
     await logSecurityEvent({
       eventType: "invalid_hmac",
       ipAddress: ip,
@@ -77,51 +77,60 @@ export async function POST(request) {
 
   const parsed = parseInstagramWebhook(body);
 
-  if (!parsed || parsed.type !== "message") {
-    // Could be a postback, read receipt, etc. — acknowledge it
+  if (!parsed || parsed.length === 0) {
+    // Could be a read receipt, delivery receipt, etc. — acknowledge it
     return NextResponse.json({ status: "ok" });
   }
 
-  try {
-    // Look up the account that this page belongs to
-    const { data: account } = await getSupabase()
-      .from("accounts")
-      .select("instagram_access_token")
-      .eq("instagram_page_id", parsed.pageId)
-      .single();
-
-    if (!account?.instagram_access_token) {
-      console.error("No Instagram token found for page:", parsed.pageId);
-      return NextResponse.json({ status: "no_token" });
+  // Process ALL parsed events (handles batched webhooks)
+  for (const event of parsed) {
+    if (event.type !== "message") {
+      continue; // Skip postbacks and other non-message events
     }
 
-    // Try to get the sender's profile (name + pic)
-    const profile = await getUserProfile({
-      userId: parsed.senderId,
-      accessToken: account.instagram_access_token,
-    });
+    try {
+      // Look up the account that this page belongs to
+      const { data: account } = await getSupabase()
+        .from("accounts")
+        .select("instagram_access_token")
+        .eq("instagram_page_id", event.pageId)
+        .single();
 
-    // Extract media URLs from attachments
-    const mediaUrls = (parsed.attachments || [])
-      .filter((a) => a.type === "image" || a.type === "video")
-      .map((a) => a.payload?.url)
-      .filter(Boolean);
+      if (!account?.instagram_access_token) {
+        console.error("[IG-WEBHOOK] No Instagram token found for page:", event.pageId);
+        continue;
+      }
 
-    // Process through the shared pipeline
-    await processIncomingMessage({
-      senderId: parsed.senderId,
-      senderName: profile?.name || null,
-      senderProfilePic: profile?.profile_pic || null,
-      text: parsed.text,
-      mediaUrls,
-      channel: "instagram",
-      pageId: parsed.pageId,
-      platformMessageId: parsed.messageId,
-      accessToken: account.instagram_access_token,
-    });
+      // Try to get the sender's profile (name + pic)
+      const profile = await getUserProfile({
+        userId: event.senderId,
+        accessToken: account.instagram_access_token,
+      });
 
-  } catch (err) {
-    console.error("Error processing Instagram message:", err);
+      // Extract media URLs from attachments
+      const mediaUrls = (event.attachments || [])
+        .filter((a) => a.type === "image" || a.type === "video")
+        .map((a) => a.payload?.url)
+        .filter(Boolean);
+
+      // Process through the shared pipeline
+      await processIncomingMessage({
+        senderId: event.senderId,
+        senderName: profile?.name || null,
+        senderProfilePic: profile?.profile_pic || null,
+        text: event.text,
+        mediaUrls,
+        channel: "instagram",
+        pageId: event.pageId,
+        platformMessageId: event.messageId,
+        accessToken: account.instagram_access_token,
+      });
+
+      console.log(`[IG-WEBHOOK] Processed message from ${event.senderId}: "${event.text?.substring(0, 50)}..."`);
+
+    } catch (err) {
+      console.error("[IG-WEBHOOK] Error processing Instagram message:", err.message);
+    }
   }
 
   // Always return 200 to prevent Meta from retrying

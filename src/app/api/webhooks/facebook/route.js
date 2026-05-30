@@ -57,7 +57,7 @@ export async function POST(request) {
 
   // Verify the webhook signature securely
   if (!verifyMetaSignature(rawBody, signature, process.env.META_APP_SECRET)) {
-    console.error("Invalid Facebook webhook signature");
+    console.error("[FB-WEBHOOK] Invalid Facebook webhook signature");
     await logSecurityEvent({
       eventType: "invalid_hmac",
       ipAddress: ip,
@@ -76,50 +76,59 @@ export async function POST(request) {
 
   const parsed = parseFacebookWebhook(body);
 
-  if (!parsed || parsed.type !== "message") {
+  if (!parsed || parsed.length === 0) {
     return NextResponse.json({ status: "ok" });
   }
 
-  try {
-    // Look up the account that this page belongs to
-    const { data: account } = await getSupabase()
-      .from("accounts")
-      .select("facebook_access_token")
-      .eq("facebook_page_id", parsed.pageId)
-      .single();
-
-    if (!account?.facebook_access_token) {
-      console.error("No Facebook token found for page:", parsed.pageId);
-      return NextResponse.json({ status: "no_token" });
+  // Process ALL parsed events (handles batched webhooks)
+  for (const event of parsed) {
+    if (event.type !== "message") {
+      continue;
     }
 
-    // Try to get the sender's profile
-    const profile = await getUserProfile({
-      userId: parsed.senderId,
-      accessToken: account.facebook_access_token,
-    });
+    try {
+      // Look up the account that this page belongs to
+      const { data: account } = await getSupabase()
+        .from("accounts")
+        .select("facebook_access_token")
+        .eq("facebook_page_id", event.pageId)
+        .single();
 
-    // Extract media URLs from attachments
-    const mediaUrls = (parsed.attachments || [])
-      .filter((a) => a.type === "image" || a.type === "video")
-      .map((a) => a.payload?.url)
-      .filter(Boolean);
+      if (!account?.facebook_access_token) {
+        console.error("[FB-WEBHOOK] No Facebook token found for page:", event.pageId);
+        continue;
+      }
 
-    // Process through the shared pipeline
-    await processIncomingMessage({
-      senderId: parsed.senderId,
-      senderName: profile?.name || null,
-      senderProfilePic: profile?.profile_pic || null,
-      text: parsed.text,
-      mediaUrls,
-      channel: "facebook",
-      pageId: parsed.pageId,
-      platformMessageId: parsed.messageId,
-      accessToken: account.facebook_access_token,
-    });
+      // Try to get the sender's profile
+      const profile = await getUserProfile({
+        userId: event.senderId,
+        accessToken: account.facebook_access_token,
+      });
 
-  } catch (err) {
-    console.error("Error processing Facebook message:", err);
+      // Extract media URLs from attachments
+      const mediaUrls = (event.attachments || [])
+        .filter((a) => a.type === "image" || a.type === "video")
+        .map((a) => a.payload?.url)
+        .filter(Boolean);
+
+      // Process through the shared pipeline
+      await processIncomingMessage({
+        senderId: event.senderId,
+        senderName: profile?.name || null,
+        senderProfilePic: profile?.profile_pic || null,
+        text: event.text,
+        mediaUrls,
+        channel: "facebook",
+        pageId: event.pageId,
+        platformMessageId: event.messageId,
+        accessToken: account.facebook_access_token,
+      });
+
+      console.log(`[FB-WEBHOOK] Processed message from ${event.senderId}: "${event.text?.substring(0, 50)}..."`);
+
+    } catch (err) {
+      console.error("[FB-WEBHOOK] Error processing Facebook message:", err.message);
+    }
   }
 
   // Always return 200 to prevent Meta from retrying
