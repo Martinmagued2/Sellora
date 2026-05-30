@@ -318,6 +318,43 @@ export async function POST() {
       results.push("customers.last_contacted_at: OK");
     }
 
+    // ═══ Fix: Instagram page_id mismatch ═══
+    // The Instagram Messaging API uses the Facebook Page ID in webhooks,
+    // NOT the Instagram Business Account ID. If instagram_page_id doesn't
+    // match facebook_page_id for connected accounts, fix it.
+    try {
+      const { data: mismatchedAccounts } = await admin
+        .from("accounts")
+        .select("id, business_name, instagram_page_id, facebook_page_id, instagram_connected")
+        .eq("instagram_connected", true);
+
+      if (mismatchedAccounts && mismatchedAccounts.length > 0) {
+        let fixedCount = 0;
+        for (const acct of mismatchedAccounts) {
+          // If instagram_page_id is set but doesn't match facebook_page_id,
+          // it's likely storing the IG Business Account ID instead of the FB Page ID.
+          // Instagram webhooks use the Facebook Page ID, so they MUST match.
+          if (acct.instagram_page_id && acct.facebook_page_id &&
+              acct.instagram_page_id !== acct.facebook_page_id) {
+            console.log(`[DB-MIGRATE] Fixing instagram_page_id for "${acct.business_name}": ${acct.instagram_page_id} → ${acct.facebook_page_id}`);
+            await admin
+              .from("accounts")
+              .update({ instagram_page_id: acct.facebook_page_id })
+              .eq("id", acct.id);
+            fixedCount++;
+          }
+        }
+        results.push(fixedCount > 0
+          ? `Fixed instagram_page_id mismatch for ${fixedCount} account(s)`
+          : "instagram_page_id consistency: OK"
+        );
+      } else {
+        results.push("instagram_page_id consistency: OK (no connected accounts)");
+      }
+    } catch (fixErr) {
+      results.push(`NEEDS MANUAL: Fix instagram_page_id mismatch (${fixErr.message})`);
+    }
+
     return Response.json({ success: true, results });
   } catch (error) {
     console.error("[DB-Migrate] Error:", error.message);
