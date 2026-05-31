@@ -25,6 +25,7 @@ import {
   CheckCircle,
   AlertCircle,
   Info,
+  Shield,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import CopilotPanel from "./components/CopilotPanel";
@@ -57,6 +58,10 @@ const sidebarLinks = [
     ],
   },
 ];
+
+// Admin-only link (only shown for admin account)
+const ADMIN_ACCOUNT_IDS = ["e6a38229-7fd2-47a4-a28e-415dc76bfb46"];
+const adminLink = { href: "/admin", icon: Shield, label: "Admin Panel" };
 
 const pageTitles = {
   "/dashboard": "Dashboard",
@@ -247,6 +252,23 @@ export default function DashboardLayout({ children }) {
               })}
             </div>
           ))}
+          {/* Admin Panel Link - only visible to admin users */}
+          {user && ADMIN_ACCOUNT_IDS.includes(user.id) && (
+            <div className="sidebar-section">
+              <div className="sidebar-section-title">Admin</div>
+              <Link
+                href={adminLink.href}
+                className={`sidebar-link ${pathname?.startsWith("/admin") ? "active" : ""}`}
+                style={{ color: "var(--accent-orange)" }}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span className="sidebar-link-icon">
+                  <Shield size={18} />
+                </span>
+                {adminLink.label}
+              </Link>
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer">
