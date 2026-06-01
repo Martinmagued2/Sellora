@@ -5,7 +5,7 @@ import {
   Megaphone, Send, Instagram, Facebook, Phone, Users, RefreshCw, CheckCircle, AlertCircle,
 } from "lucide-react";
 
-const ADMIN_ACCOUNT_ID = "e6a38229-7fd2-47a4-a28e-415dc76bfb46";
+const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
 
 export default function AdminBroadcast() {
   const [message, setMessage] = useState("");

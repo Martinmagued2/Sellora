@@ -14,7 +14,7 @@ function getSupabase() {
 }
 
 // Admin account IDs (hardcoded for security)
-const ADMIN_ACCOUNT_IDS = ["e6a38229-7fd2-47a4-a28e-415dc76bfb46"];
+const ADMIN_ACCOUNT_IDS = ["0643bcc3-d5ef-43e1-a1be-0b36de04ef92"];
 
 async function verifyAdmin(request) {
   const adminKey = request.headers.get("x-admin-key");
