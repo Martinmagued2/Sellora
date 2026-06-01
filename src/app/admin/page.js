@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Users, MessageCircle, ShoppingBag, DollarSign, Bot, Activity,
-  TrendingUp, Instagram, Facebook, Phone,
+  TrendingUp, Camera, Globe2, Phone,
 } from "lucide-react";
 
 const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
@@ -85,8 +85,8 @@ export default function AdminOverview() {
   };
 
   const channelData = [
-    { name: "Instagram", count: conversations.byChannel.instagram, color: "#E1306C", Icon: Instagram },
-    { name: "Facebook", count: conversations.byChannel.facebook, color: "#1877F2", Icon: Facebook },
+    { name: "Instagram", count: conversations.byChannel.instagram, color: "#E1306C", Icon: Camera },
+    { name: "Facebook", count: conversations.byChannel.facebook, color: "#1877F2", Icon: Globe2 },
     { name: "WhatsApp", count: conversations.byChannel.whatsapp, color: "#25D366", Icon: Phone },
   ];
 

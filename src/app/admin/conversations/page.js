@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, X, MessageCircle, RefreshCw, Instagram, Facebook, Phone, Bot } from "lucide-react";
+import { Search, X, MessageCircle, RefreshCw, Camera, Globe2, Phone, Bot } from "lucide-react";
 
 const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
 
@@ -70,8 +70,8 @@ export default function AdminConversations() {
   };
 
   const channelIcons = {
-    instagram: <Instagram size={12} />,
-    facebook: <Facebook size={12} />,
+    instagram: <Camera size={12} />,
+    facebook: <Globe2 size={12} />,
     whatsapp: <Phone size={12} />,
   };
 
