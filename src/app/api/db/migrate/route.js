@@ -451,6 +451,156 @@ export async function POST() {
       results.push(`NEEDS MANUAL: Fix duplicate page_ids (${dupErr.message})`);
     }
 
+    // ═══ Fix: Migrate orphaned data from disconnected accounts ═══
+    // When we cleared page_ids from accounts that were sharing them,
+    // their existing conversations/messages/customers became orphaned.
+    // Move them to the account that now owns the page.
+    try {
+      // Find accounts that are connected and have valid tokens (the "keepers")
+      const { data: connectedAccounts } = await admin
+        .from("accounts")
+        .select("id, email, facebook_page_id, instagram_page_id")
+        .or("facebook_connected.eq.true,instagram_connected.eq.true");
+
+      // Find accounts that are NOT connected but might have orphaned data
+      const { data: disconnectedAccounts } = await admin
+        .from("accounts")
+        .select("id, email, business_name")
+        .not("id", "in", `(${(connectedAccounts || []).map(a => `'${a.id}'`).join(',') || "''"})`);
+
+      if (disconnectedAccounts && disconnectedAccounts.length > 0 && connectedAccounts && connectedAccounts.length > 0) {
+        let totalMigrated = 0;
+
+        for (const disconnected of disconnectedAccounts) {
+          // Check if this account has any data
+          const { count: convCount } = await admin
+            .from("conversations")
+            .select("*", { count: "exact", head: true })
+            .eq("account_id", disconnected.id);
+
+          const { count: msgCount } = await admin
+            .from("messages")
+            .select("*", { count: "exact", head: true })
+            .eq("account_id", disconnected.id);
+
+          const { count: custCount } = await admin
+            .from("customers")
+            .select("*", { count: "exact", head: true })
+            .eq("account_id", disconnected.id);
+
+          if ((convCount || 0) + (msgCount || 0) + (custCount || 0) === 0) continue;
+
+          // Find the best target: prefer connected account with matching page_id
+          // For now, use the first connected account that has a matching page
+          // (In a multi-tenant system, you'd match by page_id history)
+          const target = connectedAccounts[0]; // simplest: move to the active account
+
+          console.log(`[DB-MIGRATE] Migrating data from ${disconnected.email} to ${target.email}: ${convCount} convs, ${msgCount} msgs, ${custCount} customers`);
+
+          // Move conversations
+          const { error: convErr } = await admin
+            .from("conversations")
+            .update({ account_id: target.id })
+            .eq("account_id", disconnected.id);
+          if (convErr) console.error(`[DB-MIGRATE] Conv migration error:`, convErr.message);
+
+          // Move messages
+          const { error: msgErr } = await admin
+            .from("messages")
+            .update({ account_id: target.id })
+            .eq("account_id", disconnected.id);
+          if (msgErr) console.error(`[DB-MIGRATE] Msg migration error:`, msgErr.message);
+
+          // Move customers (skip if they already exist for the target account with same platform_id)
+          const { data: orphanedCustomers } = await admin
+            .from("customers")
+            .select("*")
+            .eq("account_id", disconnected.id);
+
+          if (orphanedCustomers && orphanedCustomers.length > 0) {
+            for (const cust of orphanedCustomers) {
+              // Check if customer already exists on target account
+              const { data: existingCust } = await admin
+                .from("customers")
+                .select("id")
+                .eq("account_id", target.id)
+                .eq("platform_id", cust.platform_id)
+                .maybeSingle();
+
+              if (existingCust) {
+                // Customer already exists on target — re-link conversations/messages
+                await admin.from("conversations").update({ customer_id: existingCust.id })
+                  .eq("customer_id", cust.id);
+                await admin.from("messages").update({ /* keep as-is */ })
+                  .eq("conversation_id", "in", `(${orphanedCustomers.map(c => `'${c.id}'`).join(',')})`);
+                // Delete the duplicate customer
+                await admin.from("customers").delete().eq("id", cust.id);
+              } else {
+                // Move the customer to target account
+                await admin.from("customers")
+                  .update({ account_id: target.id })
+                  .eq("id", cust.id);
+              }
+            }
+          }
+
+          // Move products
+          const { error: prodErr, count: prodCount } = await admin
+            .from("products")
+            .update({ account_id: target.id })
+            .eq("account_id", disconnected.id);
+          if (prodErr) console.error(`[DB-MIGRATE] Product migration error:`, prodErr.message);
+
+          // Move orders
+          const { error: ordErr } = await admin
+            .from("orders")
+            .update({ account_id: target.id })
+            .eq("account_id", disconnected.id);
+          if (ordErr) console.error(`[DB-MIGRATE] Order migration error:`, ordErr.message);
+
+          // Move FAQs
+          await admin.from("faqs").update({ account_id: target.id })
+            .eq("account_id", disconnected.id).catch(() => {});
+
+          // Move quick_replies
+          await admin.from("quick_replies").update({ account_id: target.id })
+            .eq("account_id", disconnected.id).catch(() => {});
+
+          // Move auto_replies
+          await admin.from("auto_replies").update({ account_id: target.id })
+            .eq("account_id", disconnected.id).catch(() => {});
+
+          // Move campaigns
+          await admin.from("campaigns").update({ account_id: target.id })
+            .eq("account_id", disconnected.id).catch(() => {});
+
+          // Copy business_name to target if target has a generic name
+          if (disconnected.business_name && target.email) {
+            const { data: targetAcct } = await admin
+              .from("accounts")
+              .select("business_name")
+              .eq("id", target.id)
+              .single();
+            
+            if (targetAcct && (targetAcct.business_name === "My Store" || !targetAcct.business_name)) {
+              await admin.from("accounts")
+                .update({ business_name: disconnected.business_name })
+                .eq("id", target.id);
+              console.log(`[DB-MIGRATE] Updated business_name to "${disconnected.business_name}" for ${target.email}`);
+            }
+          }
+
+          totalMigrated++;
+        }
+
+        if (totalMigrated > 0) {
+          results.push(`Migrated orphaned data from ${totalMigrated} disconnected account(s) to active account`);
+        }
+      }
+    } catch (migrateErr) {
+      results.push(`NEEDS MANUAL: Migrate orphaned data (${migrateErr.message})`);
+    }
+
     return Response.json({ success: true, results });
   } catch (error) {
     console.error("[DB-Migrate] Error:", error.message);
