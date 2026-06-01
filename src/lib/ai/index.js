@@ -206,10 +206,24 @@ export async function generateAIReply({
       }
     }
 
-    return { reply: text || null, intent, sentiment, toolCalls };
+    // 5.5. Check for escalation tag in AI reply
+    let needsHumanAttention = false;
+    let escalationReason = null;
+    if (text) {
+      const escalateMatch = text.match(/\[ESCALATE:\s*(.+?)\]/i);
+      if (escalateMatch) {
+        needsHumanAttention = true;
+        escalationReason = escalateMatch[1].trim();
+        // Remove the escalation tag from the customer-facing reply
+        text = text.replace(/\[ESCALATE:\s*.+?\]/gi, '').trim();
+        console.log(`[generateAIReply] AI escalated: ${escalationReason}`);
+      }
+    }
+
+    return { reply: text || null, intent, sentiment, toolCalls, needsHumanAttention, escalationReason };
   } catch (err) {
     console.error("Error generating AI reply:", err);
-    return { reply: null, intent: "general", sentiment: "neutral", toolCalls: null };
+    return { reply: null, intent: "general", sentiment: "neutral", toolCalls: null, needsHumanAttention: false, escalationReason: null };
   }
 }
 

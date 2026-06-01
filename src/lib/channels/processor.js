@@ -675,8 +675,82 @@ export async function processIncomingMessage({
             }
 
             console.log(`[PROCESSOR] AI auto-reply generated and ${deliverySuccess ? 'delivered' : 'saved (delivery failed)'} for conversation ${conversation.id}`);
-          }
-        }
+
+            // ─── Step 10c: Handle AI Escalation (notify owner) ───
+            if (aiResult.needsHumanAttention && aiResult.escalationReason) {
+              try {
+                console.log(`[PROCESSOR] AI ESCALATION detected for conversation ${conversation.id}: ${aiResult.escalationReason}`);
+
+                // 1. Update conversation status to "needs_attention" and add escalation tag
+                const currentTags = conversation.tags || [];
+                const escalationTag = "escalated:ai";
+                const reasonTag = `escalation:${aiResult.escalationReason.substring(0, 50)}`;
+                const newTags = [...new Set([...currentTags, escalationTag, reasonTag])];
+
+                await getSupabase()
+                  .from("conversations")
+                  .update({
+                    status: "needs_attention",
+                    tags: newTags,
+                  })
+                  .eq("id", conversation.id);
+
+                // 2. Store escalation notification for the owner
+                await getSupabase().from("notifications").insert({
+                  account_id: account.id,
+                  type: "ai_escalation",
+                  title: "AI Needs Your Help",
+                  message: `Customer "${customer.name || 'Unknown'}" in a ${channel} conversation needs human attention: ${aiResult.escalationReason}`,
+                  data: {
+                    conversation_id: conversation.id,
+                    customer_id: customer.id,
+                    customer_name: customer.name,
+                    channel: channel,
+                    escalation_reason: aiResult.escalationReason,
+                    original_message: text?.substring(0, 200),
+                    ai_reply_preview: aiReply?.substring(0, 200),
+                    intent: aiResult.intent,
+                    sentiment: aiResult.sentiment,
+                  },
+                  read: false,
+                });
+
+                // 3. Send email notification to the owner (best-effort)
+                try {
+                  const { data: accountEmail } = await getSupabase()
+                    .from("accounts")
+                    .select("email, notify_escalations")
+                    .eq("id", account.id)
+                    .single();
+
+                  if (accountEmail?.notify_escalations !== false) {
+                    // Fire and forget — don't block the pipeline
+                    fetch(`${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''}/api/notifications/email`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        accountId: account.id,
+                        type: "ai_escalation",
+                        to: accountEmail?.email,
+                        customerName: customer.name || "A customer",
+                        channel,
+                        reason: aiResult.escalationReason,
+                        conversationId: conversation.id,
+                      }),
+                    }).catch(() => {}); // Silently ignore email failures
+                  }
+                } catch (emailErr) {
+                  // Email notification failure should not block anything
+                  console.warn(`[PROCESSOR] Escalation email failed:`, emailErr.message);
+                }
+
+                console.log(`[PROCESSOR] Escalation notification stored for account ${account.id}, conversation ${conversation.id}`);
+              } catch (escalationErr) {
+                console.error(`[PROCESSOR] Failed to process AI escalation:`, escalationErr.message);
+              }
+            }
+          } // end if aiResult.reply
+        } // end else (not rate limited)
       } catch (aiErr) {
         // AI failure should never break message processing
         console.error(`[PROCESSOR] AI auto-reply FAILED for account ${account?.id}:`, aiErr.message);

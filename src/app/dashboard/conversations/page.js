@@ -7,7 +7,7 @@ import {
   ChevronRight, Camera, Globe, Clock, User, Mail,
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
-  Megaphone,
+  Megaphone, AlertTriangle, BellOff,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -32,6 +32,7 @@ const CHANNEL_ICON = {
 const STATUS_OPTIONS = [
   { value: "new", label: "New", color: "var(--accent-secondary)" },
   { value: "in_progress", label: "In Progress", color: "var(--accent-primary-light)" },
+  { value: "needs_attention", label: "Needs Attention", color: "#e74c3c" },
   { value: "waiting_customer", label: "Waiting", color: "var(--accent-orange)" },
   { value: "closed", label: "Closed", color: "var(--text-tertiary)" },
 ];
@@ -773,6 +774,12 @@ export default function ConversationsPage() {
                       background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
                     }}>🔴</span>
                   )}
+                  {(conv.tags || []).some(t => t.startsWith("escalated:")) && (
+                    <span style={{
+                      fontSize: 9, padding: "1px 6px", borderRadius: 6, fontWeight: 600,
+                      background: "rgba(231, 76, 60, 0.15)", color: "#e74c3c", display: "inline-flex", alignItems: "center", gap: 2,
+                    }}>🤖<AlertTriangle size={9} /> Escalated</span>
+                  )}
                 </div>
               </div>
 
@@ -846,6 +853,19 @@ export default function ConversationsPage() {
                     border: "1px solid rgba(255, 82, 82, 0.3)",
                   }}>
                     🔴 {(activeConv.tags || []).find(t => t.startsWith("sentiment:"))?.replace("sentiment:", "") || "Negative"}
+                  </span>
+                )}
+                {/* AI Escalation indicator */}
+                {(activeConv.tags || []).some(t => t.startsWith("escalated:")) && (
+                  <span style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                    background: "linear-gradient(135deg, rgba(231, 76, 60, 0.15), rgba(192, 57, 43, 0.15))",
+                    color: "#e74c3c",
+                    border: "1px solid rgba(231, 76, 60, 0.4)",
+                    animation: "pulse 2s ease-in-out infinite",
+                  }}>
+                    <AlertTriangle size={12} /> AI Escalated — Needs Human
                   </span>
                 )}
                 {/* Summarize button */}

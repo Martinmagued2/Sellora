@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import {
   Settings, User, MessageCircle, Bot, Bell, Globe, Shield, Smartphone,
   Save, Check, Plus, X, Upload, Link as LinkIcon, Zap, ToggleLeft, ToggleRight, Loader2,
-  Webhook, UsersRound, Trash2, Crown, Lock, HelpCircle, Clock, Edit, AlertCircle
+  Webhook, UsersRound, Trash2, Crown, Lock, HelpCircle, Clock, Edit, AlertCircle, AlertTriangle
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -38,7 +38,7 @@ function SettingsContent() {
   const [account, setAccount] = useState({
     business_name: "", business_description: "", industry: "",
     email: "", phone: "", country: "", currency: "",
-    ai_enabled: true, ai_personality: "",
+    ai_enabled: true, ai_personality: "", notify_escalations: true,
   });
 
   // Webhooks state
@@ -217,6 +217,7 @@ function SettingsContent() {
       currency: account.currency,
       ai_enabled: account.ai_enabled,
       ai_personality: account.ai_personality,
+      notify_escalations: account.notify_escalations !== false,
       instagram_url: account.instagram_url,
       facebook_url: account.facebook_url,
       website_url: account.website_url,
@@ -779,6 +780,26 @@ function SettingsContent() {
                 <div className="form-group">
                   <label className="form-label">AI Personality / Brand Voice</label>
                   <textarea className="form-input form-textarea" value={account.ai_personality || ""} onChange={(e) => updateField('ai_personality', e.target.value)} placeholder="e.g. Friendly, professional, and helpful. Use emojis sparingly." />
+                </div>
+
+                {/* AI Escalation Notification Toggle */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "var(--space-lg)", background: "var(--bg-glass)",
+                  borderRadius: "var(--radius-md)", marginTop: "var(--space-lg)",
+                  border: "1px solid var(--border-subtle)",
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                      <AlertTriangle size={14} style={{ color: "#e74c3c" }} /> AI Escalation Alerts
+                    </div>
+                    <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+                      Get notified when the AI can't handle a conversation and needs human intervention (angry customers, refund requests, complex issues)
+                    </div>
+                  </div>
+                  <div style={{ color: account.notify_escalations !== false ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }} onClick={() => updateField('notify_escalations', account.notify_escalations === false)}>
+                    {account.notify_escalations !== false ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+                  </div>
                 </div>
 
                 <div style={{ marginTop: "var(--space-lg)" }}>
