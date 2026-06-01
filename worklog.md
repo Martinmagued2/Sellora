@@ -131,3 +131,28 @@ Stage Summary:
 - All 4 Phase 2 features are complete and pushed to GitHub
 - Key files: 016_messaging_enhancements.sql, broadcast-logs/route.js, campaigns/page.js, settings/page.js, whatsapp/index.js, processor.js, auto-greeting/route.js, quick-replies/route.js, db/migrate/route.js
 - Commit: 11f0bd1 (Phase 2 features), ef5aca8 (migration endpoint)
+---
+Task ID: 1
+Agent: main
+Task: Fix incoming Facebook messages not visible and AI auto-response not working
+
+Work Log:
+- Identified root cause: Two accounts (tinomagued@gmail.com and sellora.mail.app@gmail.com) shared the same facebook_page_id "1173082489214459"
+- When webhook queried .eq("facebook_page_id", pageId).single(), Supabase returned 2 rows and threw error, causing ALL incoming Facebook messages to be silently dropped
+- Fixed unified webhook handler (route.js) to use array query + prefer account with valid token instead of .single()
+- Fixed standalone Facebook webhook (webhooks/facebook/route.js) with same pattern
+- Fixed standalone Instagram webhook (webhooks/instagram/route.js) with same pattern
+- Updated processor.js to accept optional accountId parameter to avoid re-resolving duplicates
+- Added duplicate page_id cleanup to db/migrate/route.js - keeps account with valid token, clears others
+- Added stale connected flags cleanup - accounts marked connected=true but with no page_id/token
+- Pushed changes and ran migration: "Fixed 2 duplicate page_id(s)" and "Fixed 1 account(s) with stale connected flags"
+- Verified debug endpoint shows zero issues
+- Test incoming message endpoint works correctly
+
+Stage Summary:
+- Root cause: Duplicate facebook_page_id across accounts caused .single() to fail
+- Fix: Replace .single() with array query + token-based account selection
+- Fix: Pass accountId from webhook to processor for consistency
+- Fix: Auto-cleanup duplicate page_ids and stale connected flags via migration
+- tinomagued@gmail.com now the sole owner of facebook_page_id "1173082489214459"
+- All webhook handlers now handle duplicate page_ids gracefully
