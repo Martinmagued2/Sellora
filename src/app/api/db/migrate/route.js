@@ -318,6 +318,38 @@ export async function POST() {
       results.push("customers.last_contacted_at: OK");
     }
 
+    // ═══ Migration 017: Business Policies ═══
+    const { error: testPoliciesErr } = await admin
+      .from("business_policies")
+      .select("id")
+      .limit(1);
+
+    if (testPoliciesErr && (testPoliciesErr.message?.includes("relation") || testPoliciesErr.code === "42P01")) {
+      results.push(await tryExecSql(
+        admin,
+        `CREATE TABLE IF NOT EXISTS business_policies (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          category TEXT DEFAULT 'General' CHECK (category IN ('Returns & Refunds', 'Shipping & Delivery', 'Exchange', 'Payment', 'Privacy', 'Terms of Service', 'Warranty', 'Cancellation', 'General')),
+          is_active BOOLEAN DEFAULT TRUE,
+          sort_order INTEGER DEFAULT 0,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_business_policies_account ON business_policies(account_id);
+        CREATE INDEX IF NOT EXISTS idx_business_policies_active ON business_policies(account_id, is_active);
+        ALTER TABLE business_policies ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Users can manage own business_policies" ON business_policies;
+        CREATE POLICY "Users can manage own business_policies" ON business_policies FOR ALL USING (account_id = auth.uid());`,
+        "Created business_policies table",
+        "Create business_policies table (see migration 017)"
+      ));
+    } else {
+      results.push("business_policies table: OK");
+    }
+
     // ═══ Fix: Instagram page_id mismatch ═══
     // The Instagram Messaging API uses the Facebook Page ID in webhooks,
     // NOT the Instagram Business Account ID. If instagram_page_id doesn't
