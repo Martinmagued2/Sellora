@@ -222,7 +222,7 @@ export default function ConversationsPage() {
     return () => clearInterval(interval);
   }, [fetchConversations]);
 
-  // ─── Real-time subscription ───
+  // ─── Real-time: New message in active conversation ───
   useEffect(() => {
     if (!activeConv) return;
     const channel = supabase
@@ -233,12 +233,56 @@ export default function ConversationsPage() {
         table: "messages",
         filter: `conversation_id=eq.${activeConv.id}`,
       }, (payload) => {
-        setMessages((prev) => [...prev, payload.new]);
+        setMessages((prev) => {
+          // Avoid duplicates (real-time + fetchMessages race)
+          if (prev.some((m) => m.id === payload.new.id)) return prev;
+          return [...prev, payload.new];
+        });
+        // Refresh conversation list to update last message preview
+        fetchConversations();
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [activeConv]);
+  }, [activeConv, fetchConversations]);
+
+  // ─── Real-time: New conversation created (incoming message from new user) ───
+  useEffect(() => {
+    let channel;
+    let userId = null;
+
+    const setup = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      userId = user.id;
+
+      channel = supabase
+        .channel("conversations:global")
+        .on("postgres_changes", {
+          event: "INSERT",
+          schema: "public",
+          table: "conversations",
+          filter: `account_id=eq.${userId}`,
+        }, () => {
+          fetchConversations();
+        })
+        .on("postgres_changes", {
+          event: "UPDATE",
+          schema: "public",
+          table: "conversations",
+          filter: `account_id=eq.${userId}`,
+        }, () => {
+          fetchConversations();
+        })
+        .subscribe();
+    };
+
+    setup();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [fetchConversations]);
 
   // ─── Send message ───
   const handleSend = async (e) => {
