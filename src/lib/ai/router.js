@@ -76,6 +76,21 @@ Use "urgent" sentiment for angry, very frustrated, or threatening messages.`;
       }
     }
 
+    // NVIDIA NIM — free tier with top-tier models
+    if (process.env.NVIDIA_API_KEY) {
+      try {
+        const nvidia = createOpenAI({
+          apiKey: process.env.NVIDIA_API_KEY,
+          baseURL: process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
+          compatibility: "compatible",
+        });
+        providers.push({ name: 'nvidia-llama33-70b', model: nvidia("meta/llama-3.3-70b-instruct") });
+        providers.push({ name: 'nvidia-mistral-large', model: nvidia("mistralai/mistral-large-2-instruct") });
+      } catch (e) {
+        console.warn("NVIDIA routing setup failed:", e?.message);
+      }
+    }
+
     // Try each provider until one works
     for (const provider of providers) {
       try {

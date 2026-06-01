@@ -161,6 +161,20 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
       providerModels.push({ name: 'openai', model: openai('gpt-4o-mini') });
     }
 
+    // NVIDIA NIM — free tier: 1,000 credits, 40 req/min
+    // Top models: Llama 3.3 70B, Nemotron 70B, DeepSeek R1, Mistral Large 2
+    if (process.env.NVIDIA_API_KEY) {
+      const nvidia = createOpenAI({
+        apiKey: process.env.NVIDIA_API_KEY,
+        baseURL: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+        compatibility: 'compatible',
+      });
+      providerModels.push({ name: 'nvidia-llama33-70b', model: nvidia('meta/llama-3.3-70b-instruct') });
+      providerModels.push({ name: 'nvidia-nemotron-70b', model: nvidia('nvidia/llama-3.1-nemotron-70b-instruct') });
+      providerModels.push({ name: 'nvidia-deepseek-r1', model: nvidia('deepseek-ai/deepseek-r1') });
+      providerModels.push({ name: 'nvidia-mistral-large', model: nvidia('mistralai/mistral-large-2-instruct') });
+    }
+
     if (providerModels.length === 0) {
       return Response.json({ error: 'AI is not configured. Please add GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file.' }, { status: 500 });
     }

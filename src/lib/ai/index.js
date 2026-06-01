@@ -11,6 +11,203 @@ const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
   : null;
 
+// ─── Vision AI: Analyze images sent by customers ───
+// Uses vision-capable models to understand image content and generate
+// contextual AI replies. Fallback chain: Google Gemini → NVIDIA NIM Vision
+
+/**
+ * Analyze an image URL and return a text description of what's in it.
+ * This is used when customers send photos (products, issues, etc.)
+ * so the AI can respond contextually instead of ignoring the image.
+ * 
+ * @param {string} imageUrl - URL of the image to analyze
+ * @param {string} context - Optional context (e.g., "customer asking about this product")
+ * @returns {string} - Description of the image content
+ */
+export async function analyzeImage(imageUrl, context = "") {
+  try {
+    // ─── Attempt 1: Google Gemini Vision ───
+    // Gemini has native multimodal support and is fast
+    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) {
+      try {
+        console.log(`[Vision] Analyzing image with Gemini: ${imageUrl.substring(0, 80)}...`);
+        const { generateText: geminiGenerate } = await import("ai");
+        const result = await geminiGenerate({
+          model: google("gemini-2.0-flash"),
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: `Analyze this image in detail. ${context ? `Context: ${context}.` : ""} Describe what you see — products, objects, people, text, issues, or anything relevant for a customer service chat. Be specific about product details (colors, sizes, types) if visible.` },
+              { type: "image", image: imageUrl },
+            ],
+          }],
+          maxTokens: 300,
+        });
+        if (result.text && result.text.trim()) {
+          console.log(`[Vision] ✅ Gemini analyzed image: ${result.text.substring(0, 100)}...`);
+          return result.text.trim();
+        }
+      } catch (geminiErr) {
+        console.warn(`[Vision] Gemini failed: ${geminiErr.message?.substring(0, 150)}`);
+      }
+    }
+
+    // ─── Attempt 2: NVIDIA NIM Vision (Llama 3.2 90B Vision) ───
+    // Free on NVIDIA Build, excellent vision model
+    if (process.env.NVIDIA_API_KEY) {
+      try {
+        console.log(`[Vision] Analyzing image with NVIDIA Llama 3.2 90B Vision...`);
+        const nvidia = createOpenAI({
+          apiKey: process.env.NVIDIA_API_KEY,
+          baseURL: process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
+          compatibility: "compatible",
+        });
+
+        // Download image and convert to base64 for NVIDIA API
+        const imgResp = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+        if (imgResp.ok) {
+          const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+          const base64 = imgBuf.toString("base64");
+          const mimeType = imgResp.headers.get("content-type") || "image/jpeg";
+
+          const result = await generateText({
+            model: nvidia("meta/llama-3.2-90b-vision-instruct"),
+            messages: [{
+              role: "user",
+              content: [
+                { type: "text", text: `Analyze this image in detail. ${context ? `Context: ${context}.` : ""} Describe what you see — products, objects, people, text, issues, or anything relevant for a customer service chat. Be specific about product details (colors, sizes, types) if visible.` },
+                { type: "image", image: `data:${mimeType};base64,${base64}` },
+              ],
+            }],
+            maxTokens: 300,
+          });
+
+          if (result.text && result.text.trim()) {
+            console.log(`[Vision] ✅ NVIDIA Vision analyzed image: ${result.text.substring(0, 100)}...`);
+            return result.text.trim();
+          }
+        }
+      } catch (nvidiaErr) {
+        console.warn(`[Vision] NVIDIA Vision failed: ${nvidiaErr.message?.substring(0, 150)}`);
+      }
+    }
+
+    // ─── Attempt 3: Google Gemini REST API (fallback for vision) ───
+    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      try {
+        console.log(`[Vision] Trying Gemini REST API for image analysis...`);
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: `Analyze this image in detail. ${context ? `Context: ${context}.` : ""} Describe what you see — products, objects, people, text, issues, or anything relevant for a customer service chat.` },
+                  { file_data: { mime_type: "image/jpeg", file_uri: imageUrl } },
+                ],
+              }],
+              generationConfig: { maxOutputTokens: 300 },
+            }),
+            signal: AbortSignal.timeout(20000),
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text && text.trim()) {
+            console.log(`[Vision] ✅ Gemini REST analyzed image: ${text.substring(0, 100)}...`);
+            return text.trim();
+          }
+        }
+      } catch (restErr) {
+        console.warn(`[Vision] Gemini REST failed: ${restErr.message?.substring(0, 150)}`);
+      }
+    }
+
+    console.warn("[Vision] All vision models failed — no image analysis available");
+    return null;
+  } catch (err) {
+    console.error("[Vision] Image analysis error:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Generate an AI reply when the customer sent an image.
+ * Analyzes the image first, then generates a contextual reply.
+ * 
+ * @param {Object} params - Same as generateAIReply, plus:
+ * @param {string[]} params.mediaUrls - URLs of images sent by customer
+ * @returns {Object} - Same as generateAIReply
+ */
+export async function generateAIReplyWithVision({
+  accountId,
+  customerId,
+  customerMessage,
+  customerName,
+  personality,
+  country = "Egypt",
+  businessName = "My Store",
+  conversationHistory = [],
+  plan = "starter",
+  mediaUrls = [],
+}) {
+  try {
+    // 1. Analyze all images first
+    const imageDescriptions = [];
+    for (const url of mediaUrls) {
+      const desc = await analyzeImage(url, `Customer "${customerName || "Unknown"}" sent this image in a chat with "${businessName}" store`);
+      if (desc) {
+        imageDescriptions.push(desc);
+      }
+    }
+
+    // 2. Build enhanced message with image context
+    let enhancedMessage = customerMessage || "";
+    if (imageDescriptions.length > 0) {
+      enhancedMessage += `\n\n[IMAGE ANALYSIS: The customer sent ${imageDescriptions.length === 1 ? "an image" : imageDescriptions.length + " images"}. Here is what the AI vision model detected:]\n${imageDescriptions.map((d, i) => `Image ${i + 1}: ${d}`).join("\n")}\n[Based on the image analysis above, respond to the customer appropriately. If they're asking about a product in the image, help them. If they're showing an issue, offer support.]`;
+    }
+
+    // 3. Generate AI reply using the enhanced message
+    const result = await generateAIReply({
+      accountId,
+      customerId,
+      customerMessage: enhancedMessage,
+      customerName,
+      personality,
+      country,
+      businessName,
+      conversationHistory,
+      plan,
+    });
+
+    // Tag the result as having used vision
+    if (imageDescriptions.length > 0) {
+      result.usedVision = true;
+      result.imageDescriptions = imageDescriptions;
+    }
+
+    return result;
+  } catch (err) {
+    console.error("[Vision] generateAIReplyWithVision error:", err.message);
+    // Fallback to regular reply without vision
+    return generateAIReply({
+      accountId,
+      customerId,
+      customerMessage,
+      customerName,
+      personality,
+      country,
+      businessName,
+      conversationHistory,
+      plan,
+    });
+  }
+}
+
 // Supabase client for fetching context (lazy-initialized)
 let _supabase = null;
 function getSupabase() {
@@ -36,6 +233,28 @@ function buildProviderChain() {
       compatibility: "compatible",
     });
     providers.push({ name: 'vectorengine', model: customOpenAI("gpt-5.5-pro") });
+  }
+
+  // NVIDIA NIM — free tier: 1,000 credits, 40 req/min
+  // Top models: Llama 3.3 70B, DeepSeek R1, Nemotron 70B, Mistral Large 2, Qwen 2.5
+  if (process.env.NVIDIA_API_KEY) {
+    try {
+      const nvidia = createOpenAI({
+        apiKey: process.env.NVIDIA_API_KEY,
+        baseURL: process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
+        compatibility: "compatible",
+      });
+      // Primary NVIDIA model — Llama 3.3 70B (excellent for sales/support)
+      providers.push({ name: 'nvidia-llama33-70b', model: nvidia("meta/llama-3.3-70b-instruct") });
+      // Fallback — Nemotron 70B (NVIDIA's fine-tuned Llama, great instruction following)
+      providers.push({ name: 'nvidia-nemotron-70b', model: nvidia("nvidia/llama-3.1-nemotron-70b-instruct") });
+      // Heavy-duty — DeepSeek R1 (advanced reasoning for complex queries)
+      providers.push({ name: 'nvidia-deepseek-r1', model: nvidia("deepseek-ai/deepseek-r1") });
+      // Fast — Mistral Large 2 (good for quick routing/classification)
+      providers.push({ name: 'nvidia-mistral-large', model: nvidia("mistralai/mistral-large-2-instruct") });
+    } catch (e) {
+      console.warn("[AI] NVIDIA NIM setup failed:", e?.message);
+    }
   }
 
   if (process.env.GROQ_API_KEY) {

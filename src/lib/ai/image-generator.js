@@ -12,11 +12,12 @@ const execFileAsync = promisify(execFile);
 /**
  * Shared image generation utility with automatic fallback chain:
  *
- * 1. Gemini 2.5 Flash Image Generation (uses GOOGLE_GENERATIVE_AI_API_KEY)
- * 2. ZAI SDK (works on the deployed platform)
- * 3. z-ai-generate CLI tool (works on server environments)
- * 4. Together AI FLUX.1-schnell-Free (high quality, free key from together.ai)
- * 5. Pollinations.ai (free, no key needed, decent quality with flux-realism)
+ * 1. fal.ai FLUX.1 [dev] (best quality, $10 free credits, fal.ai)
+ * 2. Gemini 2.5 Flash Image Generation (uses GOOGLE_GENERATIVE_AI_API_KEY)
+ * 3. ZAI SDK (works on the deployed platform)
+ * 4. z-ai-generate CLI tool (works on server environments)
+ * 5. Together AI FLUX.1-schnell-Free (high quality, free key from together.ai)
+ * 6. Pollinations.ai (free, no key needed, decent quality with flux-realism)
  *
  * Returns: { success: true, imageBase64, source }
  */
@@ -38,7 +39,58 @@ const GEMINI_IMAGE_MODELS = [
 export async function generateProductImage(prompt, options = {}) {
   const size = options.size || "1024x1024";
 
-  // ─── Attempt 1: Gemini Image Generation (via REST API) ───
+  // ─── Attempt 1: fal.ai FLUX.1 [dev] (Best Quality) ───
+  // fal.ai offers $10 free credits on signup. FLUX.1 [dev] produces
+  // stunning, photorealistic product images — far superior to schnell/free.
+  // Sign up at https://fal.ai and get your key from Dashboard → API Keys
+  const falApiKey = process.env.FAL_API_KEY;
+  if (falApiKey) {
+    try {
+      console.log("[ImageGen] Trying fal.ai FLUX.1 [dev]...");
+      const [width, height] = size.split("x").map(Number);
+
+      const response = await fetch("https://queue.fal.run/fal-ai/flux/dev", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Key ${falApiKey}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          image_size: `${width || 1024}x${height || 1024}`,
+          num_inference_steps: 28,
+          guidance_scale: 3.5,
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const imageUrl = data?.images?.[0]?.url;
+
+        if (imageUrl) {
+          // Download the image from fal.ai CDN
+          const imgResp = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
+          if (imgResp.ok) {
+            const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+            const imageBase64 = imgBuf.toString("base64");
+            console.log(`[ImageGen] ✅ Image generated via fal.ai FLUX.1 [dev] (${(imgBuf.length / 1024).toFixed(0)}KB)`);
+            return { success: true, imageBase64, source: "fal-flux-dev" };
+          }
+        }
+        console.warn("[ImageGen] fal.ai returned no image URL in response");
+      } else {
+        const errorText = await response.text().catch(() => "Unknown error");
+        console.warn(`[ImageGen] fal.ai returned ${response.status}: ${errorText.substring(0, 200)}`);
+      }
+    } catch (falError) {
+      console.warn("[ImageGen] fal.ai failed:", falError.message?.substring(0, 200));
+    }
+  } else {
+    console.log("[ImageGen] No FAL_API_KEY — add a free key from https://fal.ai for best-quality FLUX images");
+  }
+
+  // ─── Attempt 2: Gemini Image Generation (via REST API) ───
   // Uses the existing GOOGLE_GENERATIVE_AI_API_KEY.
   // Note: Image generation models may not be available in all regions.
   // The SDK uses v1beta which may not list these models, so we call REST directly.

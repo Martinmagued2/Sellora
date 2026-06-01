@@ -8,7 +8,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
-import { generateAIReply, analyzeIntent } from "@/lib/ai";
+import { generateAIReply, generateAIReplyWithVision, analyzeIntent } from "@/lib/ai";
 import { sendMessage } from "@/lib/channels/meta";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -528,8 +528,9 @@ export async function processIncomingMessage({
     }
 
     // ─── 10. AI Auto-Reply (with rate limiting + error handling) ───
-    console.log(`[PROCESSOR] AI check: ai_enabled=${account.ai_enabled}, hasText=${!!text}, channel=${channel}, hasAccessToken=${!!accessToken}, accountId=${account.id}`);
-    if (account.ai_enabled && text) {
+    console.log(`[PROCESSOR] AI check: ai_enabled=${account.ai_enabled}, hasText=${!!text}, hasMedia=${mediaUrls.length > 0}, channel=${channel}, hasAccessToken=${!!accessToken}, accountId=${account.id}`);
+    // AI triggers if: text exists OR images were sent (vision AI can analyze images)
+    if (account.ai_enabled && (text || mediaUrls.length > 0)) {
       try {
         // Check daily AI rate limit per account (plan-aware)
         const planLimits = getPlanLimits(account.plan || "starter");
@@ -580,17 +581,31 @@ export async function processIncomingMessage({
 
           const history = (recentMessages || []).reverse();
 
-          const aiResult = await generateAIReply({
-            accountId: account.id,
-            customerId: customer.id,
-            customerMessage: text,
-            customerName: customer.name,
-            personality: account.ai_personality,
-            country: account.country,
-            businessName: account.business_name,
-            conversationHistory: history,
-            plan: account.plan,
-          });
+          // Use vision AI if customer sent images, otherwise standard AI reply
+          const aiResult = mediaUrls.length > 0
+            ? await generateAIReplyWithVision({
+                accountId: account.id,
+                customerId: customer.id,
+                customerMessage: text || "",
+                customerName: customer.name,
+                personality: account.ai_personality,
+                country: account.country,
+                businessName: account.business_name,
+                conversationHistory: history,
+                plan: account.plan,
+                mediaUrls,
+              })
+            : await generateAIReply({
+                accountId: account.id,
+                customerId: customer.id,
+                customerMessage: text,
+                customerName: customer.name,
+                personality: account.ai_personality,
+                country: account.country,
+                businessName: account.business_name,
+                conversationHistory: history,
+                plan: account.plan,
+              });
 
           console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
 
@@ -760,8 +775,8 @@ export async function processIncomingMessage({
       if (!account.ai_enabled) {
         console.log(`[PROCESSOR] AI skipped: ai_enabled is false for account ${account.id}`);
       }
-      if (!text) {
-        console.log(`[PROCESSOR] AI skipped: no text content in message`);
+      if (!text && mediaUrls.length === 0) {
+        console.log(`[PROCESSOR] AI skipped: no text content or images in message`);
       }
     }
 

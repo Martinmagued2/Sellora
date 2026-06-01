@@ -57,6 +57,22 @@ function buildProviderChain() {
     } catch (e) {}
   }
 
+  // NVIDIA NIM — free tier with top-tier models
+  if (process.env.NVIDIA_API_KEY) {
+    try {
+      const nvidia = createOpenAI({
+        apiKey: process.env.NVIDIA_API_KEY,
+        baseURL: process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
+        compatibility: "compatible",
+      });
+      providers.push({ name: 'nvidia-llama33-70b', model: nvidia("meta/llama-3.3-70b-instruct") });
+      providers.push({ name: 'nvidia-nemotron-70b', model: nvidia("nvidia/llama-3.1-nemotron-70b-instruct") });
+      providers.push({ name: 'nvidia-mistral-large', model: nvidia("mistralai/mistral-large-2-instruct") });
+    } catch (e) {
+      console.warn("[AI] NVIDIA NIM bot setup failed:", e?.message);
+    }
+  }
+
   return providers;
 }
 
@@ -69,7 +85,7 @@ function buildProviderChain() {
  * much more reliable since tool-call failures won't result in empty replies.
  */
 export async function simulateChat(accountId, messages) {
-  if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY && !process.env.OPENAI_API_KEY) {
+  if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY && !process.env.OPENAI_API_KEY && !process.env.NVIDIA_API_KEY) {
     return "AI is not configured yet. Please add your API keys in settings.";
   }
 
