@@ -318,31 +318,43 @@ export async function processIncomingMessage({
           await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
         }
 
-        // Send greeting via the appropriate channel
-        if (channel === "whatsapp") {
-          await sendWhatsAppMessage({
-            to: senderId,
-            message: greetingMessage,
-            phoneNumberId: account.whatsapp_phone_number_id,
-          });
-        } else {
-          await sendMessage({
-            recipientId: senderId,
-            message: greetingMessage,
-            pageId,
-            accessToken,
-          });
+        // Send greeting via the appropriate channel (best-effort)
+        let greetingDelivered = false;
+        try {
+          if (channel === "whatsapp") {
+            await sendWhatsAppMessage({
+              to: senderId,
+              message: greetingMessage,
+              phoneNumberId: account.whatsapp_phone_number_id,
+            });
+          } else if (accessToken) {
+            await sendMessage({
+              recipientId: senderId,
+              message: greetingMessage,
+              pageId,
+              accessToken,
+            });
+          }
+          greetingDelivered = true;
+        } catch (deliveryErr) {
+          console.warn(`[PROCESSOR] Greeting delivery failed for ${channel}:`, deliveryErr.message);
+          // Continue to store the greeting in DB even if delivery failed
         }
 
-        // Store the greeting message
-        await getSupabase().from("messages").insert({
-          conversation_id: conversation.id,
-          account_id: account.id,
-          direction: "outgoing",
-          content: greetingMessage,
-          type: "text",
-          is_ai: false,
-        });
+        // Store the greeting message (always, even if delivery failed)
+        try {
+          await getSupabase().from("messages").insert({
+            conversation_id: conversation.id,
+            account_id: account.id,
+            direction: "outgoing",
+            content: greetingMessage,
+            type: "text",
+            is_ai: false,
+            delivery_status: greetingDelivered ? "delivered" : "delivery_failed",
+          });
+        } catch (dbErr) {
+          console.warn(`[PROCESSOR] Failed to store greeting in database:`, dbErr.message);
+        }
 
         // Track first response time
         if (!conversation.first_response_at) {
@@ -394,31 +406,42 @@ export async function processIncomingMessage({
 
           // Only use FAQ auto-reply if the match score is high enough
           if (bestMatch && bestMatch.score >= 10) {
-            // Send the FAQ answer via the appropriate channel
-            if (channel === "whatsapp") {
-              await sendWhatsAppMessage({
-                to: senderId,
-                message: bestMatch.answer,
-                phoneNumberId: account.whatsapp_phone_number_id,
-              });
-            } else {
-              await sendMessage({
-                recipientId: senderId,
-                message: bestMatch.answer,
-                pageId,
-                accessToken,
-              });
+            // Send the FAQ answer via the appropriate channel (best-effort)
+            let faqDelivered = false;
+            try {
+              if (channel === "whatsapp") {
+                await sendWhatsAppMessage({
+                  to: senderId,
+                  message: bestMatch.answer,
+                  phoneNumberId: account.whatsapp_phone_number_id,
+                });
+              } else if (accessToken) {
+                await sendMessage({
+                  recipientId: senderId,
+                  message: bestMatch.answer,
+                  pageId,
+                  accessToken,
+                });
+              }
+              faqDelivered = true;
+            } catch (deliveryErr) {
+              console.warn(`[PROCESSOR] FAQ reply delivery failed for ${channel}:`, deliveryErr.message);
             }
 
-            // Store it
-            await getSupabase().from("messages").insert({
-              conversation_id: conversation.id,
-              account_id: account.id,
-              direction: "outgoing",
-              content: bestMatch.answer,
-              type: "text",
-              is_ai: true,
-            });
+            // Store it (always, even if delivery failed)
+            try {
+              await getSupabase().from("messages").insert({
+                conversation_id: conversation.id,
+                account_id: account.id,
+                direction: "outgoing",
+                content: bestMatch.answer,
+                type: "text",
+                is_ai: true,
+                delivery_status: faqDelivered ? "delivered" : "delivery_failed",
+              });
+            } catch (dbErr) {
+              console.warn(`[PROCESSOR] Failed to store FAQ reply:`, dbErr.message);
+            }
 
             // Track first response time
             if (!conversation.first_response_at) {
@@ -454,31 +477,42 @@ export async function processIncomingMessage({
         });
 
         if (matchedReply) {
-          // Send the auto-reply via the appropriate channel
-          if (channel === "whatsapp") {
-            await sendWhatsAppMessage({
-              to: senderId,
-              message: matchedReply.response,
-              phoneNumberId: account.whatsapp_phone_number_id,
-            });
-          } else {
-            await sendMessage({
-              recipientId: senderId,
-              message: matchedReply.response,
-              pageId,
-              accessToken,
-            });
+          // Send the auto-reply via the appropriate channel (best-effort)
+          let keywordDelivered = false;
+          try {
+            if (channel === "whatsapp") {
+              await sendWhatsAppMessage({
+                to: senderId,
+                message: matchedReply.response,
+                phoneNumberId: account.whatsapp_phone_number_id,
+              });
+            } else if (accessToken) {
+              await sendMessage({
+                recipientId: senderId,
+                message: matchedReply.response,
+                pageId,
+                accessToken,
+              });
+            }
+            keywordDelivered = true;
+          } catch (deliveryErr) {
+            console.warn(`[PROCESSOR] Keyword reply delivery failed for ${channel}:`, deliveryErr.message);
           }
 
-          // Store it
-          await getSupabase().from("messages").insert({
-            conversation_id: conversation.id,
-            account_id: account.id,
-            direction: "outgoing",
-            content: matchedReply.response,
-            type: "text",
-            is_ai: true,
-          });
+          // Store it (always, even if delivery failed)
+          try {
+            await getSupabase().from("messages").insert({
+              conversation_id: conversation.id,
+              account_id: account.id,
+              direction: "outgoing",
+              content: matchedReply.response,
+              type: "text",
+              is_ai: true,
+              delivery_status: keywordDelivered ? "delivered" : "delivery_failed",
+            });
+          } catch (dbErr) {
+            console.warn(`[PROCESSOR] Failed to store keyword reply:`, dbErr.message);
+          }
 
           // Track first response time
           if (!conversation.first_response_at) {
@@ -555,48 +589,72 @@ export async function processIncomingMessage({
 
           if (aiResult && aiResult.reply) {
             const aiReply = aiResult.reply;
-            // Send AI reply via the appropriate channel
-            if (channel === "whatsapp") {
-              await sendWhatsAppMessage({
-                to: senderId,
-                message: aiReply,
-                phoneNumberId: account.whatsapp_phone_number_id,
-              });
-            } else {
-              await sendMessage({
-                recipientId: senderId,
-                message: aiReply,
-                pageId,
-                accessToken,
-              });
+
+            // ─── Step 10a: Send AI reply via Meta/WhatsApp (best-effort) ───
+            // This is wrapped in its own try/catch because Meta delivery failure
+            // should NOT prevent the AI reply from being stored in the database.
+            // The business owner can still see the AI reply in the conversations page.
+            let deliverySuccess = false;
+            try {
+              if (channel === "whatsapp") {
+                await sendWhatsAppMessage({
+                  to: senderId,
+                  message: aiReply,
+                  phoneNumberId: account.whatsapp_phone_number_id,
+                });
+              } else if (accessToken) {
+                await sendMessage({
+                  recipientId: senderId,
+                  message: aiReply,
+                  pageId,
+                  accessToken,
+                });
+              } else {
+                console.warn(`[PROCESSOR] No access token available for ${channel} — AI reply stored but NOT delivered to customer`);
+              }
+              deliverySuccess = true;
+            } catch (deliveryErr) {
+              console.error(`[PROCESSOR] AI reply delivery failed for ${channel}:`, deliveryErr.message);
+              console.error(`[PROCESSOR] AI reply is still saved to database but customer did NOT receive it on ${channel}`);
+              // Continue to store the AI reply in DB even if delivery failed
             }
 
-            // Calculate response time
+            // ─── Step 10b: ALWAYS store AI reply in database ───
+            // This must happen regardless of whether Meta delivery succeeded.
+            // Otherwise, AI replies are lost when delivery fails.
             const responseTime = Math.round((Date.now() - (conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : Date.now())) / 1000);
 
-            // Store AI reply in database
-            await getSupabase().from("messages").insert({
-              conversation_id: conversation.id,
-              account_id: account.id,
-              direction: "outgoing",
-              content: aiReply,
-              type: "text",
-              is_ai: true,
-              response_time_seconds: responseTime,
-              sentiment: aiResult.sentiment || null,
-              tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
-            });
+            try {
+              await getSupabase().from("messages").insert({
+                conversation_id: conversation.id,
+                account_id: account.id,
+                direction: "outgoing",
+                content: aiReply,
+                type: "text",
+                is_ai: true,
+                response_time_seconds: responseTime,
+                sentiment: aiResult.sentiment || null,
+                tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
+                delivery_status: deliverySuccess ? "delivered" : "delivery_failed",
+              });
+            } catch (dbErr) {
+              console.error(`[PROCESSOR] Failed to store AI reply in database:`, dbErr.message);
+            }
 
             if (aiResult.toolCalls && aiResult.toolCalls.length > 0) {
-              for (const toolCall of aiResult.toolCalls) {
-                  await getSupabase().from("agent_actions").insert({
-                      account_id: account.id,
-                      conversation_id: conversation.id,
-                      agent_type: aiResult.intent,
-                      tool_name: toolCall.toolName,
-                      tool_input: toolCall.args,
-                      success: true,
-                  });
+              try {
+                for (const toolCall of aiResult.toolCalls) {
+                    await getSupabase().from("agent_actions").insert({
+                        account_id: account.id,
+                        conversation_id: conversation.id,
+                        agent_type: aiResult.intent,
+                        tool_name: toolCall.toolName,
+                        tool_input: toolCall.args,
+                        success: true,
+                    });
+                }
+              } catch (actionErr) {
+                console.error(`[PROCESSOR] Failed to log agent action:`, actionErr.message);
               }
             }
 
@@ -607,6 +665,8 @@ export async function processIncomingMessage({
                 .update({ first_response_at: new Date().toISOString() })
                 .eq("id", conversation.id);
             }
+
+            console.log(`[PROCESSOR] AI auto-reply generated and ${deliverySuccess ? 'delivered' : 'saved (delivery failed)'} for conversation ${conversation.id}`);
           }
         }
       } catch (aiErr) {

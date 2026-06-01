@@ -272,6 +272,68 @@ async function runFullDiagnostic(accountId) {
 
   diag.steps.push({ step: "faqs", status: "checked", data: { active_faqs: faqCount || 0 } });
 
+  // Step 8: Test Meta API delivery (get tokens and try a lightweight API call)
+  try {
+    const { data: accountTokens } = await adminClient
+      .from("accounts")
+      .select("instagram_access_token, instagram_page_id, instagram_connected, facebook_access_token, facebook_page_id, facebook_connected")
+      .eq("id", accountId)
+      .single();
+
+    if (accountTokens) {
+      const metaStatus = {
+        instagram: {
+          connected: accountTokens.instagram_connected,
+          has_page_id: !!accountTokens.instagram_page_id,
+          has_token: !!accountTokens.instagram_access_token,
+          token_preview: accountTokens.instagram_access_token ? accountTokens.instagram_access_token.substring(0, 15) + "..." : "NONE",
+        },
+        facebook: {
+          connected: accountTokens.facebook_connected,
+          has_page_id: !!accountTokens.facebook_page_id,
+          has_token: !!accountTokens.facebook_access_token,
+          token_preview: accountTokens.facebook_access_token ? accountTokens.facebook_access_token.substring(0, 15) + "..." : "NONE",
+        },
+      };
+
+      // Test Instagram token validity by calling the Graph API
+      if (accountTokens.instagram_access_token && accountTokens.instagram_page_id) {
+        try {
+          const metaRes = await fetch(
+            `https://graph.facebook.com/v21.0/${accountTokens.instagram_page_id}?fields=id,name&access_token=${accountTokens.instagram_access_token}`,
+            { signal: AbortSignal.timeout(5000) }
+          );
+          const metaData = await metaRes.json();
+          metaStatus.instagram.token_valid = metaRes.ok;
+          metaStatus.instagram.api_response = metaRes.ok ? { id: metaData.id, name: metaData.name } : { error: metaData.error?.message?.substring(0, 200) };
+        } catch (metaErr) {
+          metaStatus.instagram.token_valid = false;
+          metaStatus.instagram.api_error = metaErr.message?.substring(0, 100);
+        }
+      }
+
+      // Test Facebook token validity
+      if (accountTokens.facebook_access_token && accountTokens.facebook_page_id) {
+        try {
+          const fbRes = await fetch(
+            `https://graph.facebook.com/v21.0/${accountTokens.facebook_page_id}?fields=id,name&access_token=${accountTokens.facebook_access_token}`,
+            { signal: AbortSignal.timeout(5000) }
+          );
+          const fbData = await fbRes.json();
+          metaStatus.facebook.token_valid = fbRes.ok;
+          metaStatus.facebook.api_response = fbRes.ok ? { id: fbData.id, name: fbData.name } : { error: fbData.error?.message?.substring(0, 200) };
+        } catch (fbErr) {
+          metaStatus.facebook.token_valid = false;
+          metaStatus.facebook.api_error = fbErr.message?.substring(0, 100);
+        }
+      }
+
+      diag.steps.push({ step: "meta_delivery", status: "checked", data: metaStatus });
+    }
+  } catch (tokenErr) {
+    diag.steps.push({ step: "meta_delivery", status: "failed", error: tokenErr.message });
+  }
+
   // Summary
   const rateLimitStep = diag.steps.find(s => s.step === "rate_limits");
   const aiReplyStep = diag.steps.find(s => s.step === "generate_ai_reply");
