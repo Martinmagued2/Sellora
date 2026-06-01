@@ -156,3 +156,29 @@ Stage Summary:
 - Fix: Auto-cleanup duplicate page_ids and stale connected flags via migration
 - tinomagued@gmail.com now the sole owner of facebook_page_id "1173082489214459"
 - All webhook handlers now handle duplicate page_ids gracefully
+---
+Task ID: 1
+Agent: main
+Task: Fix "still connected" issue between sellora.mail.app and tinomagued accounts
+
+Work Log:
+- Investigated database state for both accounts
+- Found that sellora.mail.app already had no page_ids or tokens, but had stale connected flags
+- Found a stale team_members link between martinmagued2004 and tinomagued
+- Created /api/admin/debug endpoint with comprehensive diagnostics (shared page_ids, stale flags, team links)
+- Added force-disconnect POST endpoint to /api/admin/debug
+- Fixed /api/auth/meta-callback to prevent duplicate page_id connections (Step 4.5)
+- Fixed /api/meta/connect manual endpoint with same duplicate prevention
+- Pushed all changes to GitHub (commit 4faf723)
+- Ran comprehensive diagnostics: no shared page_ids, no stale connections, no team links
+- Force-disconnected sellora.mail.app from all platforms
+- Cleaned up team_members entries
+- Migrated all data from sellora.mail.app to tinomagued (0 records - already empty)
+- Verified webhook endpoint is accessible
+
+Stage Summary:
+- Database is now fully clean: only tinomagued@gmail.com has Meta connections
+- sellora.mail.app@gmail.com is completely disconnected (no page_ids, tokens, or connected flags)
+- OAuth callback now prevents duplicate page_id connections in the future
+- Admin debug endpoint available for future troubleshooting
+- Both accounts have business_name "Sellora" (cosmetic only)
