@@ -41,8 +41,19 @@ function LoginContent() {
     "/dashboard/analytics",
     "/dashboard/customers",
     "/dashboard/conversations",
+    "/dashboard/settings",
     "/settings",
+    "/admin",
+    "/admin/accounts",
+    "/admin/conversations",
+    "/admin/messages",
+    "/admin/orders",
+    "/admin/products",
+    "/admin/ai-performance",
+    "/admin/system",
+    "/admin/broadcast",
   ];
+  const ADMIN_ACCOUNT_IDS = ["0643bcc3-d5ef-43e1-a1be-0b36de04ef92"];
   const redirectBase = rawRedirectTo.split("?")[0].split("#")[0];
   const redirectTo = ALLOWED_REDIRECTS.includes(redirectBase) ? rawRedirectTo : "/dashboard";
 
@@ -64,7 +75,13 @@ function LoginContent() {
       return;
     }
 
-    router.push(redirectTo);
+    // Check if user is admin → redirect to admin panel
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && ADMIN_ACCOUNT_IDS.includes(user.id)) {
+      router.push("/admin");
+    } else {
+      router.push(redirectTo);
+    }
     router.refresh();
   };
 
