@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://build.nvidia.com/models",
+    "name": "Models - NVIDIA Build",
+    "snippet": "qwen-image. Qwen-Image is a text-to-image foundation model with advanced multilingual text rendering. ... mistral-medium-3.5-128b. A high performing model for ...",
+    "host_name": "build.nvidia.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=yV_lVG5gD5k",
+    "name": "How to Build an AI Animation Website with Free NVIDIA API +",
+    "snippet": "... NVIDIA API endpoint and the powerful ... large language model project qwen 397b model tutorial ai powered website web development with ai.",
+    "host_name": "www.youtube.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.nvidia.com/nim/visual-genai/latest/api/qwen-image-edit.html",
+    "name": "Qwen-Image-Edit API Reference — NVIDIA NIM for Visual",
+    "snippet": "Stable Diffusion 3.5 Large · TRELLIS · Qwen-Image; Qwen-Image-Edit; OpenAI-Compatible Image Generation · OpenAI-Compatible Image Editing.",
+    "host_name": "docs.nvidia.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://medium.com/data-science-collective/deploying-qwen-image-edit-model-to-amazon-eks-with-gpu-acceleration-61d8cdf05345",
+    "name": "Deploying Qwen Image Edit Model to Amazon EKS with GPU",
+    "snippet": "A practical guide to deploying large vision-language models on Kubernetes with optimized storage and production-ready inference, along with ...",
+    "host_name": "medium.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-image-api",
+    "name": "Alibaba Cloud Model Studio:Qwen-Image API reference",
+    "snippet": "Qwen-Image is a general-purpose image generation model that supports multiple artistic styles and excels at complex text rendering. The model ...",
+    "host_name": "www.alibabacloud.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://stability.ai/news-updates/introducing-stable-diffusion-3-5",
+    "name": "Introducing Stable Diffusion 3.5 - Stability AI",
+    "snippet": "You can download Stable Diffusion 3.5 Large and Stable Diffusion 3.5 Large Turbo models from Hugging Face and the inference code on GitHub now.",
+    "host_name": "stability.ai",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/LocalLLM/comments/1q7e2ol/guide_how_to_run_qwenimage_diffusion_models_14gb",
+    "name": "Guide: How to Run Qwen-Image Diffusion models! (14GB RAM)",
+    "snippet": "We made a complete step-by-step guide on how to run them on your local device in libraries like ComfyUI, stable-diffusion.cpp and diffusers with ...",
+    "host_name": "www.reddit.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/QwenLM/Qwen-Image",
+    "name": "Qwen-Image is a powerful image generation foundation  - GitHub",
+    "snippet": "Qwen-Image is a powerful image generation foundation model capable of complex text rendering and precise image editing. - QwenLM/Qwen-Image.",
+    "host_name": "github.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-diffusion-3-5-large.html",
+    "name": "Stability.ai Stable Diffusion 3.5 Large - Amazon Bedrock",
+    "snippet": "The Stable Diffusion 3.5 Large model uses 8 billion parameters and supports 1 megapixel resolution output for text-to-image and image-to-image generation.",
+    "host_name": "docs.aws.amazon.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://qwen.ai/blog?id=qwen-image-2.0",
+    "name": "Qwen-Image-2.0: Professional infographics, exquisite photorealism",
+    "snippet": "Qwen Studio offers comprehensive functionality spanning chatbot, image and video understanding, image generation, document processing, ...",
+    "host_name": "qwen.ai",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

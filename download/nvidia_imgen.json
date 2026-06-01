@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://build.nvidia.com/models",
+    "name": "Models - Nvidia NIM",
+    "snippet": "Deploy and scale models on your GPU infrastructure of choice with NVIDIA NIM inference microservices.",
+    "host_name": "build.nvidia.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://build.nvidia.com",
+    "name": "Try NVIDIA NIM APIs",
+    "snippet": "Build Your AI Application with a Blueprint. Get started with workflows and code samples to build AI applications from the ground up.",
+    "host_name": "build.nvidia.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/flux-1-dev-model-422-status/332215",
+    "name": "Flux.1-dev Model 422 Status - NVIDIA Developer Forums",
+    "snippet": "I am trying to use the black-forest-labs/flux.1-dev model in my node app to create an image based on an input image, which the model seems to support when ...",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.nvidia.com/nim/visual-genai/latest/api/openai-image-generation.html",
+    "name": "Image Generation API (OpenAI-Compatible) — NVIDIA NIM for",
+    "snippet": "Supported NIMs#. NIM. Model Name. Notes. Qwen-Image. qwen-image. Qwen-Image. qwen ... 2026, NVIDIA Corporation. Last updated on May 01, 2026.\nImage Generation API (OpenAI-Compatible)#. Supported NIMs#. NIM. Model Name. Notes. Qwen-Image. qwen-image. Qwen-Image. qwen-image-2512. FLUX.2-klein-4B. flux.2 ...",
+    "host_name": "docs.nvidia.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://stability.ai/news-updates/stability-ai-and-nvidia-bring-faster-performance-and-simplified-enterprise-deployment-with-the-stable-diffusion-35-nim",
+    "name": "Stability AI and NVIDIA Bring Faster Performance and Simplified",
+    "snippet": "Stability AI is launching a new NVIDIA NIM microservice for Stable Diffusion 3.5, making it faster and simpler for enterprises to deploy our ...\nThe SD3.5 NIM supports Stable Diffusion 3.5 Large, with expanded model compatibility planned for future releases. The SD3.5 NIM delivers faster ...",
+    "host_name": "stability.ai",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.modular.com/solutions/image-generation",
+    "name": "Image generation - Modular",
+    "snippet": "FLUX, Stable Diffusion, and custom diffusion models — running natively on NVIDIA, AMD, and Apple Silicon. Get started FREE. Book a demo.",
+    "host_name": "www.modular.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://build.nvidia.com/black-forest-labs/flux_1-dev",
+    "name": "FLUX.1-dev Model by Black-forest-labs | NVIDIA NIM",
+    "snippet": "AI models generate responses and outputs based on complex algorithms and machine learning techniques, and those responses or outputs may be inaccurate, ...",
+    "host_name": "build.nvidia.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=xc3-699UMoo",
+    "name": "Instantly Deploy Generative AI Models With NVIDIA NIM - YouTube",
+    "snippet": "... API optimized and accelerated by NVIDIA, then deploy anywhere with NVIDIA NIM inference microservices. Check out: https://nvda.ws/44W7KZP ...",
+    "host_name": "www.youtube.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://build.nvidia.com/stabilityai/stable-diffusion-3_5-large",
+    "name": "stable-diffusion-3.5-large Model by Stability AI | NVIDIA NIM",
+    "snippet": "Stable Diffusion 3.5 is an 8B parameter base model that produces high-quality images, with Depth and Canny ControlNets offering controllability ...",
+    "host_name": "build.nvidia.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://wavespeed.ai/blog/posts/complete-guide-ai-image-apis-2026",
+    "name": "Complete Guide to AI Image Generation APIs in 2026 - WaveSpeed AI",
+    "snippet": "This comprehensive guide covers every major image generation API in 2026, ranked by LM Arena's rigorous benchmarking methodology. Understanding ...",
+    "host_name": "wavespeed.ai",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]
