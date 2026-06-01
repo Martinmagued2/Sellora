@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://forums.developer.nvidia.com/t/nim-api-credits/305703",
+    "name": "NIM API Credits - Access/Accounts - NVIDIA Developer Forums",
+    "snippet": "The NVIDIA API catalog is a trial experience of NVIDIA NIM limited to 5000 free API credits. Upon sign-up, users are granted 1000 API credits.",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://decodethefuture.org/en/nvidia-nim-api-explained",
+    "name": "NVIDIA NIM API Explained: Free AI Inference in 2026",
+    "snippet": "The free tier gives you 1,000 inference credits on signup. You can request up to 5,000 total credits. The rate limit is 40 requests per minute.",
+    "host_name": "decodethefuture.org",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/nim-pricing/290144",
+    "name": "NIM pricing - Access/Accounts - NVIDIA Developer Forums",
+    "snippet": "I read on NVIDIA NIM for Generative AI that NVIDIA nim has 1000 free credits but there is no pricing to be found.",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.instagram.com/reel/DXKDnGeFXRw",
+    "name": "NVIDIA Build free API credits let you test AI models online without",
+    "snippet": "You now can develop using AI for free using the new NVIDIA NIM platform that enables you to create an API key and use it essentially for free.",
+    "host_name": "www.instagram.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://build.nvidia.com",
+    "name": "Try NVIDIA NIM APIs",
+    "snippet": "Build Your AI Application with a Blueprint. Get started with workflows and code samples to build AI applications from the ground up.",
+    "host_name": "build.nvidia.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/opencodeCLI/comments/1rac56z/i_made_a_little_cli_tool_to_check_for_available",
+    "name": "I made a little CLI tool to check for available Nvidia NIM Free coding",
+    "snippet": "NVIDIA phased out fixed API credits (like the old 1,000 initial ones) early 2025 for NIM API Catalog it's now rate-limit based for free eval/ ...",
+    "host_name": "www.reddit.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://medium.com/coding-nexus/nvidia-is-offering-80-ai-models-for-free-via-apis-fc64b38276b8",
+    "name": "NVIDIA Is Offering 80+ AI Models for Free via APIs - Medium",
+    "snippet": "This means you can access more than 80 advanced AI models, completely free, via a simple REST API that works seamlessly with the OpenAI SDK. In ...",
+    "host_name": "medium.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/SillyTavernAI/comments/1lxivmv/nvidia_nim_free_deepseek_r10528_and_more",
+    "name": "NVIDIA NIM - Free DeepSeek R1(0528) and more : r/SillyTavernAI",
+    "snippet": "You now have API access with a limit of 40 requests per minute ... 1000 requests are available daily for a one-time top up of $10. As ...",
+    "host_name": "www.reddit.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.facebook.com/groups/techtitansgroup/posts/1587315689262410",
+    "name": "Nvidia offers free api keys for models - Facebook",
+    "snippet": "NVIDIA is giving free API keys You can even use models like Kimi-k2, minimax, etc Source: Luffytaro · No photo description available.\nI know that they offer a free $18 trial credit, but unfortunately I haven't received mine yet. ... Free API Tier on La Plateforme Mistral has ...",
+    "host_name": "www.facebook.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/request-for-nvidia-nim-api-rate-limit-increase-model-evaluation-personal-development/368502",
+    "name": "Request for NVIDIA NIM API Rate Limit Increase – Model Evaluation",
+    "snippet": "Many of you are using free tier API access to NVIDIA NIMs. This usually involves a rate limit that is dependent on model, use-case and the ...",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

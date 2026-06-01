@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://forums.developer.nvidia.com/t/api-rate-limit-increase-for-nvidia-nim/366043",
+    "name": "API Rate Limit Increase for NVIDIA NIM - Access/Accounts",
+    "snippet": "I would like to kindly request a rate limit increase for my NVIDIA NIM API key as well. Current limit: ~40 RPM Requested: 200 RPM (or the next ...\nI am currently using the NVIDIA API (NIM) for a project and I have reached the default rate limit of 40 Requests Per Minute .Could you please ...",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/request-for-nvidia-nim-api-rate-limit-increase-model-evaluation-personal-development/368502",
+    "name": "Request for NVIDIA NIM API Rate Limit Increase – Model Evaluation",
+    "snippet": "API Rate Limit Increase is NOT granted by requesting it here Access/Accounts. Many of you are using free tier API access to NVIDIA NIMs.",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/request-more-4-000-credits-option-on-build-nvidia-com/344567",
+    "name": "“Request More” (+4000 credits) option on build.nvidia.com",
+    "snippet": "Hi, Is the “Request More” (+4000 credits) option on build.nvidia.com still available? I'm logged into build.nvidia.com with a business ...",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://decodethefuture.org/en/nvidia-nim-api-explained",
+    "name": "NVIDIA NIM API Explained: Free AI Inference in 2026",
+    "snippet": "The free tier gives you 1,000 inference credits on signup. You can request up to 5,000 total credits. The rate limit is 40 requests per minute.",
+    "host_name": "decodethefuture.org",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/request-for-nvidia-nim-api-rate-limit-increase-for-academic-study-project/369394",
+    "name": "Request for NVIDIA NIM API Rate Limit Increase for Academic Study",
+    "snippet": "Current limit: 40 RPM. Requested limit: 200 RPM, or any higher limit that would be possible for an academic/prototyping use case. Use case:\nAs part of this work, I would like to evaluate and compare different NVIDIA NIM models to better understand their performance, reasoning quality ...",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  }
+]
