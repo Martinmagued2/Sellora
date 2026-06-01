@@ -528,6 +528,7 @@ export async function processIncomingMessage({
     }
 
     // ─── 10. AI Auto-Reply (with rate limiting + error handling) ───
+    console.log(`[PROCESSOR] AI check: ai_enabled=${account.ai_enabled}, hasText=${!!text}, channel=${channel}, hasAccessToken=${!!accessToken}, accountId=${account.id}`);
     if (account.ai_enabled && text) {
       try {
         // Check daily AI rate limit per account (plan-aware)
@@ -547,6 +548,8 @@ export async function processIncomingMessage({
           aiCount = count || 0;
         }
 
+        console.log(`[PROCESSOR] AI rate limit: ${aiCount}/${MAX_AI_PER_ACCOUNT_PER_DAY} (plan: ${account.plan})`);
+
         if (MAX_AI_PER_ACCOUNT_PER_DAY !== -1 && aiCount >= MAX_AI_PER_ACCOUNT_PER_DAY) {
           console.warn(`Account ${account.id} exceeded daily AI limit (${MAX_AI_PER_ACCOUNT_PER_DAY})`);
           // Skip AI reply silently — message is still stored
@@ -556,6 +559,8 @@ export async function processIncomingMessage({
             email: account.id, // Using email column to store account_id for this action type
             action: "ai_auto_reply",
           });
+
+          console.log(`[PROCESSOR] Generating AI reply for account ${account.id}, conversation ${conversation.id}, message: "${text?.substring(0, 50)}..."`);
 
           // Fetch products for AI context
           const { data: products } = await getSupabase()
@@ -587,8 +592,11 @@ export async function processIncomingMessage({
             plan: account.plan,
           });
 
+          console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
+
           if (aiResult && aiResult.reply) {
             const aiReply = aiResult.reply;
+            console.log(`[PROCESSOR] AI reply generated (${aiReply.length} chars): "${aiReply.substring(0, 80)}..."`);
 
             // ─── Step 10a: Send AI reply via Meta/WhatsApp (best-effort) ───
             // This is wrapped in its own try/catch because Meta delivery failure
@@ -671,7 +679,15 @@ export async function processIncomingMessage({
         }
       } catch (aiErr) {
         // AI failure should never break message processing
-        console.error("AI auto-reply failed (non-fatal):", aiErr.message);
+        console.error(`[PROCESSOR] AI auto-reply FAILED for account ${account?.id}:`, aiErr.message);
+        console.error(`[PROCESSOR] AI error stack:`, aiErr.stack?.substring(0, 500));
+      }
+    } else {
+      if (!account.ai_enabled) {
+        console.log(`[PROCESSOR] AI skipped: ai_enabled is false for account ${account.id}`);
+      }
+      if (!text) {
+        console.log(`[PROCESSOR] AI skipped: no text content in message`);
       }
     }
 
