@@ -19,11 +19,9 @@ import {
   Shield,
   Activity,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { useAdminAuth } from "@/lib/use-admin-auth";
 import "../dashboard/dashboard.css";
 import "./admin.css";
-
-const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
 
 const sidebarLinks = [
   {
@@ -68,34 +66,19 @@ export default function AdminLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { isAdmin, loading: adminLoading, userId } = useAdminAuth();
 
   const currentTitle = pageTitles[pathname] || "Admin";
 
+  // Redirect non-admins
   useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+    if (adminLoading) return;
+    if (isAdmin === false) {
+      router.push("/dashboard");
+    }
+  }, [isAdmin, adminLoading, router]);
 
-        if (user && user.id === ADMIN_ACCOUNT_ID) {
-          setIsAdmin(true);
-        } else {
-          setIsAdmin(false);
-          router.push("/dashboard");
-        }
-      } catch (e) {
-        setIsAdmin(false);
-        router.push("/dashboard");
-      }
-      setLoading(false);
-    };
-
-    checkAdmin();
-  }, [router]);
-
-  if (loading) {
+  if (adminLoading || isAdmin === null) {
     return (
       <div style={{
         display: "flex",

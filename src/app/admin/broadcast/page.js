@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import {
-  Megaphone, Send, Instagram, Facebook, Phone, Users, RefreshCw, CheckCircle, AlertCircle,
+  Megaphone, Send, Camera, Globe2, Phone, Users, RefreshCw, CheckCircle, AlertCircle,
 } from "lucide-react";
-
-const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
+import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function AdminBroadcast() {
+  const { isAdmin, loading: adminLoading, userId } = useAdminAuth();
   const [message, setMessage] = useState("");
   const [channels, setChannels] = useState(["instagram", "facebook", "whatsapp"]);
   const [target, setTarget] = useState("all");
@@ -23,7 +23,7 @@ export default function AdminBroadcast() {
     const fetchPreview = async () => {
       try {
         const res = await fetch("/api/admin/accounts?limit=1000", {
-          headers: { "x-account-id": ADMIN_ACCOUNT_ID },
+          headers: { "x-account-id": userId },
         });
         const json = await res.json();
         if (json.success) {
@@ -52,7 +52,7 @@ export default function AdminBroadcast() {
     const fetchRecent = async () => {
       try {
         const res = await fetch("/api/campaigns/broadcast-logs?limit=10", {
-          headers: { "x-account-id": ADMIN_ACCOUNT_ID },
+          headers: { "x-account-id": userId },
         });
         const json = await res.json();
         if (json.success && json.data?.campaigns) {
@@ -64,7 +64,7 @@ export default function AdminBroadcast() {
       setLoadingRecent(false);
     };
     fetchRecent();
-  }, []);
+  }, [userId]);
 
   const handleChannelToggle = (channel) => {
     setChannels((prev) =>
@@ -91,7 +91,7 @@ export default function AdminBroadcast() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-account-id": ADMIN_ACCOUNT_ID,
+          "x-account-id": userId,
         },
         body: JSON.stringify({ message, channels, target, name: "Admin Broadcast" }),
       });
@@ -110,8 +110,8 @@ export default function AdminBroadcast() {
   };
 
   const channelOptions = [
-    { id: "instagram", label: "Instagram", icon: Instagram, color: "#E1306C" },
-    { id: "facebook", label: "Facebook", icon: Facebook, color: "#1877F2" },
+    { id: "instagram", label: "Instagram", icon: Camera, color: "#E1306C" },
+    { id: "facebook", label: "Facebook", icon: Globe2, color: "#1877F2" },
     { id: "whatsapp", label: "WhatsApp", icon: Phone, color: "#25D366" },
   ];
 

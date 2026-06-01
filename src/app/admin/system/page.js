@@ -4,19 +4,20 @@ import { useState, useEffect } from "react";
 import {
   Server, Globe, AlertTriangle, Clock, Database, Activity, RefreshCw, Shield,
 } from "lucide-react";
-
-const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
+import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function AdminSystem() {
+  const { isAdmin, loading: adminLoading, userId } = useAdminAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!userId) return;
     const fetchData = async () => {
       try {
         const res = await fetch("/api/admin/system", {
-          headers: { "x-account-id": ADMIN_ACCOUNT_ID },
+          headers: { "x-account-id": userId },
         });
         const json = await res.json();
         if (json.success) {
@@ -30,7 +31,7 @@ export default function AdminSystem() {
       setLoading(false);
     };
     fetchData();
-  }, []);
+  }, [userId]);
 
   if (loading) {
     return (

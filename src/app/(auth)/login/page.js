@@ -53,7 +53,6 @@ function LoginContent() {
     "/admin/system",
     "/admin/broadcast",
   ];
-  const ADMIN_ACCOUNT_IDS = ["0643bcc3-d5ef-43e1-a1be-0b36de04ef92"];
   const redirectBase = rawRedirectTo.split("?")[0].split("#")[0];
   const redirectTo = ALLOWED_REDIRECTS.includes(redirectBase) ? rawRedirectTo : "/dashboard";
 
@@ -77,8 +76,13 @@ function LoginContent() {
 
     // Check if user is admin → redirect to admin panel
     const { data: { user } } = await supabase.auth.getUser();
-    if (user && ADMIN_ACCOUNT_IDS.includes(user.id)) {
-      router.push("/admin");
+    if (user) {
+      const { data: account } = await supabase.from("accounts").select("role").eq("id", user.id).single();
+      if (account && account.role === "admin") {
+        router.push("/admin");
+      } else {
+        router.push(redirectTo);
+      }
     } else {
       router.push(redirectTo);
     }

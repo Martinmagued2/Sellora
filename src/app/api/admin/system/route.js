@@ -1,7 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { verifyAdmin } from "@/lib/admin-auth";
 
-// Service role client (lazy-initialized)
+// Service role client (lazy-initialized for use in route handlers)
+import { createClient } from "@supabase/supabase-js";
 let _supabase = null;
 function getSupabase() {
   if (!_supabase) {
@@ -11,19 +12,6 @@ function getSupabase() {
     );
   }
   return _supabase;
-}
-
-// Admin account IDs (hardcoded for security)
-const ADMIN_ACCOUNT_IDS = ["0643bcc3-d5ef-43e1-a1be-0b36de04ef92"];
-
-async function verifyAdmin(request) {
-  const adminKey = request.headers.get("x-admin-key");
-  if (adminKey === process.env.ADMIN_SECRET_KEY) return true;
-
-  const authHeader = request.headers.get("x-account-id");
-  if (authHeader && ADMIN_ACCOUNT_IDS.includes(authHeader)) return true;
-
-  return false;
 }
 
 /**

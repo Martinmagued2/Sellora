@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Search, X, MessageCircle, RefreshCw, Camera, Globe2, Phone, Bot } from "lucide-react";
-
-const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
+import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function AdminConversations() {
+  const { isAdmin, loading: adminLoading, userId } = useAdminAuth();
   const [conversations, setConversations] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -25,7 +25,7 @@ export default function AdminConversations() {
       if (statusFilter) params.set("status", statusFilter);
 
       const res = await fetch(`/api/admin/conversations?${params}`, {
-        headers: { "x-account-id": ADMIN_ACCOUNT_ID },
+        headers: { "x-account-id": userId },
       });
       const json = await res.json();
       if (json.success) {
@@ -42,7 +42,7 @@ export default function AdminConversations() {
     setMessagesLoading(true);
     try {
       const res = await fetch(`/api/admin/messages?conversation_id=${convId}&limit=50`, {
-        headers: { "x-account-id": ADMIN_ACCOUNT_ID },
+        headers: { "x-account-id": userId },
       });
       const json = await res.json();
       if (json.success) {
@@ -55,6 +55,7 @@ export default function AdminConversations() {
   };
 
   useEffect(() => {
+    if (!userId) return;
     const load = async () => { await fetchConversations(1); };
     load();
   }, [channelFilter, statusFilter]);

@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Search, RefreshCw, Bot, User, ArrowRight, ArrowLeft } from "lucide-react";
-
-const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
+import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function AdminMessages() {
+  const { isAdmin, loading: adminLoading, userId } = useAdminAuth();
   const [messages, setMessages] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,7 @@ export default function AdminMessages() {
       if (channelFilter) params.set("channel", channelFilter);
 
       const res = await fetch(`/api/admin/messages?${params}`, {
-        headers: { "x-account-id": ADMIN_ACCOUNT_ID },
+        headers: { "x-account-id": userId },
       });
       const json = await res.json();
       if (json.success) {
@@ -38,6 +38,7 @@ export default function AdminMessages() {
   };
 
   useEffect(() => {
+    if (!userId) return;
     const load = async () => { await fetchMessages(1); };
     load();
   }, [directionFilter, isAiFilter, channelFilter]);

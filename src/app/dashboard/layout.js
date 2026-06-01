@@ -28,6 +28,7 @@ import {
   Shield,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useAdminAuth } from "@/lib/use-admin-auth";
 import CopilotPanel from "./components/CopilotPanel";
 import "./dashboard.css";
 
@@ -59,8 +60,6 @@ const sidebarLinks = [
   },
 ];
 
-// Admin-only link (only shown for admin account)
-const ADMIN_ACCOUNT_IDS = ["0643bcc3-d5ef-43e1-a1be-0b36de04ef92"];
 const adminLink = { href: "/admin", icon: Shield, label: "Admin Panel" };
 
 const pageTitles = {
@@ -82,6 +81,7 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [accountStatus, setAccountStatus] = useState(null);
+  const { isAdmin: isAdminUser } = useAdminAuth();
   const [sidebarBadges, setSidebarBadges] = useState({ conversations: 0, orders: 0 });
   const [notifications, setNotifications] = useState([]);
   const [showNotifPanel, setShowNotifPanel] = useState(false);
@@ -253,7 +253,7 @@ export default function DashboardLayout({ children }) {
             </div>
           ))}
           {/* Admin Panel Link - only visible to admin users */}
-          {user && ADMIN_ACCOUNT_IDS.includes(user.id) && (
+          {isAdminUser && (
             <div className="sidebar-section">
               <div className="sidebar-section-title">Admin</div>
               <Link

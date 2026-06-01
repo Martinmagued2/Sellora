@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Search, RefreshCw, Package } from "lucide-react";
-
-const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
+import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function AdminProducts() {
+  const { isAdmin, loading: adminLoading, userId } = useAdminAuth();
   const [products, setProducts] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -20,7 +20,7 @@ export default function AdminProducts() {
       if (statusFilter) params.set("status", statusFilter);
 
       const res = await fetch(`/api/admin/products?${params}`, {
-        headers: { "x-account-id": ADMIN_ACCOUNT_ID },
+        headers: { "x-account-id": userId },
       });
       const json = await res.json();
       if (json.success) {
@@ -34,6 +34,7 @@ export default function AdminProducts() {
   };
 
   useEffect(() => {
+    if (!userId) return;
     const load = async () => { await fetchProducts(1); };
     load();
   }, [statusFilter]);

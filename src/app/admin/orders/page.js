@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Search, DollarSign, ShoppingBag, TrendingUp, Clock, RefreshCw } from "lucide-react";
-
-const ADMIN_ACCOUNT_ID = "0643bcc3-d5ef-43e1-a1be-0b36de04ef92";
+import { useAdminAuth } from "@/lib/use-admin-auth";
 
 export default function AdminOrders() {
+  const { isAdmin, loading: adminLoading, userId } = useAdminAuth();
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
@@ -21,7 +21,7 @@ export default function AdminOrders() {
       if (statusFilter) params.set("status", statusFilter);
 
       const res = await fetch(`/api/admin/orders?${params}`, {
-        headers: { "x-account-id": ADMIN_ACCOUNT_ID },
+        headers: { "x-account-id": userId },
       });
       const json = await res.json();
       if (json.success) {
@@ -36,6 +36,7 @@ export default function AdminOrders() {
   };
 
   useEffect(() => {
+    if (!userId) return;
     const load = async () => { await fetchOrders(1); };
     load();
   }, [statusFilter]);
