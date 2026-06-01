@@ -209,3 +209,26 @@ Stage Summary:
 - Fresh admin account created and ready
 - All accounts need Meta re-connection - user should log in as admin@sellora.app and connect Facebook/Instagram from Settings
 - OAuth callback now prevents duplicate page_ids in the future
+---
+Task ID: 3
+Agent: main
+Task: Add Business Policies section for AI training
+
+Work Log:
+- Created migration 017_business_policies.sql with table schema
+- Created /api/policies CRUD endpoint (GET, POST, PUT, DELETE)
+- Added policyContext to AI system prompt in src/lib/ai/index.js (same pattern as productContext)
+- Updated all 3 agent prompts (sales, support, order_tracker) to reference STORE POLICIES first
+- Added "Business Policies" tab to Settings page UI with:
+  - Add/Edit/Delete policies
+  - Toggle active/inactive per policy
+  - 9 categories: Returns & Refunds, Shipping & Delivery, Exchange, Payment, Privacy, Terms of Service, Warranty, Cancellation, General
+  - AI Training Info preview
+- Added business_policies table creation to /api/db/migrate
+- Ran migration on live database - table created successfully
+
+Stage Summary:
+- Business Policies feature complete and deployed
+- AI will now use store policies when answering customer questions
+- Policies are embedded directly in the system prompt (not via tool calls) for reliability
+- Available at Settings → Business Policies tab
