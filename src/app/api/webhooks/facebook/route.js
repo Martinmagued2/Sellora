@@ -107,15 +107,23 @@ export async function POST(request) {
       const account = accounts.find(a => a.facebook_access_token) || accounts[0];
 
       if (!account?.facebook_access_token) {
-        console.error("[FB-WEBHOOK] No Facebook token found for page:", event.pageId);
-        continue;
+        console.warn("[FB-WEBHOOK] No Facebook token found for page:", event.pageId);
+        console.warn("[FB-WEBHOOK] Message will still be processed & stored, but replies cannot be delivered");
+        // DON'T skip — still process the message so it's stored and AI can generate a reply
       }
 
-      // Try to get the sender's profile
-      const profile = await getUserProfile({
-        userId: event.senderId,
-        accessToken: account.facebook_access_token,
-      });
+      // Try to get the sender's profile (only if we have a token)
+      let profile = null;
+      if (account?.facebook_access_token) {
+        try {
+          profile = await getUserProfile({
+            userId: event.senderId,
+            accessToken: account.facebook_access_token,
+          });
+        } catch (profileErr) {
+          console.warn("[FB-WEBHOOK] Could not fetch profile:", profileErr.message);
+        }
+      }
 
       // Extract media URLs from attachments
       const mediaUrls = (event.attachments || [])
@@ -123,7 +131,9 @@ export async function POST(request) {
         .map((a) => a.payload?.url)
         .filter(Boolean);
 
-      // Process through the shared pipeline
+      // Process through the shared pipeline — ALWAYS, even without token
+      // When accessToken is null, the processor will still store the message and generate
+      // an AI reply, but won't be able to deliver it to FB. The reply is saved in DB.
       // Pass accountId so processor uses the correct account (handles duplicate page_ids)
       await processIncomingMessage({
         senderId: event.senderId,
@@ -134,7 +144,7 @@ export async function POST(request) {
         channel: "facebook",
         pageId: event.pageId,
         platformMessageId: event.messageId,
-        accessToken: account.facebook_access_token,
+        accessToken: account.facebook_access_token || null,
         accountId: account.id,
       });
 

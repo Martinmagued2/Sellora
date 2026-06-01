@@ -201,21 +201,26 @@ async function handleInstagramEvent(body) {
       const account = accounts.find(a => a.instagram_access_token) || accounts[0];
 
       if (!account?.instagram_access_token) {
-        console.error(`[WEBHOOK-IG] No Instagram access token for page: ${event.pageId}`);
-        console.error(`[WEBHOOK-IG] HINT: Re-connect Instagram in Settings to refresh the token`);
-        errorCount++;
-        continue;
+        console.warn(`[WEBHOOK-IG] No Instagram access token for page: ${event.pageId}`);
+        console.warn(`[WEBHOOK-IG] Message will still be processed & stored, but replies cannot be delivered to IG`);
+        console.warn(`[WEBHOOK-IG] HINT: Re-connect Instagram in Settings to refresh the token`);
+        // DON'T skip — still process the message so it's stored and AI can generate a reply
+        // The reply just won't be delivered to IG (it'll be saved in DB as "delivery_status: failed")
       }
 
-      // Try to get the sender's profile (name + pic)
+      // Try to get the sender's profile (name + pic) — only if we have a token
       let profile = null;
-      try {
-        profile = await getUserProfile({
-          userId: event.senderId,
-          accessToken: account.instagram_access_token,
-        });
-      } catch (profileErr) {
-        console.warn(`[WEBHOOK-IG] Could not fetch profile for ${event.senderId}:`, profileErr.message);
+      if (account?.instagram_access_token) {
+        try {
+          profile = await getUserProfile({
+            userId: event.senderId,
+            accessToken: account.instagram_access_token,
+          });
+        } catch (profileErr) {
+          console.warn(`[WEBHOOK-IG] Could not fetch profile for ${event.senderId}:`, profileErr.message);
+        }
+      } else {
+        console.log(`[WEBHOOK-IG] Skipping profile fetch — no access token`);
       }
 
       // Extract media URLs from attachments
@@ -224,7 +229,9 @@ async function handleInstagramEvent(body) {
         .map((a) => a.payload?.url)
         .filter(Boolean);
 
-      // Process through the shared pipeline
+      // Process through the shared pipeline — ALWAYS, even without token
+      // When accessToken is null, the processor will still store the message and generate
+      // an AI reply, but won't be able to deliver it to IG. The reply is saved in DB.
       // Pass accountId so processor uses the correct account (handles duplicate page_ids)
       await processIncomingMessage({
         senderId: event.senderId,
@@ -235,7 +242,7 @@ async function handleInstagramEvent(body) {
         channel: "instagram",
         pageId: event.pageId,
         platformMessageId: event.messageId,
-        accessToken: account.instagram_access_token,
+        accessToken: account.instagram_access_token || null,
         accountId: account.id,
       });
 
@@ -305,21 +312,26 @@ async function handleFacebookEvent(body) {
       const account = accounts.find(a => a.facebook_access_token) || accounts[0];
 
       if (!account?.facebook_access_token) {
-        console.error(`[WEBHOOK-FB] No Facebook access token for page: ${event.pageId}`);
-        console.error(`[WEBHOOK-FB] HINT: Re-connect Facebook in Settings to refresh the token`);
-        errorCount++;
-        continue;
+        console.warn(`[WEBHOOK-FB] No Facebook access token for page: ${event.pageId}`);
+        console.warn(`[WEBHOOK-FB] Message will still be processed & stored, but replies cannot be delivered to FB`);
+        console.warn(`[WEBHOOK-FB] HINT: Re-connect Facebook in Settings to refresh the token`);
+        // DON'T skip — still process the message so it's stored and AI can generate a reply
+        // The reply just won't be delivered to FB (it'll be saved in DB as "delivery_status: failed")
       }
 
-      // Try to get the sender's profile
+      // Try to get the sender's profile (only if we have a token)
       let profile = null;
-      try {
-        profile = await getUserProfile({
-          userId: event.senderId,
-          accessToken: account.facebook_access_token,
-        });
-      } catch (profileErr) {
-        console.warn(`[WEBHOOK-FB] Could not fetch profile for ${event.senderId}:`, profileErr.message);
+      if (account?.facebook_access_token) {
+        try {
+          profile = await getUserProfile({
+            userId: event.senderId,
+            accessToken: account.facebook_access_token,
+          });
+        } catch (profileErr) {
+          console.warn(`[WEBHOOK-FB] Could not fetch profile for ${event.senderId}:`, profileErr.message);
+        }
+      } else {
+        console.log(`[WEBHOOK-FB] Skipping profile fetch — no access token`);
       }
 
       // Extract media URLs from attachments
@@ -328,7 +340,9 @@ async function handleFacebookEvent(body) {
         .map((a) => a.payload?.url)
         .filter(Boolean);
 
-      // Process through the shared pipeline
+      // Process through the shared pipeline — ALWAYS, even without token
+      // When accessToken is null, the processor will still store the message and generate
+      // an AI reply, but won't be able to deliver it to FB. The reply is saved in DB.
       // Pass accountId so processor uses the correct account (handles duplicate page_ids)
       await processIncomingMessage({
         senderId: event.senderId,
@@ -339,7 +353,7 @@ async function handleFacebookEvent(body) {
         channel: "facebook",
         pageId: event.pageId,
         platformMessageId: event.messageId,
-        accessToken: account.facebook_access_token,
+        accessToken: account.facebook_access_token || null,
         accountId: account.id,
       });
 
