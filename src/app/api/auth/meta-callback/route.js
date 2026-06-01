@@ -329,6 +329,62 @@ export async function GET(request) {
 
     const supabase = getSupabase();
 
+    // ─── Step 4.5: Prevent duplicate page_id connections ───
+    // Before saving, check if any OTHER account already has this page_id.
+    // If so, clear it from the old account first to avoid duplicate routing issues.
+    try {
+      // Check for accounts with the same facebook_page_id
+      const { data: existingFbAccounts } = await supabase
+        .from("accounts")
+        .select("id, email, business_name")
+        .eq("facebook_page_id", pageId)
+        .neq("id", accountId);
+
+      if (existingFbAccounts && existingFbAccounts.length > 0) {
+        console.warn(`[META-CALLBACK] Page ${pageId} is currently connected to ${existingFbAccounts.length} other account(s). Clearing them.`);
+        for (const existingAcct of existingFbAccounts) {
+          console.log(`[META-CALLBACK] Clearing Meta connection from: ${existingAcct.email} (${existingAcct.business_name})`);
+          await supabase
+            .from("accounts")
+            .update({
+              facebook_page_id: null,
+              facebook_access_token: null,
+              facebook_connected: false,
+              instagram_page_id: null,
+              instagram_access_token: null,
+              instagram_connected: false,
+            })
+            .eq("id", existingAcct.id);
+        }
+      }
+
+      // Also check for accounts with the same instagram_page_id
+      const { data: existingIgAccounts } = await supabase
+        .from("accounts")
+        .select("id, email, business_name")
+        .eq("instagram_page_id", pageId)
+        .neq("id", accountId);
+
+      if (existingIgAccounts && existingIgAccounts.length > 0) {
+        console.warn(`[META-CALLBACK] IG page ${pageId} is currently connected to ${existingIgAccounts.length} other account(s). Clearing them.`);
+        for (const existingAcct of existingIgAccounts) {
+          // Skip if already cleared above
+          if (existingFbAccounts?.some(a => a.id === existingAcct.id)) continue;
+          console.log(`[META-CALLBACK] Clearing IG connection from: ${existingAcct.email} (${existingAcct.business_name})`);
+          await supabase
+            .from("accounts")
+            .update({
+              instagram_page_id: null,
+              instagram_access_token: null,
+              instagram_connected: false,
+            })
+            .eq("id", existingAcct.id);
+        }
+      }
+    } catch (dupCheckErr) {
+      console.warn("[META-CALLBACK] Duplicate check error (non-fatal):", dupCheckErr.message);
+    }
+
     // ─── Step 5: Always connect Facebook Messenger ───
     const { error: fbUpdateError } = await supabase
       .from("accounts")

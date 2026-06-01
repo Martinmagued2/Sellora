@@ -63,6 +63,37 @@ export async function POST(request) {
 
     const pageName = verifyData.name || null;
 
+    // ── Prevent duplicate page_id connections ──
+    // Clear this page_id from any OTHER account before saving
+    try {
+      const pageIdColumn = platform === "facebook" ? "facebook_page_id" : "instagram_page_id";
+      const { data: existingAccounts } = await supabase
+        .from("accounts")
+        .select("id, email, business_name")
+        .eq(pageIdColumn, pageId)
+        .neq("id", accountId);
+
+      if (existingAccounts && existingAccounts.length > 0) {
+        console.warn(`[META-CONNECT] Page ${pageId} is already connected to ${existingAccounts.length} other account(s). Clearing them.`);
+        for (const existingAcct of existingAccounts) {
+          console.log(`[META-CONNECT] Clearing Meta connection from: ${existingAcct.email} (${existingAcct.business_name})`);
+          await supabase
+            .from("accounts")
+            .update({
+              facebook_page_id: null,
+              facebook_access_token: null,
+              facebook_connected: false,
+              instagram_page_id: null,
+              instagram_access_token: null,
+              instagram_connected: false,
+            })
+            .eq("id", existingAcct.id);
+        }
+      }
+    } catch (dupCheckErr) {
+      console.warn("[META-CONNECT] Duplicate check error (non-fatal):", dupCheckErr.message);
+    }
+
     // Update the account with the connection data
     const updates = {};
 
