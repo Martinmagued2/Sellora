@@ -465,6 +465,6 @@ async function disconnectOldAccounts(supabase, oldAccountId, newAccountId, resul
   }
 
   // Remove team_member entries for old account
-  await supabase.from("team_members").delete().eq("user_id", oldAccountId).catch(() => {});
-  await supabase.from("team_members").delete().eq("account_id", oldAccountId).catch(() => {});
+  try { await supabase.from("team_members").delete().eq("user_id", oldAccountId); } catch (e) { /* ok */ }
+  try { await supabase.from("team_members").delete().eq("account_id", oldAccountId); } catch (e) { /* ok */ }
 }
