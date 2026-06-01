@@ -232,3 +232,46 @@ Stage Summary:
 - AI will now use store policies when answering customer questions
 - Policies are embedded directly in the system prompt (not via tool calls) for reliability
 - Available at Settings → Business Policies tab
+---
+Task ID: 4
+Agent: main
+Task: Fix AI auto-reply not working in conversations
+
+Work Log:
+- Investigated AI pipeline with comprehensive diagnostics
+- Created /api/ai/debug endpoint with provider tests, generateAIReply test, Meta token validation
+- Found Google Gemini API quota exceeded (secondary provider down)
+- Found Groq API working fine (primary provider)
+- Confirmed generateAIReply() works correctly (2-3s latency, proper product catalog context)
+- Identified ROOT CAUSE: Instagram access token is INVALID ("Cannot parse access token")
+- When sendMessage() fails due to invalid token, the ENTIRE AI auto-reply block fails
+- The database insert (which stores the AI reply for dashboard display) was inside the same code path
+- This means AI replies were generated but NEVER stored in the database
+- Applied fix: Decoupled Meta delivery from DB storage in processor.js
+  - Wrapped sendMessage()/sendWhatsAppMessage() in their own try/catch blocks
+  - Always store AI reply in database regardless of Meta delivery success/failure
+  - Added delivery_status tracking (delivered/failed) to all outgoing messages
+  - Applied same fix to: auto-greeting, FAQ auto-reply, keyword auto-reply sections
+- Created /api/ai/debug endpoint with full pipeline diagnostic:
+  - Provider tests (Groq, Google)
+  - Rate limit checks
+  - Intent routing test
+  - generateAIReply test
+  - Meta token validation (tests actual Graph API call)
+- Ran DB migration to ensure delivery_status column exists in messages table
+- Verified fix: Test incoming message now generates AI reply stored in database
+
+Key Diagnostic Findings:
+- Groq API: ✅ Working (164ms latency)
+- Google Gemini: ❌ Quota exceeded
+- Instagram token: ❌ Invalid ("Cannot parse access token")
+- Facebook token: ✅ Valid (returns page "Sellora")
+- AI generation: ✅ Working (1.8-2.8s latency)
+- Rate limits: ✅ 7/500 AI replies used today
+
+Stage Summary:
+- AI auto-replies are now stored in database even when Meta delivery fails
+- User needs to RE-CONNECT Instagram in Settings to fix the invalid token
+- Facebook Messenger AI replies should work (token is valid)
+- Google Gemini quota needs to be addressed (secondary fallback is broken)
+- Commits: db156d9, 440285f, 6c9d573, 54c3d0c, 3400a6b
