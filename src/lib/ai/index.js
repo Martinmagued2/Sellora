@@ -129,6 +129,28 @@ export async function generateAIReply({
       console.warn("[generateAIReply] Failed to fetch products for context:", e.message);
     }
 
+    // 3.5. Fetch and embed business policies in the system prompt
+    // This ensures the AI always knows the store's policies even if tool calls fail
+    let policyContext = "";
+    try {
+      const { data: policies } = await getSupabase()
+        .from("business_policies")
+        .select("title, content, category")
+        .eq("account_id", accountId)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+
+      if (policies && policies.length > 0) {
+        policyContext = `\n\nYOUR STORE POLICIES (YOU MUST FOLLOW THESE):\n${policies.map(p =>
+          `\u2022 [${p.category}] ${p.title}: ${p.content}`
+        ).join('\n')}\n\nIMPORTANT: When customers ask about returns, shipping, exchanges, refunds, payment methods, cancellations, warranties, or any policy-related question, you MUST answer based on the policies above. Do NOT make up your own policies. If a customer asks about something not covered in the policies, say you'll check with the store owner and get back to them.`;
+      } else {
+        policyContext = "\n\nNOTE: Your store has no policies configured yet. If the customer asks about returns, shipping, or policies, let them know you'll check with the store owner and get back to them. Do NOT make up policies.";
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Failed to fetch policies for context:", e.message);
+    }
+
     // 4. Format History
     const formattedMessages = conversationHistory.slice(-6).map((msg) => ({
       role: msg.direction === "incoming" ? "user" : "assistant",
@@ -137,7 +159,7 @@ export async function generateAIReply({
     
     formattedMessages.push({ role: "user", content: customerMessage });
 
-    const fullSystemPrompt = systemPrompt + productContext;
+    const fullSystemPrompt = systemPrompt + productContext + policyContext;
 
     // 5. Try providers with robust fallback
     const providerChain = buildProviderChain();
