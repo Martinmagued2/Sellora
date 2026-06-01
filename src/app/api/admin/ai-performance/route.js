@@ -20,7 +20,8 @@ function getSupabase() {
  */
 export async function GET(request) {
   try {
-    if (!(await verifyAdmin(request))) {
+    const { isAdmin } = await verifyAdmin(request);
+    if (!isAdmin) {
       return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
     }
 

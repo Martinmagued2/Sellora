@@ -35,7 +35,18 @@ export function useAdminAuth() {
           .eq("id", user.id)
           .single();
 
-        if (!error && account && account.role === "admin") {
+        // If the role column doesn't exist yet (migration not run),
+        // the query will error. Gracefully handle this.
+        if (error) {
+          // Column might not exist — check the error code
+          // 42703 = undefined_column, 42P01 = undefined_table
+          if (error.code === "42703" || error.code === "42P01" || error.message?.includes("role")) {
+            console.info("[useAdminAuth] Role column not found in accounts table. Run migration 006 to add it.");
+          } else {
+            console.warn("[useAdminAuth] Error checking admin role:", error.message);
+          }
+          setIsAdmin(false);
+        } else if (account && account.role === "admin") {
           setIsAdmin(true);
         } else {
           setIsAdmin(false);

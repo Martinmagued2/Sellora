@@ -98,7 +98,11 @@ export default function ConversationsPage() {
 
   const messagesEndRef = useRef(null);
   const simulatorEndRef = useRef(null);
+  const activeConvRef = useRef(null);
   const supabase = createClient();
+
+  // Keep ref in sync with state so callbacks always see the latest value
+  useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
 
   // ─── Fetch Quick Replies ───
   const fetchQuickReplies = useCallback(async () => {
@@ -122,28 +126,31 @@ export default function ConversationsPage() {
     if (user) {
       const { data: acct } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
       if (acct?.plan) setAccountPlan(acct.plan);
-    }
 
-    const { data } = await supabase
-      .from("conversations")
-      .select("*, customer:customers(id, name, phone, channel, platform, platform_id, tags, total_orders, total_spent, profile_pic_url, is_returning)")
-      .order("last_message_at", { ascending: false });
+      // Use explicit account_id filter for reliability (don't rely solely on RLS)
+      const { data } = await supabase
+        .from("conversations")
+        .select("*, customer:customers(id, name, phone, channel, platform, platform_id, tags, total_orders, total_spent, profile_pic_url, is_returning)")
+        .eq("account_id", user.id)
+        .order("last_message_at", { ascending: false });
 
-    if (data) {
-      const convsWithLastMsg = await Promise.all(
-        data.map(async (conv) => {
-          const { data: msgs } = await supabase
-            .from("messages")
-            .select("content, created_at, direction, is_ai, intent")
-            .eq("conversation_id", conv.id)
-            .order("created_at", { ascending: false })
-            .limit(1);
-          return { ...conv, lastMessage: msgs?.[0] || null };
-        })
-      );
-      setConversations(convsWithLastMsg);
-      if (!activeConv && convsWithLastMsg.length > 0) {
-        setActiveConv(convsWithLastMsg[0]);
+      if (data) {
+        const convsWithLastMsg = await Promise.all(
+          data.map(async (conv) => {
+            const { data: msgs } = await supabase
+              .from("messages")
+              .select("content, created_at, direction, is_ai, intent")
+              .eq("conversation_id", conv.id)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            return { ...conv, lastMessage: msgs?.[0] || null };
+          })
+        );
+        setConversations(convsWithLastMsg);
+        // Use ref instead of stale closure value
+        if (!activeConvRef.current && convsWithLastMsg.length > 0) {
+          setActiveConv(convsWithLastMsg[0]);
+        }
       }
     }
     setLoading(false);

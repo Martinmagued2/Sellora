@@ -56,14 +56,26 @@ export async function middleware(request) {
   // ─── 2. Admin route enforcement ───
   // Check the user's role from the accounts table in DB
   if (isAdminRoute && user) {
-    const { data: account } = await supabase
-      .from("accounts")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    try {
+      const { data: account, error: roleError } = await supabase
+        .from("accounts")
+        .select("role")
+        .eq("id", user.id)
+        .single();
 
-    if (!account || account.role !== "admin") {
-      // Non-admin trying to access admin area → redirect to dashboard
+      // If role column doesn't exist yet (migration not run), deny admin access gracefully
+      if (roleError) {
+        console.warn("[MIDDLEWARE] Could not check admin role — column may not exist yet:", roleError.message);
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+
+      if (!account || account.role !== "admin") {
+        // Non-admin trying to access admin area → redirect to dashboard
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+    } catch (err) {
+      // Gracefully handle any DB errors (missing column, connection issues, etc.)
+      console.error("[MIDDLEWARE] Admin check failed:", err.message);
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }

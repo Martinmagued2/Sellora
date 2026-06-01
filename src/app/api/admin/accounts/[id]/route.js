@@ -20,7 +20,8 @@ function getSupabase() {
  */
 export async function GET(request, { params }) {
   try {
-    if (!(await verifyAdmin(request))) {
+    const { isAdmin } = await verifyAdmin(request);
+    if (!isAdmin) {
       return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
     }
 
@@ -123,7 +124,8 @@ export async function GET(request, { params }) {
  */
 export async function PATCH(request, { params }) {
   try {
-    if (!(await verifyAdmin(request))) {
+    const { isAdmin } = await verifyAdmin(request);
+    if (!isAdmin) {
       return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
     }
 
@@ -199,7 +201,8 @@ export async function PATCH(request, { params }) {
  */
 export async function DELETE(request, { params }) {
   try {
-    if (!(await verifyAdmin(request))) {
+    const { isAdmin } = await verifyAdmin(request);
+    if (!isAdmin) {
       return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
     }
 
