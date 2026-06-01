@@ -54,15 +54,11 @@ export async function middleware(request) {
   }
 
   // ─── 2. Admin route enforcement ───
-  // For admin routes, check the user's role from the accounts table
-  if (isAdminRoute && user) {
-    const { data: account } = await supabase
-      .from("accounts")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+  // Admin account IDs (hardcoded for security)
+  const ADMIN_ACCOUNT_IDS = ["0643bcc3-d5ef-43e1-a1be-0b36de04ef92"];
 
-    if (!account || account.role !== "admin") {
+  if (isAdminRoute && user) {
+    if (!ADMIN_ACCOUNT_IDS.includes(user.id)) {
       // Non-admin trying to access admin area → redirect to dashboard
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
