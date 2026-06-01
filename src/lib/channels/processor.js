@@ -710,25 +710,30 @@ export async function processIncomingMessage({
                   })
                   .eq("id", conversation.id);
 
-                // 2. Store escalation notification for the owner
-                await getSupabase().from("notifications").insert({
-                  account_id: account.id,
-                  type: "ai_escalation",
-                  title: "AI Needs Your Help",
-                  message: `Customer "${customer.name || 'Unknown'}" in a ${channel} conversation needs human attention: ${aiResult.escalationReason}`,
-                  data: {
-                    conversation_id: conversation.id,
-                    customer_id: customer.id,
-                    customer_name: customer.name,
-                    channel: channel,
-                    escalation_reason: aiResult.escalationReason,
-                    original_message: text?.substring(0, 200),
-                    ai_reply_preview: aiReply?.substring(0, 200),
-                    intent: aiResult.intent,
-                    sentiment: aiResult.sentiment,
-                  },
-                  read: false,
-                });
+                // 2. Store escalation notification for the owner (resilient to missing table)
+                try {
+                  await getSupabase().from("notifications").insert({
+                    account_id: account.id,
+                    type: "ai_escalation",
+                    title: "AI Needs Your Help",
+                    message: `Customer "${customer.name || 'Unknown'}" in a ${channel} conversation needs human attention: ${aiResult.escalationReason}`,
+                    data: {
+                      conversation_id: conversation.id,
+                      customer_id: customer.id,
+                      customer_name: customer.name,
+                      channel: channel,
+                      escalation_reason: aiResult.escalationReason,
+                      original_message: text?.substring(0, 200),
+                      ai_reply_preview: aiReply?.substring(0, 200),
+                      intent: aiResult.intent,
+                      sentiment: aiResult.sentiment,
+                    },
+                    read: false,
+                  });
+                } catch (notifErr) {
+                  console.warn(`[PROCESSOR] Failed to store notification (table may not exist yet):`, notifErr.message);
+                  console.warn(`[PROCESSOR] Run migration: /api/admin/setup-db?adminKey=Sellora2026!Admin`);
+                }
 
                 // 3. Send email notification to the owner (best-effort)
                 try {
