@@ -12,12 +12,13 @@ const execFileAsync = promisify(execFile);
 /**
  * Shared image generation utility with automatic fallback chain:
  *
- * 1. fal.ai FLUX.1 [dev] (best quality, $10 free credits, fal.ai)
- * 2. Gemini 2.5 Flash Image Generation (uses GOOGLE_GENERATIVE_AI_API_KEY)
- * 3. ZAI SDK (works on the deployed platform)
- * 4. z-ai-generate CLI tool (works on server environments)
- * 5. Together AI FLUX.1-schnell-Free (high quality, free key from together.ai)
- * 6. Pollinations.ai (free, no key needed, decent quality with flux-realism)
+ * 1. NVIDIA NIM (qwen-image, FLUX.2-klein — free, same key as text AI)
+ * 2. fal.ai FLUX.1 [dev] (best quality, $10 free credits, fal.ai)
+ * 3. Gemini 2.5 Flash Image Generation (uses GOOGLE_GENERATIVE_AI_API_KEY)
+ * 4. ZAI SDK (works on the deployed platform)
+ * 5. z-ai-generate CLI tool (works on server environments)
+ * 6. Together AI FLUX.1-schnell-Free (high quality, free key from together.ai)
+ * 7. Pollinations.ai (free, no key needed, decent quality with flux-realism)
  *
  * Returns: { success: true, imageBase64, source }
  */
@@ -39,7 +40,69 @@ const GEMINI_IMAGE_MODELS = [
 export async function generateProductImage(prompt, options = {}) {
   const size = options.size || "1024x1024";
 
-  // ─── Attempt 1: fal.ai FLUX.1 [dev] (Best Quality) ───
+  // ─── Attempt 1: NVIDIA NIM Image Generation ───
+  // Uses the SAME NVIDIA_API_KEY as the text AI — no extra key needed!
+  // OpenAI-compatible /v1/images/generations endpoint
+  // Models: qwen-image (great text rendering), flux.2-klein-4b (fast, high quality)
+  const nvidiaApiKey = process.env.NVIDIA_API_KEY;
+  if (nvidiaApiKey) {
+    const nvidiaBaseURL = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
+    // Try qwen-image first (excellent multilingual text + image), then flux.2-klein
+    const nvidiaImageModels = ["qwen-image", "flux.2-klein-4b"];
+
+    for (const modelId of nvidiaImageModels) {
+      try {
+        console.log(`[ImageGen] Trying NVIDIA NIM ${modelId}...`);
+        const [width, height] = size.split("x").map(Number);
+
+        const response = await fetch(`${nvidiaBaseURL}/images/generations`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${nvidiaApiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelId,
+            prompt,
+            size: `${width || 1024}x${height || 1024}`,
+            n: 1,
+            response_format: "b64_json",
+          }),
+          signal: AbortSignal.timeout(60000),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Try base64 first
+          const imageBase64 = data?.data?.[0]?.b64_json;
+          if (imageBase64) {
+            console.log(`[ImageGen] ✅ Image generated via NVIDIA NIM ${modelId} (${(imageBase64.length / 1024).toFixed(0)}KB base64)`);
+            return { success: true, imageBase64, source: `nvidia-${modelId}` };
+          }
+          // Try URL
+          const imageUrl = data?.data?.[0]?.url;
+          if (imageUrl) {
+            console.log(`[ImageGen] NVIDIA NIM ${modelId} returned URL, downloading...`);
+            const imgResp = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
+            if (imgResp.ok) {
+              const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+              const base64 = imgBuf.toString("base64");
+              console.log(`[ImageGen] ✅ Image generated via NVIDIA NIM ${modelId} (${(imgBuf.length / 1024).toFixed(0)}KB)`);
+              return { success: true, imageBase64: base64, source: `nvidia-${modelId}` };
+            }
+          }
+          console.warn(`[ImageGen] NVIDIA NIM ${modelId} returned no image data`);
+        } else {
+          const errorText = await response.text().catch(() => "Unknown error");
+          console.warn(`[ImageGen] NVIDIA NIM ${modelId} returned ${response.status}: ${errorText.substring(0, 200)}`);
+        }
+      } catch (nvidiaError) {
+        console.warn(`[ImageGen] NVIDIA NIM ${modelId} failed:`, nvidiaError.message?.substring(0, 200));
+      }
+    }
+  }
+
+  // ─── Attempt 2: fal.ai FLUX.1 [dev] (Best Quality) ───
   // fal.ai offers $10 free credits on signup. FLUX.1 [dev] produces
   // stunning, photorealistic product images — far superior to schnell/free.
   // Sign up at https://fal.ai and get your key from Dashboard → API Keys
@@ -90,7 +153,7 @@ export async function generateProductImage(prompt, options = {}) {
     console.log("[ImageGen] No FAL_API_KEY — add a free key from https://fal.ai for best-quality FLUX images");
   }
 
-  // ─── Attempt 2: Gemini Image Generation (via REST API) ───
+  // ─── Attempt 3: Gemini Image Generation (via REST API) ───
   // Uses the existing GOOGLE_GENERATIVE_AI_API_KEY.
   // Note: Image generation models may not be available in all regions.
   // The SDK uses v1beta which may not list these models, so we call REST directly.
@@ -159,7 +222,7 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 2: ZAI SDK (direct API call) ───
+  // ─── Attempt 4: ZAI SDK (direct API call) ───
   try {
     const zaiConfig = getZAIConfig();
     if (zaiConfig) {
@@ -196,7 +259,7 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 3: z-ai-generate CLI tool ───
+  // ─── Attempt 5: z-ai-generate CLI tool ───
   try {
     console.log("[ImageGen] Trying z-ai-generate CLI...");
     const tmpFile = join(tmpdir(), `sellora-img-${Date.now()}.png`);
@@ -224,7 +287,7 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 4: Together AI (FLUX.1-schnell-Free — high quality) ───
+  // ─── Attempt 6: Together AI (FLUX.1-schnell-Free — high quality) ───
   // Free to use: https://api.together.xyz — create account → get API key
   const togetherApiKey = process.env.TOGETHER_API_KEY;
   if (togetherApiKey) {
@@ -281,7 +344,7 @@ export async function generateProductImage(prompt, options = {}) {
     console.warn("[ImageGen] No TOGETHER_API_KEY — add a free key from https://api.together.xyz for high-quality FLUX images");
   }
 
-  // ─── Attempt 5: Pollinations.ai (free, no API key) ───
+  // ─── Attempt 7: Pollinations.ai (free, no API key) ───
   try {
     console.log("[ImageGen] Trying Pollinations.ai (free fallback)...");
     const [width, height] = size.split("x").map(Number);
