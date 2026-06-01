@@ -1,9 +1,7 @@
 /**
  * AI Debug Endpoint
- * POST /api/ai/debug
- * 
- * Tests the AI generation pipeline directly and returns detailed diagnostics.
- * Does NOT require Meta tokens — just tests the AI providers.
+ * GET /api/ai/debug?accountId=xxx  — Tests AI for a specific account (no auth needed)
+ * POST /api/ai/debug               — Tests AI for the authenticated user
  */
 
 import { createServerClient } from "@supabase/ssr";
@@ -12,7 +10,41 @@ import { cookies } from "next/headers";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
+
+function getAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+}
+
+export async function GET(req) {
+  const results = {
+    timestamp: new Date().toISOString(),
+    env_check: {
+      GROQ_API_KEY: !!process.env.GROQ_API_KEY,
+      GOOGLE_GENERATIVE_AI_API_KEY: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+      VECTORENGINE_API_KEY: !!process.env.VECTORENGINE_API_KEY,
+    },
+    providers_available: [
+      process.env.GROQ_API_KEY && "groq",
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY && "google",
+      process.env.OPENAI_API_KEY && "openai",
+      process.env.VECTORENGINE_API_KEY && "vectorengine",
+    ].filter(Boolean),
+  };
+
+  // If accountId is provided, do full diagnostic for that account
+  const { searchParams } = new URL(req.url);
+  const accountId = searchParams.get("accountId");
+
+  if (accountId) {
+    results.full_diagnostic = await runFullDiagnostic(accountId);
+  }
+
+  return Response.json(results);
+}
 
 export async function POST(req) {
   const results = {
@@ -34,7 +66,6 @@ export async function POST(req) {
   };
 
   // 2. Test each AI provider individually
-  // Groq
   if (process.env.GROQ_API_KEY) {
     try {
       const startTime = Date.now();
@@ -60,7 +91,6 @@ export async function POST(req) {
     results.provider_tests.push({ provider: "groq", status: "no_api_key" });
   }
 
-  // Google Gemini
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     try {
       const startTime = Date.now();
@@ -87,7 +117,7 @@ export async function POST(req) {
     results.provider_tests.push({ provider: "google", status: "no_api_key" });
   }
 
-  // 3. Test the full generateAIReply function for the authenticated user
+  // 3. Test the full generateAIReply function
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -108,85 +138,7 @@ export async function POST(req) {
       return Response.json(results);
     }
 
-    // Get account details
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-
-    const { data: account, error: acctErr } = await adminClient
-      .from("accounts")
-      .select("id, business_name, country, ai_enabled, ai_personality, plan")
-      .eq("id", user.id)
-      .single();
-
-    if (acctErr || !account) {
-      results.ai_reply_test = { status: "failed", error: "Account not found: " + (acctErr?.message || "unknown") };
-      return Response.json(results);
-    }
-
-    results.ai_reply_test = {
-      account_id: account.id,
-      business_name: account.business_name,
-      ai_enabled: account.ai_enabled,
-      plan: account.plan,
-    };
-
-    if (!account.ai_enabled) {
-      results.ai_reply_test.status = "skipped";
-      results.ai_reply_test.reason = "AI is disabled for this account";
-      return Response.json(results);
-    }
-
-    // Check rate limits
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count: aiCount } = await adminClient
-      .from("rate_limits")
-      .select("*", { count: "exact", head: true })
-      .eq("email", account.id)
-      .eq("action", "ai_auto_reply")
-      .gte("created_at", oneDayAgo);
-
-    const { getPlanLimits } = await import("@/lib/plan-limits");
-    const planLimits = getPlanLimits(account.plan);
-    const maxPerDay = planLimits.ai_replies_per_day;
-
-    results.ai_reply_test.rate_limit = {
-      used: aiCount || 0,
-      limit: maxPerDay === -1 ? "unlimited" : maxPerDay,
-      remaining: maxPerDay === -1 ? "unlimited" : Math.max(0, maxPerDay - (aiCount || 0)),
-    };
-
-    // Actually test generateAIReply
-    const { generateAIReply } = await import("@/lib/ai");
-    const startTime = Date.now();
-    
-    try {
-      const aiResult = await generateAIReply({
-        accountId: account.id,
-        customerId: "00000000-0000-0000-0000-000000000000",
-        customerMessage: "Hi, what products do you sell?",
-        customerName: "Test Customer",
-        personality: account.ai_personality,
-        country: account.country,
-        businessName: account.business_name,
-        conversationHistory: [],
-        plan: account.plan,
-      });
-
-      results.ai_reply_test.status = aiResult.reply ? "success" : "no_reply";
-      results.ai_reply_test.latency_ms = Date.now() - startTime;
-      results.ai_reply_test.reply_preview = aiResult.reply?.substring(0, 200);
-      results.ai_reply_test.intent = aiResult.intent;
-      results.ai_reply_test.sentiment = aiResult.sentiment;
-      results.ai_reply_test.has_tool_calls = !!(aiResult.toolCalls && aiResult.toolCalls.length > 0);
-    } catch (aiErr) {
-      results.ai_reply_test.status = "failed";
-      results.ai_reply_test.latency_ms = Date.now() - startTime;
-      results.ai_reply_test.error = aiErr.message?.substring(0, 300);
-      results.ai_reply_test.stack = aiErr.stack?.split('\n').slice(0, 5).join('\n');
-    }
-
+    results.ai_reply_test = await runFullDiagnostic(user.id);
   } catch (err) {
     results.errors.push(err.message);
   }
@@ -194,23 +146,144 @@ export async function POST(req) {
   return Response.json(results);
 }
 
-// Also support GET for quick env check without auth
-export async function GET() {
-  return Response.json({
-    timestamp: new Date().toISOString(),
-    env_check: {
-      GROQ_API_KEY: !!process.env.GROQ_API_KEY,
-      GOOGLE_GENERATIVE_AI_API_KEY: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
-      VECTORENGINE_API_KEY: !!process.env.VECTORENGINE_API_KEY,
-      NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-    },
-    providers_available: [
-      process.env.GROQ_API_KEY && "groq",
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY && "google",
-      process.env.OPENAI_API_KEY && "openai",
-      process.env.VECTORENGINE_API_KEY && "vectorengine",
-    ].filter(Boolean),
-  });
+async function runFullDiagnostic(accountId) {
+  const adminClient = getAdminClient();
+  const diag = { steps: [] };
+
+  // Step 1: Account lookup
+  const { data: account, error: acctErr } = await adminClient
+    .from("accounts")
+    .select("id, email, business_name, country, ai_enabled, ai_personality, plan")
+    .eq("id", accountId)
+    .single();
+
+  if (acctErr || !account) {
+    diag.steps.push({ step: "account_lookup", status: "failed", error: acctErr?.message || "Account not found" });
+    return diag;
+  }
+  diag.steps.push({ step: "account_lookup", status: "success", data: { 
+    email: account.email, plan: account.plan, ai_enabled: account.ai_enabled, business_name: account.business_name 
+  }});
+
+  // Step 2: Rate limit check
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count: aiAutoReplyCount } = await adminClient
+    .from("rate_limits")
+    .select("*", { count: "exact", head: true })
+    .eq("email", accountId)
+    .eq("action", "ai_auto_reply")
+    .gte("created_at", oneDayAgo);
+
+  const { count: aiSimulateCount } = await adminClient
+    .from("rate_limits")
+    .select("*", { count: "exact", head: true })
+    .eq("email", account.email)
+    .eq("action", "ai_simulate")
+    .gte("created_at", oneDayAgo);
+
+  const { count: copilotCount } = await adminClient
+    .from("rate_limits")
+    .select("*", { count: "exact", head: true })
+    .eq("email", account.email)
+    .eq("action", "copilot_msg")
+    .gte("created_at", oneDayAgo);
+
+  const { getPlanLimits } = await import("@/lib/plan-limits");
+  const planLimits = getPlanLimits(account.plan);
+
+  diag.steps.push({ step: "rate_limits", status: "checked", data: {
+    ai_auto_reply: { used: aiAutoReplyCount || 0, limit: planLimits.ai_replies_per_day === -1 ? "unlimited" : planLimits.ai_replies_per_day },
+    ai_simulate: { used: aiSimulateCount || 0, limit: planLimits.ai_simulate_per_day === -1 ? "unlimited" : planLimits.ai_simulate_per_day },
+    copilot: { used: copilotCount || 0, limit: planLimits.copilot_msgs_per_day === -1 ? "unlimited" : planLimits.copilot_msgs_per_day },
+  }});
+
+  // Step 3: Test intent routing
+  const { routeMessage } = await import("@/lib/ai/router");
+  const routingStart = Date.now();
+  try {
+    const routingResult = await routeMessage("Hi, I want to buy a product", []);
+    diag.steps.push({ step: "intent_routing", status: "success", latency_ms: Date.now() - routingStart, data: routingResult });
+  } catch (err) {
+    diag.steps.push({ step: "intent_routing", status: "failed", error: err.message?.substring(0, 200) });
+  }
+
+  // Step 4: Test generateAIReply
+  const { generateAIReply } = await import("@/lib/ai");
+  const aiStart = Date.now();
+  try {
+    const aiResult = await generateAIReply({
+      accountId: account.id,
+      customerId: "00000000-0000-0000-0000-000000000000",
+      customerMessage: "Hi, what products do you sell?",
+      customerName: "Test Customer",
+      personality: account.ai_personality,
+      country: account.country,
+      businessName: account.business_name,
+      conversationHistory: [],
+      plan: account.plan,
+    });
+
+    diag.steps.push({
+      step: "generate_ai_reply",
+      status: aiResult.reply ? "success" : "no_reply",
+      latency_ms: Date.now() - aiStart,
+      data: {
+        reply_preview: aiResult.reply?.substring(0, 300),
+        intent: aiResult.intent,
+        sentiment: aiResult.sentiment,
+        has_tool_calls: !!(aiResult.toolCalls && aiResult.toolCalls.length > 0),
+        tool_calls_count: aiResult.toolCalls?.length || 0,
+      },
+    });
+  } catch (aiErr) {
+    diag.steps.push({
+      step: "generate_ai_reply",
+      status: "failed",
+      latency_ms: Date.now() - aiStart,
+      error: aiErr.message?.substring(0, 500),
+      stack: aiErr.stack?.split('\n').slice(0, 8).join('\n'),
+    });
+  }
+
+  // Step 5: Check products exist for AI context
+  const { count: productCount } = await adminClient
+    .from("products")
+    .select("*", { count: "exact", head: true })
+    .eq("account_id", accountId)
+    .eq("status", "active");
+
+  diag.steps.push({ step: "product_catalog", status: "checked", data: { active_products: productCount || 0 } });
+
+  // Step 6: Check business policies
+  const { count: policyCount } = await adminClient
+    .from("business_policies")
+    .select("*", { count: "exact", head: true })
+    .eq("account_id", accountId)
+    .eq("is_active", true);
+
+  diag.steps.push({ step: "business_policies", status: "checked", data: { active_policies: policyCount || 0 } });
+
+  // Step 7: Check FAQs
+  const { count: faqCount } = await adminClient
+    .from("faqs")
+    .select("*", { count: "exact", head: true })
+    .eq("account_id", accountId)
+    .eq("is_active", true);
+
+  diag.steps.push({ step: "faqs", status: "checked", data: { active_faqs: faqCount || 0 } });
+
+  // Summary
+  const rateLimitStep = diag.steps.find(s => s.step === "rate_limits");
+  const aiReplyStep = diag.steps.find(s => s.step === "generate_ai_reply");
+  
+  diag.summary = {
+    ai_enabled: account.ai_enabled,
+    ai_reply_works: aiReplyStep?.status === "success",
+    rate_limited: rateLimitStep?.data?.ai_auto_reply?.used >= (planLimits.ai_replies_per_day === -1 ? Infinity : planLimits.ai_replies_per_day),
+    groq_available: !!process.env.GROQ_API_KEY,
+    google_available: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    google_quota_exceeded: false, // Will be updated if Google fails
+  };
+
+  return diag;
 }
