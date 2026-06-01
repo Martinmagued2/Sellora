@@ -422,6 +422,30 @@ export async function POST() {
           ? `Fixed ${duplicateFixed} duplicate page_id(s) across accounts`
           : "No duplicate page_ids found"
         );
+
+        // Also fix accounts marked as connected but missing page_id or access_token
+        let staleFixed = 0;
+        for (const acct of allAccounts) {
+          const updates = {};
+          if (acct.facebook_connected && (!acct.facebook_page_id || !acct.facebook_access_token)) {
+            updates.facebook_connected = false;
+            if (!acct.facebook_page_id) updates.facebook_page_id = null;
+            if (!acct.facebook_access_token) updates.facebook_access_token = null;
+          }
+          if (acct.instagram_connected && (!acct.instagram_page_id || !acct.instagram_access_token)) {
+            updates.instagram_connected = false;
+            if (!acct.instagram_page_id) updates.instagram_page_id = null;
+            if (!acct.instagram_access_token) updates.instagram_access_token = null;
+          }
+          if (Object.keys(updates).length > 0) {
+            console.log(`[DB-MIGRATE] Fixing stale connected flags for ${acct.email}:`, Object.keys(updates).join(', '));
+            await admin.from("accounts").update(updates).eq("id", acct.id);
+            staleFixed++;
+          }
+        }
+        if (staleFixed > 0) {
+          results.push(`Fixed ${staleFixed} account(s) with stale connected flags`);
+        }
       }
     } catch (dupErr) {
       results.push(`NEEDS MANUAL: Fix duplicate page_ids (${dupErr.message})`);
