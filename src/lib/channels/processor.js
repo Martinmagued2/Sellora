@@ -350,7 +350,7 @@ export async function processIncomingMessage({
             content: greetingMessage,
             type: "text",
             is_ai: false,
-            delivery_status: greetingDelivered ? "delivered" : "delivery_failed",
+            // delivery_status: greetingDelivered ? "delivered" : "delivery_failed", // column not yet migrated
           });
         } catch (dbErr) {
           console.warn(`[PROCESSOR] Failed to store greeting in database:`, dbErr.message);
@@ -437,7 +437,7 @@ export async function processIncomingMessage({
                 content: bestMatch.answer,
                 type: "text",
                 is_ai: true,
-                delivery_status: faqDelivered ? "delivered" : "delivery_failed",
+                // delivery_status: faqDelivered ? "delivered" : "delivery_failed", // column not yet migrated
               });
             } catch (dbErr) {
               console.warn(`[PROCESSOR] Failed to store FAQ reply:`, dbErr.message);
@@ -508,7 +508,7 @@ export async function processIncomingMessage({
               content: matchedReply.response,
               type: "text",
               is_ai: true,
-              delivery_status: keywordDelivered ? "delivered" : "delivery_failed",
+              // delivery_status: keywordDelivered ? "delivered" : "delivery_failed", // column not yet migrated
             });
           } catch (dbErr) {
             console.warn(`[PROCESSOR] Failed to store keyword reply:`, dbErr.message);
@@ -635,7 +635,6 @@ export async function processIncomingMessage({
                 response_time_seconds: responseTime,
                 sentiment: aiResult.sentiment || null,
                 tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
-                delivery_status: deliverySuccess ? "delivered" : "delivery_failed",
               });
             } catch (dbErr) {
               console.error(`[PROCESSOR] Failed to store AI reply in database:`, dbErr.message);
