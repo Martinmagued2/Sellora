@@ -88,11 +88,23 @@ export async function POST(request) {
 
     try {
       // Look up the account that this page belongs to
-      const { data: account } = await getSupabase()
+      // Handle duplicate page_ids gracefully by preferring accounts with valid tokens
+      const { data: accounts } = await getSupabase()
         .from("accounts")
-        .select("facebook_access_token")
-        .eq("facebook_page_id", event.pageId)
-        .single();
+        .select("id, facebook_access_token")
+        .eq("facebook_page_id", event.pageId);
+
+      if (!accounts || accounts.length === 0) {
+        console.error("[FB-WEBHOOK] No account found for facebook_page_id:", event.pageId);
+        continue;
+      }
+
+      if (accounts.length > 1) {
+        console.warn(`[FB-WEBHOOK] Multiple accounts (${accounts.length}) share facebook_page_id: ${event.pageId}. Picking the one with a valid access token.`);
+      }
+
+      // Prefer the account that has a valid access token
+      const account = accounts.find(a => a.facebook_access_token) || accounts[0];
 
       if (!account?.facebook_access_token) {
         console.error("[FB-WEBHOOK] No Facebook token found for page:", event.pageId);
@@ -112,6 +124,7 @@ export async function POST(request) {
         .filter(Boolean);
 
       // Process through the shared pipeline
+      // Pass accountId so processor uses the correct account (handles duplicate page_ids)
       await processIncomingMessage({
         senderId: event.senderId,
         senderName: profile?.name || null,
@@ -122,6 +135,7 @@ export async function POST(request) {
         pageId: event.pageId,
         platformMessageId: event.messageId,
         accessToken: account.facebook_access_token,
+        accountId: account.id,
       });
 
       console.log(`[FB-WEBHOOK] Processed message from ${event.senderId}: "${event.text?.substring(0, 50)}..."`);

@@ -355,6 +355,78 @@ export async function POST() {
       results.push(`NEEDS MANUAL: Fix instagram_page_id mismatch (${fixErr.message})`);
     }
 
+    // ═══ Fix: Duplicate page IDs across accounts ═══
+    // If multiple accounts share the same facebook_page_id or instagram_page_id,
+    // only the one with a valid access token should keep it.
+    // The others should have their page_id and connected flags cleared.
+    try {
+      const { data: allAccounts } = await admin
+        .from("accounts")
+        .select("id, email, facebook_page_id, facebook_access_token, facebook_connected, instagram_page_id, instagram_access_token, instagram_connected");
+
+      if (allAccounts && allAccounts.length > 0) {
+        let duplicateFixed = 0;
+
+        // Group by facebook_page_id
+        const fbGroups = {};
+        for (const acct of allAccounts) {
+          if (acct.facebook_page_id) {
+            if (!fbGroups[acct.facebook_page_id]) fbGroups[acct.facebook_page_id] = [];
+            fbGroups[acct.facebook_page_id].push(acct);
+          }
+        }
+
+        for (const [pageId, accts] of Object.entries(fbGroups)) {
+          if (accts.length > 1) {
+            // Prefer the account with a valid access token
+            const keeper = accts.find(a => a.facebook_access_token) || accts[0];
+            for (const acct of accts) {
+              if (acct.id !== keeper.id) {
+                console.log(`[DB-MIGRATE] Clearing duplicate facebook_page_id for ${acct.email} (keeping ${keeper.email})`);
+                await admin
+                  .from("accounts")
+                  .update({ facebook_page_id: null, facebook_connected: false, facebook_access_token: null })
+                  .eq("id", acct.id);
+                duplicateFixed++;
+              }
+            }
+          }
+        }
+
+        // Group by instagram_page_id
+        const igGroups = {};
+        for (const acct of allAccounts) {
+          if (acct.instagram_page_id) {
+            if (!igGroups[acct.instagram_page_id]) igGroups[acct.instagram_page_id] = [];
+            igGroups[acct.instagram_page_id].push(acct);
+          }
+        }
+
+        for (const [pageId, accts] of Object.entries(igGroups)) {
+          if (accts.length > 1) {
+            const keeper = accts.find(a => a.instagram_access_token) || accts[0];
+            for (const acct of accts) {
+              if (acct.id !== keeper.id) {
+                console.log(`[DB-MIGRATE] Clearing duplicate instagram_page_id for ${acct.email} (keeping ${keeper.email})`);
+                await admin
+                  .from("accounts")
+                  .update({ instagram_page_id: null, instagram_connected: false, instagram_access_token: null })
+                  .eq("id", acct.id);
+                duplicateFixed++;
+              }
+            }
+          }
+        }
+
+        results.push(duplicateFixed > 0
+          ? `Fixed ${duplicateFixed} duplicate page_id(s) across accounts`
+          : "No duplicate page_ids found"
+        );
+      }
+    } catch (dupErr) {
+      results.push(`NEEDS MANUAL: Fix duplicate page_ids (${dupErr.message})`);
+    }
+
     return Response.json({ success: true, results });
   } catch (error) {
     console.error("[DB-Migrate] Error:", error.message);

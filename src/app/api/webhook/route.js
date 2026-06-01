@@ -174,18 +174,31 @@ async function handleInstagramEvent(body) {
       console.log(`[WEBHOOK-IG] Message from ${event.senderId}: "${event.text?.substring(0, 50)}..." (pageId: ${event.pageId})`);
 
       // Look up the account that this page belongs to
-      const { data: account, error: accountError } = await getSupabase()
+      // Use .limit(1) instead of .single() to handle duplicate page_ids gracefully
+      const { data: accounts, error: accountError } = await getSupabase()
         .from("accounts")
         .select("id, instagram_access_token")
-        .eq("instagram_page_id", event.pageId)
-        .single();
+        .eq("instagram_page_id", event.pageId);
 
       if (accountError) {
         console.error(`[WEBHOOK-IG] Account lookup error for pageId ${event.pageId}:`, accountError.message);
+        errorCount++;
+        continue;
+      }
+
+      if (!accounts || accounts.length === 0) {
+        console.error(`[WEBHOOK-IG] No account found for instagram_page_id: ${event.pageId}`);
         console.error(`[WEBHOOK-IG] HINT: Make sure instagram_page_id in the accounts table matches the Facebook Page ID: ${event.pageId}`);
         errorCount++;
         continue;
       }
+
+      if (accounts.length > 1) {
+        console.warn(`[WEBHOOK-IG] Multiple accounts (${accounts.length}) share instagram_page_id: ${event.pageId}. Picking the one with a valid access token.`);
+      }
+
+      // Prefer the account that has a valid access token
+      const account = accounts.find(a => a.instagram_access_token) || accounts[0];
 
       if (!account?.instagram_access_token) {
         console.error(`[WEBHOOK-IG] No Instagram access token for page: ${event.pageId}`);
@@ -212,6 +225,7 @@ async function handleInstagramEvent(body) {
         .filter(Boolean);
 
       // Process through the shared pipeline
+      // Pass accountId so processor uses the correct account (handles duplicate page_ids)
       await processIncomingMessage({
         senderId: event.senderId,
         senderName: profile?.name || null,
@@ -222,6 +236,7 @@ async function handleInstagramEvent(body) {
         pageId: event.pageId,
         platformMessageId: event.messageId,
         accessToken: account.instagram_access_token,
+        accountId: account.id,
       });
 
       processedCount++;
@@ -263,18 +278,31 @@ async function handleFacebookEvent(body) {
       console.log(`[WEBHOOK-FB] Message from ${event.senderId}: "${event.text?.substring(0, 50)}..." (pageId: ${event.pageId})`);
 
       // Look up the account that this page belongs to
-      const { data: account, error: accountError } = await getSupabase()
+      // Use .limit(1) fallback instead of .single() to handle duplicate page_ids gracefully
+      const { data: accounts, error: accountError } = await getSupabase()
         .from("accounts")
         .select("id, facebook_access_token")
-        .eq("facebook_page_id", event.pageId)
-        .single();
+        .eq("facebook_page_id", event.pageId);
 
       if (accountError) {
         console.error(`[WEBHOOK-FB] Account lookup error for pageId ${event.pageId}:`, accountError.message);
+        errorCount++;
+        continue;
+      }
+
+      if (!accounts || accounts.length === 0) {
+        console.error(`[WEBHOOK-FB] No account found for facebook_page_id: ${event.pageId}`);
         console.error(`[WEBHOOK-FB] HINT: Make sure facebook_page_id in the accounts table matches: ${event.pageId}`);
         errorCount++;
         continue;
       }
+
+      if (accounts.length > 1) {
+        console.warn(`[WEBHOOK-FB] Multiple accounts (${accounts.length}) share facebook_page_id: ${event.pageId}. Picking the one with a valid access token.`);
+      }
+
+      // Prefer the account that has a valid access token
+      const account = accounts.find(a => a.facebook_access_token) || accounts[0];
 
       if (!account?.facebook_access_token) {
         console.error(`[WEBHOOK-FB] No Facebook access token for page: ${event.pageId}`);
@@ -301,6 +329,7 @@ async function handleFacebookEvent(body) {
         .filter(Boolean);
 
       // Process through the shared pipeline
+      // Pass accountId so processor uses the correct account (handles duplicate page_ids)
       await processIncomingMessage({
         senderId: event.senderId,
         senderName: profile?.name || null,
@@ -311,6 +340,7 @@ async function handleFacebookEvent(body) {
         pageId: event.pageId,
         platformMessageId: event.messageId,
         accessToken: account.facebook_access_token,
+        accountId: account.id,
       });
 
       processedCount++;

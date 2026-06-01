@@ -50,22 +50,51 @@ export async function processIncomingMessage({
   pageId,
   platformMessageId,
   accessToken,
+  accountId: providedAccountId, // Optional: passed by webhook handler to resolve duplicate page_ids
 }) {
   try {
     // ─── 1. Find the account that owns this page ───
     const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : "facebook_page_id";
 
     // Step 1a: Fetch core columns that MUST exist
-    const { data: account, error: accountError } = await getSupabase()
-      .from("accounts")
-      .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
-      .eq(pageColumn, pageId)
-      .single();
+    // If accountId was provided (from webhook handler that already resolved duplicates), use it directly
+    let account;
+    if (providedAccountId) {
+      const { data: directAccount, error: directError } = await getSupabase()
+        .from("accounts")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
+        .eq("id", providedAccountId)
+        .single();
 
-    if (accountError || !account) {
-      console.error(`[PROCESSOR] No account found for ${channel} page ${pageId}. Error: ${accountError?.message || "null result"}`);
-      console.error(`[PROCESSOR] HINT: Check that ${pageColumn}="${pageId}" exists in the accounts table`);
-      return;
+      if (directError || !directAccount) {
+        console.error(`[PROCESSOR] Account lookup by ID failed for ${providedAccountId}:`, directError?.message);
+        return;
+      }
+      account = directAccount;
+    } else {
+      // No accountId provided — look up by page ID (handle duplicates gracefully)
+      const { data: accounts, error: accountError } = await getSupabase()
+        .from("accounts")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
+        .eq(pageColumn, pageId);
+
+      if (accountError || !accounts || accounts.length === 0) {
+        console.error(`[PROCESSOR] No account found for ${channel} page ${pageId}. Error: ${accountError?.message || "null result"}`);
+        console.error(`[PROCESSOR] HINT: Check that ${pageColumn}="${pageId}" exists in the accounts table`);
+        return;
+      }
+
+      if (accounts.length > 1) {
+        console.warn(`[PROCESSOR] Multiple accounts (${accounts.length}) share ${pageColumn}=${pageId}. Picking the one with a valid access token.`);
+      }
+
+      // Prefer the account that has a valid access token for this channel
+      account = (() => {
+        if (channel === 'whatsapp') return accounts.find(a => a.whatsapp_access_token) || accounts[0];
+        // For instagram/facebook, the token comes from the webhook handler, not from account lookup
+        // So just pick the first one (they should all have the same page_id)
+        return accounts[0];
+      })();
     }
 
     // Step 1b: Try to fetch optional columns (greeting features may not be migrated yet)
