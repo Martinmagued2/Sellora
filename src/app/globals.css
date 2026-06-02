@@ -2009,3 +2009,477 @@ html[data-theme="light"] .social-proof-v2 {
   cursor: not-allowed;
   transform: none !important;
 }
+
+/* ============================================
+   PHONE MOCKUP — 3D floating device
+   ============================================ */
+.phone-mockup {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.phone-frame {
+  width: 260px;
+  height: 520px;
+  background: linear-gradient(145deg, #2a2b3d, #1a1b2e);
+  border-radius: 36px;
+  padding: 8px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.1),
+    0 25px 60px rgba(0,0,0,0.5),
+    0 0 80px rgba(88,101,242,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  position: relative;
+}
+
+.phone-notch {
+  width: 120px;
+  height: 24px;
+  background: #1a1b2e;
+  border-radius: 0 0 16px 16px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.phone-header {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.phone-messages {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.phone-msg {
+  max-width: 80%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.phone-msg.customer {
+  align-self: flex-start;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+}
+
+.phone-msg.ai {
+  align-self: flex-end;
+  background: rgba(108,92,231,0.15);
+  border: 1px solid rgba(108,92,231,0.2);
+}
+
+.phone-msg-time {
+  display: block;
+  font-size: 8px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  text-align: right;
+}
+
+.phone-input-bar {
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0 0 28px 28px;
+}
+
+.phone-float-badge {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2), 0 0 20px rgba(108,92,231,0.1);
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.phone-float-badge svg {
+  color: var(--accent-primary-light);
+}
+
+/* Phone showcase grid */
+.phone-showcase-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4xl);
+  align-items: center;
+}
+
+.phone-showcase-left h2 {
+  font-size: var(--font-size-3xl);
+}
+
+.phone-feature-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  transition: background var(--transition-base);
+}
+
+.phone-feature-item:hover {
+  background: var(--bg-glass-hover);
+}
+
+.phone-showcase-section {
+  padding-top: var(--space-3xl);
+}
+
+/* ============================================
+   PRODUCT SHOWCASE — "Come Closer" Animation
+   ============================================ */
+.product-showcase-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-lg);
+  padding: var(--space-xl) 0;
+}
+
+.product-float-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-xl);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  will-change: transform;
+}
+
+.product-float-card:hover {
+  border-color: var(--border-accent);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.2), var(--shadow-glow);
+}
+
+.product-emoji {
+  font-size: 36px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.product-info h4 {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.product-price {
+  font-size: var(--font-size-base);
+  font-weight: 800;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.product-color-purple { border-left: 3px solid var(--accent-primary); }
+.product-color-blue { border-left: 3px solid var(--accent-secondary); }
+.product-color-green { border-left: 3px solid var(--accent-green); }
+.product-color-orange { border-left: 3px solid var(--accent-orange); }
+.product-color-pink { border-left: 3px solid var(--accent-pink); }
+
+.product-showcase-section-v2 {
+  background: var(--bg-secondary);
+}
+
+/* ============================================
+   MOBILE MENU OVERLAY V2
+   ============================================ */
+.mobile-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mobile-menu {
+  width: min(320px, 85vw);
+  height: 100%;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-subtle);
+  padding: var(--space-2xl) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  overflow-y: auto;
+}
+
+.mobile-menu-link {
+  display: block;
+  padding: var(--space-md) 0;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: color var(--transition-fast);
+}
+
+.mobile-menu-link:hover {
+  color: var(--text-primary);
+}
+
+.mobile-menu-actions {
+  margin-top: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* ============================================
+   FEATURE CARD SHINE EFFECT
+   ============================================ */
+.feature-card-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  pointer-events: none;
+  transition: none;
+}
+
+.feature-card:hover .feature-card-shine {
+  animation: shine-sweep 0.6s ease-out;
+}
+
+/* Step number ring animation */
+.step-number-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.step-number-ring {
+  position: relative;
+}
+
+.step-number-ring::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px dashed rgba(108,92,231,0.3);
+  animation: ring-rotate 10s linear infinite;
+}
+
+.step-number-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-primary-light);
+  animation: step-icon-float 3s ease-in-out infinite;
+}
+
+/* ============================================
+   RESPONSIVE — Mobile & Tablet
+   ============================================ */
+@media (max-width: 1024px) {
+  .phone-showcase-grid {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .phone-showcase-right {
+    display: flex;
+    justify-content: center;
+  }
+
+  .phone-showcase-left {
+    text-align: center;
+  }
+
+  .phone-feature-item {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar-links {
+    display: none;
+  }
+
+  .navbar-actions {
+    display: none;
+  }
+
+  .navbar-mobile-toggle {
+    display: flex;
+  }
+
+  .hero h1 {
+    font-size: var(--font-size-4xl);
+  }
+
+  .hero-stats {
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .problem-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .steps-container {
+    grid-template-columns: 1fr;
+  }
+
+  .steps-container::before {
+    display: none;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .testimonials-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-top {
+    grid-template-columns: 1fr;
+  }
+
+  .phone-frame {
+    width: 220px;
+    height: 440px;
+  }
+
+  .product-showcase-container {
+    gap: var(--space-md);
+  }
+
+  .product-float-card {
+    padding: var(--space-md) var(--space-lg);
+  }
+
+  .cta-form {
+    flex-direction: column;
+  }
+
+  .cta-input {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero h1 {
+    font-size: var(--font-size-3xl);
+  }
+
+  .hero-cta {
+    flex-direction: column;
+  }
+
+  .phone-float-badge {
+    display: none;
+  }
+}
+
+/* Chat dot animation */
+.chat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-primary-light);
+  animation: chatDotBounce 1.4s infinite;
+}
+
+.chat-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chat-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Typing cursor */
+.typing-cursor {
+  animation: cursor-blink 1s step-end infinite;
+  color: var(--accent-primary-light);
+}
+
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Marquee track */
+.marquee-track {
+  display: inline-flex;
+  animation: marquee-scroll linear infinite;
+}
+
+.marquee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-xl);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+/* Social proof V2 */
+.social-proof-v2 {
+  padding: var(--space-xl) var(--space-lg);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
