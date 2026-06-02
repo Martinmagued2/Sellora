@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://resend.com/docs/knowledge-base/how-do-I-create-an-email-address-or-sender-in-resend",
+    "name": "How do I create an email address or sender in Resend?",
+    "snippet": "Resend does not require you to “create an email address”, “set up a sender identity”, or “add a from-address” before sending. Once a domain is verified in ...",
+    "host_name": "resend.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://resend.com",
+    "name": "Resend · Email for developers",
+    "snippet": "A modern editor that makes it easy for anyone to write, format, and send emails. Visually build your email and change the design by adding custom styles.",
+    "host_name": "resend.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/resend/resend-node/issues/454",
+    "name": "Is it possible to send mails using resend if i dont have a personal",
+    "snippet": "Based on the documentation, you cannot send emails using Resend without having a verified domain. You can find more about it here: https:// ...",
+    "host_name": "github.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=CF6gRy-9_LE",
+    "name": "How to Verify a Domain in Resend - YouTube",
+    "snippet": "Setting up your domain with Resend is a crucial process for sending emails. In this video, we'll walk you through the one-time domain ...",
+    "host_name": "www.youtube.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://resend.com/docs/dashboard/domains/introduction",
+    "name": "Managing Domains - Resend",
+    "snippet": "Verifying a domain. Resend sends emails using a domain you own. We recommend using subdomains (e.g., updates.example.com ) to isolate your sending ...",
+    "host_name": "resend.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  }
+]
