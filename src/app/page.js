@@ -612,6 +612,289 @@ function ProductShowcase() {
   );
 }
 
+/* ──────────────────────────────────────────────
+   SCROLL PARTICLE TRAIL — sparkle dots that follow scroll
+   ────────────────────────────────────────────── */
+function ScrollParticleTrail() {
+  const [particles, setParticles] = useState([]);
+  const lastScroll = useRef(0);
+  const particleId = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const current = window.scrollY;
+      const delta = Math.abs(current - lastScroll.current);
+      lastScroll.current = current;
+      if (delta < 5) return;
+      const colors = ["#5865F2", "#00D2FF"];
+      const count = Math.min(Math.floor(delta / 30), 3);
+      const newParticles = [];
+      for (let i = 0; i < count; i++) {
+        newParticles.push({
+          id: particleId.current++,
+          x: Math.random() * window.innerWidth,
+          y: window.scrollY + Math.random() * window.innerHeight,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          size: Math.random() * 4 + 2,
+          life: 1,
+        });
+      }
+      setParticles((prev) => [...prev.slice(-30), ...newParticles]);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    const interval = setInterval(() => {
+      setParticles((prev) =>
+        prev
+          .map((p) => ({ ...p, life: p.life - 0.05 }))
+          .filter((p) => p.life > 0)
+      );
+    }, 50);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      clearInterval(interval);
+    };
+  }, []);
+
+  return (
+    <>
+      {particles.map((p) => (
+        <div
+          key={p.id}
+          className="scroll-particle"
+          style={{
+            left: p.x,
+            top: p.y - window.scrollY,
+            width: p.size,
+            height: p.size,
+            background: p.color,
+            opacity: p.life * 0.7,
+            boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   GRADIENT SHIFT BACKGROUND — scroll-driven gradient
+   ────────────────────────────────────────────── */
+function GradientShiftBackground() {
+  const [gradient, setGradient] = useState("radial-gradient(ellipse at 30% 50%, rgba(88,101,242,0.15), transparent 70%)");
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const progress = window.scrollY / (document.body.scrollHeight - window.innerHeight || 1);
+      const cx = 20 + progress * 60;
+      const cy = 40 + Math.sin(progress * Math.PI * 2) * 20;
+      const purpleAlpha = 0.08 + Math.sin(progress * Math.PI) * 0.05;
+      const cyanAlpha = 0.06 + Math.cos(progress * Math.PI) * 0.04;
+      setGradient(
+        `radial-gradient(ellipse at ${cx}% ${cy}%, rgba(88,101,242,${purpleAlpha}), transparent 60%), radial-gradient(ellipse at ${100 - cx}% ${100 - cy}%, rgba(0,210,255,${cyanAlpha}), transparent 60%)`
+      );
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return <div className="gradient-shift-bg" style={{ background: gradient }} />;
+}
+
+/* ──────────────────────────────────────────────
+   SCROLL PROGRESS INDICATOR — top progress bar
+   ────────────────────────────────────────────── */
+function ScrollProgressIndicator() {
+  const { scrollYProgress } = useScroll();
+  const scaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
+
+  return (
+    <motion.div
+      className="scroll-progress-bar"
+      style={{ scaleX, width: "100%" }}
+    />
+  );
+}
+
+/* ──────────────────────────────────────────────
+   WAVE TEXT REVEAL — staggered word reveal on scroll
+   ────────────────────────────────────────────── */
+function WaveTextReveal({ children, className = "" }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-80px" });
+
+  if (typeof children !== "string") {
+    return <span ref={ref} className={className}>{children}</span>;
+  }
+
+  const words = children.split(" ");
+
+  return (
+    <span ref={ref} className={className}>
+      {words.map((word, i) => (
+        <motion.span
+          key={i}
+          className="wave-text-word"
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.4, delay: i * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+          style={{ marginRight: "0.3em" }}
+        >
+          {word}
+        </motion.span>
+      ))}
+    </span>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   TEXT SPLIT REVEAL — clipPath mask reveal with stagger
+   ────────────────────────────────────────────── */
+function TextSplitReveal({ children, className = "", delay = 0 }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-80px" });
+
+  if (typeof children !== "string") {
+    return <span ref={ref} className={className}>{children}</span>;
+  }
+
+  const words = children.split(" ");
+
+  return (
+    <span ref={ref} className={className}>
+      {words.map((word, i) => (
+        <span key={i} className="text-split-word" style={{ marginRight: "0.3em" }}>
+          <motion.span
+            className="text-split-word-inner"
+            initial={{ y: "100%", opacity: 0 }}
+            animate={isInView ? { y: "0%", opacity: 1 } : { y: "100%", opacity: 0 }}
+            transition={{ duration: 0.5, delay: delay + i * 0.05, ease: [0.25, 0.46, 0.45, 0.94] }}
+          >
+            {word}
+          </motion.span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   PULSE RING — expanding rings around CTA buttons
+   ────────────────────────────────────────────── */
+function PulseRing({ children }) {
+  return (
+    <span className="pulse-ring-container" style={{ borderRadius: "var(--radius-full)" }}>
+      <span className="pulse-ring" />
+      <span className="pulse-ring" />
+      <span className="pulse-ring" />
+      {children}
+    </span>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   COIN RAIN — animated coins for pricing section
+   ────────────────────────────────────────────── */
+function CoinRain() {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const coins = useRef(
+    Array.from({ length: 18 }, (_, i) => ({
+      id: i,
+      x: ((i * 7 + 13) * 37) % 100,
+      delay: ((i * 17 + 3) * 23 % 300) / 100,
+      duration: 3 + ((i * 11 + 7) * 13 % 300) / 100,
+      drift: ((i * 31 + 17) % 120) - 60,
+      rotate: (i * 47 + 29) % 360,
+    }))
+  ).current;
+
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+      {coins.map((coin) => (
+        <motion.div
+          key={coin.id}
+          className="coin"
+          initial={{ y: -40, x: `${coin.x}%`, rotate: 0, opacity: 0 }}
+          animate={{
+            y: ["0%", "110%"],
+            x: [`${coin.x}%`, `calc(${coin.x}% + ${coin.drift}px)`],
+            rotate: [0, coin.rotate],
+            opacity: [0, 0.8, 0.8, 0],
+          }}
+          transition={{
+            duration: coin.duration,
+            delay: coin.delay,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   MAGNETIC CARD — cursor attraction + tilt
+   ────────────────────────────────────────────── */
+function MagneticCard({ children, className = "", style = {} }) {
+  const cardRef = useRef(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const magneticRadius = 200;
+
+  const handleMove = useCallback((e) => {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dx = e.clientX - centerX;
+    const dy = e.clientY - centerY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < magneticRadius) {
+      const force = (1 - dist / magneticRadius) * 0.3;
+      const moveX = dx * force;
+      const moveY = dy * force;
+      setOffset({ x: moveX, y: moveY });
+
+      // Tilt
+      const innerX = e.clientX - rect.left;
+      const innerY = e.clientY - rect.top;
+      const rx = (innerY - rect.height / 2) / (rect.height / 2) * -6;
+      const ry = (innerX - rect.width / 2) / (rect.width / 2) * 6;
+      card.style.transform = `perspective(800px) rotateX(${rx}deg) rotateY(${ry}deg) translate3d(${moveX}px, ${moveY}px, 0) scale3d(1.02,1.02,1.02)`;
+    } else {
+      setOffset({ x: 0, y: 0 });
+      card.style.transform = "perspective(800px) rotateX(0deg) rotateY(0deg) translate3d(0,0,0) scale3d(1,1,1)";
+    }
+  }, []);
+
+  const handleLeave = useCallback(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    setOffset({ x: 0, y: 0 });
+    card.style.transform = "perspective(800px) rotateX(0deg) rotateY(0deg) translate3d(0,0,0) scale3d(1,1,1)";
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseleave", handleLeave);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseleave", handleLeave);
+    };
+  }, [handleMove, handleLeave]);
+
+  return (
+    <div
+      ref={cardRef}
+      className={`magnetic-card ${className}`}
+      style={{ ...style, transition: "transform 0.2s ease-out", transformStyle: "preserve-3d" }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════
    MAIN HOMEPAGE
    ══════════════════════════════════════════════ */
@@ -633,8 +916,10 @@ export default function Home() {
     offset: ["start start", "end start"],
   });
   const heroOpacity = useTransform(heroScrollProgress, [0, 1], [1, 0]);
-  const heroScale = useTransform(heroScrollProgress, [0, 1], [1, 0.9]);
+  const heroScale = useTransform(heroScrollProgress, [0, 1], [1, 2.5]);
   const heroY = useTransform(heroScrollProgress, [0, 1], [0, 150]);
+  const heroBlur = useTransform(heroScrollProgress, [0, 0.5, 1], [0, 2, 12]);
+  const heroFilter = useTransform(heroBlur, (v) => v > 0 ? `blur(${v}px)` : "none");
 
   // Scroll listener
   useEffect(() => {
@@ -702,8 +987,17 @@ export default function Home() {
 
   return (
     <>
+      {/* Scroll Progress Indicator */}
+      <ScrollProgressIndicator />
+
       {/* Particle Canvas Background */}
       <ParticleCanvas />
+
+      {/* Scroll Particle Trail */}
+      <ScrollParticleTrail />
+
+      {/* Gradient Shift Background */}
+      <GradientShiftBackground />
 
       {/* Cursor Glow Follower */}
       <div
@@ -794,8 +1088,8 @@ export default function Home() {
         <MorphBlob color="cyan" style={{ bottom: "-5%", left: "-8%", width: "50vw", maxWidth: 500, opacity: 0.6 }} />
 
         <motion.div
-          className="hero-content hero-v2-content"
-          style={{ opacity: heroOpacity, scale: heroScale, y: heroY }}
+          className="hero-content hero-v2-content hero-cinematic-blur"
+          style={{ opacity: heroOpacity, scale: heroScale, y: heroY, filter: heroFilter }}
         >
           <motion.div
             className="hero-badge"
@@ -835,10 +1129,12 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.8 }}
           >
-            <button className="btn btn-primary btn-lg hero-cta-btn" id="hero-cta-primary" onClick={() => router.push("/signup")}>
-              <Play size={18} />
-              {t("hero_cta_primary")}
-            </button>
+            <PulseRing>
+              <button className="btn btn-primary btn-lg hero-cta-btn" id="hero-cta-primary" onClick={() => router.push("/signup")}>
+                <Play size={18} />
+                {t("hero_cta_primary")}
+              </button>
+            </PulseRing>
             <button className="btn btn-secondary btn-lg" id="hero-cta-demo" onClick={() => router.push("/login")}>
               {t("hero_cta_secondary")} <ChevronRight size={18} />
             </button>
@@ -879,7 +1175,7 @@ export default function Home() {
             <div className="phone-showcase-left">
               <ScrollReveal direction="right" delay={0.2}>
                 <h2 style={{ fontSize: "var(--font-size-3xl)", fontWeight: 800, lineHeight: 1.2, marginBottom: "var(--space-lg)" }}>
-                  Your AI sales agent <span className="text-gradient-static">never sleeps</span>
+                  <WaveTextReveal>Your AI sales agent</WaveTextReveal> <span className="text-gradient-static">never sleeps</span>
                 </h2>
                 <p style={{ fontSize: "var(--font-size-lg)", color: "var(--text-secondary)", lineHeight: 1.7, marginBottom: "var(--space-xl)" }}>
                   While you rest, Sellora handles inquiries, shows products, processes orders, and sends payment links — all on autopilot. Wake up to new sales, not unread messages.
@@ -944,8 +1240,8 @@ export default function Home() {
                   The Problem
                 </span>
                 <h2>
-                  You&apos;re losing sales in your{" "}
-                  <span className="text-gradient-static">DMs</span> right now
+                  <TextSplitReveal>You&apos;re losing sales in your</TextSplitReveal>{" "}
+                  <span className="text-gradient-static"><TextSplitReveal>DMs</TextSplitReveal></span> <TextSplitReveal>right now</TextSplitReveal>
                 </h2>
                 <p>
                   Every unanswered message is a lost customer. Every delayed reply
@@ -1018,8 +1314,8 @@ export default function Home() {
                 {t("features_badge")}
               </span>
               <h2>
-                {t("features_title_1")}{" "}
-                <span className="text-gradient-static">{t("features_title_2")}</span>
+                <TextSplitReveal>{t("features_title_1")}</TextSplitReveal>{" "}
+                <span className="text-gradient-static"><TextSplitReveal>{t("features_title_2")}</TextSplitReveal></span>
               </h2>
               <p>{t("features_subtitle")}</p>
             </div>
@@ -1029,19 +1325,20 @@ export default function Home() {
             {features.map((feature, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 40, scale: 0.95 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                className="feature-card-stagger"
+                initial={{ opacity: 0, y: 80, scale: 0.7, rotateX: 30 }}
+                whileInView={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.5, delay: i * 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
+                transition={{ duration: 0.7, delay: i * 0.15, ease: [0.16, 1, 0.3, 1] }}
               >
-                <TiltCard className="glass-card feature-card" style={{ height: "100%" }}>
+                <MagneticCard className="glass-card feature-card" style={{ height: "100%" }}>
                   <div className={`feature-icon ${feature.color}`}>
                     {feature.icon}
                   </div>
                   <h3>{feature.title}</h3>
                   <p>{feature.desc}</p>
                   <div className="feature-card-shine" />
-                </TiltCard>
+                </MagneticCard>
               </motion.div>
             ))}
           </div>
@@ -1100,8 +1397,9 @@ export default function Home() {
       </section>
 
       {/* ===== PRICING ===== */}
-      <section className="section" id="pricing">
-        <div className="section-inner">
+      <section className="section" id="pricing" style={{ position: "relative" }}>
+        <CoinRain />
+        <div className="section-inner" style={{ position: "relative", zIndex: 1 }}>
           <ScrollReveal>
             <div className="section-header">
               <span className="badge badge-primary" style={{ marginBottom: 16 }}>
@@ -1129,10 +1427,11 @@ export default function Home() {
             {pricingPlans.map((plan, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 60 }}
-                whileInView={{ opacity: 1, y: 0 }}
+                className="pricing-card-3d"
+                initial={{ opacity: 0, rotateY: -90 }}
+                whileInView={{ opacity: 1, rotateY: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: i * 0.15 }}
+                transition={{ duration: 0.8, delay: i * 0.2, ease: [0.16, 1, 0.3, 1] }}
               >
                 <TiltCard className={`glass-card pricing-card ${plan.featured ? "featured" : ""}`}>
                   {plan.featured && (
@@ -1331,9 +1630,11 @@ export default function Home() {
                 <p>Start your 14-day free trial. No credit card required.</p>
                 <div className="cta-form">
                   <input className="cta-input" type="email" placeholder="Enter your email" />
-                  <button className="btn btn-primary btn-lg" onClick={() => router.push("/signup")}>
-                    Get Started <ArrowRight size={16} />
-                  </button>
+                  <PulseRing>
+                    <button className="btn btn-primary btn-lg" onClick={() => router.push("/signup")}>
+                      Get Started <ArrowRight size={16} />
+                    </button>
+                  </PulseRing>
                 </div>
               </motion.div>
             </div>
