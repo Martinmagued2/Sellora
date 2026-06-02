@@ -732,7 +732,7 @@ export async function processIncomingMessage({
                   });
                 } catch (notifErr) {
                   console.warn(`[PROCESSOR] Failed to store notification (table may not exist yet):`, notifErr.message);
-                  console.warn(`[PROCESSOR] Run migration: /api/admin/setup-db?adminKey=Sellora2026!Admin`);
+                  console.warn(`[PROCESSOR] Run migration: /api/admin/setup-db?adminKey=<YOUR_ADMIN_KEY>`);
                 }
 
                 // 3. Send email notification to the owner (best-effort)

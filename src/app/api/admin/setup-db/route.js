@@ -1,6 +1,6 @@
 /**
  * Database Setup Endpoint
- * GET /api/admin/setup-db?adminKey=Sellora2026!Admin
+ * GET /api/admin/setup-db?adminKey=<ADMIN_SECRET_KEY>
  * 
  * Checks what migrations are needed and provides the SQL to run manually.
  */
@@ -11,7 +11,7 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const adminKey = searchParams.get("adminKey");
   
-  if (adminKey !== "Sellora2026!Admin") {
+  if (adminKey !== process.env.ADMIN_SECRET_KEY) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

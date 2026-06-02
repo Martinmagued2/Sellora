@@ -1,8 +1,57 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
+import { checkRateLimit, rateLimitResponse, createRateLimitKey } from "@/lib/rate-limit";
 
 export async function middleware(request) {
   let supabaseResponse = NextResponse.next({ request });
+
+  // ─── Rate Limiting (applied to all matched routes) ───
+  const pathname = request.nextUrl.pathname;
+  const method = request.method;
+
+  // Skip rate limiting for static assets and GET requests on non-sensitive pages
+  if (method === "GET" && !pathname.startsWith("/api/")) {
+    // No rate limit on regular page GETs
+  } else {
+    // Determine rate limit tier based on route
+    let rateLimitTier = "api"; // default
+
+    if (
+      pathname.startsWith("/api/auth") ||
+      pathname === "/login" && method === "POST" ||
+      pathname === "/signup" && method === "POST" ||
+      pathname === "/forgot-password" && method === "POST"
+    ) {
+      rateLimitTier = "auth";
+    } else if (
+      pathname.includes("/webhooks/") ||
+      pathname.includes("/webhook")
+    ) {
+      rateLimitTier = "webhook";
+    } else if (pathname.startsWith("/api/admin")) {
+      rateLimitTier = "admin";
+    } else if (
+      pathname.includes("/email/test") ||
+      pathname.includes("/email/weekly") ||
+      pathname.includes("/notifications/email")
+    ) {
+      rateLimitTier = "email";
+    }
+
+    // Only rate limit POST/PUT/DELETE/PATCH on API routes
+    if (pathname.startsWith("/api/") && method !== "GET") {
+      const rlKey = createRateLimitKey(request);
+      const rlResult = checkRateLimit(rlKey, rateLimitTier);
+
+      if (rlResult.limited) {
+        return rateLimitResponse(rlResult.resetAt);
+      }
+
+      // Add rate limit headers to the response
+      supabaseResponse.headers.set("X-RateLimit-Remaining", String(rlResult.remaining));
+      supabaseResponse.headers.set("X-RateLimit-Reset", String(Math.ceil(rlResult.resetAt / 1000)));
+    }
+  }
 
   // Skip auth if Supabase is not configured
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {

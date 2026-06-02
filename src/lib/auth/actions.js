@@ -4,12 +4,56 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { sendWelcomeEmail } from "@/lib/email";
+import { isRateLimited } from "@/lib/rate-limit";
+
+// In-memory rate limit for server actions (per-email tracking)
+const authAttempts = new Map();
+
+function checkAuthRateLimit(email, action = "login") {
+  const key = `${action}:${email}`;
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 minutes
+  const maxAttempts = 5;
+
+  const record = authAttempts.get(key);
+  if (!record) {
+    authAttempts.set(key, { count: 1, startTime: now });
+    return false;
+  }
+
+  if (now - record.startTime > windowMs) {
+    authAttempts.set(key, { count: 1, startTime: now });
+    return false;
+  }
+
+  record.count += 1;
+  if (record.count > maxAttempts) {
+    return true; // Rate limited
+  }
+  return false;
+}
+
+// Cleanup old entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of authAttempts.entries()) {
+    if (now - record.startTime > 15 * 60 * 1000) {
+      authAttempts.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
 
 export async function login(formData) {
   const supabase = await createClient();
+  const email = formData.get("email");
+
+  // Rate limit check — max 5 attempts per email per 15 minutes
+  if (checkAuthRateLimit(email, "login")) {
+    return { error: "Too many login attempts. Please try again in 15 minutes." };
+  }
 
   const { error } = await supabase.auth.signInWithPassword({
-    email: formData.get("email"),
+    email,
     password: formData.get("password"),
   });
 
@@ -28,6 +72,11 @@ export async function signup(formData) {
   const password = formData.get("password");
   const fullName = formData.get("fullName");
   const businessName = formData.get("businessName");
+
+  // Rate limit check — max 5 signup attempts per email per 15 minutes
+  if (checkAuthRateLimit(email, "signup")) {
+    return { error: "Too many signup attempts. Please try again in 15 minutes." };
+  }
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -108,6 +157,11 @@ export async function resetPassword(formData) {
   const origin = formData.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   if (!email) return { error: "Email is required" };
+
+  // In-memory rate limit — max 5 per 15 minutes (first line of defense)
+  if (checkAuthRateLimit(email, "reset")) {
+    return { error: "Too many reset requests. Please try again in 15 minutes." };
+  }
 
   // 1. Bypass RLS using the admin client to check and log rate limits securely
   const { createClient: createAdminClient } = await import("@supabase/supabase-js");

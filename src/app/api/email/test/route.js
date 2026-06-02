@@ -16,7 +16,7 @@ export async function POST(req) {
     const body = await req.json();
     const bodyKey = body.adminKey;
 
-    if (!isAdmin && bodyKey !== process.env.ADMIN_SECRET_KEY && bodyKey !== "Sellora2026!Admin") {
+    if (!isAdmin && bodyKey !== process.env.ADMIN_SECRET_KEY) {
       return Response.json({ error: "Forbidden — admin access required. Pass adminKey in body or x-admin-key header." }, { status: 403 });
     }
 

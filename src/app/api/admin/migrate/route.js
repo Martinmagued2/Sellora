@@ -20,8 +20,8 @@ export async function POST(req) {
   try {
     const { adminKey } = await req.json();
     
-    // Simple admin key check
-    if (adminKey !== "Sellora2026!Admin") {
+    // Admin key check — uses env var, no hardcoded secrets
+    if (adminKey !== process.env.ADMIN_SECRET_KEY) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
