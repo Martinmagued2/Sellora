@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   MessageCircle,
@@ -28,29 +28,435 @@ import {
   Shield,
   Sun,
   Moon,
+  Sparkles,
+  Play,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme/ThemeProvider";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
+/* ──────────────────────────────────────────────
+   PARTICLE CANVAS — interactive background
+   ────────────────────────────────────────────── */
+function ParticleCanvas() {
+  const canvasRef = useRef(null);
+  const mouse = useRef({ x: -1000, y: -1000 });
+  const particles = useRef([]);
+  const rafId = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let w, h;
+
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // Create particles
+    const count = Math.min(80, Math.floor(window.innerWidth / 18));
+    particles.current = Array.from({ length: count }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 2 + 1,
+      color: Math.random() > 0.5 ? "108,92,231" : "0,210,255",
+    }));
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      const ps = particles.current;
+      const mx = mouse.current.x;
+      const my = mouse.current.y;
+
+      for (let i = 0; i < ps.length; i++) {
+        const p = ps[i];
+
+        // Mouse repulsion
+        const dx = p.x - mx;
+        const dy = p.y - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 180) {
+          const force = (180 - dist) / 180 * 0.8;
+          p.vx += (dx / dist) * force;
+          p.vy += (dy / dist) * force;
+        }
+
+        // Dampen
+        p.vx *= 0.98;
+        p.vy *= 0.98;
+
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Wrap edges
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+
+        // Draw particle
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${p.color},0.6)`;
+        ctx.fill();
+
+        // Connect nearby particles with lines
+        for (let j = i + 1; j < ps.length; j++) {
+          const p2 = ps[j];
+          const d = Math.hypot(p.x - p2.x, p.y - p2.y);
+          if (d < 140) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = `rgba(${p.color},${0.15 * (1 - d / 140)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+      rafId.current = requestAnimationFrame(draw);
+    }
+    draw();
+
+    const handleMouse = (e) => {
+      mouse.current = { x: e.clientX, y: e.clientY };
+    };
+    const handleLeave = () => {
+      mouse.current = { x: -1000, y: -1000 };
+    };
+    window.addEventListener("mousemove", handleMouse);
+    window.addEventListener("mouseleave", handleLeave);
+
+    return () => {
+      cancelAnimationFrame(rafId.current);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("mousemove", handleMouse);
+      window.removeEventListener("mouseleave", handleLeave);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: "none",
+      }}
+    />
+  );
+}
+
+/* ──────────────────────────────────────────────
+   ANIMATED COUNTER — counts up on scroll
+   ────────────────────────────────────────────── */
+function AnimatedCounter({ end, suffix = "", prefix = "" }) {
+  const ref = useRef(null);
+  const [value, setValue] = useState(0);
+  const counted = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !counted.current) {
+          counted.current = true;
+          const duration = 2000;
+          const start = performance.now();
+          function step(now) {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+            setValue(Math.floor(eased * end));
+            if (progress < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [end]);
+
+  return (
+    <span ref={ref}>
+      {prefix}{value.toLocaleString()}{suffix}
+    </span>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   TILT CARD — 3D perspective tilt on hover
+   ────────────────────────────────────────────── */
+function TiltCard({ children, className = "", style = {} }) {
+  const cardRef = useRef(null);
+
+  const handleMove = useCallback((e) => {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = (y - centerY) / centerY * -6;
+    const rotateY = (x - centerX) / centerX * 6;
+    card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02,1.02,1.02)`;
+  }, []);
+
+  const handleLeave = useCallback(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    card.style.transform = "perspective(800px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)";
+  }, []);
+
+  return (
+    <div
+      ref={cardRef}
+      className={className}
+      style={{ ...style, transition: "transform 0.15s ease-out", transformStyle: "preserve-3d" }}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   TYPING ANIMATION
+   ────────────────────────────────────────────── */
+function TypingText({ strings, speed = 80, deleteSpeed = 40, pause = 2000 }) {
+  const [text, setText] = useState("");
+  const [idx, setIdx] = useState(0);
+  const [charIdx, setCharIdx] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const current = strings[idx];
+    let timer;
+    if (!isDeleting && charIdx < current.length) {
+      timer = setTimeout(() => {
+        setText(current.slice(0, charIdx + 1));
+        setCharIdx(charIdx + 1);
+      }, speed);
+    } else if (!isDeleting && charIdx === current.length) {
+      timer = setTimeout(() => setIsDeleting(true), pause);
+    } else if (isDeleting && charIdx > 0) {
+      timer = setTimeout(() => {
+        setText(current.slice(0, charIdx - 1));
+        setCharIdx(charIdx - 1);
+      }, deleteSpeed);
+    } else if (isDeleting && charIdx === 0) {
+      setIsDeleting(false);
+      setIdx((idx + 1) % strings.length);
+    }
+    return () => clearTimeout(timer);
+  }, [charIdx, isDeleting, idx, strings, speed, deleteSpeed, pause]);
+
+  return (
+    <span>
+      {text}
+      <span className="typing-cursor">|</span>
+    </span>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   LIVE CHAT MOCKUP — interactive typing demo
+   ────────────────────────────────────────────── */
+function LiveChatMockup() {
+  const [messages, setMessages] = useState([]);
+  const [typing, setTyping] = useState(false);
+  const started = useRef(false);
+
+  const chatScript = [
+    { role: "customer", text: "Hi! How much is the black bag?", delay: 800 },
+    { role: "typing", delay: 600 },
+    { role: "ai", text: "Hey there! The Black Leather Tote is 450 EGP. Want me to share a photo?", delay: 1000 },
+    { role: "customer", text: "Yes please!", delay: 1200 },
+    { role: "typing", delay: 500 },
+    { role: "ai", text: "Here it is! We also have it in brown. Want to order?", delay: 800 },
+    { role: "customer", text: "I'll take the black one!", delay: 1000 },
+    { role: "typing", delay: 400 },
+    { role: "ai", text: "Great choice! Payment link sent. Your order #2847 is confirmed!", delay: 600 },
+  ];
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    let timeout;
+    let i = 0;
+    function next() {
+      if (i >= chatScript.length) {
+        // Restart after 5s
+        timeout = setTimeout(() => {
+          setMessages([]);
+          started.current = false;
+          i = 0;
+        }, 5000);
+        return;
+      }
+      const step = chatScript[i];
+      if (step.role === "typing") {
+        setTyping(true);
+        timeout = setTimeout(() => {
+          setTyping(false);
+          i++;
+          next();
+        }, step.delay);
+      } else {
+        timeout = setTimeout(() => {
+          setMessages((prev) => [...prev, { role: step.role, text: step.text }]);
+          i++;
+          next();
+        }, step.delay);
+      }
+    }
+    next();
+    return () => clearTimeout(timeout);
+  }, []);
+
+  return (
+    <div style={{
+      background: "var(--bg-card)",
+      border: "1px solid var(--border-subtle)",
+      borderRadius: "var(--radius-xl)",
+      padding: "var(--space-lg)",
+      backdropFilter: "blur(16px)",
+      maxWidth: 380,
+      margin: "0 auto",
+    }}>
+      {/* Chat header */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: "var(--space-sm)",
+        paddingBottom: "var(--space-md)", borderBottom: "1px solid var(--border-subtle)",
+        marginBottom: "var(--space-md)",
+      }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: "50%",
+          background: "var(--accent-gradient)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Bot size={18} style={{ color: "#fff" }} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: "var(--font-size-sm)" }}>Sellora AI</div>
+          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--accent-green)", display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-green)", display: "inline-block" }} />
+            Online
+          </div>
+        </div>
+      </div>
+      {/* Messages */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", minHeight: 220 }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{
+            alignSelf: m.role === "customer" ? "flex-start" : "flex-end",
+            maxWidth: "80%",
+            padding: "10px 14px",
+            borderRadius: "var(--radius-lg)",
+            fontSize: "var(--font-size-sm)",
+            lineHeight: 1.5,
+            background: m.role === "customer"
+              ? "var(--bg-glass)"
+              : "rgba(108,92,231,0.15)",
+            border: `1px solid ${m.role === "customer" ? "var(--border-subtle)" : "rgba(108,92,231,0.2)"}`,
+            animation: "chatMsgIn 0.3s ease-out",
+          }}>
+            {m.text}
+          </div>
+        ))}
+        {typing && (
+          <div style={{
+            alignSelf: "flex-end",
+            padding: "10px 16px",
+            borderRadius: "var(--radius-lg)",
+            background: "rgba(108,92,231,0.1)",
+            border: "1px solid rgba(108,92,231,0.15)",
+            display: "flex", gap: 4, alignItems: "center",
+          }}>
+            <span className="chat-dot" />
+            <span className="chat-dot" />
+            <span className="chat-dot" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   MORPHING BLOB — animated SVG background shape
+   ────────────────────────────────────────────── */
+function MorphBlob({ color, style = {} }) {
+  return (
+    <svg viewBox="0 0 600 600" style={{ position: "absolute", ...style, pointerEvents: "none" }}>
+      <defs>
+        <linearGradient id={`grad-${color}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={color === "purple" ? "#5865F2" : "#00D2FF"} stopOpacity="0.12" />
+          <stop offset="100%" stopColor={color === "purple" ? "#00D2FF" : "#5865F2"} stopOpacity="0.06" />
+        </linearGradient>
+      </defs>
+      <path fill={`url(#grad-${color})`}>
+        <animate
+          attributeName="d"
+          dur="12s"
+          repeatCount="indefinite"
+          values="
+            M300,100 C450,50 550,180 520,300 C490,420 380,520 260,500 C140,480 50,380 80,250 C110,120 150,150 300,100 Z;
+            M300,80 C420,60 580,200 500,320 C420,440 350,530 230,510 C110,490 30,350 100,220 C170,90 180,100 300,80 Z;
+            M300,120 C480,80 530,220 490,340 C450,460 340,500 240,480 C140,460 70,360 120,240 C170,120 120,160 300,120 Z;
+            M300,100 C450,50 550,180 520,300 C490,420 380,520 260,500 C140,480 50,380 80,250 C110,120 150,150 300,100 Z
+          "
+        />
+      </path>
+    </svg>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   MARQUEE — scrolling ticker
+   ────────────────────────────────────────────── */
+function Marquee({ children, speed = 30 }) {
+  return (
+    <div style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
+      <div className="marquee-track" style={{ animationDuration: `${speed}s` }}>
+        {children}{children}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   MAIN HOMEPAGE
+   ══════════════════════════════════════════════ */
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isAnnual, setIsAnnual] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [cursorGlow, setCursorGlow] = useState({ x: 0, y: 0, visible: false });
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { lang, setLang, t } = useLanguage();
 
+  // Scroll listener
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 50);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Animate on scroll
+  // Scroll animations + parallax
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -62,12 +468,36 @@ export default function Home() {
       },
       { threshold: 0.1 }
     );
+    document.querySelectorAll(".animate-on-scroll").forEach((el) => observer.observe(el));
 
-    document.querySelectorAll(".animate-on-scroll").forEach((el) => {
-      observer.observe(el);
-    });
+    // Parallax on scroll
+    const handleParallax = () => {
+      const scrollY = window.scrollY;
+      document.querySelectorAll("[data-parallax]").forEach((el) => {
+        const speed = parseFloat(el.dataset.parallax) || 0.1;
+        el.style.transform = `translateY(${scrollY * speed}px)`;
+      });
+    };
+    window.addEventListener("scroll", handleParallax);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", handleParallax);
+    };
+  }, []);
+
+  // Cursor glow follower
+  useEffect(() => {
+    const handleMouse = (e) => {
+      setCursorGlow({ x: e.clientX, y: e.clientY, visible: true });
+    };
+    const handleLeave = () => setCursorGlow((p) => ({ ...p, visible: false }));
+    window.addEventListener("mousemove", handleMouse);
+    window.addEventListener("mouseleave", handleLeave);
+    return () => {
+      window.removeEventListener("mousemove", handleMouse);
+      window.removeEventListener("mouseleave", handleLeave);
+    };
   }, []);
 
   const features = [
@@ -219,11 +649,24 @@ export default function Home() {
 
   return (
     <>
+      {/* Particle Canvas Background */}
+      <ParticleCanvas />
+
+      {/* Cursor Glow Follower */}
+      <div
+        className="cursor-glow"
+        style={{
+          left: cursorGlow.x - 200,
+          top: cursorGlow.y - 200,
+          opacity: cursorGlow.visible ? 1 : 0,
+        }}
+      />
+
       {/* ===== NAVBAR ===== */}
       <nav className={`navbar ${isScrolled ? "scrolled" : ""}`} id="navbar">
         <div className="navbar-inner">
           <a href="#" className="navbar-logo">
-            <img src="/logo.png" alt="Sellora" className="navbar-logo-img" style={{ width: 32, height: 32, borderRadius: 8 }} />
+            <img src="/logo.png" alt="Sellora" className="navbar-logo-img" style={{ width: 36, height: 36, borderRadius: 10 }} />
             <span>
               Sell<span className="text-gradient-static">ora</span>
             </span>
@@ -237,60 +680,37 @@ export default function Home() {
           </div>
 
           <div className="navbar-actions">
-            {/* Theme Toggle */}
-            <button
-              className="navbar-icon-btn"
-              onClick={toggleTheme}
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              aria-label="Toggle theme"
-            >
+            <button className="navbar-icon-btn" onClick={toggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-label="Toggle theme">
               {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            {/* Language Switcher */}
             <div className="lang-switcher" style={{ position: "relative" }}>
-              <button
-                className="navbar-icon-btn"
-                onClick={() => setLangMenuOpen(!langMenuOpen)}
-                title="Change language"
-                aria-label="Change language"
-              >
+              <button className="navbar-icon-btn" onClick={() => setLangMenuOpen(!langMenuOpen)} title="Change language" aria-label="Change language">
                 <Globe size={18} />
-                <span style={{ fontSize: "var(--font-size-xs)", marginLeft: 4 }}>
-                  {lang.toUpperCase()}
-                </span>
+                <span style={{ fontSize: "var(--font-size-xs)", marginLeft: 4 }}>{lang.toUpperCase()}</span>
               </button>
               {langMenuOpen && (
                 <div className="lang-dropdown">
-                  <button className={`lang-option ${lang === "en" ? "active" : ""}`} onClick={() => { setLang("en"); setLangMenuOpen(false); }}>
-                    🇬🇧 English
-                  </button>
-                  <button className={`lang-option ${lang === "ar" ? "active" : ""}`} onClick={() => { setLang("ar"); setLangMenuOpen(false); }}>
-                    🇸🇦 العربية
-                  </button>
-                  <button className={`lang-option ${lang === "fr" ? "active" : ""}`} onClick={() => { setLang("fr"); setLangMenuOpen(false); }}>
-                    🇫🇷 Français
-                  </button>
+                  <button className={`lang-option ${lang === "en" ? "active" : ""}`} onClick={() => { setLang("en"); setLangMenuOpen(false); }}>English</button>
+                  <button className={`lang-option ${lang === "ar" ? "active" : ""}`} onClick={() => { setLang("ar"); setLangMenuOpen(false); }}>العربية</button>
+                  <button className={`lang-option ${lang === "fr" ? "active" : ""}`} onClick={() => { setLang("fr"); setLangMenuOpen(false); }}>Français</button>
                 </div>
               )}
             </div>
 
-            <button className="navbar-login" onClick={() => router.push('/login')}>{t("nav_login")}</button>
-            <button className="btn btn-primary btn-sm" onClick={() => router.push('/signup')}>
+            <button className="navbar-login" onClick={() => router.push("/login")}>{t("nav_login")}</button>
+            <button className="btn btn-primary btn-sm" onClick={() => router.push("/signup")}>
               {t("nav_get_started")} <ArrowRight size={14} />
             </button>
           </div>
 
-          <button
-            className="navbar-mobile-toggle"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
+          <button className="navbar-mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </nav>
 
-      {/* ===== MOBILE MENU OVERLAY ===== */}
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="mobile-menu-overlay" onClick={() => setMobileMenuOpen(false)}>
           <div className="mobile-menu" onClick={(e) => e.stopPropagation()}>
@@ -308,96 +728,84 @@ export default function Home() {
       )}
 
       {/* ===== HERO ===== */}
-      <section className="hero" id="hero">
-        <div className="bg-glow hero-glow-1" />
-        <div className="bg-glow hero-glow-2" />
-        <div className="bg-grid" />
+      <section className="hero hero-v2" id="hero">
+        <MorphBlob color="purple" style={{ top: "-10%", right: "-5%", width: "60vw", maxWidth: 600, opacity: 0.8 }} data-parallax="-0.15" />
+        <MorphBlob color="cyan" style={{ bottom: "-5%", left: "-8%", width: "50vw", maxWidth: 500, opacity: 0.6 }} data-parallax="-0.1" />
 
-        {/* Floating elements */}
-        <div className="hero-float-elements">
-          <div className="hero-float-el">
-            <div className="hero-float-icon green">
-              <Check size={16} />
-            </div>
-            <span>Order #1847 confirmed ✓</span>
-          </div>
-          <div className="hero-float-el">
-            <div className="hero-float-icon blue">
-              <Bot size={16} />
-            </div>
-            <span>AI replied in 0.3s</span>
-          </div>
-          <div className="hero-float-el">
-            <div className="hero-float-icon purple">
-              <TrendingUp size={16} />
-            </div>
-            <span>Sales up 340% ↑</span>
-          </div>
-          <div className="hero-float-el">
-            <div className="hero-float-icon orange">
-              <CreditCard size={16} />
-            </div>
-            <span>Payment received 💰</span>
-          </div>
-        </div>
-
-        <div className="hero-content">
-          <div className="hero-badge">
+        <div className="hero-content hero-v2-content" data-parallax="-0.05">
+          <div className="hero-badge" style={{ animation: "fade-in-up 0.8s ease" }}>
             <span className="badge badge-primary">
-              <Zap size={12} />
+              <Sparkles size={12} />
               {t("hero_badge")}
             </span>
           </div>
 
-          <h1>
+          <h1 style={{ animation: "fade-in-up 1s ease" }}>
             {t("hero_title_1")} <span className="text-gradient">{t("hero_title_2")}</span> {t("hero_title_3")}{" "}
-            <span className="text-gradient">{t("hero_title_4")}</span>
+            <span className="text-gradient">
+              <TypingText strings={["autopilot", "WhatsApp", "Instagram", "Facebook", "autopilot"]} speed={80} deleteSpeed={40} pause={2000} />
+            </span>
           </h1>
 
-          <p className="hero-subtitle">
+          <p className="hero-subtitle" style={{ animation: "fade-in-up 1.2s ease" }}>
             {t("hero_subtitle")}
           </p>
 
-          <div className="hero-cta">
-            <button className="btn btn-primary btn-lg" id="hero-cta-primary" onClick={() => router.push('/signup')}>
-              {t("hero_cta_primary")} <ArrowRight size={18} />
+          <div className="hero-cta" style={{ animation: "fade-in-up 1.4s ease" }}>
+            <button className="btn btn-primary btn-lg hero-cta-btn" id="hero-cta-primary" onClick={() => router.push("/signup")}>
+              <Play size={18} />
+              {t("hero_cta_primary")}
             </button>
-            <button className="btn btn-secondary btn-lg" id="hero-cta-demo" onClick={() => router.push('/login')}>
+            <button className="btn btn-secondary btn-lg" id="hero-cta-demo" onClick={() => router.push("/login")}>
               {t("hero_cta_secondary")} <ChevronRight size={18} />
             </button>
           </div>
 
-          <div className="hero-stats">
+          <div className="hero-stats" style={{ animation: "fade-in-up 1.6s ease" }}>
             <div className="hero-stat">
-              <div className="hero-stat-value text-gradient-static">2,500+</div>
+              <div className="hero-stat-value text-gradient-static">
+                <AnimatedCounter end={2500} suffix="+" />
+              </div>
               <div className="hero-stat-label">{t("hero_stat_sellers")}</div>
             </div>
             <div className="hero-stat">
-              <div className="hero-stat-value text-gradient-static">1.2M+</div>
+              <div className="hero-stat-value text-gradient-static">
+                <AnimatedCounter end={1200000} suffix="+" />
+              </div>
               <div className="hero-stat-label">{t("hero_stat_messages")}</div>
             </div>
             <div className="hero-stat">
-              <div className="hero-stat-value text-gradient-static">98%</div>
+              <div className="hero-stat-value text-gradient-static">
+                <AnimatedCounter end={98} suffix="%" />
+              </div>
               <div className="hero-stat-label">{t("hero_stat_uptime")}</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ===== SOCIAL PROOF ===== */}
-      <section className="social-proof">
-        <p>Trusted by sellers across the Middle East & beyond</p>
-        <div className="social-proof-logos">
-          <span className="social-proof-logo">EGYPT</span>
-          <span className="social-proof-logo">SAUDI</span>
-          <span className="social-proof-logo">UAE</span>
-          <span className="social-proof-logo">INDIA</span>
-          <span className="social-proof-logo">BRAZIL</span>
-          <span className="social-proof-logo">NIGERIA</span>
-        </div>
+      {/* ===== SOCIAL PROOF MARQUEE ===== */}
+      <section className="social-proof-v2">
+        <Marquee speed={25}>
+          {[
+            { icon: "🇪🇬", name: "Egypt" },
+            { icon: "🇸🇦", name: "Saudi Arabia" },
+            { icon: "🇦🇪", name: "UAE" },
+            { icon: "🇮🇳", name: "India" },
+            { icon: "🇧🇷", name: "Brazil" },
+            { icon: "🇳🇬", name: "Nigeria" },
+            { icon: "🇰🇼", name: "Kuwait" },
+            { icon: "🇲🇦", name: "Morocco" },
+          ].map((c, i) => (
+            <span key={i} className="marquee-item">
+              <span style={{ fontSize: 24 }}>{c.icon}</span>
+              <span style={{ fontWeight: 700, letterSpacing: 1 }}>{c.name}</span>
+            </span>
+          ))}
+        </Marquee>
       </section>
 
-      {/* ===== PROBLEM ===== */}
+      {/* ===== PROBLEM + LIVE CHAT DEMO ===== */}
       <section className="section problem" id="problem">
         <div className="section-inner">
           <div className="problem-grid">
@@ -417,70 +825,31 @@ export default function Home() {
 
               <div className="problem-list">
                 <div className="problem-item">
-                  <div className="problem-item-icon">
-                    <Clock size={18} />
-                  </div>
+                  <div className="problem-item-icon"><Clock size={18} /></div>
                   <div className="problem-item-text">
                     <h4>Missed messages at night</h4>
-                    <p>
-                      60% of customers message between 10PM–2AM. You&apos;re
-                      asleep, they buy from someone else.
-                    </p>
+                    <p>60% of customers message between 10PM-2AM. You&apos;re asleep, they buy from someone else.</p>
                   </div>
                 </div>
                 <div className="problem-item">
-                  <div className="problem-item-icon">
-                    <Copy size={18} />
-                  </div>
+                  <div className="problem-item-icon"><Copy size={18} /></div>
                   <div className="problem-item-text">
                     <h4>Copy-pasting prices all day</h4>
-                    <p>
-                      You spend 3+ hours/day answering &quot;How much is
-                      this?&quot; and &quot;Is it available?&quot; manually.
-                    </p>
+                    <p>You spend 3+ hours/day answering &quot;How much is this?&quot; and &quot;Is it available?&quot; manually.</p>
                   </div>
                 </div>
                 <div className="problem-item">
-                  <div className="problem-item-icon">
-                    <AlertTriangle size={18} />
-                  </div>
+                  <div className="problem-item-icon"><AlertTriangle size={18} /></div>
                   <div className="problem-item-text">
                     <h4>Lost orders in chat history</h4>
-                    <p>
-                      No tracking. No system. Orders get mixed up, customers get
-                      frustrated, you lose repeat business.
-                    </p>
+                    <p>No tracking. No system. Orders get mixed up, customers get frustrated, you lose repeat business.</p>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="problem-visual animate-on-scroll">
-              <div className="problem-mockup">
-                <div className="problem-chat">
-                  <div className="problem-chat-msg incoming">
-                    Hi, how much is the black bag? 🖤
-                    <span className="time">11:47 PM</span>
-                  </div>
-                  <div className="problem-chat-msg incoming">
-                    Hello?
-                    <span className="time">11:52 PM</span>
-                  </div>
-                  <div className="problem-chat-msg incoming">
-                    Is anyone there? 😕
-                    <span className="time">12:15 AM</span>
-                  </div>
-                  <div className="problem-chat-msg outgoing">
-                    Hi! Sorry I was asleep. The black bag is 450 EGP. Are you
-                    interested?
-                    <span className="time">8:30 AM</span>
-                  </div>
-                  <div className="problem-chat-msg incoming">
-                    I already bought from someone else 🤷‍♀️
-                    <span className="time">9:15 AM</span>
-                  </div>
-                </div>
-              </div>
+              <LiveChatMockup />
             </div>
           </div>
         </div>
@@ -498,14 +867,12 @@ export default function Home() {
               {t("features_title_1")}{" "}
               <span className="text-gradient-static">{t("features_title_2")}</span>
             </h2>
-            <p>
-              {t("features_subtitle")}
-            </p>
+            <p>{t("features_subtitle")}</p>
           </div>
 
           <div className="features-grid">
             {features.map((feature, i) => (
-              <div
+              <TiltCard
                 key={i}
                 className="glass-card feature-card animate-on-scroll"
                 style={{ animationDelay: `${i * 0.1}s` }}
@@ -515,7 +882,8 @@ export default function Home() {
                 </div>
                 <h3>{feature.title}</h3>
                 <p>{feature.desc}</p>
-              </div>
+                <div className="feature-card-shine" />
+              </TiltCard>
             ))}
           </div>
         </div>
@@ -537,31 +905,22 @@ export default function Home() {
           </div>
 
           <div className="steps-container">
-            <div className="step-card animate-on-scroll">
-              <div className="step-number">1</div>
-              <h3>Connect WhatsApp</h3>
-              <p>
-                Link your WhatsApp Business number in 2 clicks. We handle all
-                the technical setup — API, webhooks, verification.
-              </p>
-            </div>
-            <div className="step-card animate-on-scroll">
-              <div className="step-number">2</div>
-              <h3>Add Your Products</h3>
-              <p>
-                Upload your catalog or import from Instagram. Set prices, add
-                photos, manage variants and stock — all from your dashboard.
-              </p>
-            </div>
-            <div className="step-card animate-on-scroll">
-              <div className="step-number">3</div>
-              <h3>Start Selling 24/7</h3>
-              <p>
-                AI handles inquiries, shows products, takes orders, and sends
-                payment links — even while you sleep. See everything in
-                real-time.
-              </p>
-            </div>
+            {[
+              { num: 1, title: "Connect WhatsApp", desc: "Link your WhatsApp Business number in 2 clicks. We handle all the technical setup — API, webhooks, verification.", icon: <MessageCircle size={28} /> },
+              { num: 2, title: "Add Your Products", desc: "Upload your catalog or import from Instagram. Set prices, add photos, manage variants and stock — all from your dashboard.", icon: <Package size={28} /> },
+              { num: 3, title: "Start Selling 24/7", desc: "AI handles inquiries, shows products, takes orders, and sends payment links — even while you sleep. See everything in real-time.", icon: <Zap size={28} /> },
+            ].map((step, i) => (
+              <div key={i} className="step-card animate-on-scroll" style={{ animationDelay: `${i * 0.15}s` }}>
+                <div className="step-number-wrap">
+                  <div className="step-number-ring">
+                    <div className="step-number">{step.num}</div>
+                  </div>
+                  <div className="step-number-icon">{step.icon}</div>
+                </div>
+                <h3>{step.title}</h3>
+                <p>{step.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -578,28 +937,21 @@ export default function Home() {
               {t("pricing_title_1")}{" "}
               <span className="text-gradient-static">{t("pricing_title_2")}</span>
             </h2>
-            <p>
-              {t("pricing_subtitle")}
-            </p>
+            <p>{t("pricing_subtitle")}</p>
           </div>
 
           <div className="pricing-toggle animate-on-scroll">
             <span className={!isAnnual ? "active" : ""}>{t("pricing_monthly")}</span>
-            <div
-              className={`pricing-switch ${isAnnual ? "annual" : ""}`}
-              onClick={() => setIsAnnual(!isAnnual)}
-              id="pricing-toggle"
-            />
+            <div className={`pricing-switch ${isAnnual ? "annual" : ""}`} onClick={() => setIsAnnual(!isAnnual)} id="pricing-toggle" />
             <span className={isAnnual ? "active" : ""}>{t("pricing_annual")}</span>
             {isAnnual && <span className="pricing-save">Save 20%</span>}
           </div>
 
           <div className="pricing-grid">
             {pricingPlans.map((plan, i) => (
-              <div
+              <TiltCard
                 key={i}
-                className={`glass-card pricing-card animate-on-scroll ${plan.featured ? "featured" : ""
-                  }`}
+                className={`glass-card pricing-card animate-on-scroll ${plan.featured ? "featured" : ""}`}
               >
                 {plan.featured && (
                   <div className="pricing-popular">
@@ -617,22 +969,19 @@ export default function Home() {
                 <div className="pricing-features">
                   {plan.features.map((feature, j) => (
                     <div key={j} className="pricing-feature">
-                      <div className="pricing-feature-check">
-                        <Check size={12} />
-                      </div>
+                      <div className="pricing-feature-check"><Check size={12} /></div>
                       {feature}
                     </div>
                   ))}
                 </div>
                 <button
-                  className={`btn ${plan.featured ? "btn-primary" : "btn-secondary"
-                    } btn-lg`}
+                  className={`btn ${plan.featured ? "btn-primary" : "btn-secondary"} btn-lg`}
                   id={`pricing-cta-${i}`}
-                  onClick={() => router.push('/signup')}
+                  onClick={() => router.push("/signup")}
                 >
                   {plan.cta}
                 </button>
-              </div>
+              </TiltCard>
             ))}
           </div>
         </div>
@@ -662,26 +1011,18 @@ export default function Home() {
               </thead>
               <tbody>
                 {[
-                  { category: "🤖 AI & Automation" },
+                  { category: "AI & Automation" },
                   { label: "AI Model", starter: "Fast (Llama 3)", pro: "Smart (GPT-4o Mini)", biz: "Premium (GPT-4o)" },
                   { label: "AI Replies / Day", starter: "50", pro: "500", biz: "Unlimited" },
-                  { label: "AI Simulator Tests / Day", starter: "10", pro: "50", biz: "Unlimited" },
                   { label: "Custom AI Personality", starter: false, pro: true, biz: true },
-                  { category: "📦 Scale & Limits" },
+                  { category: "Scale & Limits" },
                   { label: "Connected Channels", starter: "1", pro: "2", biz: "3 (All)" },
                   { label: "Products", starter: "25", pro: "Unlimited", biz: "Unlimited" },
                   { label: "Conversations / Month", starter: "100", pro: "1,000", biz: "Unlimited" },
-                  { label: "Customers", starter: "200", pro: "Unlimited", biz: "Unlimited" },
-                  { category: "💾 Data & History" },
+                  { category: "Data & Integrations" },
                   { label: "Message History", starter: "30 days", pro: "6 months", biz: "Unlimited" },
-                  { label: "Analytics", starter: "Basic", pro: "Full", biz: "Full + CSV Export" },
-                  { category: "🔌 Integrations & Team" },
-                  { label: "Webhook Integrations", starter: false, pro: true, biz: true },
                   { label: "Broadcast Campaigns / Mo", starter: "None", pro: "5", biz: "Unlimited" },
                   { label: "Team Members", starter: "1 (Owner)", pro: "3", biz: "Unlimited" },
-                  { category: "🛠️ Support" },
-                  { label: "Support", starter: "Email", pro: "Priority Email", biz: "Dedicated" },
-                  { label: "14-Day Free Trial", starter: true, pro: true, biz: true },
                 ].map((row, i) => {
                   if (row.category) {
                     return (
@@ -720,20 +1061,13 @@ export default function Home() {
               <Star size={12} />
               {t("testimonials_badge")}
             </span>
-            <h2>
-              {t("testimonials_title")}
-            </h2>
-            <p>
-              {t("testimonials_subtitle")}
-            </p>
+            <h2>{t("testimonials_title")}</h2>
+            <p>{t("testimonials_subtitle")}</p>
           </div>
 
           <div className="testimonials-grid">
             {testimonials.map((tItem, i) => (
-              <div
-                key={i}
-                className="glass-card testimonial-card animate-on-scroll"
-              >
+              <TiltCard key={i} className="glass-card testimonial-card animate-on-scroll">
                 <div className="testimonial-stars">
                   {[...Array(5)].map((_, j) => (
                     <Star key={j} size={14} fill="currentColor" />
@@ -747,7 +1081,7 @@ export default function Home() {
                     <p>{tItem.role}</p>
                   </div>
                 </div>
-              </div>
+              </TiltCard>
             ))}
           </div>
         </div>
@@ -769,16 +1103,8 @@ export default function Home() {
 
           <div className="faq-list">
             {faqs.map((faq, i) => (
-              <div
-                key={i}
-                className={`faq-item ${openFaq === i ? "open" : ""
-                  }`}
-              >
-                <button
-                  className="faq-question"
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  id={`faq-${i}`}
-                >
+              <div key={i} className={`faq-item ${openFaq === i ? "open" : ""}`}>
+                <button className="faq-question" onClick={() => setOpenFaq(openFaq === i ? null : i)} id={`faq-${i}`}>
                   {faq.q}
                   <Plus size={18} className="faq-icon" />
                 </button>
@@ -796,21 +1122,15 @@ export default function Home() {
         <div className="section-inner">
           <div className="cta-box animate-on-scroll">
             <div className="cta-box-glow" />
+            <MorphBlob color="purple" style={{ top: "-40%", left: "-20%", width: 300, opacity: 0.5 }} />
             <h2>
               {t("cta_title_1")} <span className="text-gradient-static">{t("cta_title_2")}</span>{" "}
               {t("cta_title_3")}
             </h2>
-            <p>
-              {t("cta_subtitle")}
-            </p>
+            <p>{t("cta_subtitle")}</p>
             <div className="cta-form">
-              <input
-                type="email"
-                className="cta-input"
-                placeholder={t("cta_placeholder")}
-                id="cta-email"
-              />
-              <button className="btn btn-primary" id="cta-submit" onClick={() => router.push('/signup')}>
+              <input type="email" className="cta-input" placeholder={t("cta_placeholder")} id="cta-email" />
+              <button className="btn btn-primary" id="cta-submit" onClick={() => router.push("/signup")}>
                 {t("cta_button")} <ArrowRight size={16} />
               </button>
             </div>
@@ -825,14 +1145,9 @@ export default function Home() {
             <div className="footer-brand">
               <a href="#" className="navbar-logo">
                 <img src="/logo.png" alt="Sellora" style={{ width: 32, height: 32, borderRadius: 8 }} />
-                <span>
-                  Sell
-                  <span className="text-gradient-static">ora</span>
-                </span>
+                <span>Sell<span className="text-gradient-static">ora</span></span>
               </a>
-              <p>
-                {t("footer_desc")}
-              </p>
+              <p>{t("footer_desc")}</p>
             </div>
 
             <div className="footer-col">
@@ -864,15 +1179,9 @@ export default function Home() {
           <div className="footer-bottom">
             <p>{t("footer_copyright")}</p>
             <div className="footer-social">
-              <a href="#" aria-label="Twitter">
-                <Globe size={16} />
-              </a>
-              <a href="#" aria-label="LinkedIn">
-                <Users size={16} />
-              </a>
-              <a href="#" aria-label="Instagram">
-                <MessageCircle size={16} />
-              </a>
+              <a href="#" aria-label="Twitter"><Globe size={16} /></a>
+              <a href="#" aria-label="LinkedIn"><Users size={16} /></a>
+              <a href="#" aria-label="Instagram"><MessageCircle size={16} /></a>
             </div>
           </div>
         </div>
