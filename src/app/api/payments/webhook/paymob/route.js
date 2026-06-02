@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from 'crypto';
+import { sendOrderConfirmationEmail } from "@/lib/email";
 
 let _supabaseAdmin = null;
 function getSupabaseAdmin() {
@@ -161,6 +162,36 @@ export async function POST(req) {
           }).eq("id", order.id);
 
           console.log(`[PAYMOB_WEBHOOK] Order ${order.order_number} marked as PAID via ${paymentMethod}`);
+
+          // Send order confirmation email to the business owner (fire-and-forget)
+          try {
+            const { data: fullOrder } = await getSupabaseAdmin()
+              .from("orders")
+              .select("id, order_number, items, total, currency, account_id, customer:customers(name)")
+              .eq("id", order.id)
+              .single();
+
+            if (fullOrder) {
+              const { data: accountData } = await getSupabaseAdmin()
+                .from("accounts")
+                .select("email")
+                .eq("id", fullOrder.account_id)
+                .single();
+
+              if (accountData?.email) {
+                sendOrderConfirmationEmail({
+                  to: accountData.email,
+                  orderNumber: fullOrder.order_number,
+                  customerName: fullOrder.customer?.name || "Customer",
+                  items: Array.isArray(fullOrder.items) ? fullOrder.items : [],
+                  total: fullOrder.total || 0,
+                  currency: fullOrder.currency || "EGP",
+                }).catch(err => console.warn("[PAYMOB] Order confirmation email failed:", err.message));
+              }
+            }
+          } catch (emailErr) {
+            console.warn("[PAYMOB] Order confirmation email prep failed:", emailErr.message);
+          }
         } else {
           console.warn(`[PAYMOB_WEBHOOK] Could not find order with number ${orderNumber}`);
         }

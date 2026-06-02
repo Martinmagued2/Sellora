@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export async function login(formData) {
   const supabase = await createClient();
@@ -58,6 +59,13 @@ export async function signup(formData) {
     if (accountError) {
       console.error("Error creating account:", accountError);
     }
+
+    // Send welcome email (fire-and-forget, don't block signup flow)
+    sendWelcomeEmail({
+      to: email,
+      fullName: fullName || email,
+      businessName: businessName || "My Store",
+    }).catch(err => console.warn("[SIGNUP] Welcome email failed:", err.message));
   }
 
   revalidatePath("/", "layout");

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
@@ -51,6 +52,13 @@ export async function GET(request) {
           plan_status: "trialing",
           // Add onboarding flag (needs to exist in DB schema, ignored by supabase if column not found but good practice)
         });
+        
+        // Send welcome email (fire-and-forget, don't block redirect)
+        sendWelcomeEmail({
+          to: data.user.email,
+          fullName: data.user.user_metadata?.full_name || data.user.email,
+          businessName: data.user.user_metadata?.business_name || "My Store",
+        }).catch(err => console.warn("[AUTH] Welcome email failed:", err.message));
         
         // (optional) seed data - could be added here
         

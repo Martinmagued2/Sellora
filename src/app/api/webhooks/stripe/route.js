@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { stripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
+import { sendPlanUpgradeEmail } from "@/lib/email";
 
 // Use service role for webhook — no user session available (lazy-initialized)
 let _supabase = null;
@@ -52,6 +53,30 @@ export async function POST(request) {
             plan_status: "trialing",
           })
           .eq("id", userId);
+
+        // Send plan upgrade confirmation email (fire-and-forget)
+        try {
+          const { data: account } = await getSupabase()
+            .from("accounts")
+            .select("email")
+            .eq("id", userId)
+            .single();
+
+          if (account?.email && plan) {
+            const planConfig = { starter: { name: "Starter", amount: 0 }, professional: { name: "Professional", amount: 29 }, business: { name: "Business", amount: 79 } }[plan];
+            if (planConfig && planConfig.amount > 0) {
+              sendPlanUpgradeEmail({
+                to: account.email,
+                planName: planConfig.name,
+                amount: planConfig.amount,
+                currency: "USD",
+                interval: session.mode === "subscription" ? "monthly" : "one-time",
+              }).catch(err => console.warn("[STRIPE] Plan upgrade email failed:", err.message));
+            }
+          }
+        } catch (emailErr) {
+          console.warn("[STRIPE] Plan upgrade email prep failed:", emailErr.message);
+        }
 
         break;
       }
