@@ -25,7 +25,12 @@ function getResend() {
 // ────────────────────────────────────────────────────────
 //  Config
 // ────────────────────────────────────────────────────────
-const FROM_DEFAULT = `Sellora <${process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev"}>`;
+const rawFromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+// If env var already contains angle brackets (e.g. "Sellora <email>"), use as-is.
+// Otherwise wrap it: "email@example.com" → "Sellora <email@example.com>"
+const FROM_DEFAULT = rawFromEmail.includes("<")
+  ? rawFromEmail
+  : `Sellora <${rawFromEmail}>`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || `https://${process.env.VERCEL_URL || "sellora-ruby.vercel.app"}`;
 
 // ────────────────────────────────────────────────────────
