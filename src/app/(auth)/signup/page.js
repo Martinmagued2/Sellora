@@ -19,7 +19,7 @@ import {
   Phone,
   Calendar,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
@@ -84,27 +84,28 @@ export default function SignupPage() {
       return;
     }
 
-    // Create account record if user is immediately confirmed
-    if (data.user) {
-      await supabase.from("accounts").upsert({
-        id: data.user.id,
-        email,
-        business_name: businessName || "My Store",
-        owner_name: fullName,
-        phone: phone,
-        birth_date: birthDate || null,
-        plan: "starter",
-        plan_status: "trialing",
-      }, { onConflict: "id" });
-    }
-
     // Check if email confirmation is required
-    // If session exists → confirmed immediately → go to dashboard
-    // If no session → email confirmation required → show success screen
+    // If session exists → confirmed immediately → create account & go to dashboard
+    // If no session → email confirmation required → show OTP screen
     if (data.session) {
-      router.push("/dashboard");
+      // User confirmed immediately (auto-confirm enabled) — create account record
+      if (data.user) {
+        await supabase.from("accounts").upsert({
+          id: data.user.id,
+          email,
+          business_name: businessName || "My Store",
+          owner_name: fullName,
+          phone: phone,
+          birth_date: birthDate || null,
+          plan: "starter",
+          plan_status: "trialing",
+        }, { onConflict: "id" });
+      }
+      router.push("/onboarding");
       router.refresh();
     } else {
+      // Email confirmation required — show OTP screen
+      // Account will be created after successful OTP verification
       setSuccessEmail(email);
       setSuccess(true);
     }
@@ -126,12 +127,29 @@ export default function SignupPage() {
   };
 
   const [otp, setOtp] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendSent, setResendSent] = useState(false);
+
+  // Cooldown timer for resend
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown > 0]);
 
   const handleVerifyOtp = async () => {
     setLoading(true);
     setError("");
     const supabase = createClient();
-    const { error: verifyError } = await supabase.auth.verifyOtp({
+    const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
       email: successEmail,
       token: otp,
       type: "signup",
@@ -143,8 +161,41 @@ export default function SignupPage() {
       return;
     }
 
-    router.push("/dashboard");
+    // Create account record after successful verification
+    if (verifyData.user) {
+      await supabase.from("accounts").upsert({
+        id: verifyData.user.id,
+        email: successEmail,
+        business_name: verifyData.user.user_metadata?.business_name || "My Store",
+        owner_name: verifyData.user.user_metadata?.full_name || "",
+        phone: verifyData.user.user_metadata?.phone || null,
+        birth_date: verifyData.user.user_metadata?.birth_date || null,
+        plan: "starter",
+        plan_status: "trialing",
+      }, { onConflict: "id" });
+    }
+
+    router.push("/onboarding");
     router.refresh();
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError("");
+    const supabase = createClient();
+    const { error: resendError } = await supabase.auth.resend({
+      type: "signup",
+      email: successEmail,
+    });
+
+    if (resendError) {
+      setError(resendError.message);
+      return;
+    }
+
+    setResendSent(true);
+    setResendCooldown(60); // 60-second cooldown
+    setTimeout(() => setResendSent(false), 3000);
   };
 
   return (
@@ -174,28 +225,51 @@ export default function SignupPage() {
               Verify your email
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "var(--space-sm)" }}>
-              We sent an 8-digit confirmation code to:
+              We sent a 6-digit confirmation code to:
             </p>
-            <p style={{ fontWeight: 700, color: "var(--accent-primary-light)", marginBottom: "var(--space-xl)" }}>
+            <p style={{ fontWeight: 700, color: "var(--accent-primary-light)", marginBottom: "var(--space-sm)" }}>
               {successEmail}
+            </p>
+            <p style={{ color: "var(--text-tertiary)", fontSize: "var(--font-size-xs)", marginBottom: "var(--space-xl)" }}>
+              You can also click the confirmation link in the email to verify directly.
             </p>
             <div className="form-group" style={{ textAlign: "left", marginBottom: "var(--space-xl)" }}>
                <label className="form-label">Verification Code</label>
                <input 
                  type="text" 
                  className="form-input" 
-                 placeholder="00000000" 
-                 maxLength={8} 
+                 placeholder="000000" 
+                 maxLength={6} 
                  value={otp}
-                 onChange={(e) => setOtp(e.target.value)}
+                 onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ""))}
                  id="signup-otp" 
-                 style={{ textAlign: "center", fontSize: "var(--font-size-xl)", letterSpacing: 4 }}
+                 inputMode="numeric"
+                 autoComplete="one-time-code"
+                 style={{ textAlign: "center", fontSize: "var(--font-size-xl)", letterSpacing: 8 }}
                />
             </div>
             {error && <div style={{ color: "var(--accent-red)", marginBottom: "var(--space-md)", fontSize: "var(--font-size-sm)", padding: "10px", background: "rgba(255, 82, 82, 0.1)", borderRadius: "var(--radius-md)" }}>{error}</div>}
             <button className="btn btn-primary" onClick={handleVerifyOtp} disabled={loading || otp.length < 6} style={{ width: "100%", justifyContent: "center" }}>
               {loading ? "Verifying..." : "Verify & Continue"}
             </button>
+            <div style={{ marginTop: "var(--space-md)", textAlign: "center" }}>
+              {resendSent ? (
+                <p style={{ color: "var(--accent-green)", fontSize: "var(--font-size-sm)", fontWeight: 600 }}>New code sent!</p>
+              ) : resendCooldown > 0 ? (
+                <p style={{ color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>Resend code in {resendCooldown}s</p>
+              ) : (
+                <button 
+                  onClick={handleResendOtp} 
+                  style={{ 
+                    background: "none", border: "none", color: "var(--accent-primary-light)", 
+                    fontSize: "var(--font-size-sm)", fontWeight: 600, cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Resend verification code
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

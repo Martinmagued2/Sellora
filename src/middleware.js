@@ -85,11 +85,11 @@ export async function middleware(request) {
   } = await supabase.auth.getUser();
 
   // ─── Route classification ───
-  const pathname = request.nextUrl.pathname;
+  // (pathname already declared at top — reused here)
 
   const protectedPaths = ["/dashboard", "/onboarding"];
   const adminPaths = ["/admin"];
-  const authPaths = ["/login", "/signup"];
+  const authPaths = ["/login", "/signup", "/forgot-password"];
 
   const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
   const isAdminRoute = adminPaths.some((path) => pathname.startsWith(path));
