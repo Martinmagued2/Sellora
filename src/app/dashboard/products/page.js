@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
   Sparkles,
   Loader2,
+  TrendingUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -37,6 +38,8 @@ export default function ProductsPage() {
   const [aiDescEnglish, setAiDescEnglish] = useState("");
   const [aiDescArabic, setAiDescArabic] = useState("");
   const [aiPriceSuggestion, setAiPriceSuggestion] = useState("");
+  const [topRecommended, setTopRecommended] = useState([]);
+  const [recLoading, setRecLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const supabase = createClient();
@@ -75,6 +78,62 @@ export default function ProductsPage() {
   }, [filter, search]);
 
   useEffect(() => { ensureBuckets(); fetchProducts(); }, [ensureBuckets, fetchProducts]);
+
+  // Fetch top recommended products based on order frequency
+  const fetchTopRecommended = useCallback(async () => {
+    setRecLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get all orders and count product appearances
+      const { data: orders } = await supabase
+        .from("orders")
+        .select("items")
+        .eq("account_id", user.id)
+        .limit(500);
+
+      if (!orders || orders.length === 0) { setTopRecommended([]); setRecLoading(false); return; }
+
+      // Count product recommendations (how often each product appears in orders)
+      const productCounts = {};
+      for (const order of orders) {
+        if (order.items && Array.isArray(order.items)) {
+          for (const item of order.items) {
+            if (item.product_id) {
+              productCounts[item.product_id] = (productCounts[item.product_id] || 0) + 1;
+            }
+          }
+        }
+      }
+
+      // Sort by count and get top 5
+      const topIds = Object.entries(productCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([id, count]) => ({ id, count }));
+
+      if (topIds.length === 0) { setTopRecommended([]); setRecLoading(false); return; }
+
+      // Get product details
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id, name, price, category, image_urls, stock")
+        .in("id", topIds.map(t => t.id));
+
+      const merged = topIds.map(t => {
+        const prod = prods?.find(p => p.id === t.id);
+        return prod ? { ...prod, rec_count: t.count } : null;
+      }).filter(Boolean);
+
+      setTopRecommended(merged);
+    } catch (err) {
+      console.error("Failed to fetch top recommended:", err);
+    }
+    setRecLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { fetchTopRecommended(); }, [fetchTopRecommended]);
 
   const handleFileSelect = (file) => {
     if (!file) return;
@@ -411,6 +470,74 @@ export default function ProductsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Top Recommended Products Section */}
+      {!loading && topRecommended.length > 0 && (
+        <div style={{ marginTop: "var(--space-2xl)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-lg)" }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: "var(--radius-md)",
+              background: "rgba(0,210,255,0.12)", color: "var(--accent-secondary)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <TrendingUp size={18} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: "var(--font-size-lg)", fontWeight: 700 }}>Top Recommended Products</h2>
+              <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
+                Products most frequently ordered by your customers — great for upselling
+              </p>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "var(--space-md)" }}>
+            {topRecommended.map((product, i) => (
+              <div
+                key={product.id}
+                style={{
+                  background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+                  borderRadius: "var(--radius-lg)", overflow: "hidden",
+                  transition: "all 0.2s", cursor: "pointer",
+                }}
+              >
+                <div style={{
+                  height: 120, background: "var(--bg-tertiary)", display: "flex",
+                  alignItems: "center", justifyContent: "center", position: "relative",
+                }}>
+                  {product.image_urls?.[0] ? (
+                    <img src={product.image_urls[0]} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontSize: 32 }}>{emojis[product.category] || "📦"}</span>
+                  )}
+                  <div style={{
+                    position: "absolute", top: 8, left: 8,
+                    background: "var(--accent-secondary)", color: "white",
+                    padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+                  }}>
+                    #{i + 1}
+                  </div>
+                </div>
+                <div style={{ padding: "var(--space-md)" }}>
+                  <h4 style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {product.name}
+                  </h4>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 800, color: "var(--accent-primary-light)" }}>
+                      {product.price?.toLocaleString()} EGP
+                    </span>
+                    <span style={{
+                      fontSize: 10, padding: "2px 8px", borderRadius: 12,
+                      background: "rgba(0,210,255,0.1)", color: "var(--accent-secondary)",
+                      border: "1px solid rgba(0,210,255,0.2)", fontWeight: 600,
+                    }}>
+                      {product.rec_count} orders
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

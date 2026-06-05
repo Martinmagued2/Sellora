@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   MessageCircle, Clock, ToggleLeft, ToggleRight, AlertCircle,
   HelpCircle, Zap, Send, Plus, Edit, Trash2, Loader2, Megaphone,
-  Globe, Smartphone, Save, Check,
+  Globe, Smartphone, Save, Check, ShoppingCart, ChevronRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -36,6 +36,15 @@ export default function AutomationPage() {
   // FAQ count
   const [faqCount, setFaqCount] = useState(0);
 
+  // Abandoned Cart Recovery state
+  const [abandonedCartEnabled, setAbandonedCartEnabled] = useState(false);
+  const [abandonedCartHours, setAbandonedCartHours] = useState(2);
+  const [abandonedCartAutoReminder, setAbandonedCartAutoReminder] = useState(false);
+  const [abandonedCartReminderHours, setAbandonedCartReminderHours] = useState(1);
+  const [abandonedCartAutoSecondReminder, setAbandonedCartAutoSecondReminder] = useState(false);
+  const [abandonedCartSecondReminderHours, setAbandonedCartSecondReminderHours] = useState(24);
+  const [abandonedCartDiscountPercent, setAbandonedCartDiscountPercent] = useState(10);
+
   // Broadcast state (Phase 2)
   const [broadcastAudience, setBroadcastAudience] = useState("all");
   const [broadcastChannel, setBroadcastChannel] = useState("instagram");
@@ -65,6 +74,13 @@ export default function AutomationPage() {
           setWhatsappGreeting(data.whatsapp_greeting || "");
           setGreetingDelaySeconds(data.greeting_delay_seconds || 0);
           setAutoFollowUp(data.auto_follow_up_enabled || false);
+          setAbandonedCartEnabled(data.abandoned_cart_enabled || false);
+          setAbandonedCartHours(data.abandoned_cart_hours || 2);
+          setAbandonedCartAutoReminder(data.abandoned_cart_auto_reminder || false);
+          setAbandonedCartReminderHours(data.abandoned_cart_reminder_hours || 1);
+          setAbandonedCartAutoSecondReminder(data.abandoned_cart_auto_second_reminder || false);
+          setAbandonedCartSecondReminderHours(data.abandoned_cart_second_reminder_hours || 24);
+          setAbandonedCartDiscountPercent(data.abandoned_cart_discount_percent || 10);
         }
 
         // Fetch quick replies
@@ -106,6 +122,13 @@ export default function AutomationPage() {
         whatsapp_greeting: whatsappGreeting,
         greeting_delay_seconds: greetingDelaySeconds,
         auto_follow_up_enabled: autoFollowUp,
+        abandoned_cart_enabled: abandonedCartEnabled,
+        abandoned_cart_hours: abandonedCartHours,
+        abandoned_cart_auto_reminder: abandonedCartAutoReminder,
+        abandoned_cart_reminder_hours: abandonedCartReminderHours,
+        abandoned_cart_auto_second_reminder: abandonedCartAutoSecondReminder,
+        abandoned_cart_second_reminder_hours: abandonedCartSecondReminderHours,
+        abandoned_cart_discount_percent: abandonedCartDiscountPercent,
       }).eq("id", user.id);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -414,6 +437,208 @@ export default function AutomationPage() {
               Manually trigger follow-up messages for all unpaid orders older than 24 hours
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Section 2.5: Abandoned Cart Recovery */}
+      <div className="dashboard-panel" style={{ marginBottom: "var(--space-xl)" }}>
+        <div className="dashboard-panel-header">
+          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ShoppingCart size={18} style={{ color: "var(--accent-orange)" }} />
+            Abandoned Cart Recovery
+          </h3>
+          <Link
+            href="/dashboard/abandoned-carts"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              color: "var(--accent-primary)", fontWeight: 500,
+              fontSize: "var(--font-size-sm)", textDecoration: "none",
+            }}
+          >
+            View Carts <ChevronRight size={14} />
+          </Link>
+        </div>
+        <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+          {/* Main toggle */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "var(--space-lg)", background: "var(--bg-glass)",
+            borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)",
+          }}>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto-Detect Abandoned Carts</div>
+              <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+                Automatically detect when customers show purchase intent but don&apos;t complete their order
+              </div>
+            </div>
+            <div
+              style={{ color: abandonedCartEnabled ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+              onClick={() => setAbandonedCartEnabled(!abandonedCartEnabled)}
+            >
+              {abandonedCartEnabled ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+            </div>
+          </div>
+
+          {abandonedCartEnabled && (
+            <>
+              {/* Hours before marking as abandoned */}
+              <div className="form-group" style={{ marginBottom: "var(--space-lg)" }}>
+                <label className="form-label">Hours before marking as abandoned</label>
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+                  <input
+                    type="range"
+                    min="1"
+                    max="48"
+                    value={abandonedCartHours}
+                    onChange={(e) => setAbandonedCartHours(Number(e.target.value))}
+                    style={{ flex: 1, accentColor: "var(--accent-orange)" }}
+                  />
+                  <span style={{
+                    minWidth: 50, textAlign: "center", fontWeight: 600,
+                    fontSize: "var(--font-size-sm)", color: "var(--accent-orange)",
+                  }}>
+                    {abandonedCartHours}h
+                  </span>
+                </div>
+                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+                  How long to wait after last customer activity before marking a cart as abandoned (default: 2 hours)
+                </p>
+              </div>
+
+              {/* Auto-send first reminder */}
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "var(--space-md)", background: "var(--bg-glass)",
+                borderRadius: "var(--radius-md)", marginBottom: "var(--space-md)",
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>Auto-Send First Reminder</div>
+                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>
+                    Automatically send a follow-up message after the cart is abandoned
+                  </div>
+                </div>
+                <div
+                  style={{ color: abandonedCartAutoReminder ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+                  onClick={() => setAbandonedCartAutoReminder(!abandonedCartAutoReminder)}
+                >
+                  {abandonedCartAutoReminder ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                </div>
+              </div>
+
+              {abandonedCartAutoReminder && (
+                <div className="form-group" style={{ marginBottom: "var(--space-lg)", paddingLeft: "var(--space-md)" }}>
+                  <label className="form-label" style={{ fontSize: 12 }}>Delay after abandonment (hours)</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+                    <input
+                      type="range"
+                      min="1"
+                      max="72"
+                      value={abandonedCartReminderHours}
+                      onChange={(e) => setAbandonedCartReminderHours(Number(e.target.value))}
+                      style={{ flex: 1, accentColor: "var(--accent-primary)" }}
+                    />
+                    <span style={{
+                      minWidth: 50, textAlign: "center", fontWeight: 600,
+                      fontSize: "var(--font-size-sm)", color: "var(--accent-primary)",
+                    }}>
+                      {abandonedCartReminderHours}h
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Auto-send second reminder with discount */}
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "var(--space-md)", background: "var(--bg-glass)",
+                borderRadius: "var(--radius-md)", marginBottom: "var(--space-md)",
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>Auto-Send Second Reminder with Discount</div>
+                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>
+                    Send a second follow-up with a special discount code to encourage purchase
+                  </div>
+                </div>
+                <div
+                  style={{ color: abandonedCartAutoSecondReminder ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+                  onClick={() => setAbandonedCartAutoSecondReminder(!abandonedCartAutoSecondReminder)}
+                >
+                  {abandonedCartAutoSecondReminder ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                </div>
+              </div>
+
+              {abandonedCartAutoSecondReminder && (
+                <div style={{ paddingLeft: "var(--space-md)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)", marginBottom: "var(--space-lg)" }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12 }}>Delay after first reminder (hours)</label>
+                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+                        <input
+                          type="range"
+                          min="1"
+                          max="168"
+                          value={abandonedCartSecondReminderHours}
+                          onChange={(e) => setAbandonedCartSecondReminderHours(Number(e.target.value))}
+                          style={{ flex: 1, accentColor: "var(--accent-orange)" }}
+                        />
+                        <span style={{
+                          minWidth: 50, textAlign: "center", fontWeight: 600,
+                          fontSize: "var(--font-size-sm)", color: "var(--accent-orange)",
+                        }}>
+                          {abandonedCartSecondReminderHours}h
+                        </span>
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 12 }}>Discount Percentage</label>
+                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+                        <input
+                          type="range"
+                          min="5"
+                          max="50"
+                          value={abandonedCartDiscountPercent}
+                          onChange={(e) => setAbandonedCartDiscountPercent(Number(e.target.value))}
+                          style={{ flex: 1, accentColor: "var(--accent-green)" }}
+                        />
+                        <span style={{
+                          minWidth: 50, textAlign: "center", fontWeight: 600,
+                          fontSize: "var(--font-size-sm)", color: "var(--accent-green)",
+                        }}>
+                          {abandonedCartDiscountPercent}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview */}
+              <div style={{
+                padding: "var(--space-md)", background: "rgba(255, 145, 0, 0.05)",
+                border: "1px solid rgba(255, 145, 0, 0.15)", borderRadius: "var(--radius-md)",
+              }}>
+                <div style={{ fontWeight: 600, fontSize: 11, color: "var(--accent-orange)", marginBottom: 6, textTransform: "uppercase" }}>Abandoned Cart Flow</div>
+                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", lineHeight: 1.8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(255, 145, 0, 0.2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "var(--accent-orange)" }}>1</span>
+                    Customer shows purchase intent but no order after <strong>{abandonedCartHours}h</strong>
+                  </div>
+                  {abandonedCartAutoReminder && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(108, 92, 231, 0.2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "var(--accent-primary-light)" }}>2</span>
+                      First reminder sent after <strong>{abandonedCartReminderHours}h</strong>
+                    </div>
+                  )}
+                  {abandonedCartAutoSecondReminder && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(0, 230, 118, 0.2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "var(--accent-green)" }}>3</span>
+                      Second reminder with <strong>{abandonedCartDiscountPercent}% discount</strong> after <strong>{abandonedCartSecondReminderHours}h</strong>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

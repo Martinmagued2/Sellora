@@ -33,7 +33,11 @@ export default function CampaignsPage() {
     tag: "all",
     minSpent: "",
     scheduledAt: "",
+    segmentId: "",
   });
+
+  // Saved segments
+  const [savedSegments, setSavedSegments] = useState([]);
 
   // Send campaign state
   const [sendingCampaignId, setSendingCampaignId] = useState(null);
@@ -69,6 +73,19 @@ export default function CampaignsPage() {
   }, [filter]);
 
   useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+
+  // Fetch saved segments when create modal opens
+  useEffect(() => {
+    if (!showCreateModal) return;
+    let cancelled = false;
+    fetch("/api/segments")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data.success) setSavedSegments(data.segments || []);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [showCreateModal]);
 
   // Estimate audience size when filters change
   const estimateAudience = useCallback(async () => {
@@ -132,6 +149,23 @@ export default function CampaignsPage() {
     let scheduledAt = null;
     if (newCampaign.scheduledAt) {
       scheduledAt = new Date(newCampaign.scheduledAt).toISOString();
+    }
+
+    // If a segment is selected, include it in the audience filter
+    if (newCampaign.segmentId) {
+      const selectedSeg = savedSegments.find(s => s.id === newCampaign.segmentId);
+      if (selectedSeg) {
+        audienceFilter.segment_id = newCampaign.segmentId;
+        audienceFilter.segment_name = selectedSeg.name;
+        // Merge segment rules into audience filter
+        if (selectedSeg.rules?.conditions?.length > 0) {
+          for (const cond of selectedSeg.rules.conditions) {
+            if (cond.field === "channel" && cond.operator === "equals") audienceFilter.channel = cond.value;
+            if (cond.field === "tags" && (cond.operator === "equals" || cond.operator === "contains")) audienceFilter.tag = cond.value;
+            if (cond.field === "total_spent" && cond.operator === "greater_than") audienceFilter.min_spent = Number(cond.value);
+          }
+        }
+      }
     }
 
     const { error } = await supabase.from("campaigns").insert({
@@ -574,6 +608,35 @@ export default function CampaignsPage() {
                     <label className="form-label" style={{ marginBottom: 0 }}>Audience Filters</label>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>Saved Segment</label>
+                      <select
+                        className="form-input"
+                        value={newCampaign.segmentId || ""}
+                        onChange={(e) => {
+                          const segId = e.target.value;
+                          setNewCampaign({ ...newCampaign, segmentId: segId });
+                          // Auto-populate filters from segment
+                          if (segId) {
+                            const seg = savedSegments.find(s => s.id === segId);
+                            if (seg?.rules?.conditions) {
+                              const updates = { ...newCampaign, segmentId: segId };
+                              for (const cond of seg.rules.conditions) {
+                                if (cond.field === "channel" && cond.operator === "equals") updates.channel = cond.value;
+                                if (cond.field === "tags" && (cond.operator === "equals" || cond.operator === "contains")) updates.tag = cond.value;
+                                if (cond.field === "total_spent" && cond.operator === "greater_than") updates.minSpent = String(cond.value);
+                              }
+                              setNewCampaign(updates);
+                            }
+                          }
+                        }}
+                      >
+                        <option value="">No Segment</option>
+                        {savedSegments.map((seg) => (
+                          <option key={seg.id} value={seg.id}>{seg.name} ({seg.customer_count || 0} customers)</option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label" style={{ fontSize: 11 }}>Customer Segment</label>
                       <select

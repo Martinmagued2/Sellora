@@ -350,6 +350,109 @@ export async function POST() {
       results.push("business_policies table: OK");
     }
 
+    // ═══ Migration 021: Coupons Table ═══
+    const { error: testCouponErr } = await admin
+      .from("coupons")
+      .select("id")
+      .limit(1);
+
+    if (testCouponErr && (testCouponErr.message?.includes("relation") || testCouponErr.code === "42P01")) {
+      results.push(await tryExecSql(
+        admin,
+        `CREATE TABLE IF NOT EXISTS coupons (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          code TEXT NOT NULL,
+          type TEXT NOT NULL CHECK (type IN ('percentage', 'fixed', 'free_shipping')),
+          value DECIMAL(10,2) NOT NULL,
+          min_order_value DECIMAL(10,2) DEFAULT 0,
+          max_uses INTEGER DEFAULT NULL,
+          used_count INTEGER DEFAULT 0,
+          starts_at TIMESTAMPTZ DEFAULT NOW(),
+          expires_at TIMESTAMPTZ,
+          applies_to TEXT DEFAULT 'all' CHECK (applies_to IN ('all', 'specific_products', 'specific_categories')),
+          product_ids UUID[] DEFAULT '{}',
+          categories TEXT[] DEFAULT '{}',
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          UNIQUE(account_id, code)
+        );
+        CREATE INDEX IF NOT EXISTS idx_coupons_account ON coupons(account_id);
+        CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
+        CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(account_id, is_active);
+        ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Users can manage own coupons" ON coupons;
+        CREATE POLICY "Users can manage own coupons" ON coupons FOR ALL USING (account_id = auth.uid());
+        DROP POLICY IF EXISTS "Users can read own coupons" ON coupons;
+        CREATE POLICY "Users can read own coupons" ON coupons FOR SELECT USING (account_id = auth.uid());`,
+        "Created coupons table",
+        "Create coupons table (see migration 021)"
+      ));
+    } else {
+      results.push("coupons table: OK");
+    }
+
+    // ═══ Migration 022: Abandoned Carts ═══
+    const { error: testAbandonedCartErr } = await admin
+      .from("abandoned_carts")
+      .select("id")
+      .limit(1);
+
+    if (testAbandonedCartErr && (testAbandonedCartErr.message?.includes("relation") || testAbandonedCartErr.code === "42P01")) {
+      results.push(await tryExecSql(
+        admin,
+        `CREATE TABLE IF NOT EXISTS abandoned_carts (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+          customer_id UUID REFERENCES customers(id),
+          conversation_id UUID REFERENCES conversations(id),
+          channel TEXT NOT NULL,
+          items JSONB NOT NULL DEFAULT '[]',
+          cart_value DECIMAL(10,2) NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'abandoned' CHECK (status IN ('abandoned', 'reminded', 'recovered', 'expired')),
+          abandoned_at TIMESTAMPTZ DEFAULT NOW(),
+          first_reminder_at TIMESTAMPTZ,
+          second_reminder_at TIMESTAMPTZ,
+          recovered_at TIMESTAMPTZ,
+          recovery_order_id UUID REFERENCES orders(id),
+          coupon_code TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_abandoned_carts_account ON abandoned_carts(account_id);
+        CREATE INDEX IF NOT EXISTS idx_abandoned_carts_status ON abandoned_carts(status);
+        ALTER TABLE abandoned_carts ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Users can manage own abandoned_carts" ON abandoned_carts;
+        CREATE POLICY "Users can manage own abandoned_carts" ON abandoned_carts FOR ALL USING (account_id = auth.uid());`,
+        "Created abandoned_carts table",
+        "Create abandoned_carts table (see migration 022)"
+      ));
+    } else {
+      results.push("abandoned_carts table: OK");
+    }
+
+    // Check abandoned cart config columns on accounts
+    const { error: testAbandonedCartConfigErr } = await admin
+      .from("accounts")
+      .select("abandoned_cart_enabled, abandoned_cart_hours, abandoned_cart_auto_reminder, abandoned_cart_reminder_hours, abandoned_cart_auto_second_reminder, abandoned_cart_second_reminder_hours, abandoned_cart_discount_percent")
+      .limit(1);
+
+    if (testAbandonedCartConfigErr && testAbandonedCartConfigErr.message?.includes("column")) {
+      results.push(await tryExecSql(
+        admin,
+        `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS abandoned_cart_enabled BOOLEAN DEFAULT FALSE;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS abandoned_cart_hours INTEGER DEFAULT 2;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS abandoned_cart_auto_reminder BOOLEAN DEFAULT FALSE;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS abandoned_cart_reminder_hours INTEGER DEFAULT 1;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS abandoned_cart_auto_second_reminder BOOLEAN DEFAULT FALSE;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS abandoned_cart_second_reminder_hours INTEGER DEFAULT 24;
+         ALTER TABLE accounts ADD COLUMN IF NOT EXISTS abandoned_cart_discount_percent INTEGER DEFAULT 10;`,
+        "Added abandoned cart config columns to accounts",
+        "Add abandoned cart config columns to accounts (see migration 022)"
+      ));
+    } else {
+      results.push("accounts.abandoned_cart columns: OK");
+    }
+
     // ═══ Fix: Instagram page_id mismatch ═══
     // The Instagram Messaging API uses the Facebook Page ID in webhooks,
     // NOT the Instagram Business Account ID. If instagram_page_id doesn't

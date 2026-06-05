@@ -34,6 +34,7 @@ CORE INSTRUCTIONS:
 1. Be proactive but not pushy.
 2. If a customer asks what you sell, use the search_products tool to look up inventory.
 3. If a customer asks for recommendations like "something for dry skin" or "a gift for my mom", use the recommend_products tool to find matching products based on their needs.
+3b. If you want to proactively suggest products based on a customer's purchase history (e.g. "you might also like", "based on your style"), use the personalized_recommendations tool. This uses collaborative filtering to find products similar customers have bought.
 4. If a customer asks a general question about shipping, returns, store hours, or policies, check your STORE POLICIES section first — they are already in your context. If not covered there, use the search_faq tool.
 5. NEVER make up products, prices, stock levels, or policies. ALWAYS use your tools and the policies provided in your context.
 6. If a customer wants to buy something, follow these steps:
@@ -45,7 +46,7 @@ CORE INSTRUCTIONS:
 
 ${ESCALATION_INSTRUCTIONS}
 
-Important: You have tools to search products, recommend products, search FAQs, and create orders. Use them when necessary!`;
+Important: You have tools to search products, recommend products, get personalized recommendations, search FAQs, and create orders. Use them when necessary!`;
 }
 
 export function getSupportAgentPrompt(businessName, aiPersonality) {
@@ -60,13 +61,13 @@ CORE INSTRUCTIONS:
 2. Use get_customer_orders to see their recent history if they ask about an order without providing a number.
 3. Use get_order_status if they provide an order number.
 4. If a customer asks a general question about shipping, returns, store hours, or policies, check your STORE POLICIES section first — they are already in your context. If not covered there, use the search_faq tool.
-5. If a customer asks for product recommendations, use the recommend_products tool to find matching products.
+5. If a customer asks for product recommendations, use the recommend_products tool to find matching products. You can also use the personalized_recommendations tool to suggest products based on their purchase history.
 6. NEVER promise refunds or free items unless explicitly authorized in your STORE POLICIES. Say you will escalate to a human manager.
 7. If they want to buy a new product, let them know you mainly handle support but you can help. (You don't have order creation tools, so you'll have to refer them to the sales team or ask them to wait for a human).
 
 ${ESCALATION_INSTRUCTIONS}
 
-Important: You have tools to check order status, search FAQs, and recommend products. Use them when the customer asks about their order or has general questions.`;
+Important: You have tools to check order status, search FAQs, recommend products, and get personalized recommendations. Use them when the customer asks about their order or has general questions.`;
 }
 
 export function getOrderTrackerAgentPrompt(businessName, aiPersonality) {

@@ -12,7 +12,6 @@ import {
   BarChart3,
   Settings,
   CreditCard,
-  Bell,
   Search,
   Menu,
   X,
@@ -26,10 +25,15 @@ import {
   AlertCircle,
   Info,
   Shield,
+  Bell,
+  Tag,
+  ShoppingCart,
+  Target,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 import CopilotPanel from "./components/CopilotPanel";
+import NotificationBell from "./components/NotificationBell";
 import "./dashboard.css";
 
 const sidebarLinks = [
@@ -39,6 +43,8 @@ const sidebarLinks = [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/dashboard/conversations", icon: MessageCircle, label: "Conversations", badgeKey: "conversations" },
       { href: "/dashboard/orders", icon: ShoppingBag, label: "Orders", badgeKey: "orders" },
+      { href: "/dashboard/abandoned-carts", icon: ShoppingCart, label: "Abandoned Carts" },
+      { href: "/dashboard/notifications", icon: Bell, label: "Notifications" },
     ],
   },
   {
@@ -47,6 +53,8 @@ const sidebarLinks = [
       { href: "/dashboard/products", icon: Package, label: "Products" },
       { href: "/dashboard/customers", icon: Users, label: "Customers" },
       { href: "/dashboard/campaigns", icon: Megaphone, label: "Campaigns" },
+      { href: "/dashboard/segments", icon: Target, label: "Segments" },
+      { href: "/dashboard/coupons", icon: Tag, label: "Coupons" },
       { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
       { href: "/dashboard/automation", icon: Bot, label: "Automation" },
     ],
@@ -66,13 +74,17 @@ const pageTitles = {
   "/dashboard": "Dashboard",
   "/dashboard/conversations": "Conversations",
   "/dashboard/orders": "Orders",
+  "/dashboard/notifications": "Notifications",
   "/dashboard/products": "Products",
   "/dashboard/customers": "Customers",
   "/dashboard/campaigns": "Campaigns",
+  "/dashboard/segments": "Segments",
+  "/dashboard/coupons": "Coupons",
   "/dashboard/analytics": "Analytics",
   "/dashboard/settings": "Settings",
   "/dashboard/billing": "Billing",
   "/dashboard/automation": "Automation",
+  "/dashboard/abandoned-carts": "Abandoned Carts",
 };
 
 export default function DashboardLayout({ children }) {
@@ -83,12 +95,9 @@ export default function DashboardLayout({ children }) {
   const [accountStatus, setAccountStatus] = useState(null);
   const { isAdmin: isAdminUser } = useAdminAuth();
   const [sidebarBadges, setSidebarBadges] = useState({ conversations: 0, orders: 0 });
-  const [notifications, setNotifications] = useState([]);
-  const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
-  const notifRef = useRef(null);
   const searchRef = useRef(null);
 
   const currentTitle = pageTitles[pathname] || "Dashboard";
@@ -170,10 +179,9 @@ export default function DashboardLayout({ children }) {
     return () => clearTimeout(debounce);
   }, [user, searchQuery]);
 
-  // Close panels on outside click
+  // Close search panel on outside click
   useEffect(() => {
     const handler = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifPanel(false);
       if (searchRef.current && !searchRef.current.contains(e.target)) setShowSearch(false);
     };
     document.addEventListener("mousedown", handler);
@@ -384,64 +392,8 @@ export default function DashboardLayout({ children }) {
             <button className="topbar-btn" id="topbar-ai" title="Sellora Agent" onClick={() => document.getElementById("copilot-toggle")?.click()}>
               <Bot size={18} />
             </button>
-            <div ref={notifRef} style={{ position: "relative" }}>
-              <button className="topbar-btn" id="topbar-notifications" title="Notifications" onClick={() => setShowNotifPanel(!showNotifPanel)}>
-                <Bell size={18} />
-                {sidebarBadges.conversations + sidebarBadges.orders > 0 && (
-                  <span className="topbar-btn-dot" />
-                )}
-              </button>
-              {showNotifPanel && (
-                <div style={{
-                  position: "absolute", right: 0, top: "100%", width: 340, zIndex: 100,
-                  background: "var(--bg-elevated)", borderRadius: 12,
-                  boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)",
-                  marginTop: 8, overflow: "hidden"
-                }}>
-                  <div style={{ padding: "14px 16px", fontWeight: 700, borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>Notifications</span>
-                    <span style={{ fontSize: 11, color: "var(--accent-primary)", fontWeight: 500 }}>
-                      {sidebarBadges.conversations + sidebarBadges.orders} active
-                    </span>
-                  </div>
-                  {sidebarBadges.conversations > 0 && (
-                    <button onClick={() => { router.push("/dashboard/conversations"); setShowNotifPanel(false); }} style={{
-                      display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 16px",
-                      background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
-                      textAlign: "left", borderBottom: "1px solid var(--border)"
-                    }}>
-                      <MessageCircle size={16} style={{ color: "var(--accent-primary)" }} />
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{sidebarBadges.conversations} open conversations</div>
-                        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Awaiting your response</div>
-                      </div>
-                    </button>
-                  )}
-                  {sidebarBadges.orders > 0 && (
-                    <button onClick={() => { router.push("/dashboard/orders"); setShowNotifPanel(false); }} style={{
-                      display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 16px",
-                      background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
-                      textAlign: "left", borderBottom: "1px solid var(--border)"
-                    }}>
-                      <ShoppingBag size={16} style={{ color: "var(--accent-orange)" }} />
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{sidebarBadges.orders} pending orders</div>
-                        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Need processing</div>
-                      </div>
-                    </button>
-                  )}
-                  {sidebarBadges.conversations === 0 && sidebarBadges.orders === 0 && (
-                    <div style={{ padding: 24, textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
-                      <CheckCircle size={24} style={{ margin: "0 auto 8px", opacity: 0.5 }} />
-                      All caught up! No pending items.
-                    </div>
-                  )}
-                  <button onClick={() => { router.push("/dashboard/conversations"); setShowNotifPanel(false); }} style={{
-                    width: "100%", padding: "10px", background: "none", border: "none",
-                    cursor: "pointer", color: "var(--accent-primary)", fontSize: 12, fontWeight: 600
-                  }}>View All</button>
-                </div>
-              )}
+            <div style={{ position: "relative" }}>
+              <NotificationBell />
             </div>
             <button className="topbar-btn" id="topbar-help" title="Help & Support" onClick={() => alert('Sellora Help & Support\n\n📧 Email: support@sellora.com\n💬 Use the AI Copilot (purple button) to ask questions\n📋 Settings > Webhooks for API integrations')}>
               <HelpCircle size={18} />

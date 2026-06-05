@@ -24,6 +24,7 @@ export const PLAN_LIMITS = {
     // Features
     campaigns_per_month: 0,       // Locked
     auto_reply_rules: 3,
+    coupons: 3,
     team_members: 1,              // Owner only
 
     // Capabilities
@@ -52,6 +53,7 @@ export const PLAN_LIMITS = {
     // Features
     campaigns_per_month: 5,
     auto_reply_rules: -1,
+    coupons: 10,
     team_members: 3,
 
     // Capabilities
@@ -80,6 +82,7 @@ export const PLAN_LIMITS = {
     // Features
     campaigns_per_month: -1,
     auto_reply_rules: -1,
+    coupons: -1,                 // Unlimited
     team_members: -1,             // Unlimited
 
     // Capabilities

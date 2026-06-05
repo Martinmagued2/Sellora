@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
+import RecommendationsCard from "../components/RecommendationsCard";
 
 // ─── Intent badge config ───
 const INTENT_CONFIG = {
@@ -1301,6 +1302,12 @@ export default function ConversationsPage() {
                 </div>
               </div>
             ))}
+
+            {/* Smart Product Recommendations */}
+            <RecommendationsCard
+              customerId={activeConv?.customer?.id}
+              onSendProduct={handleSendProduct}
+            />
           </div>
         </div>
       )}

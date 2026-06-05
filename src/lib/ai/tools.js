@@ -25,6 +25,160 @@ const getAccountCurrency = async (accountId) => {
 
 export const createSalesTools = (accountId, customerId) => {
   return {
+    personalized_recommendations: tool({
+      description: "Get personalized product recommendations for a customer based on their purchase history and similar customers' behavior. Use this when you want to suggest products a specific customer might like, such as 'you might also like', 'based on your style', or when you want to proactively upsell. Returns products with reasons like 'Frequently bought together', 'Similar category to your purchases', or 'Popular with similar customers'.",
+      inputSchema: z.object({
+        current_product_id: z.string().optional().describe("Optional: product the customer is currently viewing or discussing"),
+        limit: z.coerce.number().optional().describe("Number of recommendations (default 3)"),
+      }),
+      execute: async ({ current_product_id, limit }) => {
+        if (!customerId) {
+          return { success: false, error: "No customer context available for recommendations" };
+        }
+
+        try {
+          // Fetch customer's order history for collaborative filtering
+          const supabase = getSupabase();
+          const { data: customerOrders } = await supabase
+            .from("orders")
+            .select("items")
+            .eq("customer_id", customerId)
+            .eq("account_id", accountId)
+            .order("created_at", { ascending: false })
+            .limit(10);
+
+          const purchasedProductIds = new Set();
+          const purchasedCategories = new Set();
+
+          if (customerOrders) {
+            for (const order of customerOrders) {
+              if (order.items && Array.isArray(order.items)) {
+                for (const item of order.items) {
+                  if (item.product_id) purchasedProductIds.add(item.product_id);
+                }
+              }
+            }
+          }
+
+          // Get all active products
+          const { data: allProducts } = await supabase
+            .from("products")
+            .select("id, name, description, price, stock, category")
+            .eq("account_id", accountId)
+            .eq("status", "active");
+
+          if (!allProducts || allProducts.length === 0) {
+            return { success: true, recommendations: [], message: "No products available" };
+          }
+
+          // Collect purchased categories
+          for (const pid of purchasedProductIds) {
+            const prod = allProducts.find((p) => p.id === pid);
+            if (prod?.category) purchasedCategories.add(prod.category);
+          }
+
+          // Collaborative filtering (simplified)
+          let collabProductScores = {};
+          if (purchasedProductIds.size > 0) {
+            const pidArray = Array.from(purchasedProductIds);
+            const { data: otherOrders } = await supabase
+              .from("orders")
+              .select("customer_id, items")
+              .eq("account_id", accountId)
+              .neq("customer_id", customerId)
+              .limit(100);
+
+            if (otherOrders) {
+              const similarCustomers = new Set();
+              for (const order of otherOrders) {
+                if (order.items && Array.isArray(order.items)) {
+                  for (const item of order.items) {
+                    if (pidArray.includes(item.product_id)) {
+                      similarCustomers.add(order.customer_id);
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (similarCustomers.size > 0) {
+                const { data: similarOrders } = await supabase
+                  .from("orders")
+                  .select("items")
+                  .eq("account_id", accountId)
+                  .in("customer_id", Array.from(similarCustomers))
+                  .limit(200);
+
+                if (similarOrders) {
+                  for (const order of similarOrders) {
+                    if (order.items && Array.isArray(order.items)) {
+                      for (const item of order.items) {
+                        if (item.product_id && !purchasedProductIds.has(item.product_id)) {
+                          collabProductScores[item.product_id] = (collabProductScores[item.product_id] || 0) + 1;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          const recLimit = limit || 3;
+          const currentProduct = current_product_id ? allProducts.find(p => p.id === current_product_id) : null;
+
+          const scored = allProducts
+            .filter((p) => p.id !== current_product_id)
+            .map((product) => {
+              let score = 0;
+              let reason = "Popular product";
+
+              if (collabProductScores[product.id]) {
+                score += collabProductScores[product.id] * 10;
+                reason = "Popular with similar customers";
+              }
+
+              if (purchasedCategories.has(product.category) && !purchasedProductIds.has(product.id)) {
+                score += 5;
+                reason = "Similar category to your purchases";
+              }
+
+              if (product.stock > 0) score += 2;
+
+              if (purchasedProductIds.size === 0) {
+                score += Math.random() * 3;
+                reason = "Trending product";
+              }
+
+              if (currentProduct && product.category === currentProduct.category) {
+                score += 3;
+                reason = "Frequently bought together";
+              }
+
+              return { ...product, score, reason };
+            });
+
+          const currency = await getAccountCurrency(accountId);
+          const recommendations = scored
+            .sort((a, b) => b.score - a.score)
+            .slice(0, recLimit)
+            .map(({ score, ...rest }) => rest);
+
+          return {
+            success: true,
+            currency,
+            recommendations,
+            message: recommendations.length > 0
+              ? `Found ${recommendations.length} personalized recommendations based on purchase history`
+              : "No personalized recommendations available",
+          };
+        } catch (err) {
+          console.error("Personalized recommendations error:", err);
+          return { success: false, error: "Failed to get recommendations" };
+        }
+      },
+    }),
+
     recommend_products: tool({
       description: "Recommend products based on a customer's needs, preferences, or context. Use this when a customer asks for suggestions like 'something for dry skin', 'a gift for my mom', or 'I need something casual'. Searches product names, descriptions, and categories to find the best matches.",
       inputSchema: z.object({
@@ -257,6 +411,92 @@ export const createSalesTools = (accountId, customerId) => {
       },
     }),
 
+    validate_coupon: tool({
+      description: "Validate a coupon code and get discount details. Use this when a customer mentions or asks about a coupon code, promo code, or discount code. Checks if the code is active, not expired, within usage limits, and meets minimum order value requirements.",
+      inputSchema: z.object({
+        code: z.string().describe("The coupon code to validate"),
+        order_total: z.coerce.number().optional().describe("The current order total to check against minimum order value requirements"),
+      }),
+      execute: async ({ code, order_total }) => {
+        if (!code || !code.trim()) {
+          return { success: false, error: "Coupon code is required" };
+        }
+
+        const now = new Date();
+
+        // Look up coupon by code and account
+        const { data: coupon, error } = await getSupabase()
+          .from("coupons")
+          .select("*")
+          .eq("account_id", accountId)
+          .eq("code", code.trim().toUpperCase())
+          .single();
+
+        if (error || !coupon) {
+          return { success: false, valid: false, error: "Invalid coupon code. This code does not exist or is not for this store." };
+        }
+
+        // Validation checks
+        if (!coupon.is_active) {
+          return { success: true, valid: false, error: "This coupon is no longer active", coupon: { code: coupon.code, type: coupon.type } };
+        }
+
+        if (coupon.starts_at && new Date(coupon.starts_at) > now) {
+          return { success: true, valid: false, error: "This coupon is not yet active", coupon: { code: coupon.code, type: coupon.type, starts_at: coupon.starts_at } };
+        }
+
+        if (coupon.expires_at && new Date(coupon.expires_at) < now) {
+          return { success: true, valid: false, error: "This coupon has expired", coupon: { code: coupon.code, type: coupon.type, expires_at: coupon.expires_at } };
+        }
+
+        if (coupon.max_uses !== null && coupon.used_count >= coupon.max_uses) {
+          return { success: true, valid: false, error: "This coupon has reached its usage limit", coupon: { code: coupon.code, type: coupon.type, max_uses: coupon.max_uses, used_count: coupon.used_count } };
+        }
+
+        if (order_total !== undefined && coupon.min_order_value > 0 && order_total < parseFloat(coupon.min_order_value)) {
+          const currency = await getAccountCurrency(accountId);
+          return { success: true, valid: false, error: `Minimum order value is ${coupon.min_order_value} ${currency}. Your order total is ${order_total} ${currency}.`, coupon: { code: coupon.code, type: coupon.type, min_order_value: coupon.min_order_value } };
+        }
+
+        // Coupon is valid — calculate discount
+        let discountAmount = 0;
+        const total = order_total || 0;
+        const currency = await getAccountCurrency(accountId);
+
+        if (coupon.type === "percentage") {
+          discountAmount = total * (coupon.value / 100);
+          discountAmount = Math.min(discountAmount, total);
+        } else if (coupon.type === "fixed") {
+          discountAmount = parseFloat(coupon.value);
+          if (total > 0) discountAmount = Math.min(discountAmount, total);
+        } else if (coupon.type === "free_shipping") {
+          discountAmount = 0; // Shipping discount handled separately
+        }
+
+        return {
+          success: true,
+          valid: true,
+          discount_amount: discountAmount,
+          currency,
+          coupon: {
+            id: coupon.id,
+            code: coupon.code,
+            type: coupon.type,
+            value: coupon.value,
+            min_order_value: coupon.min_order_value,
+            applies_to: coupon.applies_to,
+            product_ids: coupon.product_ids,
+            categories: coupon.categories,
+          },
+          message: coupon.type === "percentage"
+            ? `${coupon.value}% discount applied! You save ${discountAmount.toFixed(2)} ${currency}.`
+            : coupon.type === "fixed"
+            ? `${coupon.value} ${currency} discount applied!`
+            : "Free shipping applied!",
+        };
+      },
+    }),
+
     create_order: tool({
       description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price.",
       inputSchema: z.object({
@@ -475,6 +715,61 @@ export const createSupportTools = (accountId, customerId) => {
           success: true,
           found: true,
           faqs: matches.map(({ score, ...rest }) => rest),
+        };
+      },
+    }),
+
+    validate_coupon: tool({
+      description: "Validate a coupon code and get discount details. Use this when a customer mentions or asks about a coupon code, promo code, or discount code.",
+      inputSchema: z.object({
+        code: z.string().describe("The coupon code to validate"),
+        order_total: z.coerce.number().optional().describe("The current order total"),
+      }),
+      execute: async ({ code, order_total }) => {
+        if (!code || !code.trim()) {
+          return { success: false, error: "Coupon code is required" };
+        }
+
+        const now = new Date();
+        const { data: coupon, error } = await getSupabase()
+          .from("coupons")
+          .select("*")
+          .eq("account_id", accountId)
+          .eq("code", code.trim().toUpperCase())
+          .single();
+
+        if (error || !coupon) {
+          return { success: false, valid: false, error: "Invalid coupon code" };
+        }
+
+        if (!coupon.is_active) {
+          return { success: true, valid: false, error: "This coupon is no longer active" };
+        }
+
+        if (coupon.expires_at && new Date(coupon.expires_at) < now) {
+          return { success: true, valid: false, error: "This coupon has expired" };
+        }
+
+        if (coupon.max_uses !== null && coupon.used_count >= coupon.max_uses) {
+          return { success: true, valid: false, error: "This coupon has reached its usage limit" };
+        }
+
+        let discountAmount = 0;
+        const total = order_total || 0;
+        const currency = await getAccountCurrency(accountId);
+
+        if (coupon.type === "percentage") {
+          discountAmount = total * (coupon.value / 100);
+        } else if (coupon.type === "fixed") {
+          discountAmount = parseFloat(coupon.value);
+        }
+
+        return {
+          success: true,
+          valid: true,
+          discount_amount: discountAmount,
+          currency,
+          coupon: { code: coupon.code, type: coupon.type, value: coupon.value },
         };
       },
     }),
