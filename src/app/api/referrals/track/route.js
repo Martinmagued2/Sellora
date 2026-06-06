@@ -1,4 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+
+function getAdminClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+}
 
 export async function POST(request) {
   try {
@@ -9,9 +17,10 @@ export async function POST(request) {
     }
 
     const supabase = await createClient();
+    const adminClient = getAdminClient();
 
     // Find the referrer by code
-    const { data: referrerAccount } = await supabase
+    const { data: referrerAccount } = await adminClient
       .from("accounts")
       .select("id, referral_code")
       .eq("referral_code", referralCode)
@@ -21,9 +30,14 @@ export async function POST(request) {
       return Response.json({ error: "Invalid referral code" }, { status: 404 });
     }
 
+    // Prevent self-referral
+    if (referredId && referredId === referrerAccount.id) {
+      return Response.json({ error: "Self-referral is not allowed" }, { status: 400 });
+    }
+
     // Check if this email was already referred by this person
     if (referredEmail) {
-      const { data: existing } = await supabase
+      const { data: existing } = await adminClient
         .from("referrals")
         .select("id")
         .eq("referrer_id", referrerAccount.id)
@@ -46,7 +60,7 @@ export async function POST(request) {
       commission_paid: 0,
     };
 
-    const { data: referral, error } = await supabase
+    const { data: referral, error } = await adminClient
       .from("referrals")
       .insert(referralData)
       .select()
@@ -57,27 +71,40 @@ export async function POST(request) {
       return Response.json({ error: "Failed to track referral" }, { status: 500 });
     }
 
-    // If the user signed up, update status and add credits
+    // If the user signed up, award referral credits to the referrer
     if (referredId) {
-      await supabase
-        .from("referrals")
-        .update({ status: "signed_up" })
-        .eq("id", referral.id);
-
-      // Award referral credits to the referrer
       const SIGNUP_BONUS = 5.00;
-      await supabase.rpc("increment_referral_credits", {
+
+      // Try the RPC function first
+      const { error: rpcError } = await adminClient.rpc("increment_referral_credits", {
         p_account_id: referrerAccount.id,
         p_amount: SIGNUP_BONUS,
-      }).catch(() => {
-        // Fallback if RPC doesn't exist
-        supabase
-          .from("accounts")
-          .update({
-            referral_credits: supabase.raw?.("referral_credits + " + SIGNUP_BONUS) || 0,
-          })
-          .eq("id", referrerAccount.id);
       });
+
+      if (rpcError) {
+        console.warn("RPC increment_referral_credits failed, using fallback:", rpcError.message);
+        // Fallback: read current credits and update
+        const { data: currentAccount } = await adminClient
+          .from("accounts")
+          .select("referral_credits")
+          .eq("id", referrerAccount.id)
+          .single();
+
+        const currentCredits = parseFloat(currentAccount?.referral_credits) || 0;
+        await adminClient
+          .from("accounts")
+          .update({ referral_credits: currentCredits + SIGNUP_BONUS })
+          .eq("id", referrerAccount.id);
+      }
+
+      // Update the referral record with the commission
+      await adminClient
+        .from("referrals")
+        .update({
+          status: "signed_up",
+          commission_earned: SIGNUP_BONUS,
+        })
+        .eq("id", referral.id);
     }
 
     return Response.json({ success: true, referralId: referral.id });

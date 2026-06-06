@@ -130,11 +130,21 @@ export default function ReferralsPage() {
   const handleRequestPayout = async () => {
     setPayoutLoading(true);
     setPayoutMsg("");
-    // Simulate payout request — in production this would create a payout record
-    setTimeout(() => {
-      setPayoutMsg("Payout request submitted! We'll process it within 3-5 business days.");
+    try {
+      const res = await fetch("/api/referrals/payout", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPayoutMsg(data.message);
+        // Refresh data after payout
+        await fetchReferralData();
+      } else {
+        setPayoutMsg(data.error || "Failed to request payout");
+      }
+    } catch (err) {
+      setPayoutMsg("Failed to request payout. Please try again.");
+    } finally {
       setPayoutLoading(false);
-    }, 1500);
+    }
   };
 
   const statusColors = {
@@ -353,8 +363,13 @@ export default function ReferralsPage() {
           {payoutMsg && (
             <div style={{
               marginTop: "var(--space-sm)", padding: "8px 12px",
-              background: "rgba(0, 230, 118, 0.1)", borderRadius: "var(--radius-md)",
-              fontSize: "var(--font-size-xs)", color: "var(--accent-green)", fontWeight: 600,
+              background: payoutMsg.includes("Failed") || payoutMsg.includes("pending")
+                ? "rgba(255, 82, 82, 0.1)" : "rgba(0, 230, 118, 0.1)",
+              borderRadius: "var(--radius-md)",
+              fontSize: "var(--font-size-xs)",
+              color: payoutMsg.includes("Failed") || payoutMsg.includes("pending")
+                ? "var(--accent-red)" : "var(--accent-green)",
+              fontWeight: 600,
             }}>
               {payoutMsg}
             </div>

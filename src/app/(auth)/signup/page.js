@@ -147,6 +147,12 @@ function SignupForm() {
   };
 
   const handleGoogleSignup = async () => {
+    // Before redirecting, save referral code to a cookie so the server callback can read it
+    const storedRefCode = localStorage.getItem("sellora_ref_code");
+    if (storedRefCode) {
+      document.cookie = `sellora_ref_code=${storedRefCode}; path=/; max-age=86400; SameSite=Lax`;
+    }
+
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",

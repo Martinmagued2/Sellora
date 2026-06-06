@@ -1,4 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+
+function getAdminClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+}
 
 export async function GET(request) {
   try {
@@ -8,15 +16,17 @@ export async function GET(request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's referral code
-    const { data: account } = await supabase
+    const adminClient = getAdminClient();
+
+    // Get user's referral code and credits
+    const { data: account } = await adminClient
       .from("accounts")
       .select("referral_code, referral_credits")
       .eq("id", user.id)
       .single();
 
     // Get referral history
-    const { data: referrals } = await supabase
+    const { data: referrals } = await adminClient
       .from("referrals")
       .select("id, referral_code, referred_email, referred_id, status, commission_earned, commission_paid, created_at")
       .eq("referrer_id", user.id)
@@ -57,8 +67,10 @@ export async function POST(request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const adminClient = getAdminClient();
+
     // Check if user already has a referral code
-    const { data: account } = await supabase
+    const { data: account } = await adminClient
       .from("accounts")
       .select("referral_code")
       .eq("id", user.id)
@@ -81,9 +93,9 @@ export async function POST(request) {
     let code = generateCode();
     let attempts = 0;
 
-    // Ensure uniqueness
+    // Ensure uniqueness across all accounts
     while (attempts < 10) {
-      const { data: existing } = await supabase
+      const { data: existing } = await adminClient
         .from("accounts")
         .select("id")
         .eq("referral_code", code)
@@ -95,7 +107,7 @@ export async function POST(request) {
     }
 
     // Update account with referral code
-    const { error } = await supabase
+    const { error } = await adminClient
       .from("accounts")
       .update({ referral_code: code })
       .eq("id", user.id);
