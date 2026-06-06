@@ -3572,3 +3572,444 @@ html[data-theme="light"] .hero-creative-counter {
   background: rgba(0, 0, 0, 0.03);
   border-color: rgba(0, 0, 0, 0.08);
 }
+
+/* ============================================
+   NEW HERO — CLEAN REDESIGN
+   ============================================ */
+
+/* Hero content centered */
+.hero-content-centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+/* Pill badge */
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: var(--radius-full);
+  background: rgba(108, 92, 231, 0.1);
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  color: var(--accent-primary-light);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  margin-bottom: 28px;
+  backdrop-filter: blur(8px);
+}
+
+.hero-pill svg {
+  flex-shrink: 0;
+}
+
+/* Giant heading */
+.hero-title-large {
+  font-size: clamp(48px, 6vw, 80px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 24px;
+  color: var(--text-primary);
+}
+
+/* Subtitle large */
+.hero-subtitle-large {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 580px;
+  line-height: 1.6;
+  margin-bottom: 0;
+}
+
+/* CTA row */
+.hero-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+/* XL Button */
+.btn-xl {
+  padding: 16px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+}
+
+/* Ghost button */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-full);
+  transition: all 0.25s ease;
+}
+
+.btn-ghost:hover {
+  background: var(--bg-glass-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+}
+
+.btn-ghost:active {
+  transform: translateY(1px);
+}
+
+/* Social proof line */
+.hero-social-proof {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 40px;
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+
+.hero-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.hero-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  border: 2px solid var(--bg-primary);
+  margin-right: -8px;
+  position: relative;
+}
+
+.hero-avatar:last-child {
+  margin-right: 0;
+}
+
+/* Breathing glow behind text */
+.hero-breathing-glow {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(108, 92, 231, 0.06) 0%, rgba(0, 210, 255, 0.03) 40%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  animation: breathe-glow 6s ease-in-out infinite;
+}
+
+@keyframes breathe-glow {
+  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+/* ============================================
+   AI SERVICE STREAM
+   ============================================ */
+.ai-stream-container {
+  max-width: 900px;
+  width: 100%;
+  margin: 60px auto 0;
+  border-radius: 16px;
+  padding: 28px 32px;
+  background: var(--bg-card);
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  box-shadow: 0 0 80px rgba(108, 92, 231, 0.08), 0 20px 60px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(16px);
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.ai-stream-container::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 17px;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.25), rgba(0, 210, 255, 0.15), rgba(108, 92, 231, 0.25));
+  background-size: 300% 300%;
+  animation: ai-stream-border 6s ease infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+@keyframes ai-stream-border {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.ai-stream-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.ai-stream-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ai-stream-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-primary-light);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: rgba(108, 92, 231, 0.1);
+  border: 1px solid rgba(108, 92, 231, 0.2);
+}
+
+.ai-stream-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  animation: pulse-indicator 2s ease-in-out infinite;
+}
+
+@keyframes pulse-indicator {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 165, 92, 0.4); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(59, 165, 92, 0); }
+}
+
+.ai-stream-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 240px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Custom scrollbar for stream */
+.ai-stream-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.ai-stream-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-stream-messages::-webkit-scrollbar-thumb {
+  background: rgba(108, 92, 231, 0.2);
+  border-radius: 2px;
+}
+
+.ai-stream-msg {
+  max-width: 70%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-stream-msg.incoming {
+  align-self: flex-start;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-bottom-left-radius: 4px;
+}
+
+.ai-stream-msg.outgoing {
+  align-self: flex-end;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.12), rgba(0, 210, 255, 0.08));
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  border-bottom-right-radius: 4px;
+}
+
+.ai-stream-msg-sender {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ai-stream-msg.incoming .ai-stream-msg-sender {
+  color: var(--accent-primary-light);
+}
+
+.ai-stream-msg.outgoing .ai-stream-msg-sender {
+  color: var(--accent-green);
+}
+
+.ai-stream-msg-text {
+  color: var(--text-primary);
+}
+
+/* Metrics bar */
+.ai-stream-metrics {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ai-stream-metric {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.ai-stream-metric svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.ai-stream-metric-value {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ============================================
+   RESPONSIVE — NEW HERO
+   ============================================ */
+@media (max-width: 768px) {
+  .hero-title-large {
+    font-size: clamp(36px, 8vw, 48px);
+  }
+
+  .hero-subtitle-large {
+    font-size: 16px;
+    max-width: 100%;
+    padding: 0 var(--space-md);
+  }
+
+  .hero-cta-row {
+    flex-direction: column;
+    width: 100%;
+    padding: 0 var(--space-md);
+  }
+
+  .hero-cta-row .btn-xl {
+    width: 100%;
+  }
+
+  .hero-social-proof {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ai-stream-container {
+    margin: 40px 16px 0;
+    padding: 20px;
+  }
+
+  .ai-stream-messages {
+    min-height: 200px;
+    max-height: 250px;
+  }
+
+  .ai-stream-metrics {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .ai-stream-metric {
+    font-size: 11px;
+  }
+
+  .hero-breathing-glow {
+    width: 400px;
+    height: 400px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-title-large {
+    font-size: clamp(32px, 9vw, 42px);
+  }
+
+  .ai-stream-msg {
+    max-width: 85%;
+  }
+}
+
+/* ============================================
+   LIGHT THEME — NEW HERO
+   ============================================ */
+html[data-theme="light"] .hero-pill {
+  background: rgba(108, 92, 231, 0.08);
+  border-color: rgba(108, 92, 231, 0.15);
+}
+
+html[data-theme="light"] .btn-ghost {
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: var(--text-secondary);
+}
+
+html[data-theme="light"] .btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--accent-primary);
+}
+
+html[data-theme="light"] .ai-stream-container {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(108, 92, 231, 0.15);
+  box-shadow: 0 0 60px rgba(108, 92, 231, 0.06), 0 20px 60px rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme="light"] .ai-stream-container::before {
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.15), rgba(0, 210, 255, 0.1), rgba(108, 92, 231, 0.15));
+}
+
+html[data-theme="light"] .ai-stream-msg.incoming {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme="light"] .ai-stream-msg.outgoing {
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.06), rgba(0, 210, 255, 0.04));
+  border-color: rgba(108, 92, 231, 0.12);
+}
+
+html[data-theme="light"] .ai-stream-header-right {
+  background: rgba(108, 92, 231, 0.06);
+  border-color: rgba(108, 92, 231, 0.12);
+}
+
+html[data-theme="light"] .hero-breathing-glow {
+  background: radial-gradient(circle, rgba(108, 92, 231, 0.04) 0%, rgba(0, 210, 255, 0.02) 40%, transparent 70%);
+}
+
+html[data-theme="light"] .hero-avatar {
+  border-color: var(--bg-primary);
+}

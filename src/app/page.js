@@ -68,13 +68,13 @@ function ParticleCanvas() {
     resize();
     window.addEventListener("resize", resize);
 
-    const count = Math.min(80, Math.floor(window.innerWidth / 18));
+    const count = Math.min(40, Math.floor(window.innerWidth / 30));
     particles.current = Array.from({ length: count }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      r: Math.random() * 2 + 1,
+      vx: (Math.random() - 0.5) * 0.2,
+      vy: (Math.random() - 0.5) * 0.2,
+      r: Math.random() * 1.5 + 0.5,
       color: Math.random() > 0.5 ? "108,92,231" : "0,210,255",
     }));
 
@@ -90,7 +90,7 @@ function ParticleCanvas() {
         const dy = p.y - my;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 180) {
-          const force = (180 - dist) / 180 * 0.8;
+          const force = (180 - dist) / 180 * 0.5;
           p.vx += (dx / dist) * force;
           p.vy += (dy / dist) * force;
         }
@@ -105,18 +105,18 @@ function ParticleCanvas() {
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${p.color},0.6)`;
+        ctx.fillStyle = `rgba(${p.color},0.4)`;
         ctx.fill();
 
         for (let j = i + 1; j < ps.length; j++) {
           const p2 = ps[j];
           const d = Math.hypot(p.x - p2.x, p.y - p2.y);
-          if (d < 140) {
+          if (d < 120) {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = `rgba(${p.color},${0.15 * (1 - d / 140)})`;
-            ctx.lineWidth = 0.5;
+            ctx.strokeStyle = `rgba(${p.color},${0.08 * (1 - d / 120)})`;
+            ctx.lineWidth = 0.4;
             ctx.stroke();
           }
         }
@@ -151,12 +151,12 @@ function MorphBlob({ color, style = {} }) {
     <svg viewBox="0 0 600 600" style={{ position: "absolute", ...style, pointerEvents: "none" }}>
       <defs>
         <linearGradient id={`grad-${color}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={color === "purple" ? "#5865F2" : "#00D2FF"} stopOpacity="0.12" />
-          <stop offset="100%" stopColor={color === "purple" ? "#00D2FF" : "#5865F2"} stopOpacity="0.06" />
+          <stop offset="0%" stopColor={color === "purple" ? "#5865F2" : "#00D2FF"} stopOpacity="0.1" />
+          <stop offset="100%" stopColor={color === "purple" ? "#00D2FF" : "#5865F2"} stopOpacity="0.05" />
         </linearGradient>
       </defs>
       <path fill={`url(#grad-${color})`}>
-        <animate attributeName="d" dur="12s" repeatCount="indefinite" values="
+        <animate attributeName="d" dur="20s" repeatCount="indefinite" values="
           M300,100 C450,50 550,180 520,300 C490,420 380,520 260,500 C140,480 50,380 80,250 C110,120 150,150 300,100 Z;
           M300,80 C420,60 580,200 500,320 C420,440 350,530 230,510 C110,490 30,350 100,220 C170,90 180,100 300,80 Z;
           M300,120 C480,80 530,220 490,340 C450,460 340,500 240,480 C140,460 70,360 120,240 C170,120 120,160 300,120 Z;
@@ -164,172 +164,6 @@ function MorphBlob({ color, style = {} }) {
         " />
       </path>
     </svg>
-  );
-}
-
-/* ============================================
-   INTERACTIVE PHONE WITH SCROLL-ZOOM COMPONENT
-   ============================================ */
-function FloatingPhone() {
-  const ref = useRef(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "end start"],
-  });
-
-  useEffect(() => {
-    const unsubscribe = scrollYProgress.on("change", (v) => setScrollProgress(v));
-    return () => unsubscribe();
-  }, [scrollYProgress]);
-
-  const rawProgress = Math.min(Math.max(scrollProgress, 0), 1);
-  const zoomProgress = Math.min(rawProgress / 0.5, 1);
-  const eased = 1 - Math.pow(1 - zoomProgress, 3);
-
-  const scale = isMobile ? 1 : 0.6 + eased * 0.4;
-  const rotateY = isMobile ? 0 : -20 + eased * 20;
-  const rotateX = isMobile ? 0 : 8 - eased * 8;
-  const translateY = isMobile ? 0 : 80 - eased * 80;
-  const parallaxY = isMobile ? 0 : rawProgress * -60;
-
-  const glowIntensity = eased * 0.6;
-  const reflectionAngle = -45 + rawProgress * 30;
-
-  return (
-    <div ref={ref} className="phone-zoom-wrapper" style={{ perspective: isMobile ? 1000 : 1400 }}>
-      <motion.div
-        className="phone-zoom-container"
-        style={{
-          transform: isMobile
-            ? undefined
-            : `translateY(${translateY + parallaxY}px) rotateY(${rotateY}deg) rotateX(${rotateX}deg) scale(${scale})`,
-          transformStyle: "preserve-3d",
-          willChange: "transform",
-          opacity: isMobile ? undefined : 0.5 + eased * 0.5,
-        }}
-        initial={{ opacity: 0, scale: isMobile ? 1 : 0.5 }}
-        animate={{ opacity: 1, scale: isMobile ? 1 : undefined }}
-        transition={{ duration: 1.2, ease: "easeOut" }}
-      >
-        <div className={`phone-mockup ${eased >= 1 ? "phone-at-rest" : ""}`}>
-          <div
-            className="phone-glow"
-            style={{
-              opacity: glowIntensity,
-              boxShadow: `0 0 60px rgba(88,101,242,${0.3 * glowIntensity}), 0 0 120px rgba(0,210,255,${0.15 * glowIntensity})`,
-            }}
-          />
-          <div className="phone-frame">
-            <div className="phone-notch">
-              <div className="phone-notch-camera" />
-            </div>
-            <div className="phone-screen">
-              <div className="phone-dash-header">
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 5, background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <LayoutDashboard size={10} style={{ color: "#fff" }} />
-                  </div>
-                  <span style={{ fontWeight: 700, fontSize: 10, color: "#fff" }}>Sellora</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ position: "relative" }}>
-                    <Bell size={12} style={{ color: "rgba(255,255,255,0.6)" }} />
-                    <div style={{ position: "absolute", top: -2, right: -2, width: 5, height: 5, borderRadius: "50%", background: "var(--accent-red)" }} />
-                  </div>
-                  <div style={{ width: 18, height: 18, borderRadius: "50%", background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "#fff" }}>S</div>
-                </div>
-              </div>
-              <div className="phone-dash-stats">
-                <div className="phone-dash-stat-card">
-                  <DollarSign size={9} style={{ color: "var(--accent-green)" }} />
-                  <span className="phone-dash-stat-label">Revenue</span>
-                  <span className="phone-dash-stat-value">24.5K</span>
-                  <span className="phone-dash-stat-change positive">+12%</span>
-                </div>
-                <div className="phone-dash-stat-card">
-                  <ShoppingCart size={9} style={{ color: "var(--accent-secondary)" }} />
-                  <span className="phone-dash-stat-label">Orders</span>
-                  <span className="phone-dash-stat-value">184</span>
-                  <span className="phone-dash-stat-change positive">+8%</span>
-                </div>
-                <div className="phone-dash-stat-card">
-                  <Users size={9} style={{ color: "var(--accent-primary-light)" }} />
-                  <span className="phone-dash-stat-label">Users</span>
-                  <span className="phone-dash-stat-value">1.2K</span>
-                  <span className="phone-dash-stat-change positive">+23%</span>
-                </div>
-              </div>
-              <div className="phone-dash-chart">
-                <div className="phone-dash-chart-header">
-                  <span style={{ fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>Weekly Sales</span>
-                  <span style={{ fontSize: 7, color: "var(--accent-green)" }}>+18.2%</span>
-                </div>
-                <div className="phone-dash-chart-bars">
-                  {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
-                    <div key={i} className="phone-dash-chart-bar-wrapper">
-                      <div
-                        className="phone-dash-chart-bar"
-                        style={{
-                          height: `${h}%`,
-                          background: i === 5 ? "var(--accent-gradient)" : "rgba(88,101,242,0.3)",
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="phone-dash-orders">
-                <span style={{ fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.8)", marginBottom: 4, display: "block" }}>Recent Orders</span>
-                {[
-                  { id: "#1847", name: "Nour A.", amount: "900 EGP", status: "Delivered", color: "var(--accent-green)" },
-                  { id: "#1848", name: "Omar H.", amount: "450 EGP", status: "Shipped", color: "var(--accent-secondary)" },
-                  { id: "#1849", name: "Sara Y.", amount: "750 EGP", status: "Pending", color: "var(--accent-orange)" },
-                ].map((order, i) => (
-                  <div key={i} className="phone-dash-order-row">
-                    <div className="phone-dash-order-id">{order.id}</div>
-                    <div className="phone-dash-order-name">{order.name}</div>
-                    <div className="phone-dash-order-amount">{order.amount}</div>
-                    <div className="phone-dash-order-status" style={{ color: order.color, background: `${order.color}20` }}>{order.status}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="phone-home-indicator" />
-          </div>
-          <div
-            className="phone-reflection"
-            style={{
-              background: `linear-gradient(${reflectionAngle}deg, rgba(255,255,255,${0.06 * eased}) 0%, transparent 50%)`,
-            }}
-          />
-          <motion.div className="phone-float-badge" style={{ top: -20, right: -40 }}
-            animate={{ y: [0, -8, 0], rotate: [0, 3, 0] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
-            <ShoppingCart size={14} /><span>12 Orders</span>
-          </motion.div>
-          <motion.div className="phone-float-badge" style={{ bottom: 60, left: -50 }}
-            animate={{ y: [0, 8, 0], rotate: [0, -3, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}>
-            <MessageSquare size={14} /><span>98% Reply Rate</span>
-          </motion.div>
-          <motion.div className="phone-float-badge" style={{ top: 80, left: -60 }}
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}>
-            <TrendingUp size={14} /><span>+340% Sales</span>
-          </motion.div>
-        </div>
-      </motion.div>
-    </div>
   );
 }
 
@@ -364,217 +198,97 @@ function AnimatedCounter({ value, duration = 1.5 }) {
 }
 
 /* ============================================
-   TYPEWRITER TEXT COMPONENT
+   AI SERVICE STREAM COMPONENT
    ============================================ */
-function TypewriterText({ texts, speed = 80, pauseBetween = 2000, gradientIndices = [] }) {
-  const [currentTextIndex, setCurrentTextIndex] = useState(0);
-  const [displayText, setDisplayText] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
+function AIServiceStream() {
+  const [visibleCount, setVisibleCount] = useState(6);
+  const [cycleKey, setCycleKey] = useState(0);
+  const timersRef = useRef([]);
 
-  useEffect(() => {
-    if (isPaused) return;
-    const currentFull = texts[currentTextIndex];
-    let timeout;
-
-    if (!isDeleting && displayText.length < currentFull.length) {
-      timeout = setTimeout(() => setDisplayText(currentFull.slice(0, displayText.length + 1)), speed);
-    } else if (!isDeleting && displayText.length === currentFull.length) {
-      timeout = setTimeout(() => {
-        setIsPaused(true);
-        setTimeout(() => { setIsPaused(false); setIsDeleting(true); }, pauseBetween);
-      }, 0);
-    } else if (isDeleting && displayText.length > 0) {
-      timeout = setTimeout(() => setDisplayText(displayText.slice(0, -1)), speed / 2);
-    } else if (isDeleting && displayText.length === 0) {
-      timeout = setTimeout(() => {
-        setIsDeleting(false);
-        setCurrentTextIndex((currentTextIndex + 1) % texts.length);
-      }, 0);
-    }
-
-    return () => clearTimeout(timeout);
-  }, [displayText, isDeleting, currentTextIndex, texts, speed, pauseBetween, isPaused]);
-
-  return (
-    <span>
-      {displayText.split('').map((char, i) => (
-        <span key={i} className={gradientIndices.includes(currentTextIndex) && i >= 0 ? 'text-gradient-static' : ''}>
-          {char}
-        </span>
-      ))}
-      <span className="typewriter-cursor">|</span>
-    </span>
-  );
-}
-
-/* ============================================
-   MAGNETIC BUTTON COMPONENT
-   ============================================ */
-function MagneticButton({ children, className = '', ...props }) {
-  const ref = useRef(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-
-  const handleMouse = (e) => {
-    if (!ref.current) return;
-    const { left, top, width, height } = ref.current.getBoundingClientRect();
-    const x = (e.clientX - left - width / 2) * 0.15;
-    const y = (e.clientY - top - height / 2) * 0.15;
-    setPosition({ x, y });
-  };
-
-  const handleLeave = () => setPosition({ x: 0, y: 0 });
-
-  return (
-    <button
-      ref={ref}
-      className={`magnetic-btn ${className}`}
-      onMouseMove={handleMouse}
-      onMouseLeave={handleLeave}
-      style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
-
-/* ============================================
-   FLOATING CHAT BUBBLES COMPONENT
-   ============================================ */
-function FloatingChatBubbles() {
-  const [visibleBubbles, setVisibleBubbles] = useState([]);
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true });
-
-  const bubbles = [
-    { message: "Is the black bag in stock?", sender: "Customer", type: "incoming", delay: 500 },
-    { message: "Yes! Available in 3 colors 🎨", sender: "Sellora AI", type: "outgoing", delay: 2000 },
-    { message: "I'll take 2! 🛒", sender: "Customer", type: "incoming", delay: 3500 },
-    { message: "Payment link sent! 💳", sender: "Sellora AI", type: "outgoing", delay: 4500 },
+  const messages = [
+    { text: "Is the leather bag available in brown?", sender: "Customer", type: "incoming" },
+    { text: "Yes! We have it in Brown and Tan. Which do you prefer? 🎨", sender: "Sellora AI", type: "outgoing" },
+    { text: "Brown please, and how much?", sender: "Customer", type: "incoming" },
+    { text: "450 EGP. Shall I send a payment link? 💳", sender: "Sellora AI", type: "outgoing" },
+    { text: "Yes!", sender: "Customer", type: "incoming" },
+    { text: "Payment link sent! Your order #1851 is confirmed ✅", sender: "Sellora AI", type: "outgoing" },
   ];
 
   useEffect(() => {
-    if (!isInView) return;
-    const timers = bubbles.map((bubble, i) => {
-      return setTimeout(() => {
-        setVisibleBubbles(prev => [...prev, i]);
-      }, bubble.delay);
-    });
-    return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInView]);
+    // Clear previous timers
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
 
-  return (
-    <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {bubbles.map((bubble, i) => (
-        <div
-          key={i}
-          className={`hero-chat-bubble ${bubble.type === 'incoming' ? 'incoming-bubble' : 'outgoing-bubble'} chat-bubble-float ${bubble.type}`}
-          style={{
-            opacity: visibleBubbles.includes(i) ? 1 : 0,
-            animationDelay: visibleBubbles.includes(i) ? '0s' : undefined,
-            animationPlayState: visibleBubbles.includes(i) ? 'running' : 'paused',
-          }}
-        >
-          <span className="bubble-sender">{bubble.sender}</span>
-          {bubble.message}
-        </div>
-      ))}
-    </div>
-  );
-}
+    // Show all messages one by one
+    const msgTimers = messages.map((_, i) =>
+      setTimeout(() => {
+        setVisibleCount(i + 1);
+      }, 600 + i * 1000)
+    );
 
-/* ============================================
-   CURSOR TRAIL COMPONENT
-   ============================================ */
-function CursorTrail() {
-  const [isMobile, setIsMobile] = useState(false);
-  const dotsRef = useRef([]);
-  const mousePos = useRef({ x: 0, y: 0 });
-  const dotPositions = useRef(Array.from({ length: 6 }, () => ({ x: 0, y: 0 })));
-  const rafRef = useRef(null);
+    // Reset cycle after all messages shown + pause
+    const resetTimer = setTimeout(() => {
+      setVisibleCount(0);
+      setCycleKey((k) => k + 1);
+    }, 14000);
 
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  useEffect(() => {
-    if (isMobile) return;
-
-    const handleMouse = (e) => {
-      mousePos.current = { x: e.clientX, y: e.clientY };
-    };
-    window.addEventListener("mousemove", handleMouse);
-
-    function animate() {
-      const mp = mousePos.current;
-      const dp = dotPositions.current;
-      const dots = dotsRef.current;
-
-      // First dot follows cursor with spring
-      dp[0].x += (mp.x - dp[0].x) * 0.3;
-      dp[0].y += (mp.y - dp[0].y) * 0.3;
-
-      // Each subsequent dot follows the previous
-      for (let i = 1; i < dp.length; i++) {
-        const factor = 0.2 - i * 0.02;
-        dp[i].x += (dp[i - 1].x - dp[i].x) * Math.max(factor, 0.08);
-        dp[i].y += (dp[i - 1].y - dp[i].y) * Math.max(factor, 0.08);
-      }
-
-      // Apply positions to DOM
-      for (let i = 0; i < dots.length; i++) {
-        if (dots[i]) {
-          dots[i].style.transform = `translate(${dp[i].x - 4}px, ${dp[i].y - 4}px)`;
-          dots[i].style.opacity = 1 - i * 0.14;
-          dots[i].style.width = `${8 - i * 0.8}px`;
-          dots[i].style.height = `${8 - i * 0.8}px`;
-        }
-      }
-
-      rafRef.current = requestAnimationFrame(animate);
-    }
-    animate();
+    timersRef.current = [...msgTimers, resetTimer];
 
     return () => {
-      window.removeEventListener("mousemove", handleMouse);
-      cancelAnimationFrame(rafRef.current);
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
     };
-  }, [isMobile]);
-
-  if (isMobile) return null;
-
-  const colors = [
-    'rgba(88, 101, 242, 0.6)',
-    'rgba(88, 101, 242, 0.5)',
-    'rgba(68, 131, 242, 0.4)',
-    'rgba(48, 161, 242, 0.3)',
-    'rgba(0, 210, 255, 0.25)',
-    'rgba(0, 210, 255, 0.2)',
-  ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cycleKey]);
 
   return (
-    <>
-      {colors.map((color, i) => (
-        <div
-          key={i}
-          ref={el => dotsRef.current[i] = el}
-          className="cursor-trail-dot"
-          style={{
-            background: color,
-            opacity: 0,
-            position: 'fixed',
-            pointerEvents: 'none',
-            zIndex: 9999,
-            borderRadius: '50%',
-          }}
-        />
-      ))}
-    </>
+    <div className="ai-stream-container">
+      <div className="ai-stream-header">
+        <div className="ai-stream-header-left">
+          <div className="ai-stream-indicator" />
+          <span>Live AI Commerce Stream</span>
+        </div>
+        <div className="ai-stream-header-right">
+          <Bot size={12} />
+          <span>Sellora AI</span>
+        </div>
+      </div>
+      <div className="ai-stream-messages">
+        <AnimatePresence mode="popLayout">
+          {messages.map((msg, i) =>
+            i < visibleCount ? (
+              <motion.div
+                key={`${cycleKey}-${i}`}
+                className={`ai-stream-msg ${msg.type}`}
+                initial={{ opacity: 0, x: msg.type === "incoming" ? -30 : 30, y: 10 }}
+                animate={{ opacity: 1, x: 0, y: 0 }}
+                transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+              >
+                <span className="ai-stream-msg-sender">{msg.sender}</span>
+                <span className="ai-stream-msg-text">{msg.text}</span>
+              </motion.div>
+            ) : null
+          )}
+        </AnimatePresence>
+      </div>
+      <div className="ai-stream-metrics">
+        <div className="ai-stream-metric">
+          <Zap size={10} />
+          <span>Response:</span>
+          <span className="ai-stream-metric-value">0.3s</span>
+        </div>
+        <div className="ai-stream-metric">
+          <Smile size={10} />
+          <span>Satisfaction:</span>
+          <span className="ai-stream-metric-value">98%</span>
+        </div>
+        <div className="ai-stream-metric">
+          <TrendingUp size={10} />
+          <span>Revenue today:</span>
+          <span className="ai-stream-metric-value">12,450 EGP</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -917,27 +631,6 @@ function BrandMarquee() {
 }
 
 /* ============================================
-   SCROLL REVEAL TEXT COMPONENT
-   ============================================ */
-function ScrollRevealText({ children, className = '' }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-
-  return (
-    <div ref={ref} className={`reveal-text ${isInView ? 'revealed' : ''} ${className}`}>
-      {typeof children === 'string'
-        ? children.split('').map((char, i) => (
-            <span key={i} className="reveal-char" style={{ transitionDelay: `${i * 25}ms` }}>
-              {char === ' ' ? '\u00A0' : char}
-            </span>
-          ))
-        : children
-      }
-    </div>
-  );
-}
-
-/* ============================================
    MAIN HOME COMPONENT
    ============================================ */
 export default function Home() {
@@ -946,16 +639,13 @@ export default function Home() {
   const [openFaq, setOpenFaq] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
-  const [cursorGlow, setCursorGlow] = useState({ x: 0, y: 0, visible: false });
   const [lostRevenue, setLostRevenue] = useState(0);
   const [showMissedStamp, setShowMissedStamp] = useState(false);
-  const [heroCounterValue, setHeroCounterValue] = useState(0);
   const [problemMsgsVisible, setProblemMsgsVisible] = useState(0);
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { lang, setLang, t } = useLanguage();
   const problemRef = useRef(null);
-  const heroCounterRef = useRef(null);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50);
@@ -977,48 +667,14 @@ export default function Home() {
     return () => observer.disconnect();
   }, []);
 
-  // Cursor glow follower
-  useEffect(() => {
-    const handleMouse = (e) => setCursorGlow({ x: e.clientX, y: e.clientY, visible: true });
-    const handleLeave = () => setCursorGlow((p) => ({ ...p, visible: false }));
-    window.addEventListener("mousemove", handleMouse);
-    window.addEventListener("mouseleave", handleLeave);
-    return () => {
-      window.removeEventListener("mousemove", handleMouse);
-      window.removeEventListener("mouseleave", handleLeave);
-    };
-  }, []);
-
-  // Hero counter animation — counts up to 2,500,000 when in view
-  const heroCounterInView = useInView(heroCounterRef, { once: true, margin: "-50px" });
-  useEffect(() => {
-    if (!heroCounterInView) return;
-    let start = 0;
-    const end = 2500000;
-    const duration = 2500;
-    const startTime = Date.now();
-    const timer = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const current = Math.floor(eased * end);
-      setHeroCounterValue(current);
-      if (progress >= 1) clearInterval(timer);
-    }, 16);
-    return () => clearInterval(timer);
-  }, [heroCounterInView]);
-
   // Problem section — lost revenue counter & stamp
   const problemInView = useInView(problemRef, { once: true, margin: "-100px" });
   useEffect(() => {
     if (!problemInView) return;
-    // Show messages one by one
     const msgTimers = [0, 600, 1200, 1800, 2400].map((delay, i) =>
       setTimeout(() => setProblemMsgsVisible(i + 1), delay)
     );
-    // Show stamp after messages
     const stampTimer = setTimeout(() => setShowMissedStamp(true), 3000);
-    // Lost revenue counter
     const revenueTimer = setInterval(() => {
       setLostRevenue(prev => prev + Math.floor(Math.random() * 50 + 20));
     }, 800);
@@ -1086,8 +742,6 @@ export default function Home() {
   return (
     <>
       <ParticleCanvas />
-      <CursorTrail />
-      <div className="cursor-glow" style={{ left: cursorGlow.x - 200, top: cursorGlow.y - 200, opacity: cursorGlow.visible ? 1 : 0 }} />
 
       {/* ===== NAVBAR ===== */}
       <nav className={`navbar ${isScrolled ? "scrolled" : ""}`} id="navbar">
@@ -1147,75 +801,90 @@ export default function Home() {
         </div>
       )}
 
-      {/* ===== HERO — CREATIVE REDESIGN ===== */}
-      <section className="hero-creative" id="hero">
-        <MorphBlob color="purple" style={{ top: "-10%", right: "-5%", width: "60vw", maxWidth: 600, opacity: 0.8 }} />
-        <MorphBlob color="cyan" style={{ bottom: "-5%", left: "-8%", width: "50vw", maxWidth: 500, opacity: 0.6 }} />
+      {/* ===== HERO — CLEAN REDESIGN ===== */}
+      <section className="hero" id="hero">
+        <MorphBlob color="purple" style={{ top: "-10%", right: "-5%", width: "60vw", maxWidth: 600, opacity: 0.6 }} />
         <div className="bg-glow hero-glow-1" />
         <div className="bg-glow hero-glow-2" />
         <div className="bg-grid" />
 
-        <div className="hero-creative-layout">
-          <div className="hero-creative-top">
-            {/* Glitch Badge */}
-            <div className="glitch-badge">
-              <span className="badge badge-primary">
-                <Zap size={12} />
-                {t("hero_badge")}
-              </span>
-            </div>
+        {/* Subtle breathing radial gradient behind text */}
+        <div className="hero-breathing-glow" />
 
-            {/* Typewriter Heading */}
-            <h1>
-              <TypewriterText
-                texts={["Turn your DMs into a 24/7 sales machine", "Automate replies. Close deals. While you sleep.", "Your AI sales agent that never stops selling"]}
-                speed={60}
-                pauseBetween={3000}
-                gradientIndices={[0, 1, 2]}
-              />
-            </h1>
+        <div className="hero-content-centered">
+          {/* Small pill badge */}
+          <motion.div
+            className="hero-pill"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+          >
+            <Sparkles size={12} />
+            <span>AI-Powered Commerce</span>
+          </motion.div>
 
-            <p className="hero-creative-subtitle">
-              {t("hero_subtitle")}
-            </p>
+          {/* Giant heading */}
+          <motion.h1
+            className="hero-title-large"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
+          >
+            Turn your DMs into
+            <span className="text-gradient"> a 24/7 sales machine</span>
+          </motion.h1>
 
-            {/* Magnetic CTA Buttons */}
-            <div className="hero-creative-cta">
-              <MagneticButton
-                className="btn btn-primary btn-lg"
-                onClick={() => router.push('/signup')}
-              >
-                {t("hero_cta_primary")} <ArrowRight size={18} />
-              </MagneticButton>
-              <MagneticButton
-                className="btn btn-secondary btn-lg"
-                onClick={() => router.push('/login')}
-              >
-                {t("hero_cta_secondary")} <ChevronRight size={18} />
-              </MagneticButton>
-            </div>
+          {/* Subtitle */}
+          <motion.p
+            className="hero-subtitle-large"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+          >
+            Sellora handles your customer conversations, shows products,
+            takes orders, and sends payment links — even while you sleep.
+          </motion.p>
 
-            {/* Animated single counter instead of stats grid */}
-            <div className="hero-creative-counter" ref={heroCounterRef}>
-              <Zap size={14} style={{ color: "var(--accent-primary-light)" }} />
-              <span className="counter-value">{heroCounterValue.toLocaleString()}+</span>
-              <span>messages handled</span>
-            </div>
-          </div>
+          {/* CTA Buttons */}
+          <motion.div
+            className="hero-cta-row"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+          >
+            <button className="btn btn-primary btn-xl" onClick={() => router.push('/signup')}>
+              Start Free Trial <ArrowRight size={18} />
+            </button>
+            <button className="btn btn-ghost btn-xl" onClick={() => router.push('/login')}>
+              See How It Works <Play size={18} />
+            </button>
+          </motion.div>
 
-          {/* Phone + Chat Bubbles composite area */}
-          <div className="hero-creative-phone-area">
-            <div className="hero-bubbles-left">
-              <FloatingChatBubbles />
+          {/* Social proof */}
+          <motion.div
+            className="hero-social-proof"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.7 }}
+          >
+            <div className="hero-avatars">
+              <div className="hero-avatar" style={{ background: "#6c5ce7" }}>NA</div>
+              <div className="hero-avatar" style={{ background: "#00d2ff" }}>OH</div>
+              <div className="hero-avatar" style={{ background: "#3ba55c" }}>SY</div>
+              <div className="hero-avatar" style={{ background: "#f8a532" }}>MK</div>
             </div>
-            <div style={{ position: 'relative', zIndex: 2 }}>
-              <FloatingPhone />
-            </div>
-            <div className="hero-bubbles-right">
-              {/* Right side bubbles appear naturally through the FloatingChatBubbles */}
-            </div>
-          </div>
+            <span>5,000+ sellers across Egypt, Saudi & UAE</span>
+          </motion.div>
         </div>
+
+        {/* AI Service Stream — the main visual */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.8 }}
+        >
+          <AIServiceStream />
+        </motion.div>
       </section>
 
       {/* ===== BRAND MARQUEE ===== */}
@@ -1235,12 +904,10 @@ export default function Home() {
                   <Bell size={20} />
                 </div>
               </div>
-              <ScrollRevealText>
-                <h2>
-                  You&apos;re losing sales in your{" "}
-                  <span className="text-gradient-static">DMs</span> right now
-                </h2>
-              </ScrollRevealText>
+              <h2>
+                You&apos;re losing sales in your{" "}
+                <span className="text-gradient-static">DMs</span> right now
+              </h2>
               <p>
                 Every unanswered message is a lost customer. Every delayed reply
                 is money left on the table. Here&apos;s what&apos;s happening:
@@ -1273,7 +940,6 @@ export default function Home() {
 
             <div className="problem-visual animate-on-scroll">
               <div className="problem-mockup" style={{ position: 'relative' }}>
-                {/* Red pulsing MISSED stamp */}
                 {showMissedStamp && (
                   <div className="missed-stamp missed-stamp-pulse">MISSED</div>
                 )}
@@ -1293,7 +959,6 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                {/* Lost revenue counter */}
                 {problemInView && (
                   <div className="lost-revenue-counter">
                     <DollarSign size={14} />
@@ -1564,14 +1229,14 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                <MagneticButton
+                <button
                   className={`btn ${plan.featured ? "btn-primary" : "btn-secondary"} btn-lg`}
                   style={{ width: '100%' }}
                   id={`pricing-cta-${i}`}
                   onClick={() => router.push('/signup')}
                 >
                   {plan.cta}
-                </MagneticButton>
+                </button>
               </div>
             ))}
           </div>
@@ -1729,9 +1394,9 @@ export default function Home() {
             <p>{t("cta_subtitle")}</p>
             <div className="cta-form">
               <input type="email" className="cta-input" placeholder={t("cta_placeholder")} id="cta-email" />
-              <MagneticButton className="btn btn-primary" id="cta-submit" onClick={() => router.push('/signup')}>
+              <button className="btn btn-primary" id="cta-submit" onClick={() => router.push('/signup')}>
                 {t("cta_button")} <ArrowRight size={16} />
-              </MagneticButton>
+              </button>
             </div>
           </div>
         </div>
