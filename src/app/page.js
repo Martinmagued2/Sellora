@@ -36,10 +36,216 @@ import {
   MessageSquare,
   ShoppingCart,
   BarChart2,
+  Sparkles,
+  Play,
+  Phone,
+  Headphones,
 } from "lucide-react";
-import { motion, AnimatePresence, useInView } from "framer-motion";
+import { motion, AnimatePresence, useInView, useScroll, useTransform } from "framer-motion";
 import { useTheme } from "@/lib/theme/ThemeProvider";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+
+/* ============================================
+   PARTICLE CANVAS COMPONENT
+   ============================================ */
+function ParticleCanvas() {
+  const canvasRef = useRef(null);
+  const mouse = useRef({ x: -1000, y: -1000 });
+  const particles = useRef([]);
+  const rafId = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let w, h;
+
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    const count = Math.min(80, Math.floor(window.innerWidth / 18));
+    particles.current = Array.from({ length: count }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      r: Math.random() * 2 + 1,
+      color: Math.random() > 0.5 ? "108,92,231" : "0,210,255",
+    }));
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      const ps = particles.current;
+      const mx = mouse.current.x;
+      const my = mouse.current.y;
+
+      for (let i = 0; i < ps.length; i++) {
+        const p = ps[i];
+        const dx = p.x - mx;
+        const dy = p.y - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 180) {
+          const force = (180 - dist) / 180 * 0.8;
+          p.vx += (dx / dist) * force;
+          p.vy += (dy / dist) * force;
+        }
+        p.vx *= 0.98;
+        p.vy *= 0.98;
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${p.color},0.6)`;
+        ctx.fill();
+
+        for (let j = i + 1; j < ps.length; j++) {
+          const p2 = ps[j];
+          const d = Math.hypot(p.x - p2.x, p.y - p2.y);
+          if (d < 140) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = `rgba(${p.color},${0.15 * (1 - d / 140)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+      rafId.current = requestAnimationFrame(draw);
+    }
+    draw();
+
+    const handleMouse = (e) => { mouse.current = { x: e.clientX, y: e.clientY }; };
+    const handleLeave = () => { mouse.current = { x: -1000, y: -1000 }; };
+    window.addEventListener("mousemove", handleMouse);
+    window.addEventListener("mouseleave", handleLeave);
+
+    return () => {
+      cancelAnimationFrame(rafId.current);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("mousemove", handleMouse);
+      window.removeEventListener("mouseleave", handleLeave);
+    };
+  }, []);
+
+  return (
+    <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />
+  );
+}
+
+/* ============================================
+   MORPH BLOB COMPONENT
+   ============================================ */
+function MorphBlob({ color, style = {} }) {
+  return (
+    <svg viewBox="0 0 600 600" style={{ position: "absolute", ...style, pointerEvents: "none" }}>
+      <defs>
+        <linearGradient id={`grad-${color}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={color === "purple" ? "#5865F2" : "#00D2FF"} stopOpacity="0.12" />
+          <stop offset="100%" stopColor={color === "purple" ? "#00D2FF" : "#5865F2"} stopOpacity="0.06" />
+        </linearGradient>
+      </defs>
+      <path fill={`url(#grad-${color})`}>
+        <animate attributeName="d" dur="12s" repeatCount="indefinite" values="
+          M300,100 C450,50 550,180 520,300 C490,420 380,520 260,500 C140,480 50,380 80,250 C110,120 150,150 300,100 Z;
+          M300,80 C420,60 580,200 500,320 C420,440 350,530 230,510 C110,490 30,350 100,220 C170,90 180,100 300,80 Z;
+          M300,120 C480,80 530,220 490,340 C450,460 340,500 240,480 C140,460 70,360 120,240 C170,120 120,160 300,120 Z;
+          M300,100 C450,50 550,180 520,300 C490,420 380,520 260,500 C140,480 50,380 80,250 C110,120 150,150 300,100 Z
+        " />
+      </path>
+    </svg>
+  );
+}
+
+/* ============================================
+   FLOATING PHONE COMPONENT
+   ============================================ */
+function FloatingPhone() {
+  const ref = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"],
+  });
+
+  const y = useTransform(scrollYProgress, [0, 1], [100, -100]);
+  const rotateY = useTransform(scrollYProgress, [0, 0.5, 1], [-15, 5, -10]);
+  const rotateX = useTransform(scrollYProgress, [0, 0.5, 1], [10, -5, 8]);
+  const scale = useTransform(scrollYProgress, [0, 0.3, 0.6, 1], [0.6, 1.2, 1.1, 1]);
+
+  return (
+    <div ref={ref} style={{ perspective: 1200 }}>
+      <motion.div
+        style={{ y, rotateY, rotateX, scale, transformStyle: "preserve-3d" }}
+        transition={{ type: "spring", stiffness: 100 }}
+      >
+        <div className="phone-mockup">
+          <div className="phone-frame">
+            <div className="phone-notch" />
+            <div className="phone-screen">
+              <div className="phone-header">
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 6, background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Bot size={12} style={{ color: "#fff" }} />
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: 11, color: "#fff" }}>Sellora</span>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-green)" }} />
+                </div>
+              </div>
+              <div className="phone-messages">
+                <div className="phone-msg customer">
+                  <span>How much is the black bag?</span>
+                  <span className="phone-msg-time">2:34 AM</span>
+                </div>
+                <div className="phone-msg ai">
+                  <span>Black Tote is 450 EGP! Want to order?</span>
+                  <span className="phone-msg-time">2:34 AM</span>
+                </div>
+                <div className="phone-msg customer">
+                  <span>Yes, I&apos;ll take it!</span>
+                  <span className="phone-msg-time">2:35 AM</span>
+                </div>
+                <div className="phone-msg ai" style={{ background: "rgba(59,165,92,0.2)", borderColor: "rgba(59,165,92,0.3)" }}>
+                  <span>Order confirmed! Payment link sent.</span>
+                  <span className="phone-msg-time">2:35 AM</span>
+                </div>
+              </div>
+              <div className="phone-input-bar">
+                <span style={{ color: "var(--text-tertiary)", fontSize: 10 }}>Type a message...</span>
+              </div>
+            </div>
+          </div>
+          {/* Floating notification badges around phone */}
+          <motion.div className="phone-float-badge" style={{ top: -20, right: -40 }}
+            animate={{ y: [0, -8, 0], rotate: [0, 3, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
+            <ShoppingCart size={14} /><span>12 Orders</span>
+          </motion.div>
+          <motion.div className="phone-float-badge" style={{ bottom: 60, left: -50 }}
+            animate={{ y: [0, 8, 0], rotate: [0, -3, 0] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}>
+            <MessageSquare size={14} /><span>98% Reply Rate</span>
+          </motion.div>
+          <motion.div className="phone-float-badge" style={{ top: 80, left: -60 }}
+            animate={{ y: [0, -10, 0] }}
+            transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}>
+            <TrendingUp size={14} /><span>+340% Sales</span>
+          </motion.div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 /* ============================================
    ANIMATED COUNTER COMPONENT
@@ -456,6 +662,7 @@ export default function Home() {
   const [openFaq, setOpenFaq] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [cursorGlow, setCursorGlow] = useState({ x: 0, y: 0, visible: false });
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { lang, setLang, t } = useLanguage();
@@ -486,6 +693,18 @@ export default function Home() {
     });
 
     return () => observer.disconnect();
+  }, []);
+
+  // Cursor glow follower
+  useEffect(() => {
+    const handleMouse = (e) => setCursorGlow({ x: e.clientX, y: e.clientY, visible: true });
+    const handleLeave = () => setCursorGlow((p) => ({ ...p, visible: false }));
+    window.addEventListener("mousemove", handleMouse);
+    window.addEventListener("mouseleave", handleLeave);
+    return () => {
+      window.removeEventListener("mousemove", handleMouse);
+      window.removeEventListener("mouseleave", handleLeave);
+    };
   }, []);
 
   const features = [
@@ -640,6 +859,8 @@ export default function Home() {
 
   return (
     <>
+      <ParticleCanvas />
+      <div className="cursor-glow" style={{ left: cursorGlow.x - 200, top: cursorGlow.y - 200, opacity: cursorGlow.visible ? 1 : 0 }} />
       {/* ===== NAVBAR ===== */}
       <nav className={`navbar ${isScrolled ? "scrolled" : ""}`} id="navbar">
         <div className="navbar-inner">
@@ -730,6 +951,8 @@ export default function Home() {
 
       {/* ===== HERO ===== */}
       <section className="hero" id="hero">
+        <MorphBlob color="purple" style={{ top: "-10%", right: "-5%", width: "60vw", maxWidth: 600, opacity: 0.8 }} />
+        <MorphBlob color="cyan" style={{ bottom: "-5%", left: "-8%", width: "50vw", maxWidth: 500, opacity: 0.6 }} />
         <div className="bg-glow hero-glow-1" />
         <div className="bg-glow hero-glow-2" />
         <div className="bg-grid" />
@@ -812,6 +1035,51 @@ export default function Home() {
 
       {/* ===== FEATURE 5: TRUSTED BY LOGOS (replaces old Social Proof) ===== */}
       <BrandMarquee />
+
+      {/* ===== PHONE MOCKUP + SOCIAL PROOF ===== */}
+      <section className="section phone-showcase-section">
+        <div className="section-inner">
+          <div className="phone-showcase-grid">
+            <div className="phone-showcase-left">
+              <motion.div
+                initial={{ opacity: 0, x: -40 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.7 }}
+              >
+                <h2 style={{ fontSize: "var(--font-size-3xl)", fontWeight: 800, lineHeight: 1.2, marginBottom: "var(--space-lg)" }}>
+                  Your AI sales agent <span className="text-gradient-static">never sleeps</span>
+                </h2>
+                <p style={{ fontSize: "var(--font-size-lg)", color: "var(--text-secondary)", lineHeight: 1.7, marginBottom: "var(--space-xl)" }}>
+                  While you rest, Sellora handles inquiries, shows products, processes orders, and sends payment links — all on autopilot. Wake up to new sales, not unread messages.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+                  {[
+                    { icon: <Headphones size={18} />, text: "24/7 auto-reply in Arabic & English" },
+                    { icon: <ShoppingCart size={18} />, text: "Auto product catalog sharing" },
+                    { icon: <CreditCard size={18} />, text: "Instant payment link generation" },
+                  ].map((item, i) => (
+                    <motion.div
+                      key={i}
+                      className="phone-feature-item"
+                      initial={{ opacity: 0, x: -30 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.3 + i * 0.15 }}
+                    >
+                      <div style={{ color: "var(--accent-primary-light)" }}>{item.icon}</div>
+                      <span>{item.text}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+            <div className="phone-showcase-right">
+              <FloatingPhone />
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ===== PROBLEM ===== */}
       <section className="section problem" id="problem">
