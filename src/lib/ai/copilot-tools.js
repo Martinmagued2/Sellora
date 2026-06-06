@@ -561,6 +561,101 @@ export const createCopilotTools = (accountId) => {
       },
     }),
 
+    send_message_to_customer: tool({
+      description: "Send a message directly to a customer through their conversation channel (WhatsApp, Instagram, or Facebook). Use this when the seller asks you to send a message to a customer, reply to a customer, reach out to someone, or notify a customer. You need the conversation ID and the message content. The message will be delivered through the actual channel (not just saved in DB).",
+      inputSchema: z.object({
+        conversation_id: z.string().describe("The ID of the conversation to send the message to"),
+        message: z.string().describe("The message content to send to the customer"),
+      }),
+      execute: async ({ conversation_id, message }) => {
+        try {
+          if (!conversation_id || !message) {
+            return { success: false, error: "Conversation ID and message content are required" };
+          }
+
+          // Call the existing messages/send API which handles all channels
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+          const res = await fetch(`${appUrl}/api/messages/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              conversationId: conversation_id,
+              content: message,
+              type: "text",
+            }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok || !data.success) {
+            return {
+              success: false,
+              error: data.error || "Failed to send message to customer",
+            };
+          }
+
+          return {
+            success: true,
+            message: `Message sent to customer successfully!`,
+            conversation_id,
+            _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversation" },
+          };
+        } catch (err) {
+          return { success: false, error: `Failed to send message: ${err.message}` };
+        }
+      },
+    }),
+
+    find_conversation: tool({
+      description: "Find a conversation by customer name or channel. Use this when the seller wants to send a message to a specific customer but doesn't know the conversation ID. Returns matching conversations with their IDs.",
+      inputSchema: z.object({
+        customer_name: z.string().optional().describe("Customer name to search for"),
+        channel: z.string().optional().describe("Channel to filter by (whatsapp, instagram, facebook)"),
+        status: z.string().optional().describe("Conversation status to filter by (new, open, in_progress, waiting_customer)"),
+        limit: z.string().optional().describe("Max results (default 10)"),
+      }),
+      execute: async ({ customer_name, channel, status, limit }) => {
+        const limitNum = parseInt(limit) || 10;
+
+        let query = supabase
+          .from("conversations")
+          .select("id, channel, status, unread_count, updated_at, customers(id, name, platform_id)")
+          .eq("account_id", accountId)
+          .order("updated_at", { ascending: false })
+          .limit(limitNum);
+
+        if (channel) query = query.eq("channel", channel);
+        if (status) query = query.eq("status", status);
+
+        const { data, error } = await query;
+
+        if (error) return { success: false, error: "Failed to search conversations" };
+
+        // If customer name is provided, filter results
+        let results = data || [];
+        if (customer_name) {
+          const nameLower = customer_name.toLowerCase();
+          results = results.filter(c =>
+            c.customers?.name?.toLowerCase().includes(nameLower)
+          );
+        }
+
+        return {
+          success: true,
+          conversations: results.map(c => ({
+            id: c.id,
+            channel: c.channel,
+            status: c.status,
+            unread_count: c.unread_count,
+            customer_name: c.customers?.name || "Unknown",
+            updated_at: c.updated_at,
+          })),
+          count: results.length,
+          _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversations" },
+        };
+      },
+    }),
+
     // ─── CUSTOMER TOOLS ───
 
     get_order_details: tool({
@@ -683,7 +778,7 @@ export const createCopilotTools = (accountId) => {
     }),
 
     send_follow_up: tool({
-      description: "Send a follow-up message to customers with unpaid orders older than 24 hours. Use when the seller wants to follow up on pending orders or asks about unpaid orders.",
+      description: "Send a follow-up message to customers with unpaid orders older than 24 hours. Use when the seller wants to follow up on pending orders or asks about unpaid orders. Messages are sent through the actual channel (WhatsApp/IG/FB), not just saved to DB.",
       inputSchema: z.object({
         order_id: z.string().optional().describe("Specific order ID to follow up on (optional, if omitted follows up on all unpaid orders)"),
       }),
@@ -708,11 +803,19 @@ export const createCopilotTools = (accountId) => {
             return { success: true, message: "No unpaid orders older than 24h found", sent: 0 };
           }
 
+          // Get account channel tokens for sending messages
+          const { data: accountData } = await supabase
+            .from("accounts")
+            .select("whatsapp_access_token, whatsapp_phone_number_id, whatsapp_connected, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id")
+            .eq("id", accountId)
+            .single();
+
           let sent = 0;
+          let failedDeliveries = 0;
           for (const order of unpaidOrders) {
             const { data: conversation } = await supabase
               .from("conversations")
-              .select("id")
+              .select("id, channel, customer_id")
               .eq("account_id", accountId)
               .eq("customer_id", order.customer_id)
               .in("status", ["new", "open", "in_progress", "waiting_customer"])
@@ -722,16 +825,63 @@ export const createCopilotTools = (accountId) => {
 
             if (!conversation) continue;
 
-            const itemsSummary = (order.items || []).map(i => `${i.qty}x ${i.name}`).join(", ");
-            const followUpMessage = `👋 Hi! Just a friendly reminder — your order #${order.order_number} (${itemsSummary}) for ${order.total} EGP is still pending payment. Would you like to complete your order?`;
+            const { data: customer } = await supabase
+              .from("customers")
+              .select("id, platform_id, phone")
+              .eq("id", order.customer_id)
+              .single();
 
+            const itemsSummary = (order.items || []).map(i => `${i.qty}x ${i.name}`).join(", ");
+            const followUpMessage = `Hi! Just a friendly reminder — your order #${order.order_number} (${itemsSummary}) for ${order.total} EGP is still pending payment. Would you like to complete your order?`;
+
+            // Try to actually deliver through the channel
+            let delivered = false;
+            try {
+              if (conversation.channel === "whatsapp" && accountData?.whatsapp_connected && accountData?.whatsapp_access_token) {
+                const { sendWhatsAppMessage } = await import("@/lib/whatsapp");
+                const recipientPhone = customer?.phone || customer?.platform_id;
+                if (recipientPhone) {
+                  await sendWhatsAppMessage({
+                    to: recipientPhone,
+                    message: followUpMessage,
+                    phoneNumberId: accountData.whatsapp_phone_number_id,
+                    accessToken: accountData.whatsapp_access_token,
+                  });
+                  delivered = true;
+                }
+              } else if (conversation.channel === "instagram" && accountData?.instagram_access_token) {
+                const { sendMessage } = await import("@/lib/channels/meta");
+                await sendMessage({
+                  recipientId: customer?.platform_id,
+                  message: followUpMessage,
+                  pageId: accountData.instagram_page_id,
+                  accessToken: accountData.instagram_access_token,
+                });
+                delivered = true;
+              } else if (conversation.channel === "facebook" && accountData?.facebook_access_token) {
+                const { sendMessage } = await import("@/lib/channels/meta");
+                await sendMessage({
+                  recipientId: customer?.platform_id,
+                  message: followUpMessage,
+                  pageId: accountData.facebook_page_id,
+                  accessToken: accountData.facebook_access_token,
+                });
+                delivered = true;
+              }
+            } catch (deliveryErr) {
+              console.warn(`[send_follow_up] Delivery failed for order ${order.order_number}:`, deliveryErr.message);
+              failedDeliveries++;
+            }
+
+            // Store the message in DB regardless of delivery status
             await supabase.from("messages").insert({
               conversation_id: conversation.id,
+              account_id: accountId,
               direction: "outgoing",
               content: followUpMessage,
               type: "text",
               is_ai: true,
-              agent_type: "follow_up",
+              delivery_status: delivered ? "delivered" : "failed",
             });
 
             await supabase
@@ -744,9 +894,10 @@ export const createCopilotTools = (accountId) => {
 
           return {
             success: true,
-            message: `Sent ${sent} follow-up messages for unpaid orders`,
+            message: `Sent ${sent} follow-up messages for unpaid orders${failedDeliveries > 0 ? ` (${failedDeliveries} delivery failures - messages saved to DB)` : ' - all delivered through channel'}`,
             sent,
             total: unpaidOrders.length,
+            failedDeliveries,
             _action: { type: "navigate", path: "/dashboard/orders", label: "View Orders" },
           };
         } catch (err) {

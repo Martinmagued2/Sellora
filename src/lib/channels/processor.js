@@ -322,10 +322,12 @@ export async function processIncomingMessage({
         let greetingDelivered = false;
         try {
           if (channel === "whatsapp") {
+            const waAccessToken = account.whatsapp_access_token || null;
             await sendWhatsAppMessage({
               to: senderId,
               message: greetingMessage,
               phoneNumberId: account.whatsapp_phone_number_id,
+              accessToken: waAccessToken,
             });
           } else if (accessToken) {
             await sendMessage({
@@ -410,10 +412,12 @@ export async function processIncomingMessage({
             let faqDelivered = false;
             try {
               if (channel === "whatsapp") {
+                const waAccessToken = account.whatsapp_access_token || null;
                 await sendWhatsAppMessage({
                   to: senderId,
                   message: bestMatch.answer,
                   phoneNumberId: account.whatsapp_phone_number_id,
+                  accessToken: waAccessToken,
                 });
               } else if (accessToken) {
                 await sendMessage({
@@ -481,10 +485,12 @@ export async function processIncomingMessage({
           let keywordDelivered = false;
           try {
             if (channel === "whatsapp") {
+              const waAccessToken = account.whatsapp_access_token || null;
               await sendWhatsAppMessage({
                 to: senderId,
                 message: matchedReply.response,
                 phoneNumberId: account.whatsapp_phone_number_id,
+                accessToken: waAccessToken,
               });
             } else if (accessToken) {
               await sendMessage({
@@ -620,10 +626,13 @@ export async function processIncomingMessage({
             let deliverySuccess = false;
             try {
               if (channel === "whatsapp") {
+                // Use the account's WhatsApp token if available, otherwise fall back to env var
+                const waAccessToken = account.whatsapp_access_token || null;
                 await sendWhatsAppMessage({
                   to: senderId,
                   message: aiReply,
                   phoneNumberId: account.whatsapp_phone_number_id,
+                  accessToken: waAccessToken,
                 });
               } else if (accessToken) {
                 await sendMessage({
@@ -634,6 +643,7 @@ export async function processIncomingMessage({
                 });
               } else {
                 console.warn(`[PROCESSOR] No access token available for ${channel} — AI reply stored but NOT delivered to customer`);
+                console.warn(`[PROCESSOR] HINT: Re-connect ${channel} in Settings to refresh the access token`);
               }
               deliverySuccess = true;
             } catch (deliveryErr) {
