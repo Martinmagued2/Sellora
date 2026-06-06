@@ -8,6 +8,7 @@ import {
   BarChart3, DollarSign, Activity, Check, ArrowRight
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import InventoryAlerts from "@/app/dashboard/components/InventoryAlerts";
 
 export default function DashboardHome() {
   const [stats, setStats] = useState(null);
@@ -247,6 +248,9 @@ export default function DashboardHome() {
           </div>
         </div>
       </div>
+
+      {/* ═══ Inventory Alerts ═══ */}
+      <InventoryAlerts />
 
       {/* ═══ Middle Row: Order Pipeline + Channel Split ═══ */}
       <div className="dashboard-grid" style={{ marginTop: "var(--space-lg)" }}>

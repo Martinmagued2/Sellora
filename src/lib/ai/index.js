@@ -5,7 +5,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { routeMessage } from "./router";
 import { createSalesTools, createSupportTools } from "./tools";
-import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt } from "./agents";
+import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt, buildPersonalityFromSettings } from "./agents";
 
 const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY 
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
@@ -318,17 +318,91 @@ export async function generateAIReply({
         break;
     }
 
+    // 2.5. A/B Test: Check for running tests and assign variant
+    let abTestVariant = null;
+    let abTestId = null;
+    try {
+      const { data: runningTests } = await getSupabase()
+        .from("ab_tests")
+        .select("id, variants, status")
+        .eq("account_id", accountId)
+        .eq("status", "running")
+        .limit(1);
+
+      if (runningTests && runningTests.length > 0 && customerId) {
+        const test = runningTests[0];
+        abTestId = test.id;
+
+        // Consistent hash: customer_id + test_id → bucket
+        const hashInput = `${customerId}:${test.id}`;
+        let hash = 0;
+        for (let i = 0; i < hashInput.length; i++) {
+          const char = hashInput.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        const bucket = Math.abs(hash) % 100;
+
+        let cumulative = 0;
+        for (const variant of test.variants) {
+          cumulative += variant.weight || 0;
+          if (bucket < cumulative) {
+            abTestVariant = variant;
+            break;
+          }
+        }
+
+        // If variant has custom system prompt, override the default
+        if (abTestVariant?.system_prompt) {
+          systemPrompt = abTestVariant.system_prompt;
+          console.log(`[generateAIReply] A/B Test: Using variant ${abTestVariant.name} prompt for customer ${customerId}`);
+        }
+
+        // If variant has greeting, prepend it
+        if (abTestVariant?.greeting && conversationHistory.length === 0) {
+          // This is a new conversation — the greeting will be handled by auto-greeting
+          // But we store it for the impression tracking
+        }
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] A/B test check failed:", e.message);
+    }
+
     // 3. Fetch and embed product catalog directly in the system prompt
     // This ensures the AI can answer product questions even if tool calls fail
     let productContext = "";
     try {
       const { data: accountData } = await getSupabase()
         .from("accounts")
-        .select("currency")
+        .select("currency, ai_name, ai_avatar, ai_personality_type, ai_custom_description, ai_formality, ai_enthusiasm, ai_verbosity, ai_empathy, ai_max_response_length, ai_auto_suggest_products, ai_escalation_keywords, ai_forbidden_topics, ai_personality")
         .eq("id", accountId)
         .single();
       
       const currency = accountData?.currency || "EGP";
+
+      // Use structured personality settings if available, otherwise fall back to simple text
+      let effectivePersonality = personality;
+      if (accountData && (accountData.ai_personality_type || accountData.ai_formality !== null)) {
+        effectivePersonality = buildPersonalityFromSettings(accountData);
+      } else if (accountData?.ai_personality) {
+        effectivePersonality = accountData.ai_personality;
+      }
+
+      // Re-generate the system prompt with the enhanced personality if we have structured settings
+      if (effectivePersonality !== personality) {
+        switch(intent) {
+          case "support":
+            systemPrompt = getSupportAgentPrompt(businessName, effectivePersonality);
+            break;
+          case "order_tracking":
+            systemPrompt = getOrderTrackerAgentPrompt(businessName, effectivePersonality);
+            break;
+          case "sales":
+          default:
+            systemPrompt = getSalesAgentPrompt(businessName, country, effectivePersonality);
+            break;
+        }
+      }
 
       const { data: products } = await getSupabase()
         .from("products")
@@ -439,7 +513,33 @@ export async function generateAIReply({
       }
     }
 
-    return { reply: text || null, intent, sentiment, toolCalls, needsHumanAttention, escalationReason };
+    // 6. Track A/B test impression if applicable
+    if (abTestId && abTestVariant && text) {
+      try {
+        const currentResults = await getSupabase()
+          .from("ab_tests")
+          .select("results")
+          .eq("id", abTestId)
+          .single();
+
+        if (currentResults.data?.results) {
+          const results = { ...currentResults.data.results };
+          if (!results[abTestVariant.name]) {
+            results[abTestVariant.name] = { impressions: 0, conversions: 0, revenue: 0 };
+          }
+          results[abTestVariant.name].impressions += 1;
+          await getSupabase()
+            .from("ab_tests")
+            .update({ results })
+            .eq("id", abTestId);
+          console.log(`[generateAIReply] A/B Test: Tracked impression for variant ${abTestVariant.name}`);
+        }
+      } catch (e) {
+        console.warn("[generateAIReply] A/B test impression tracking failed:", e.message);
+      }
+    }
+
+    return { reply: text || null, intent, sentiment, toolCalls, needsHumanAttention, escalationReason, abTestVariant: abTestVariant?.name || null, abTestId };
   } catch (err) {
     console.error("Error generating AI reply:", err);
     return { reply: null, intent: "general", sentiment: "neutral", toolCalls: null, needsHumanAttention: false, escalationReason: null };

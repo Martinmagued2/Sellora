@@ -7,6 +7,7 @@ import {
   Plus
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useCurrentStore } from "@/lib/store-context";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
@@ -27,6 +28,8 @@ export default function CustomersPage() {
   });
   const [newTag, setNewTag] = useState("");
 
+  const { currentStoreId } = useCurrentStore();
+
   const supabase = createClient();
 
   const fetchCustomers = useCallback(async () => {
@@ -39,11 +42,12 @@ export default function CustomersPage() {
     if (filter === "instagram") query = query.eq("channel", "instagram");
     if (filter === "facebook") query = query.eq("channel", "facebook");
     if (search) query = query.ilike("name", `%${search}%`);
+    if (currentStoreId) query = query.eq("store_id", currentStoreId);
 
     const { data, error } = await query;
     if (!error) setCustomers(data || []);
     setLoading(false);
-  }, [filter, search]);
+  }, [filter, search, currentStoreId]);
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 

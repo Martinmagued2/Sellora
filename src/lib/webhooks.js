@@ -1,8 +1,9 @@
 /**
  * Webhook Dispatcher
- * 
+ *
  * Sends event payloads to registered webhook URLs when triggered.
  * Used by order creation, message events, etc.
+ * Records all deliveries in webhook_deliveries table.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -28,8 +29,39 @@ function getSupabase() {
  */
 
 /**
+ * Record a webhook delivery in the database.
+ */
+async function recordDelivery({ accountId, webhookId, event, payload, responseStatus, responseBody, durationMs, status, attempts }) {
+  try {
+    await getSupabase().from("webhook_deliveries").insert({
+      account_id: accountId,
+      webhook_id: webhookId,
+      event,
+      payload,
+      response_status: responseStatus || null,
+      response_body: responseBody || null,
+      duration_ms: durationMs || null,
+      status: status || "pending",
+      attempts: attempts || 1,
+      next_retry_at: status === "failed" ? getNextRetryAt(1) : null,
+    });
+  } catch (err) {
+    console.error("Failed to record webhook delivery:", err.message);
+  }
+}
+
+/**
+ * Calculate next retry timestamp with exponential backoff.
+ * Attempt 1 → 1min, Attempt 2 → 5min, Attempt 3+ → 15min
+ */
+function getNextRetryAt(attempt) {
+  const backoffMinutes = [1, 5, 15][Math.min(attempt - 1, 2)] || 15;
+  return new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
+}
+
+/**
  * Dispatch an event to all active webhooks for an account.
- * 
+ *
  * @param {string} accountId - The account that owns the webhooks
  * @param {string} eventType - e.g. "order.created"
  * @param {object} payload - The event data to send
@@ -76,6 +108,7 @@ export async function dispatchWebhook(accountId, eventType, payload) {
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        const startTime = Date.now();
 
         try {
           const response = await fetch(wh.url, {
@@ -86,6 +119,31 @@ export async function dispatchWebhook(accountId, eventType, payload) {
           });
 
           clearTimeout(timeout);
+          const durationMs = Date.now() - startTime;
+
+          // Read response body (truncated)
+          let responseBody = "";
+          try {
+            responseBody = await response.text();
+            if (responseBody.length > 2000) {
+              responseBody = responseBody.substring(0, 2000) + "...(truncated)";
+            }
+          } catch {
+            responseBody = "";
+          }
+
+          // Record the delivery
+          await recordDelivery({
+            accountId,
+            webhookId: wh.id,
+            event: eventType,
+            payload: { event: eventType, timestamp: new Date().toISOString(), data: payload },
+            responseStatus: response.status,
+            responseBody,
+            durationMs,
+            status: response.ok ? "success" : "failed",
+            attempts: 1,
+          });
 
           // Update last triggered status
           await getSupabase()
@@ -109,6 +167,20 @@ export async function dispatchWebhook(accountId, eventType, payload) {
           return { id: wh.id, status: response.status, ok: response.ok };
         } catch (fetchError) {
           clearTimeout(timeout);
+          const durationMs = Date.now() - startTime;
+
+          // Record the failed delivery
+          await recordDelivery({
+            accountId,
+            webhookId: wh.id,
+            event: eventType,
+            payload: { event: eventType, timestamp: new Date().toISOString(), data: payload },
+            responseStatus: 0,
+            responseBody: fetchError.message,
+            durationMs,
+            status: "failed",
+            attempts: 1,
+          });
 
           await getSupabase()
             .from("account_webhooks")

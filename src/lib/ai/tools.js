@@ -60,12 +60,14 @@ export const createSalesTools = (accountId, customerId) => {
             }
           }
 
-          // Get all active products
+          // Get all active products (exclude hidden_from_ai and out-of-stock from AI recommendations)
           const { data: allProducts } = await supabase
             .from("products")
             .select("id, name, description, price, stock, category")
             .eq("account_id", accountId)
-            .eq("status", "active");
+            .eq("status", "active")
+            .neq("hidden_from_ai", true)
+            .gt("stock", 0);
 
           if (!allProducts || allProducts.length === 0) {
             return { success: true, recommendations: [], message: "No products available" };
@@ -191,12 +193,14 @@ export const createSalesTools = (accountId, customerId) => {
 
         const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
 
-        // Fetch all active products for this account
+        // Fetch all active products for this account (exclude hidden_from_ai and out-of-stock)
         const { data: products, error } = await getSupabase()
           .from("products")
           .select("id, name, description, price, stock, category")
           .eq("account_id", accountId)
-          .eq("status", "active");
+          .eq("status", "active")
+          .neq("hidden_from_ai", true)
+          .gt("stock", 0);
 
         if (error) {
           return { success: false, error: "Failed to search products" };
@@ -255,6 +259,8 @@ export const createSalesTools = (accountId, customerId) => {
           .select("id, name, description, price, stock, category")
           .eq("account_id", accountId)
           .eq("status", "active")
+          .neq("hidden_from_ai", true)
+          .gt("stock", 0)
           .limit(10);
 
         if (finalQuery) {
@@ -613,11 +619,14 @@ export const createSupportTools = (accountId, customerId) => {
 
         const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
 
+        // Fetch active products (exclude hidden_from_ai and out-of-stock)
         const { data: products, error } = await getSupabase()
           .from("products")
           .select("id, name, description, price, stock, category")
           .eq("account_id", accountId)
-          .eq("status", "active");
+          .eq("status", "active")
+          .neq("hidden_from_ai", true)
+          .gt("stock", 0);
 
         if (error) {
           return { success: false, error: "Failed to search products" };

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote, Link2, Loader2 } from "lucide-react";
+import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote, Link2, Loader2, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useCurrentStore } from "@/lib/store-context";
 
 const statusColors = {
   pending: "pending", confirmed: "confirmed", shipped: "active",
@@ -24,6 +25,8 @@ export default function OrdersPage() {
   const [viewOrder, setViewOrder] = useState(null);
   const [generatingLink, setGeneratingLink] = useState(null); // order ID being generated
 
+  const { currentStoreId } = useCurrentStore();
+
   const supabase = createClient();
 
   const fetchOrders = useCallback(async () => {
@@ -35,11 +38,12 @@ export default function OrdersPage() {
 
     if (filter !== "all") query = query.eq("status", filter);
     if (search) query = query.ilike("order_number", `%${search}%`);
+    if (currentStoreId) query = query.eq("store_id", currentStoreId);
 
     const { data, error } = await query;
     if (!error) setOrders(data || []);
     setLoading(false);
-  }, [filter, search]);
+  }, [filter, search, currentStoreId]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -162,6 +166,14 @@ export default function OrdersPage() {
                     <td>
                       <button className="topbar-btn" style={{ width: 30, height: 30 }} title="View" onClick={() => setViewOrder(order)}>
                         <Eye size={14} />
+                      </button>
+                      <button
+                        className="topbar-btn"
+                        style={{ width: 30, height: 30, marginLeft: 4 }}
+                        title="Track Shipment"
+                        onClick={() => { window.open(`/dashboard/shipping?order=${order.id}`, '_self'); }}
+                      >
+                        <Truck size={14} />
                       </button>
                       {order.payment_status !== "paid" && (
                         <button className="topbar-btn" style={{ width: 30, height: 30, marginLeft: 4 }} title="Generate Payment Link" onClick={() => generatePaymentLink(order.id)} disabled={generatingLink === order.id}>

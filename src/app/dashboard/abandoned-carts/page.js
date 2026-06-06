@@ -57,8 +57,6 @@ export default function AbandonedCartsPage() {
   const [detecting, setDetecting] = useState(false);
   const [toast, setToast] = useState(null);
 
-  const supabase = createClient();
-
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -67,6 +65,8 @@ export default function AbandonedCartsPage() {
   const fetchCarts = useCallback(async () => {
     setLoading(true);
     try {
+      const supabase = createClient();
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -103,6 +103,8 @@ export default function AbandonedCartsPage() {
   const handleSendReminder = async (cartId) => {
     setSendingReminder(cartId);
     try {
+      const supabase = createClient();
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -136,6 +138,8 @@ export default function AbandonedCartsPage() {
   const handleSendAllReminders = async () => {
     setSendingAll(true);
     try {
+      const supabase = createClient();
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -163,6 +167,8 @@ export default function AbandonedCartsPage() {
 
   const handleMarkRecovered = async (cartId) => {
     try {
+      const supabase = createClient();
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -193,6 +199,8 @@ export default function AbandonedCartsPage() {
   const handleDetect = async () => {
     setDetecting(true);
     try {
+      const supabase = createClient();
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 

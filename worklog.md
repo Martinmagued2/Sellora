@@ -275,3 +275,422 @@ Stage Summary:
 - Facebook Messenger AI replies should work (token is valid)
 - Google Gemini quota needs to be addressed (secondary fallback is broken)
 - Commits: db156d9, 440285f, 6c9d573, 54c3d0c, 3400a6b
+
+---
+Task ID: 14-22
+Agent: main
+Task: Product Variants UI + Inventory Alerts
+
+Work Log:
+- Added variant management UI to product modal (name, SKU, price_offset, stock, image_url per variant)
+- Added variant count badge on product cards showing number of variants
+- Added view product details modal with variants table
+- Created InventoryAlerts component for dashboard (color-coded: red for out-of-stock, amber for low stock)
+- Created /api/inventory/alerts API route (GET for alerts, PATCH for stock/hidden_from_ai updates)
+- Added InventoryAlerts component to dashboard home page below stats grid
+- Added hidden_from_ai column migration (024_add_hidden_from_ai.sql)
+- Updated AI tools (tools.js) to filter out hidden_from_ai=true and stock=0 products from all product queries
+- Added variant-related CSS styles to dashboard.css (variant-list, variant-row, variant-add-btn, etc.)
+- Added inventory alerts CSS styles (inventory-alerts, inventory-alert-item, etc.)
+
+Stage Summary:
+- Products can now have size/color/variant management in the add/edit modal
+- Variants are stored as JSONB array in the variants column
+- Low stock alerts shown on dashboard with restock and hide-from-AI actions
+- Out-of-stock products can be hidden from AI recommendations via hidden_from_ai flag
+- AI product search, recommendation, and lookup tools now respect hidden_from_ai and stock filters
+
+---
+Task ID: phone
+Agent: main
+Task: Interactive phone zoom animation on homepage
+
+Work Log:
+- Enhanced FloatingPhone component with scroll-triggered zoom (0.6 → 1.0 scale)
+- Added 3D rotation on Y axis (-20° → 0°) and X axis (8° → 0°) as user scrolls
+- Added parallax depth effect — phone moves at different rate than text content
+- Added subtle float/bob animation when phone reaches full zoom (phone-at-rest class)
+- Replaced chat UI with realistic Sellora dashboard UI inside phone mockup
+  - Top bar with Sellora logo, notification bell with red dot, avatar
+  - Stats cards (Revenue 24.5K, Orders 184, Users 1.2K)
+  - Mini weekly sales chart with gradient-highlighted peak bar
+  - Recent orders table with status badges (Delivered/Shipped/Pending)
+- Added glow effect behind phone that responds to scroll position
+- Added reflection/shine overlay that rotates based on scroll position
+- Added realistic phone frame details: dynamic island with camera, home indicator
+- Modified hero section from centered single-column to two-column grid layout
+- Text content left-aligned on desktop, centered on mobile
+- Phone appears on right side of hero on desktop, above text on mobile
+- On mobile: phone is fixed size with simple fade-in (no zoom animation)
+- Float badges hidden on mobile for cleaner experience
+- Added Bell import from lucide-react
+- Added comprehensive CSS styles for all new phone dashboard elements
+- Added phone-float-bob keyframe animation
+- Updated responsive CSS for hero-layout at 1024px and 768px breakpoints
+
+Stage Summary:
+- Homepage hero now has interactive phone that zooms in on scroll with premium feel
+- Phone shows mini Sellora dashboard UI instead of simple chat
+- 3D rotation, parallax depth, glow, and reflection effects all respond to scroll
+- Float/bob animation plays when phone reaches full zoom
+- Mobile-friendly: simple fixed size with fade-in, no complex transforms
+- All existing sections and animations preserved
+
+---
+Task ID: 15-16
+Agent: main
+Task: Toast System + Component Library
+
+Work Log:
+- Created Toast.js component with slide-in animation, color-coded borders, progress bar, close button, glass morphism background
+- Created ToastProvider.js with React context, providing showToast/success/error/warning/info convenience methods via useToast hook
+- Added toast CSS styles to dashboard.css (.toast-container, .toast, .toast-progress, .toast-content, .toast-icon, .toast-message, .toast-action, .toast-close)
+- Modified layout.js to import and wrap content with ToastProvider
+- Created StatCard.js reusable stat card with title, value, change indicator, icon, loading skeleton
+- Created Modal.js reusable modal with AnimatePresence, ESC key, click-outside-to-close, size variants (sm/md/lg)
+- Created FilterBar.js reusable filter bar with tabs (with optional count badges) and search input
+- Created EmptyState.js reusable empty state placeholder with icon, title, description, optional action button
+- Created LoadingSpinner.js with size variants (sm/md/lg) and optional text
+- Created ConfirmDialog.js confirmation dialog replacing confirm() calls with danger/primary variants, loading state
+- Created index.js barrel export file for all shared components
+- Added shared component CSS styles to dashboard.css (.loading-spinner, .confirm-dialog, .btn-danger)
+- Dev server starts and compiles successfully with all new components
+
+Stage Summary:
+- Toast notification system replaces all alert() calls with beautiful glass-morphism toasts
+- 6 shared components extracted for reuse across dashboard: StatCard, Modal, FilterBar, EmptyState, LoadingSpinner, ConfirmDialog
+- All components use existing CSS design system variables and lucide-react icons
+- framer-motion v12.40 used for smooth animations on Modal and ConfirmDialog
+
+---
+Task ID: 18-20
+Agent: main
+Task: Webhook Delivery Log + PDF Report Export
+
+Work Log:
+
+**Feature #18: Webhook Delivery Log**
+- Created migration 026_create_webhook_deliveries.sql with webhook_deliveries table (id, account_id, webhook_id, event, payload, response_status, response_body, duration_ms, status, attempts, next_retry_at, created_at) and RLS policies
+- Created /api/webhooks/deliveries route (GET) with filters (status, webhook_id, date_from, date_to) and pagination (page, limit)
+- Created /api/webhooks/deliveries/[id]/retry route (POST) that re-sends original payload, records response, updates attempts count, calculates exponential backoff (1min, 5min, 15min)
+- Modified src/lib/webhooks.js to record every delivery in webhook_deliveries table after each webhook send attempt (success or failure), including response_status, response_body, duration_ms
+- Created /dashboard/webhooks page with:
+  - Webhook list view with delivery statistics per webhook (success/failed/pending counts)
+  - Click webhook to view delivery log
+  - Delivery log table showing: timestamp, event, status (color-coded), response status, duration, attempts
+  - "Retry" button for failed/retrying deliveries
+  - Filter by status (all/success/failed/pending)
+  - Auto-refresh poll every 10s when pending deliveries exist
+  - Create webhook modal with URL, events selection, signing secret
+  - Enable/disable and delete webhook actions
+- Updated dashboard layout.js: added Webhook icon import from lucide-react, added "Webhooks" link in Manage section after Analytics, added page title mapping
+- Added webhook CSS styles to dashboard.css (.webhook-card, .webhook-status-*, .webhook-url, responsive styles)
+
+**Feature #20: PDF Report Export**
+- Installed jspdf (^4.2.1) and jspdf-autotable (^5.0.8) packages
+- Created /api/analytics/export-pdf route (POST) that generates a professional PDF analytics report including:
+  - Cover page with Sellora branding, business name, date range, report type
+  - KPI summary section (revenue, orders, avg order value, conversion rate, customers)
+  - Daily revenue bar chart (last 14 days) drawn with jsPDF primitives
+  - Top products table (using jspdf-autotable)
+  - Customer statistics table (top 10 by spend)
+  - Order breakdown by status table
+  - Revenue by channel table
+  - Page footers with page numbering
+  - Professional color scheme matching dashboard theme
+- Modified analytics page: added "Export PDF" button next to "Export CSV" with loading state (Loader2 spinner), FileText icon, calls /api/analytics/export-pdf endpoint and triggers download
+
+Stage Summary:
+- Webhook delivery logging is fully integrated into the dispatch pipeline
+- Every webhook send (success or failure) now creates a webhook_deliveries record
+- Failed deliveries can be retried from the dashboard with exponential backoff
+- Webhooks page accessible from sidebar under Manage section
+- PDF export generates professional multi-page reports with charts and tables
+- PDF includes KPI summary, revenue charts, top products, customer stats, order breakdown
+
+---
+Task ID: 17-19
+Agent: main
+Task: Settings Page Split + TOTP 2FA Authentication
+
+Work Log:
+
+**Feature #17: Settings Page Split**
+- Read the existing 1766-line settings/page.js to understand all state management, effects, and tab content
+- Created 11 separate tab component files under /src/app/dashboard/settings/:
+  1. ProfileTab.js — Business Profile (logo upload, name, industry, description, email, phone, country, currency, social links)
+  2. ChannelsTab.js — Connected Channels (Instagram, Facebook, WhatsApp, Shopify connections with OAuth and manual credential entry)
+  3. AutoRepliesTab.js — Auto-Replies management (AI toggle, personality, escalation alerts, keyword-based quick reply templates)
+  4. PoliciesTab.js — Business Policies management (CRUD, toggle active, categories, AI training info)
+  5. FAQsTab.js — FAQ Knowledge Base management (CRUD, categories)
+  6. QuickRepliesTab.js — Quick Replies management (CRUD, shortcuts, categories, variable placeholders)
+  7. AutomationTab.js — Automation settings (auto-greeting with per-channel messages, greeting delay, auto follow-up, sentiment detection info, FAQ auto-reply info)
+  8. WebhooksTab.js — Webhooks management (plan-gated, add/delete webhooks, delivery status)
+  9. TeamTab.js — Team management (plan-gated, owner card, invite/delete members)
+  10. NotificationsTab.js — Notification preferences (4 toggle options with live DB save)
+  11. SecurityTab.js — Security tab (password change, 2FA/MFA with TOTP, delete account danger zone)
+- Refactored page.js to import all tab components and pass shared state as props
+- Reduced page.js from 1766 lines to ~320 lines (all state + effects + tab navigation remain in page.js, all UI rendering delegated to tab components)
+- Preserved all existing functionality exactly as-is: Suspense wrapper, Meta OAuth callback handling, all state and effects
+- Each tab component receives only the props it needs, maintaining clean separation of concerns
+
+**Feature #19: TOTP 2FA/MFA Authentication**
+- Created /src/lib/totp/index.js — Manual TOTP implementation using Node.js built-in crypto module (no external packages):
+  - base32Encode/base32Decode for secret encoding
+  - generateSecret() — Generates random 160-bit TOTP secret
+  - calculateTOTP() — Calculates 6-digit TOTP code using HMAC-SHA1
+  - verifyTOTP() — Verifies code with ±1 window drift (±30 seconds for clock skew)
+  - generateBackupCodes() — Generates 8 recovery codes in XXXX-XXXX format
+  - buildOtpauthUrl() — Builds otpauth:// URL for QR code generation
+- Created 3 API routes:
+  1. /api/auth/2fa/setup (POST) — Generates TOTP secret, returns QR code URL via Google Charts API and manual entry key
+  2. /api/auth/2fa/verify (POST) — Verifies TOTP code; supports setup verification (enables 2FA + generates backup codes), login verification, and backup code verification
+  3. /api/auth/2fa/disable (POST) — Verifies current code then removes TOTP secret from database
+- All API routes use Supabase service role key for server-side operations and validate user via Bearer token from session
+- Created /src/app/auth/verify-2fa/page.js — 6-digit code input page for login verification:
+  - Individual digit inputs with auto-focus navigation
+  - Backup code mode (XXXX-XXXX format)
+  - Verifies against /api/auth/2fa/verify endpoint
+  - Sets sessionStorage flag for 2FA verification status
+  - Wrapped in Suspense for useSearchParams compatibility
+- Enhanced SecurityTab.js with full 2FA UI:
+  - Status display (enabled/disabled with green check or warning icon)
+  - Setup flow: Enable 2FA → QR code + manual entry → verify 6-digit code → backup codes display with copy
+  - Disable flow: Enter current 6-digit code to disable
+  - All API calls include Authorization Bearer token from Supabase session
+- Created /supabase/migrations/025_add_totp.sql — Adds totp_secret (text), totp_enabled (boolean default false), totp_backup_codes (jsonb default []) columns to accounts table
+- Added TOTP column check to /api/db/migrate endpoint for automatic migration detection
+- Fixed lint issues: replaced unescaped quotes with HTML entities (&ldquo;/&rdquo;/&apos;) in JSX
+
+Stage Summary:
+- Settings page reduced from 1766 to ~320 lines by extracting 11 tab components
+- All existing settings functionality preserved exactly as-is
+- TOTP 2FA fully implemented with setup flow, verification, backup codes, and disable flow
+- No external npm packages needed — TOTP verification uses Node.js built-in crypto
+- QR codes generated via Google Charts API
+- Verify-2FA page available at /auth/verify-2fa for post-login TOTP verification
+- Migration 025_add_totp.sql ready for Supabase dashboard execution
+
+---
+Task ID: 23-24
+Agent: main
+Task: Voice Message Transcription + Image Recognition
+
+Work Log:
+
+**Feature #23: Voice Message Transcription**
+- Created `/api/messages/transcribe/route.js` — POST endpoint that accepts audio_base64, uses z-ai-web-dev-sdk ASR (`zai.audio.asr.create`) to transcribe, with fallback to Groq Whisper API. Optionally generates an AI response using `generateAIReply()`.
+- Created `VoiceRecorder.js` component with two modes:
+  - **Compact mode** (for CopilotPanel & chat input): circular button with recording pulse animation, timer display, and transcribing state
+  - **Full mode** (for conversations page): waveform visualization using Web Audio API AnalyserNode, recording overlay with timer, stop & transcribe button
+- Uses MediaRecorder API for audio capture with echo cancellation and noise suppression
+- Converts recorded audio to base64 and sends to `/api/messages/transcribe`
+- Returns transcribed text via `onTranscribe` callback
+- Modified `CopilotPanel.js` to add VoiceRecorder (compact) next to the chat input, before the text input
+- Modified `conversations/page.js` to add VoiceRecorder (compact) in the chat input area alongside Quick Reply and Image Upload buttons
+- Added voice recorder CSS styles to dashboard.css:
+  - `.voice-recorder-compact` — circular mic button with recording pulse animation and transcribing state
+  - `.voice-pulse-dot` — pulsing red dot animation
+  - `.voice-timer-compact` — recording timer display
+  - `.voice-recording-overlay` — full recording UI with waveform
+  - `.voice-waveform` / `.voice-waveform-bar` — audio level visualization bars
+  - `.voice-stop-btn` — stop & transcribe button
+  - `.voice-transcribing` — transcribing in-progress state
+  - `@keyframes voice-pulse` / `voice-pulse-dot` — recording animations
+
+**Feature #24: Image Recognition**
+- Created `/api/messages/recognize-image/route.js` — POST endpoint that accepts image_base64 or image_url, uses z-ai-web-dev-sdk VLM (`zai.chat.completions.createVision`) with product extraction prompt, with fallbacks to Google Gemini Vision and NVIDIA Llama 3.2 90B Vision. Parses AI response to extract product attributes (category, color, style, type, keywords). Searches the merchant's product catalog via Supabase, scores products by relevance with weighted matching. Optionally generates AI response with `generateAIReply()`.
+- Created `ImageUploader.js` component with two modes:
+  - **Compact mode** (for chat input): camera/image button that opens file picker, shows popup with image preview, analysis text, and matching product cards
+  - **Full mode** (standalone): drag & drop upload area with preview, analysis results, and product match results
+- Auto-analyzes images on upload via `/api/messages/recognize-image`
+- Shows matching products with confidence scores and "Send" button to send product card
+- Modified `conversations/page.js` to add ImageUploader (compact) in the chat input area
+- Modified message rendering to show image thumbnails for `type === "image"` messages with `media_url`
+- Added auto-recognition: clicking on incoming image messages triggers product matching via `handleAutoRecognize()`
+- Shows product match results inline below image thumbnails with clickable product cards
+- Added `handleSendImageMessage` and `handleAutoRecognize` callbacks
+- Added image recognition CSS styles to dashboard.css:
+  - `.image-upload-compact` — circular upload button
+  - `.image-recognize-popup` — floating popup with preview, analysis, and products
+  - `.image-recognize-product-item` — clickable product match card
+  - `.image-uploader` / `.image-upload-preview-container` — full uploader layout
+  - `.image-analyzing` / `.image-analysis-error` / `.image-analysis-result` — analysis states
+  - `.image-match-results` / `.image-match-product` / `.image-match-confidence` — product match cards
+  - `.chat-image-thumbnail` / `.chat-image-thumb` — image thumbnails in chat
+  - `.chat-image-recognize-hint` — "Click to find matching products" overlay
+  - `.chat-image-recognition-results` / `.chat-recognition-product` — inline product results
+  - Responsive adjustments for mobile
+
+Stage Summary:
+- Voice transcription: users can record voice notes in CopilotPanel and conversations chat input; audio is transcribed via AI ASR and inserted into the text input
+- Image recognition: users can upload/attach images in chat; AI vision analyzes the image and matches against the product catalog; matching products are shown inline
+- Both features use z-ai-web-dev-sdk as primary AI provider with multiple fallback chains
+- All components support compact (chat input) and full (standalone) modes
+- Custom CSS design system maintained — no Tailwind used
+
+---
+Task ID: 21
+Agent: main
+Task: Create AI Chatbot Personality Builder page
+
+Work Log:
+- Reviewed all existing files for AI Personality feature — found the feature was already substantially implemented by a previous agent but had critical runtime bugs
+- Fixed TagList component bug: page.js used `<TagList items={...} />` as a JSX component but `TagList` was never imported or defined. The page had a `renderTagList({...})` function instead. Replaced both occurrences (escalation keywords and forbidden topics) to use `renderTagList({...})` function call syntax
+- Fixed lucide-react import errors: `Facebook` and `Instagram` icons don't exist in the installed version of lucide-react. Replaced with `Camera` (for Instagram) and `Globe` (for Facebook) — consistent with how the conversations page handles channel icons
+- Removed unused imports (`ChevronDown`, `Heart`) from the lucide-react import statement
+- Verified the page renders successfully (HTTP 200, 38KB content)
+- All existing infrastructure confirmed complete:
+  - Page: `/src/app/dashboard/ai-personality/page.js` — Full AI Personality Builder with 5 sections (Persona Config, Channel Greetings, Behavior Rules, Live Preview, Save/Reset)
+  - API: `/src/app/api/ai-personality/route.js` — GET fetches settings, PUT saves all personality fields
+  - API: `/src/app/api/ai-personality/preview/route.js` — POST generates AI preview response with multi-provider fallback (Groq, Google, NVIDIA)
+  - Migration: `/supabase/migrations/027_add_ai_personality.sql` — All personality columns on accounts table
+  - Dashboard layout: "AI Personality" link already in sidebar under Manage section with Sparkles icon
+  - AI system prompt: `buildPersonalityFromSettings()` in agents.js already integrates all personality settings into the AI system prompt
+  - AI reply generation: `generateAIReply()` in index.js already reads personality settings from accounts table
+  - CSS: All AI personality styles already in dashboard.css (~560 lines of custom CSS)
+
+Stage Summary:
+- AI Personality Builder page fully functional at /dashboard/ai-personality
+- Two critical bugs fixed: TagList undefined component reference and missing lucide-react icon exports
+- No new files needed — all infrastructure was already in place
+- Feature includes: AI name/avatar, personality type selector, custom description override, 4 tone sliders (formality/enthusiasm/verbosity/empathy), channel-specific greetings with per-channel customization, greeting delay, same-greeting toggle, auto-suggest products/collect email/collect phone toggles, escalation keywords, forbidden topics, live chat preview with AI-generated responses, and save/reset buttons
+
+Task ID: 27-28
+Agent: main
+Task: A/B Test AI Responses + WhatsApp Catalog Sync
+
+Work Log:
+
+**Feature #27: A/B Test AI Responses**
+- Created migration 030_create_ab_tests.sql with ab_tests table (id, account_id, name, description, status, metric, variants jsonb, results jsonb, timestamps) plus RLS policies
+- Added WhatsApp catalog columns to accounts table (whatsapp_catalog_id, whatsapp_access_token, whatsapp_catalog_sync_enabled, whatsapp_catalog_last_sync)
+- Created /api/ab-tests route (GET: list tests, POST: create test with variant validation)
+- Created /api/ab-tests/[id] route (GET: test details with statistical significance, PATCH: start/pause/stop test)
+- Created /api/ab-tests/assign route (POST: assign customer to variant using consistent hashing for deterministic assignment)
+- Created /api/ab-tests/track route (POST: track impression/conversion/revenue events, atomically updates results)
+- Modified src/lib/ai/index.js to check for running A/B tests before generating AI responses:
+  - Step 2.5: Looks up running tests, assigns variant via consistent hash, overrides system prompt if variant has custom prompt
+  - Step 6: Tracks impression when AI response is generated, returns abTestVariant and abTestId in response
+- Created /dashboard/ab-tests page with:
+  - Two-column layout: test list + test detail
+  - Status badges (draft/running/paused/completed) with color coding
+  - Create test modal with name, description, metric selection, variant A/B configuration, traffic split presets (50/50, 70/30, 80/20, 90/10)
+  - Test detail view with variant comparison cards showing impressions, conversions, rate, revenue
+  - Bar chart visualization per variant
+  - Statistical significance calculator using z-test for two proportions
+  - Significance banner: "Not enough data" / "Variant X is winning" / "Statistically significant"
+  - Confidence level display (80/90/95/98/99%)
+  - Start/Pause/Resume/Stop test controls
+
+**Feature #28: WhatsApp Catalog Sync**
+- Created /api/whatsapp/catalog route (GET: catalog status + product count, POST: sync all products to WA Commerce API, DELETE: clear catalog)
+- Created /api/whatsapp/catalog/[productId] route (POST: sync single product, DELETE: remove single product from WA catalog)
+- Created /dashboard/whatsapp-catalog page with:
+  - Connection status card showing WhatsApp Business API connection state, catalog ID, product counts, last sync time
+  - Auto-sync toggle (saves to accounts table)
+  - Sync All Products button with loading state
+  - Clear Catalog button with confirmation
+  - Product list with per-product sync/remove buttons and status badges
+  - Catalog preview showing how products appear in WhatsApp (phone mockup with product cards)
+  - Not-connected state with step-by-step setup instructions
+  - Settings modal for catalog ID and access token configuration
+- Added comprehensive CSS for both pages to dashboard.css
+
+Stage Summary:
+- A/B testing fully integrated into AI response pipeline — variants are automatically assigned and tracked
+- WhatsApp catalog sync supports full and per-product sync via Meta Commerce API v21.0
+- Both pages accessible from sidebar under Manage section
+- Migration 030 needs to be run on Supabase dashboard
+
+---
+Task ID: 25-26
+Agent: main
+Task: Affiliate/Referral System + PWA/Mobile App
+
+Work Log:
+
+**Feature #25: Affiliate/Referral System**
+- Created migration 028_create_referrals.sql with referrals table (id, referrer_id, referral_code, referred_email, referred_id, status, commission_earned, commission_paid, created_at) and added referral_code + referral_credits columns to accounts table
+- Created /api/referrals route (GET: fetch referral stats and history, POST: generate unique 8-char referral code)
+- Created /api/referrals/track route (POST: track referral when someone signs up with a referral code, validates code, creates referral record, awards signup bonus)
+- Created /dashboard/referrals page with:
+  - How It Works section (3 steps: Share → Friend Signs Up → You Earn)
+  - Referral link generator with unique code per user (sellora.com/?ref=ABC123)
+  - Copy link button with clipboard API and fallback
+  - Share buttons (WhatsApp, Facebook, Twitter, Email)
+  - Referral statistics: total referrals, conversions, total earnings, available balance
+  - Referral history table: date, referred user (email), status (pending/signed_up/converted/paid), commission
+  - Commission balance and "Request Payout" button (minimum $10)
+  - Commission structure info cards (sign-up bonus, conversion bonus, minimum payout)
+- Modified signup page (/src/app/(auth)/signup/page.js):
+  - Wrapped in Suspense for useSearchParams compatibility
+  - Checks for ?ref=CODE query parameter
+  - Stores referral code in localStorage if present
+  - Shows "Referred by a friend" green banner on signup form
+  - Tracks referral via /api/referrals/track after successful signup (both auto-confirm and OTP verification paths)
+  - Clears referral code from localStorage after tracking
+- Added to dashboard sidebar: "Referrals" link in Main section with Gift icon from lucide-react, added page title mapping
+
+**Feature #26: PWA / Mobile App**
+- Created /public/manifest.json with app name, icons, theme color (#6c5ce7), standalone display mode, portrait orientation
+- Created /public/sw.js (Service Worker):
+  - Install event: caches static assets (/, /dashboard, /manifest.json, /logo.png)
+  - Activate event: cleans up old caches
+  - Fetch event: network-first for API calls, cache-first for static assets (CSS, JS, images, _next/static), network-first with offline fallback for HTML pages
+  - Offline fallback page with styled "You're Offline" message
+  - Push notification handler: shows notification with title, body, icon, actions
+  - Notification click handler: focuses existing window or opens new window
+  - Background sync for message sending when offline (uses IndexedDB for pending messages)
+- Created /api/push/subscribe route (POST: save push subscription with endpoint, p256dh, auth keys for the user)
+- Created /api/push/send route (POST: send push notification to user via VAPID headers, GET: return VAPID public key)
+- Created InstallPrompt component:
+  - Detects beforeinstallprompt event for PWA install
+  - Shows banner at bottom of screen: "Install Sellora on your device"
+  - "Install" and "Not now" buttons
+  - 7-day dismiss logic (stores timestamp in localStorage, won't show again for 7 days if dismissed)
+  - Already-installed detection via display-mode: standalone media query
+  - Auto-shows after 3-second delay
+- Created ServiceWorkerRegistration client component to register the service worker on mount
+- Created migration 029_add_push_subscriptions.sql with push_subscriptions table (id, account_id, endpoint, p256dh, auth, created_at)
+- Modified /src/app/layout.js:
+  - Added <link rel="manifest" href="/manifest.json" />
+  - Added <meta name="theme-color" content="#6c5ce7" />
+  - Added <link rel="apple-touch-icon" href="/icon-192.png" />
+- Modified dashboard layout.js:
+  - Added InstallPrompt component
+  - Added ServiceWorkerRegistration component
+- Generated PWA icons using z-ai-generate CLI (1024x1024, resized to 192x192 via ffmpeg)
+
+Stage Summary:
+- Referral system: users can share unique referral links, track signups and conversions, earn commissions
+- PWA: app is installable with service worker caching, push notification support, offline fallback, and background sync
+- Both features fully integrated into the Sellora dashboard with custom CSS design system
+- Migrations 028 and 029 need to be run on Supabase dashboard
+
+---
+Task ID: 30
+Agent: main
+Task: AfterShip/ShipStation shipping tracking integration
+
+Work Log:
+- Created /api/shipping/track route.js (GET: track by tracking number, POST: add new tracking, PATCH: refresh tracking, DELETE: remove tracking)
+- Created /api/shipping/carriers route.js (GET: return curated carrier list + AfterShip carriers if API key configured)
+- Created /api/shipping/config route.js (GET: get shipping config, PUT: save API key, default carrier, auto-track toggle)
+- Created /dashboard/shipping/page.js with 5 sections:
+  1. Integration Setup: AfterShip API key input with show/hide toggle, default carrier dropdown, auto-track toggle, connection status badge, setup instructions
+  2. Active Shipments: Table with Order #, Tracking Number, Carrier, Status (color-coded badges), Last Update, Est. Delivery, Actions (View Timeline, Refresh, Send Update)
+  3. Add Tracking Modal: Order dropdown, tracking number, carrier selector, title field
+  4. Tracking Timeline Panel: Slide-in panel with vertical checkpoint timeline, shipment summary, Refresh and Send Update buttons
+  5. Demo Mode: Banner shown when no API key, 4 realistic demo shipments pre-populated, simulated demo data for tracking
+- Added comprehensive CSS to dashboard.css: shipping-status-badge variants, tracking-timeline with dots/lines, tracking-checkpoint cards, shipping-panel slide-in, carrier-badge, shipping-toggle switch, shipping-config-grid, shipping-demo-banner, responsive styles
+- All routes use Supabase auth + service role for data access
+- AfterShip API integration with proper headers and fallback to demo data
+- Status mapping: pending→gray, info_received→blue, in_transit→blue, out_for_delivery→amber, delivered→green, failed_attempt→amber, exception→red, expired→gray
+
+Stage Summary:
+- Full shipping tracking feature with AfterShip integration and demo mode fallback
+- Track shipments, view checkpoint timelines, refresh tracking data, send updates to customers
+- Config panel for API key, default carrier, auto-track settings
+- Sidebar link and page title mapping already in place from prior setup
+- Migration 032_add_shipping_tracking.sql creates shipment_trackings table and account columns

@@ -7,11 +7,13 @@ import {
   ChevronRight, Camera, Globe, Clock, User, Mail,
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
-  Megaphone, AlertTriangle, BellOff,
+  Megaphone, AlertTriangle, BellOff, Mic, MicOff, Image as ImageIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
 import RecommendationsCard from "../components/RecommendationsCard";
+import VoiceRecorder from "../components/VoiceRecorder";
+import ImageUploader from "../components/ImageUploader";
 
 // ─── Intent badge config ───
 const INTENT_CONFIG = {
@@ -97,6 +99,10 @@ export default function ConversationsPage() {
   const [slashResults, setSlashResults] = useState([]);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
+
+  // Image recognition
+  const [imageRecognitionResults, setImageRecognitionResults] = useState({});
+  const [showImageUploader, setShowImageUploader] = useState(false);
 
   const messagesEndRef = useRef(null);
   const simulatorEndRef = useRef(null);
@@ -579,6 +585,60 @@ export default function ConversationsPage() {
     setOrderSaving(false);
   };
 
+  // ─── Handle image message from ImageUploader ───
+  const handleSendImageMessage = useCallback(async (aiResponse, analysis, products) => {
+    if (!activeConv) return;
+
+    // Save the AI response about the image as a message
+    const content = aiResponse || `I see the image you sent. ${analysis || "Let me analyze it and get back to you."}`;
+
+    try {
+      await supabase.from("messages").insert({
+        conversation_id: activeConv.id,
+        direction: "outgoing",
+        content,
+        type: "text",
+        is_ai: true,
+      });
+
+      await supabase.from("conversations")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("id", activeConv.id);
+
+      fetchMessages();
+      fetchConversations();
+    } catch (err) {
+      console.error("Send image message error:", err);
+    }
+  }, [activeConv, supabase, fetchMessages, fetchConversations]);
+
+  // ─── Auto-run recognition on incoming image messages ───
+  const handleAutoRecognize = useCallback(async (messageId, imageUrl) => {
+    if (imageRecognitionResults[messageId]) return; // Already processed
+
+    try {
+      const res = await fetch("/api/messages/recognize-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: imageUrl, conversation_id: activeConv?.id }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setImageRecognitionResults((prev) => ({
+          ...prev,
+          [messageId]: {
+            analysis: data.analysis,
+            products: data.products || [],
+            ai_response: data.ai_response,
+          },
+        }));
+      }
+    } catch (err) {
+      console.error("Auto-recognize error:", err);
+    }
+  }, [activeConv, imageRecognitionResults]);
+
   // ─── Simulator ───
   const handleSimSubmit = async () => {
     if (!simInput?.trim() || simLoading) return;
@@ -947,6 +1007,40 @@ export default function ConversationsPage() {
                     <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)" }}>
                       <div style={{ whiteSpace: "pre-line" }}>{msg.content}</div>
                     </div>
+                  ) : msg.type === "image" && msg.media_url ? (
+                    <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)", maxWidth: 280 }}>
+                      <div className="chat-image-thumbnail" onClick={() => {
+                        // Auto-run recognition on click if not already done
+                        if (!imageRecognitionResults[msg.id]) {
+                          handleAutoRecognize(msg.id, msg.media_url);
+                        }
+                      }}>
+                        <img src={msg.media_url} alt="Customer sent image" className="chat-image-thumb" />
+                        {!imageRecognitionResults[msg.id] && (
+                          <div className="chat-image-recognize-hint">
+                            <Camera size={12} /> Click to find matching products
+                          </div>
+                        )}
+                      </div>
+                      {msg.content && <div style={{ marginTop: 6, fontSize: 12, whiteSpace: "pre-line" }}>{msg.content}</div>}
+                      {/* Show recognition results if available */}
+                      {imageRecognitionResults[msg.id] && (
+                        <div className="chat-image-recognition-results">
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-secondary)", textTransform: "uppercase", marginBottom: 4 }}>
+                            🔍 Product Matches
+                          </div>
+                          {(imageRecognitionResults[msg.id].products || []).slice(0, 3).map((product) => (
+                            <div key={product.id} className="chat-recognition-product" onClick={() => handleSendProduct(product)}>
+                              <Package size={11} style={{ color: "var(--accent-primary-light)", flexShrink: 0 }} />
+                              <div style={{ flex: 1, overflow: "hidden" }}>
+                                <div style={{ fontWeight: 600, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{product.name}</div>
+                                <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>{product.price} EGP • {product.confidence}%</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <>{msg.content}</>
                   )}
@@ -1190,6 +1284,24 @@ export default function ConversationsPage() {
                 >
                   <Zap size={16} />
                 </button>
+                {/* Voice Recorder Button */}
+                <VoiceRecorder
+                  compact
+                  onTranscribe={(text) => {
+                    setNewMsg(text);
+                    document.getElementById("chat-message-input")?.focus();
+                  }}
+                  disabled={sending}
+                />
+                {/* Image Upload Button */}
+                <div style={{ position: "relative" }}>
+                  <ImageUploader
+                    compact
+                    onProductSelect={(product) => handleSendProduct(product)}
+                    onSendImageMessage={handleSendImageMessage}
+                    disabled={sending}
+                  />
+                </div>
                 <button type="submit" className="chat-send-btn" disabled={!newMsg.trim() || sending} id="chat-send"><Send size={18} /></button>
               </div>
             </form>

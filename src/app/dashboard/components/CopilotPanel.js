@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, X, Send, Bot, Loader2, TrendingUp, Package, FileText, Users, DollarSign, ChevronRight, Trash2, AlertTriangle, ExternalLink } from "lucide-react";
+import { Sparkles, X, Send, Bot, Loader2, TrendingUp, Package, FileText, Users, DollarSign, ChevronRight, Trash2, AlertTriangle, ExternalLink, Mic, MicOff } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
+import VoiceRecorder from "./VoiceRecorder";
 
 // Helper: extract text content from a UIMessage
 // Handles ALL possible formats: parts array, content string, content array
@@ -445,6 +446,15 @@ export default function CopilotPanel() {
 
           {/* Input */}
           <form className="copilot-input-area" onSubmit={handleSubmit}>
+            <VoiceRecorder
+              compact
+              onTranscribe={(text) => {
+                setInput(text);
+                // Auto-focus the input after transcription
+                document.getElementById("copilot-input")?.focus();
+              }}
+              disabled={isLoading}
+            />
             <input
               type="text"
               placeholder="Ask Sellora Agent anything..."

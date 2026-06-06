@@ -29,11 +29,24 @@ import {
   Tag,
   ShoppingCart,
   Target,
+  Webhook,
+  Sparkles,
+  Gift,
+  Download,
+  FlaskConical,
+  Smartphone,
+  Store,
+  Truck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
+import { StoreProvider } from "@/lib/store-context";
 import CopilotPanel from "./components/CopilotPanel";
 import NotificationBell from "./components/NotificationBell";
+import ToastProvider from "./components/ToastProvider";
+import InstallPrompt from "./components/InstallPrompt";
+import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
+import StoreSwitcher from "./components/StoreSwitcher";
 import "./dashboard.css";
 
 const sidebarLinks = [
@@ -45,6 +58,7 @@ const sidebarLinks = [
       { href: "/dashboard/orders", icon: ShoppingBag, label: "Orders", badgeKey: "orders" },
       { href: "/dashboard/abandoned-carts", icon: ShoppingCart, label: "Abandoned Carts" },
       { href: "/dashboard/notifications", icon: Bell, label: "Notifications" },
+      { href: "/dashboard/referrals", icon: Gift, label: "Referrals" },
     ],
   },
   {
@@ -56,7 +70,13 @@ const sidebarLinks = [
       { href: "/dashboard/segments", icon: Target, label: "Segments" },
       { href: "/dashboard/coupons", icon: Tag, label: "Coupons" },
       { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
+      { href: "/dashboard/webhooks", icon: Webhook, label: "Webhooks" },
       { href: "/dashboard/automation", icon: Bot, label: "Automation" },
+      { href: "/dashboard/ai-personality", icon: Sparkles, label: "AI Personality" },
+      { href: "/dashboard/ab-tests", icon: FlaskConical, label: "A/B Tests" },
+      { href: "/dashboard/whatsapp-catalog", icon: Smartphone, label: "WA Catalog" },
+      { href: "/dashboard/stores", icon: Store, label: "Stores" },
+      { href: "/dashboard/shipping", icon: Truck, label: "Shipping" },
     ],
   },
   {
@@ -85,6 +105,13 @@ const pageTitles = {
   "/dashboard/billing": "Billing",
   "/dashboard/automation": "Automation",
   "/dashboard/abandoned-carts": "Abandoned Carts",
+  "/dashboard/webhooks": "Webhooks",
+  "/dashboard/ai-personality": "AI Personality",
+  "/dashboard/ab-tests": "A/B Tests",
+  "/dashboard/whatsapp-catalog": "WA Catalog",
+  "/dashboard/referrals": "Referrals",
+  "/dashboard/stores": "Stores",
+  "/dashboard/shipping": "Shipping",
 };
 
 export default function DashboardLayout({ children }) {
@@ -216,6 +243,9 @@ export default function DashboardLayout({ children }) {
   }
 
   return (
+    <StoreProvider>
+    <ToastProvider>
+    <ServiceWorkerRegistration />
     <div className="dashboard-layout">
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
@@ -389,6 +419,7 @@ export default function DashboardLayout({ children }) {
           </div>
 
           <div className="topbar-right">
+            <StoreSwitcher />
             <button className="topbar-btn" id="topbar-ai" title="Sellora Agent" onClick={() => document.getElementById("copilot-toggle")?.click()}>
               <Bot size={18} />
             </button>
@@ -437,6 +468,11 @@ export default function DashboardLayout({ children }) {
 
       {/* Copilot Assistant Panel */}
       <CopilotPanel />
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
+    </ToastProvider>
+    </StoreProvider>
   );
 }

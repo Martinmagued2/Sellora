@@ -40,6 +40,7 @@ import {
   Play,
   Phone,
   Headphones,
+  Bell,
 } from "lucide-react";
 import { motion, AnimatePresence, useInView, useScroll, useTransform } from "framer-motion";
 import { useTheme } from "@/lib/theme/ThemeProvider";
@@ -167,64 +168,166 @@ function MorphBlob({ color, style = {} }) {
 }
 
 /* ============================================
-   FLOATING PHONE COMPONENT
+   INTERACTIVE PHONE WITH SCROLL-ZOOM COMPONENT
    ============================================ */
 function FloatingPhone() {
   const ref = useRef(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start end", "end start"],
   });
 
-  const y = useTransform(scrollYProgress, [0, 1], [100, -100]);
-  const rotateY = useTransform(scrollYProgress, [0, 0.5, 1], [-15, 5, -10]);
-  const rotateX = useTransform(scrollYProgress, [0, 0.5, 1], [10, -5, 8]);
-  const scale = useTransform(scrollYProgress, [0, 0.3, 0.6, 1], [0.6, 1.2, 1.1, 1]);
+  // Use raw scroll progress for imperative transform control
+  useEffect(() => {
+    const unsubscribe = scrollYProgress.on("change", (v) => setScrollProgress(v));
+    return () => unsubscribe();
+  }, [scrollYProgress]);
+
+  // Compute transforms from scroll progress (0 to 1)
+  // Phone starts at 0.6 scale, zooms to 1.0
+  const rawProgress = Math.min(Math.max(scrollProgress, 0), 1);
+  const zoomProgress = Math.min(rawProgress / 0.5, 1); // reach full zoom by 50% scroll
+  const eased = 1 - Math.pow(1 - zoomProgress, 3); // ease-out cubic
+
+  const scale = isMobile ? 1 : 0.6 + eased * 0.4; // 0.6 -> 1.0
+  const rotateY = isMobile ? 0 : -20 + eased * 20; // -20deg -> 0deg
+  const rotateX = isMobile ? 0 : 8 - eased * 8; // 8deg -> 0deg
+  const translateY = isMobile ? 0 : 80 - eased * 80; // 80px -> 0px
+  const parallaxY = isMobile ? 0 : rawProgress * -60; // continuous parallax
+
+  // Glow intensity based on zoom
+  const glowIntensity = eased * 0.6;
+  // Reflection angle based on scroll
+  const reflectionAngle = -45 + rawProgress * 30;
 
   return (
-    <div ref={ref} style={{ perspective: 1200 }}>
+    <div ref={ref} className="phone-zoom-wrapper" style={{ perspective: isMobile ? 1000 : 1400 }}>
       <motion.div
-        style={{ y, rotateY, rotateX, scale, transformStyle: "preserve-3d" }}
-        transition={{ type: "spring", stiffness: 100 }}
+        className="phone-zoom-container"
+        style={{
+          transform: isMobile
+            ? undefined
+            : `translateY(${translateY + parallaxY}px) rotateY(${rotateY}deg) rotateX(${rotateX}deg) scale(${scale})`,
+          transformStyle: "preserve-3d",
+          willChange: "transform",
+          opacity: isMobile ? undefined : 0.5 + eased * 0.5,
+        }}
+        initial={{ opacity: 0, scale: isMobile ? 1 : 0.5 }}
+        animate={{ opacity: 1, scale: isMobile ? 1 : undefined }}
+        transition={{ duration: 1.2, ease: "easeOut" }}
       >
-        <div className="phone-mockup">
+        <div className={`phone-mockup ${eased >= 1 ? "phone-at-rest" : ""}`}>
+          {/* Glow effect behind the phone */}
+          <div
+            className="phone-glow"
+            style={{
+              opacity: glowIntensity,
+              boxShadow: `0 0 60px rgba(88,101,242,${0.3 * glowIntensity}), 0 0 120px rgba(0,210,255,${0.15 * glowIntensity})`,
+            }}
+          />
           <div className="phone-frame">
-            <div className="phone-notch" />
+            {/* Dynamic Island / Notch */}
+            <div className="phone-notch">
+              <div className="phone-notch-camera" />
+            </div>
             <div className="phone-screen">
-              <div className="phone-header">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: 6, background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Bot size={12} style={{ color: "#fff" }} />
+              {/* Dashboard UI inside phone */}
+              <div className="phone-dash-header">
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 5, background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <LayoutDashboard size={10} style={{ color: "#fff" }} />
                   </div>
-                  <span style={{ fontWeight: 700, fontSize: 11, color: "#fff" }}>Sellora</span>
+                  <span style={{ fontWeight: 700, fontSize: 10, color: "#fff" }}>Sellora</span>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-green)" }} />
-                </div>
-              </div>
-              <div className="phone-messages">
-                <div className="phone-msg customer">
-                  <span>How much is the black bag?</span>
-                  <span className="phone-msg-time">2:34 AM</span>
-                </div>
-                <div className="phone-msg ai">
-                  <span>Black Tote is 450 EGP! Want to order?</span>
-                  <span className="phone-msg-time">2:34 AM</span>
-                </div>
-                <div className="phone-msg customer">
-                  <span>Yes, I&apos;ll take it!</span>
-                  <span className="phone-msg-time">2:35 AM</span>
-                </div>
-                <div className="phone-msg ai" style={{ background: "rgba(59,165,92,0.2)", borderColor: "rgba(59,165,92,0.3)" }}>
-                  <span>Order confirmed! Payment link sent.</span>
-                  <span className="phone-msg-time">2:35 AM</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ position: "relative" }}>
+                    <Bell size={12} style={{ color: "rgba(255,255,255,0.6)" }} />
+                    <div style={{ position: "absolute", top: -2, right: -2, width: 5, height: 5, borderRadius: "50%", background: "var(--accent-red)" }} />
+                  </div>
+                  <div style={{ width: 18, height: 18, borderRadius: "50%", background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "#fff" }}>S</div>
                 </div>
               </div>
-              <div className="phone-input-bar">
-                <span style={{ color: "var(--text-tertiary)", fontSize: 10 }}>Type a message...</span>
+
+              {/* Stats cards row */}
+              <div className="phone-dash-stats">
+                <div className="phone-dash-stat-card">
+                  <DollarSign size={9} style={{ color: "var(--accent-green)" }} />
+                  <span className="phone-dash-stat-label">Revenue</span>
+                  <span className="phone-dash-stat-value">24.5K</span>
+                  <span className="phone-dash-stat-change positive">+12%</span>
+                </div>
+                <div className="phone-dash-stat-card">
+                  <ShoppingCart size={9} style={{ color: "var(--accent-secondary)" }} />
+                  <span className="phone-dash-stat-label">Orders</span>
+                  <span className="phone-dash-stat-value">184</span>
+                  <span className="phone-dash-stat-change positive">+8%</span>
+                </div>
+                <div className="phone-dash-stat-card">
+                  <Users size={9} style={{ color: "var(--accent-primary-light)" }} />
+                  <span className="phone-dash-stat-label">Users</span>
+                  <span className="phone-dash-stat-value">1.2K</span>
+                  <span className="phone-dash-stat-change positive">+23%</span>
+                </div>
+              </div>
+
+              {/* Mini chart area */}
+              <div className="phone-dash-chart">
+                <div className="phone-dash-chart-header">
+                  <span style={{ fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>Weekly Sales</span>
+                  <span style={{ fontSize: 7, color: "var(--accent-green)" }}>+18.2%</span>
+                </div>
+                <div className="phone-dash-chart-bars">
+                  {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
+                    <div key={i} className="phone-dash-chart-bar-wrapper">
+                      <div
+                        className="phone-dash-chart-bar"
+                        style={{
+                          height: `${h}%`,
+                          background: i === 5 ? "var(--accent-gradient)" : "rgba(88,101,242,0.3)",
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent orders */}
+              <div className="phone-dash-orders">
+                <span style={{ fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.8)", marginBottom: 4, display: "block" }}>Recent Orders</span>
+                {[
+                  { id: "#1847", name: "Nour A.", amount: "900 EGP", status: "Delivered", color: "var(--accent-green)" },
+                  { id: "#1848", name: "Omar H.", amount: "450 EGP", status: "Shipped", color: "var(--accent-secondary)" },
+                  { id: "#1849", name: "Sara Y.", amount: "750 EGP", status: "Pending", color: "var(--accent-orange)" },
+                ].map((order, i) => (
+                  <div key={i} className="phone-dash-order-row">
+                    <div className="phone-dash-order-id">{order.id}</div>
+                    <div className="phone-dash-order-name">{order.name}</div>
+                    <div className="phone-dash-order-amount">{order.amount}</div>
+                    <div className="phone-dash-order-status" style={{ color: order.color, background: `${order.color}20` }}>{order.status}</div>
+                  </div>
+                ))}
               </div>
             </div>
+            {/* Home indicator */}
+            <div className="phone-home-indicator" />
           </div>
+          {/* Reflection/shine overlay */}
+          <div
+            className="phone-reflection"
+            style={{
+              background: `linear-gradient(${reflectionAngle}deg, rgba(255,255,255,${0.06 * eased}) 0%, transparent 50%)`,
+            }}
+          />
           {/* Floating notification badges around phone */}
           <motion.div className="phone-float-badge" style={{ top: -20, right: -40 }}
             animate={{ y: [0, -8, 0], rotate: [0, 3, 0] }}
@@ -985,50 +1088,56 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="hero-content">
-          <div className="hero-badge">
-            <span className="badge badge-primary">
-              <Zap size={12} />
-              {t("hero_badge")}
-            </span>
+        <div className="hero-layout">
+          <div className="hero-content">
+            <div className="hero-badge">
+              <span className="badge badge-primary">
+                <Zap size={12} />
+                {t("hero_badge")}
+              </span>
+            </div>
+
+            <h1>
+              {t("hero_title_1")} <span className="text-gradient">{t("hero_title_2")}</span> {t("hero_title_3")}{" "}
+              <span className="text-gradient">{t("hero_title_4")}</span>
+            </h1>
+
+            <p className="hero-subtitle">
+              {t("hero_subtitle")}
+            </p>
+
+            <div className="hero-cta">
+              <button className="btn btn-primary btn-lg" id="hero-cta-primary" onClick={() => router.push('/signup')}>
+                {t("hero_cta_primary")} <ArrowRight size={18} />
+              </button>
+              <button className="btn btn-secondary btn-lg" id="hero-cta-demo" onClick={() => router.push('/login')}>
+                {t("hero_cta_secondary")} <ChevronRight size={18} />
+              </button>
+            </div>
+
+            {/* FEATURE 4: Enhanced Hero Stats */}
+            <div className="hero-stats">
+              <div className="hero-stat">
+                <div className="hero-stat-value text-gradient-static stat-pulse">5,000+</div>
+                <div className="hero-stat-label">{t("hero_stat_sellers")}</div>
+              </div>
+              <div className="hero-stat">
+                <div className="hero-stat-value text-gradient-static stat-pulse">2.5M+</div>
+                <div className="hero-stat-label">{t("hero_stat_messages")}</div>
+              </div>
+              <div className="hero-stat">
+                <div className="hero-stat-value text-gradient-static stat-pulse">3x</div>
+                <div className="hero-stat-label">Average Sales Increase</div>
+              </div>
+              <div className="hero-stat">
+                <div className="hero-stat-value text-gradient-static stat-pulse">98%</div>
+                <div className="hero-stat-label">{t("hero_stat_uptime")}</div>
+              </div>
+            </div>
           </div>
 
-          <h1>
-            {t("hero_title_1")} <span className="text-gradient">{t("hero_title_2")}</span> {t("hero_title_3")}{" "}
-            <span className="text-gradient">{t("hero_title_4")}</span>
-          </h1>
-
-          <p className="hero-subtitle">
-            {t("hero_subtitle")}
-          </p>
-
-          <div className="hero-cta">
-            <button className="btn btn-primary btn-lg" id="hero-cta-primary" onClick={() => router.push('/signup')}>
-              {t("hero_cta_primary")} <ArrowRight size={18} />
-            </button>
-            <button className="btn btn-secondary btn-lg" id="hero-cta-demo" onClick={() => router.push('/login')}>
-              {t("hero_cta_secondary")} <ChevronRight size={18} />
-            </button>
-          </div>
-
-          {/* FEATURE 4: Enhanced Hero Stats */}
-          <div className="hero-stats">
-            <div className="hero-stat">
-              <div className="hero-stat-value text-gradient-static stat-pulse">5,000+</div>
-              <div className="hero-stat-label">{t("hero_stat_sellers")}</div>
-            </div>
-            <div className="hero-stat">
-              <div className="hero-stat-value text-gradient-static stat-pulse">2.5M+</div>
-              <div className="hero-stat-label">{t("hero_stat_messages")}</div>
-            </div>
-            <div className="hero-stat">
-              <div className="hero-stat-value text-gradient-static stat-pulse">3x</div>
-              <div className="hero-stat-label">Average Sales Increase</div>
-            </div>
-            <div className="hero-stat">
-              <div className="hero-stat-value text-gradient-static stat-pulse">98%</div>
-              <div className="hero-stat-label">{t("hero_stat_uptime")}</div>
-            </div>
+          <div className="hero-phone">
+            <FloatingPhone />
           </div>
         </div>
       </section>

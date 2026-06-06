@@ -736,6 +736,34 @@ export async function POST() {
       results.push(`NEEDS MANUAL: Migrate orphaned data (${migrateErr.message})`);
     }
 
+    // ═══ Migration 025: TOTP/2FA columns ═══
+    try {
+      const { data: totpCheck } = await admin
+        .from("accounts")
+        .select("totp_secret")
+        .limit(1);
+
+      if (totpCheck && 'totp_secret' in totpCheck[0]) {
+        results.push("accounts.totp columns: OK");
+      } else {
+        results.push("NEEDS MANUAL: Add TOTP columns to accounts (see migration 025)");
+      }
+    } catch (totpErr) {
+      // Column doesn't exist yet, try to add it
+      try {
+        await admin.rpc('exec_sql', {
+          sql: `
+            ALTER TABLE accounts ADD COLUMN IF NOT EXISTS totp_secret text;
+            ALTER TABLE accounts ADD COLUMN IF NOT EXISTS totp_enabled boolean DEFAULT false;
+            ALTER TABLE accounts ADD COLUMN IF NOT EXISTS totp_backup_codes jsonb DEFAULT '[]';
+          `
+        });
+        results.push("Added TOTP columns to accounts (migration 025)");
+      } catch (addErr) {
+        results.push("NEEDS MANUAL: Add TOTP columns to accounts (see migration 025_add_totp.sql) — " + addErr.message);
+      }
+    }
+
     return Response.json({ success: true, results });
   } catch (error) {
     console.error("[DB-Migrate] Error:", error.message);

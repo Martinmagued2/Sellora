@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   MessageCircle,
   Mail,
@@ -18,18 +18,33 @@ import {
   Loader2,
   Phone,
   Calendar,
+  Gift,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export default function SignupPage() {
+function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [successEmail, setSuccessEmail] = useState("");
+  const [refCode, setRefCode] = useState(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Check for referral code in URL and localStorage
+  useEffect(() => {
+    const refFromUrl = searchParams.get("ref");
+    if (refFromUrl) {
+      localStorage.setItem("sellora_ref_code", refFromUrl);
+      setRefCode(refFromUrl);
+    } else {
+      const stored = localStorage.getItem("sellora_ref_code");
+      if (stored) setRefCode(stored);
+    }
+  }, [searchParams]);
 
   const handlePasswordChange = (e) => {
     const val = e.target.value;
@@ -100,6 +115,25 @@ export default function SignupPage() {
           plan: "starter",
           plan_status: "trialing",
         }, { onConflict: "id" });
+
+        // Track referral if code exists
+        const storedRefCode = localStorage.getItem("sellora_ref_code");
+        if (storedRefCode) {
+          try {
+            await fetch("/api/referrals/track", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                referralCode: storedRefCode,
+                referredEmail: email,
+                referredId: data.user.id,
+              }),
+            });
+            localStorage.removeItem("sellora_ref_code");
+          } catch (refErr) {
+            console.error("Failed to track referral:", refErr);
+          }
+        }
       }
       router.push("/onboarding");
       router.refresh();
@@ -173,6 +207,25 @@ export default function SignupPage() {
         plan: "starter",
         plan_status: "trialing",
       }, { onConflict: "id" });
+
+      // Track referral if code exists
+      const storedRefCode = localStorage.getItem("sellora_ref_code");
+      if (storedRefCode) {
+        try {
+          await fetch("/api/referrals/track", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              referralCode: storedRefCode,
+              referredEmail: successEmail,
+              referredId: verifyData.user.id,
+            }),
+          });
+          localStorage.removeItem("sellora_ref_code");
+        } catch (refErr) {
+          console.error("Failed to track referral:", refErr);
+        }
+      }
     }
 
     router.push("/onboarding");
@@ -200,6 +253,12 @@ export default function SignupPage() {
 
   return (
     <div className="auth-page">
+      {/* Referral code indicator on OTP screen */}
+      {success && refCode && (
+        <div style={{ position: "fixed", top: 16, right: 16, zIndex: 100, padding: "8px 16px", borderRadius: "var(--radius-md)", background: "rgba(0, 230, 118, 0.1)", border: "1px solid rgba(0, 230, 118, 0.2)", color: "var(--accent-green)", fontSize: "var(--font-size-xs)", display: "flex", alignItems: "center", gap: 6 }}>
+          <Gift size={14} /> Referral bonus pending
+        </div>
+      )}
       {/* Email confirmation success screen */}
       {success && (
         <div style={{
@@ -365,6 +424,19 @@ export default function SignupPage() {
             Start your 14-day free trial — no credit card needed
           </p>
 
+          {/* Referral code indicator */}
+          {refCode && (
+            <div style={{
+              padding: "10px 14px", borderRadius: "var(--radius-md)",
+              background: "rgba(0, 230, 118, 0.08)", border: "1px solid rgba(0, 230, 118, 0.15)",
+              color: "var(--accent-green)", fontSize: "var(--font-size-sm)",
+              marginBottom: "var(--space-lg)", display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <Gift size={16} />
+              Referred by a friend — you&apos;ll both get a bonus!
+            </div>
+          )}
+
           {error && (
             <div style={{
               padding: "10px 14px", borderRadius: "var(--radius-md)",
@@ -491,5 +563,13 @@ export default function SignupPage() {
       </>
       )}
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "var(--bg-primary)" }} />}>
+      <SignupForm />
+    </Suspense>
   );
 }

@@ -6,7 +6,8 @@ import {
   Users, DollarSign, Bot, Clock, Target, Zap,
   ArrowUpRight, ArrowDownRight, Activity, Download, Lock,
   ChevronRight, Calendar, RefreshCw, Sparkles, AlertTriangle,
-  Heart, Meh, Frown, Flame, Package, CreditCard, Smartphone
+  Heart, Meh, Frown, Flame, Package, CreditCard, Smartphone,
+  FileText, Loader2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -32,6 +33,7 @@ export default function AnalyticsPage() {
   const [accountPlan, setAccountPlan] = useState("starter");
   const [dateRange, setDateRange] = useState("30d");
   const [activeSection, setActiveSection] = useState(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   // Fetch base stats (existing logic)
   const fetchBaseStats = useCallback(async (userId) => {
@@ -211,6 +213,35 @@ export default function AnalyticsPage() {
     document.body.removeChild(link);
   };
 
+  const handleExportPDF = async () => {
+    setExportingPdf(true);
+    try {
+      const res = await fetch("/api/analytics/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dateRange, reportType: "overview" }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Failed to generate PDF");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `sellora_report_${new Date().toISOString().split('T')[0]}.pdf`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to export PDF: " + err.message);
+    }
+    setExportingPdf(false);
+  };
+
   return (
     <>
       <div className="page-header">
@@ -231,6 +262,11 @@ export default function AnalyticsPage() {
           {planLimits.csv_export && (
             <button className="btn btn-secondary" onClick={handleExportCSV}>
               <Download size={16} /> Export CSV
+            </button>
+          )}
+          {planLimits.csv_export && (
+            <button className="btn btn-primary" onClick={handleExportPDF} disabled={exportingPdf}>
+              {exportingPdf ? <><Loader2 size={16} className="spin" /> Generating...</> : <><FileText size={16} /> Export PDF</>}
             </button>
           )}
         </div>

@@ -14,9 +14,12 @@ import {
   Sparkles,
   Loader2,
   TrendingUp,
+  Layers,
+  Minus,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
+import { useCurrentStore } from "@/lib/store-context";
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -33,20 +36,29 @@ export default function ProductsPage() {
   const [accountPlan, setAccountPlan] = useState("starter");
   const [generatingImage, setGeneratingImage] = useState(false);
   const [aiStyle, setAiStyle] = useState("studio");
-  const [generatedImageUrl, setGeneratedImageUrl] = useState(null); // Supabase URL for saving
+  const [generatedImageUrl, setGeneratedImageUrl] = useState(null);
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [aiDescEnglish, setAiDescEnglish] = useState("");
   const [aiDescArabic, setAiDescArabic] = useState("");
   const [aiPriceSuggestion, setAiPriceSuggestion] = useState("");
   const [topRecommended, setTopRecommended] = useState([]);
   const [recLoading, setRecLoading] = useState(false);
+
+  // Variants state
+  const [variants, setVariants] = useState([]);
+
+  // View product details modal
+  const [viewProduct, setViewProduct] = useState(null);
+
   const fileInputRef = useRef(null);
+
+  const { currentStoreId } = useCurrentStore();
 
   const supabase = createClient();
   const planLimits = getPlanLimits(accountPlan);
   const limitReached = planLimits.products !== -1 && products.length >= planLimits.products;
 
-  // Ensure storage buckets exist (auto-creates them if missing)
+  // Ensure storage buckets exist
   const ensureBuckets = useCallback(async () => {
     try {
       await fetch("/api/storage/ensure-buckets", { method: "POST" });
@@ -57,8 +69,7 @@ export default function ProductsPage() {
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
-    
-    // Fetch account plan
+
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: account } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
@@ -71,22 +82,22 @@ export default function ProductsPage() {
     if (filter === "draft") query = query.eq("status", "draft");
     if (filter === "low") query = query.lte("stock", 5).gt("stock", 0);
     if (search) query = query.ilike("name", `%${search}%`);
+    if (currentStoreId) query = query.eq("store_id", currentStoreId);
 
     const { data, error } = await query;
     if (!error) setProducts(data || []);
     setLoading(false);
-  }, [filter, search]);
+  }, [filter, search, currentStoreId]);
 
   useEffect(() => { ensureBuckets(); fetchProducts(); }, [ensureBuckets, fetchProducts]);
 
-  // Fetch top recommended products based on order frequency
+  // Fetch top recommended products
   const fetchTopRecommended = useCallback(async () => {
     setRecLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get all orders and count product appearances
       const { data: orders } = await supabase
         .from("orders")
         .select("items")
@@ -95,7 +106,6 @@ export default function ProductsPage() {
 
       if (!orders || orders.length === 0) { setTopRecommended([]); setRecLoading(false); return; }
 
-      // Count product recommendations (how often each product appears in orders)
       const productCounts = {};
       for (const order of orders) {
         if (order.items && Array.isArray(order.items)) {
@@ -107,7 +117,6 @@ export default function ProductsPage() {
         }
       }
 
-      // Sort by count and get top 5
       const topIds = Object.entries(productCounts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
@@ -115,7 +124,6 @@ export default function ProductsPage() {
 
       if (topIds.length === 0) { setTopRecommended([]); setRecLoading(false); return; }
 
-      // Get product details
       const { data: prods } = await supabase
         .from("products")
         .select("id, name, price, category, image_urls, stock")
@@ -135,6 +143,27 @@ export default function ProductsPage() {
 
   useEffect(() => { fetchTopRecommended(); }, [fetchTopRecommended]);
 
+  // ─── Variant helpers ───
+  const addVariant = () => {
+    setVariants((prev) => [
+      ...prev,
+      { name: "", sku: "", price_offset: 0, stock: 0, image_url: "" },
+    ]);
+  };
+
+  const removeVariant = (index) => {
+    setVariants((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateVariant = (index, field, value) => {
+    setVariants((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  // ─── File handling ───
   const handleFileSelect = (file) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -146,7 +175,7 @@ export default function ProductsPage() {
       return;
     }
     setImageFile(file);
-    setGeneratedImageUrl(null); // Clear AI-generated URL when manual file is selected
+    setGeneratedImageUrl(null);
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
@@ -188,11 +217,10 @@ export default function ProductsPage() {
         return;
       }
 
-      // Set the preview to the generated image (use base64 for instant preview)
       const dataUrl = `data:image/png;base64,${data.image_base64}`;
       setImagePreview(dataUrl);
-      setImageFile(null); // Not a file upload — it's an AI-generated image
-      setGeneratedImageUrl(data.image_url); // Store the Supabase URL for saving
+      setImageFile(null);
+      setGeneratedImageUrl(data.image_url);
     } catch (err) {
       console.error("Image generation error:", err);
       alert("Image generation failed. Please try again.");
@@ -209,12 +237,9 @@ export default function ProductsPage() {
 
     let imageUrl = null;
 
-    // If AI-generated image, use the Supabase URL directly
     if (generatedImageUrl) {
       imageUrl = generatedImageUrl;
     } else if (imageFile) {
-      // Manual file upload
-      // Ensure buckets exist before uploading
       try {
         await fetch("/api/storage/ensure-buckets", { method: "POST" });
       } catch (e) {}
@@ -225,14 +250,12 @@ export default function ProductsPage() {
       let uploadError;
       let uploadData;
 
-      // Try client-side upload first (respects RLS with user auth)
       const clientResult = await supabase.storage
         .from("product-images")
         .upload(fileName, imageFile, { cacheControl: "3600", upsert: false });
       uploadError = clientResult.error;
       uploadData = clientResult.data;
 
-      // If client upload fails (e.g., RLS issues), try server-side via admin API
       if (uploadError) {
         console.warn("[Products] Client upload failed, trying admin:", uploadError.message);
         try {
@@ -261,9 +284,20 @@ export default function ProductsPage() {
           .getPublicUrl(fileName);
         imageUrl = urlData.publicUrl;
       } else if (uploadError && !imageUrl) {
-        alert("Image upload failed: " + (uploadError.message || "Unknown error. The storage bucket may not exist yet. Please try again."));
+        alert("Image upload failed: " + (uploadError.message || "Unknown error."));
       }
     }
+
+    // Build variants array: clean up empty entries
+    const cleanVariants = variants
+      .filter((v) => v.name.trim() !== "")
+      .map((v) => ({
+        name: v.name.trim(),
+        sku: v.sku.trim() || null,
+        price_offset: Number(v.price_offset) || 0,
+        stock: Number(v.stock) || 0,
+        image_url: v.image_url.trim() || null,
+      }));
 
     const payload = {
       account_id: user.id,
@@ -273,6 +307,7 @@ export default function ProductsPage() {
       category: fd.get("category"),
       stock: parseInt(fd.get("stock")),
       status: fd.get("status") || "active",
+      variants: cleanVariants,
     };
 
     if (imageUrl) {
@@ -303,18 +338,27 @@ export default function ProductsPage() {
   const handleEdit = (product) => {
     setEditingProduct(product);
     setImagePreview(product.image_urls && product.image_urls.length > 0 ? product.image_urls[0] : null);
+    // Load existing variants
+    const existingVariants = Array.isArray(product.variants) ? product.variants : [];
+    setVariants(
+      existingVariants.map((v) => ({
+        name: v.name || "",
+        sku: v.sku || "",
+        price_offset: v.price_offset ?? 0,
+        stock: v.stock ?? 0,
+        image_url: v.image_url || "",
+      }))
+    );
     setShowModal(true);
   };
 
   const handleDelete = async (id, imageUrls) => {
     if (!confirm("Delete this product?")) return;
-    
-    // First, delete associated images from storage to prevent orphans
+
     if (imageUrls && imageUrls.length > 0) {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // Extract file paths from full URLs. URL format: .../storage/v1/object/public/product-images/USER_ID/FILENAME
           const pathsToRemove = imageUrls.map(url => {
             const parts = url.split("product-images/");
             return parts.length > 1 ? parts[1] : null;
@@ -329,7 +373,6 @@ export default function ProductsPage() {
       }
     }
 
-    // Then delete the product row
     await supabase.from("products").delete().eq("id", id);
     fetchProducts();
   };
@@ -346,6 +389,7 @@ export default function ProductsPage() {
     setAiDescEnglish("");
     setAiDescArabic("");
     setAiPriceSuggestion("");
+    setVariants([]);
   };
 
   const handleGenerateDescription = async () => {
@@ -378,7 +422,6 @@ export default function ProductsPage() {
 
       if (data.english) {
         setAiDescEnglish(data.english);
-        // Set the description textarea value
         const descField = form?.elements?.description;
         if (descField) descField.value = data.english;
       }
@@ -404,7 +447,7 @@ export default function ProductsPage() {
                Upgrade to Add More
             </button>
           ) : (
-            <button className="btn btn-primary" onClick={() => setShowModal(true)} id="add-product">
+            <button className="btn btn-primary" onClick={() => { setVariants([]); setShowModal(true); }} id="add-product">
               <Plus size={16} /> Add Product
             </button>
           )}
@@ -451,7 +494,14 @@ export default function ProductsPage() {
                 </span>
               </div>
               <div className="product-card-body">
-                <h3 className="product-card-name">{product.name}</h3>
+                <h3 className="product-card-name">
+                  {product.name}
+                  {Array.isArray(product.variants) && product.variants.length > 0 && (
+                    <span className="variant-count-badge">
+                      <Layers size={10} /> {product.variants.length} variant{product.variants.length > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </h3>
                 <p className="product-card-category">{product.category}</p>
                 <div className="product-card-footer">
                   <span className="product-card-price">{product.price.toLocaleString()} EGP</span>
@@ -460,6 +510,9 @@ export default function ProductsPage() {
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: "var(--space-sm)" }}>
+                  <button className="topbar-btn" title="View" onClick={() => setViewProduct(product)} style={{ width: 28, height: 28 }}>
+                    <ImageIcon size={13} />
+                  </button>
                   <button className="topbar-btn" title="Edit" onClick={() => handleEdit(product)} style={{ width: 28, height: 28 }}>
                     <Edit size={13} />
                   </button>
@@ -541,9 +594,110 @@ export default function ProductsPage() {
         </div>
       )}
 
+      {/* ═══════════ View Product Modal ═══════════ */}
+      {viewProduct && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewProduct(null)}>
+          <div className="modal modal-wide" style={{ maxWidth: 640 }}>
+            <div className="modal-header">
+              <h3>{viewProduct.name}</h3>
+              <button className="modal-close" onClick={() => setViewProduct(null)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              {/* Product image */}
+              {viewProduct.image_urls && viewProduct.image_urls.length > 0 && (
+                <div style={{ marginBottom: "var(--space-lg)", borderRadius: "var(--radius-md)", overflow: "hidden", height: 200 }}>
+                  <img src={viewProduct.image_urls[0]} alt={viewProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+              )}
+
+              {/* Product info */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)", marginBottom: "var(--space-lg)" }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Category</div>
+                  <div style={{ fontWeight: 600 }}>{viewProduct.category}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Price</div>
+                  <div style={{ fontWeight: 800, color: "var(--accent-primary-light)" }}>{viewProduct.price?.toLocaleString()} EGP</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Stock</div>
+                  <div style={{ fontWeight: 600, color: viewProduct.stock === 0 ? "var(--accent-red)" : viewProduct.stock <= 5 ? "var(--accent-orange)" : "var(--text-primary)" }}>
+                    {viewProduct.stock}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Status</div>
+                  <div style={{ fontWeight: 600 }}>{viewProduct.status}</div>
+                </div>
+              </div>
+
+              {viewProduct.description && (
+                <div style={{ marginBottom: "var(--space-lg)", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 4 }}>Description</div>
+                  <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", lineHeight: 1.5 }}>{viewProduct.description}</div>
+                </div>
+              )}
+
+              {/* Variants table */}
+              {Array.isArray(viewProduct.variants) && viewProduct.variants.length > 0 && (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-sm)" }}>
+                    <Layers size={16} style={{ color: "var(--accent-primary-light)" }} />
+                    <span style={{ fontWeight: 700, fontSize: "var(--font-size-sm)" }}>Variants</span>
+                    <span className="variant-count-badge">{viewProduct.variants.length}</span>
+                  </div>
+                  <table className="variant-table">
+                    <thead>
+                      <tr>
+                        <th>Variant</th>
+                        <th>SKU</th>
+                        <th>Price Offset</th>
+                        <th>Stock</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewProduct.variants.map((v, i) => (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 600 }}>{v.name}</td>
+                          <td style={{ color: "var(--text-tertiary)", fontSize: 12 }}>{v.sku || "—"}</td>
+                          <td>
+                            <span className={`price-offset ${v.price_offset > 0 ? "positive" : v.price_offset < 0 ? "negative" : ""}`}>
+                              {v.price_offset > 0 ? "+" : ""}{v.price_offset} EGP
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`stock-cell ${v.stock === 0 ? "out" : v.stock <= 5 ? "low" : ""}`}>
+                              {v.stock}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {(!Array.isArray(viewProduct.variants) || viewProduct.variants.length === 0) && (
+                <div style={{ textAlign: "center", padding: "var(--space-lg)", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+                  No variants configured for this product
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setViewProduct(null)}>Close</button>
+              <button className="btn btn-primary" onClick={() => { setViewProduct(null); handleEdit(viewProduct); }}>
+                <Edit size={14} /> Edit Product
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ Add/Edit Product Modal ═══════════ */}
       {showModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="modal">
+          <div className="modal modal-wide">
             <div className="modal-header">
               <h3>{editingProduct ? "Edit Product" : "Add New Product"}</h3>
               <button className="modal-close" onClick={closeModal}><X size={18} /></button>
@@ -613,7 +767,6 @@ export default function ProductsPage() {
                 <div className="form-group">
                   <label className="form-label">Description</label>
                   <textarea name="description" className="form-input form-textarea" placeholder="Product description..." defaultValue={editingProduct?.description || ""} />
-                  {/* AI Generate Description Button */}
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -662,6 +815,98 @@ export default function ProductsPage() {
                       <option value="draft">Draft</option>
                     </select>
                   </div>
+                </div>
+
+                {/* ═══════════ Variants Section ═══════════ */}
+                <div className="form-group" style={{ marginTop: "var(--space-lg)" }}>
+                  <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+                    <Layers size={14} />
+                    Variants
+                    {variants.length > 0 && (
+                      <span className="variant-count-badge">{variants.length}</span>
+                    )}
+                  </label>
+                  <p style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2, marginBottom: "var(--space-sm)" }}>
+                    Add size, color, or other variant options. Each variant can have its own SKU, price adjustment, and stock.
+                  </p>
+
+                  {/* Column headers */}
+                  {variants.length > 0 && (
+                    <div className="variant-header">
+                      <span>Name</span>
+                      <span>SKU</span>
+                      <span>Price ±</span>
+                      <span>Stock</span>
+                      <span></span>
+                    </div>
+                  )}
+
+                  <div className="variant-list">
+                    {variants.map((v, index) => (
+                      <div key={index} className="variant-row">
+                        <input
+                          type="text"
+                          placeholder="e.g. Red / Large"
+                          value={v.name}
+                          onChange={(e) => updateVariant(index, "name", e.target.value)}
+                        />
+                        <input
+                          type="text"
+                          placeholder="SKU"
+                          value={v.sku}
+                          onChange={(e) => updateVariant(index, "sku", e.target.value)}
+                        />
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={v.price_offset}
+                          onChange={(e) => updateVariant(index, "price_offset", e.target.value)}
+                          step="0.01"
+                        />
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={v.stock}
+                          onChange={(e) => updateVariant(index, "stock", e.target.value)}
+                          min="0"
+                        />
+                        <button type="button" className="variant-remove-btn" onClick={() => removeVariant(index)}>
+                          <Minus size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button type="button" className="variant-add-btn" onClick={addVariant}>
+                    <Plus size={14} /> Add Variant
+                  </button>
+
+                  {/* Image URL field for last added variant (optional enhancement) */}
+                  {variants.length > 0 && (
+                    <div style={{ marginTop: "var(--space-md)" }}>
+                      {variants.map((v, index) => (
+                        v.name.trim() !== "" && (
+                          <div key={`img-${index}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-xs)" }}>
+                            <span style={{ fontSize: 11, color: "var(--text-tertiary)", minWidth: 100, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {v.name} image:
+                            </span>
+                            <input
+                              type="url"
+                              placeholder="https://example.com/image.jpg (optional)"
+                              value={v.image_url}
+                              onChange={(e) => updateVariant(index, "image_url", e.target.value)}
+                              style={{
+                                flex: 1, padding: "4px 8px", background: "var(--bg-primary)",
+                                border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)",
+                                color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-family)",
+                                outline: "none",
+                              }}
+                            />
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">

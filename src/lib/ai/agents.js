@@ -23,6 +23,68 @@ When you escalate:
 - NEVER include [ESCALATE] if the situation is simple and you can fully resolve it yourself.
 `;
 
+/**
+ * Build a comprehensive personality description from account settings.
+ * This replaces the simple ai_personality text field with a richer description
+ * derived from the structured personality settings.
+ * 
+ * @param {Object} accountData - Account row with personality fields
+ * @returns {string} - Complete personality description
+ */
+export function buildPersonalityFromSettings(accountData) {
+  if (!accountData) return "Friendly, professional, and helpful. Use emojis sparingly.";
+
+  const personalityLabels = {
+    professional: "Professional and business-like",
+    friendly: "Friendly and approachable",
+    casual: "Casual and relaxed",
+    luxury: "Premium and sophisticated",
+    playful: "Playful and fun",
+  };
+
+  const aiName = accountData.ai_name || "Sellora AI";
+  const personalityType = accountData.ai_personality_type || "friendly";
+  const customDesc = accountData.ai_custom_description || "";
+  const formality = accountData.ai_formality ?? 5;
+  const enthusiasm = accountData.ai_enthusiasm ?? 7;
+  const verbosity = accountData.ai_verbosity ?? 5;
+  const empathy = accountData.ai_empathy ?? 7;
+  const forbiddenTopics = accountData.ai_forbidden_topics || [];
+  const escalationKeywords = accountData.ai_escalation_keywords || ["human", "agent", "manager", "complaint"];
+  const autoSuggestProducts = accountData.ai_auto_suggest_products !== false;
+  const maxResponseLength = accountData.ai_max_response_length || 500;
+
+  const formalityDesc = formality <= 3 ? "very casual and informal" : formality <= 6 ? "moderately formal" : "very formal and professional";
+  const enthusiasmDesc = enthusiasm <= 3 ? "calm and measured" : enthusiasm <= 6 ? "moderately enthusiastic" : "highly energetic and enthusiastic";
+  const verbosityDesc = verbosity <= 3 ? "concise and to-the-point" : verbosity <= 6 ? "moderately detailed" : "thorough and detailed";
+  const empathyDesc = empathy <= 3 ? "factual and direct" : empathy <= 6 ? "moderately empathetic" : "deeply empathetic and caring";
+
+  let personalityText = `You are ${aiName}, a ${personalityLabels[personalityType] || "friendly"} AI assistant. `;
+  personalityText += `Your communication style is ${formalityDesc}, ${enthusiasmDesc}, ${verbosityDesc}, and ${empathyDesc}. `;
+
+  if (customDesc && customDesc.trim()) {
+    personalityText += `Custom personality override: ${customDesc.trim()}. `;
+  }
+
+  if (forbiddenTopics.length > 0) {
+    personalityText += `NEVER discuss these topics: ${forbiddenTopics.join(", ")}. `;
+  }
+
+  if (escalationKeywords.length > 0) {
+    personalityText += `If the customer mentions any of these keywords: ${escalationKeywords.join(", ")}, consider escalating to a human agent. `;
+  }
+
+  personalityText += `Keep responses under ${maxResponseLength} characters. `;
+
+  if (autoSuggestProducts) {
+    personalityText += "You should proactively suggest relevant products when appropriate. ";
+  }
+
+  personalityText += "Use emojis sparingly and appropriately.";
+
+  return personalityText;
+}
+
 export function getSalesAgentPrompt(businessName, country, aiPersonality) {
   return `You are a highly skilled Sales AI Agent for "${businessName}" located in ${country}.
 Your goal is to help customers discover products, answer their questions, and successfully close sales.

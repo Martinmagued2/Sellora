@@ -20,6 +20,7 @@ export const PLAN_LIMITS = {
     products: 25,
     conversations_per_month: 100,
     customers: 200,
+    stores: 1,
 
     // Features
     campaigns_per_month: 0,       // Locked
@@ -49,6 +50,7 @@ export const PLAN_LIMITS = {
     products: -1,                 // Unlimited
     conversations_per_month: 1000,
     customers: -1,
+    stores: 3,
 
     // Features
     campaigns_per_month: 5,
@@ -78,6 +80,7 @@ export const PLAN_LIMITS = {
     products: -1,
     conversations_per_month: -1,
     customers: -1,
+    stores: -1,                  // Unlimited
 
     // Features
     campaigns_per_month: -1,
