@@ -187,27 +187,22 @@ function FloatingPhone() {
     offset: ["start end", "end start"],
   });
 
-  // Use raw scroll progress for imperative transform control
   useEffect(() => {
     const unsubscribe = scrollYProgress.on("change", (v) => setScrollProgress(v));
     return () => unsubscribe();
   }, [scrollYProgress]);
 
-  // Compute transforms from scroll progress (0 to 1)
-  // Phone starts at 0.6 scale, zooms to 1.0
   const rawProgress = Math.min(Math.max(scrollProgress, 0), 1);
-  const zoomProgress = Math.min(rawProgress / 0.5, 1); // reach full zoom by 50% scroll
-  const eased = 1 - Math.pow(1 - zoomProgress, 3); // ease-out cubic
+  const zoomProgress = Math.min(rawProgress / 0.5, 1);
+  const eased = 1 - Math.pow(1 - zoomProgress, 3);
 
-  const scale = isMobile ? 1 : 0.6 + eased * 0.4; // 0.6 -> 1.0
-  const rotateY = isMobile ? 0 : -20 + eased * 20; // -20deg -> 0deg
-  const rotateX = isMobile ? 0 : 8 - eased * 8; // 8deg -> 0deg
-  const translateY = isMobile ? 0 : 80 - eased * 80; // 80px -> 0px
-  const parallaxY = isMobile ? 0 : rawProgress * -60; // continuous parallax
+  const scale = isMobile ? 1 : 0.6 + eased * 0.4;
+  const rotateY = isMobile ? 0 : -20 + eased * 20;
+  const rotateX = isMobile ? 0 : 8 - eased * 8;
+  const translateY = isMobile ? 0 : 80 - eased * 80;
+  const parallaxY = isMobile ? 0 : rawProgress * -60;
 
-  // Glow intensity based on zoom
   const glowIntensity = eased * 0.6;
-  // Reflection angle based on scroll
   const reflectionAngle = -45 + rawProgress * 30;
 
   return (
@@ -227,7 +222,6 @@ function FloatingPhone() {
         transition={{ duration: 1.2, ease: "easeOut" }}
       >
         <div className={`phone-mockup ${eased >= 1 ? "phone-at-rest" : ""}`}>
-          {/* Glow effect behind the phone */}
           <div
             className="phone-glow"
             style={{
@@ -236,12 +230,10 @@ function FloatingPhone() {
             }}
           />
           <div className="phone-frame">
-            {/* Dynamic Island / Notch */}
             <div className="phone-notch">
               <div className="phone-notch-camera" />
             </div>
             <div className="phone-screen">
-              {/* Dashboard UI inside phone */}
               <div className="phone-dash-header">
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <div style={{ width: 22, height: 22, borderRadius: 5, background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -257,8 +249,6 @@ function FloatingPhone() {
                   <div style={{ width: 18, height: 18, borderRadius: "50%", background: "var(--accent-gradient)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "#fff" }}>S</div>
                 </div>
               </div>
-
-              {/* Stats cards row */}
               <div className="phone-dash-stats">
                 <div className="phone-dash-stat-card">
                   <DollarSign size={9} style={{ color: "var(--accent-green)" }} />
@@ -279,8 +269,6 @@ function FloatingPhone() {
                   <span className="phone-dash-stat-change positive">+23%</span>
                 </div>
               </div>
-
-              {/* Mini chart area */}
               <div className="phone-dash-chart">
                 <div className="phone-dash-chart-header">
                   <span style={{ fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>Weekly Sales</span>
@@ -300,8 +288,6 @@ function FloatingPhone() {
                   ))}
                 </div>
               </div>
-
-              {/* Recent orders */}
               <div className="phone-dash-orders">
                 <span style={{ fontSize: 8, fontWeight: 600, color: "rgba(255,255,255,0.8)", marginBottom: 4, display: "block" }}>Recent Orders</span>
                 {[
@@ -318,17 +304,14 @@ function FloatingPhone() {
                 ))}
               </div>
             </div>
-            {/* Home indicator */}
             <div className="phone-home-indicator" />
           </div>
-          {/* Reflection/shine overlay */}
           <div
             className="phone-reflection"
             style={{
               background: `linear-gradient(${reflectionAngle}deg, rgba(255,255,255,${0.06 * eased}) 0%, transparent 50%)`,
             }}
           />
-          {/* Floating notification badges around phone */}
           <motion.div className="phone-float-badge" style={{ top: -20, right: -40 }}
             animate={{ y: [0, -8, 0], rotate: [0, 3, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}>
@@ -381,6 +364,304 @@ function AnimatedCounter({ value, duration = 1.5 }) {
 }
 
 /* ============================================
+   TYPEWRITER TEXT COMPONENT
+   ============================================ */
+function TypewriterText({ texts, speed = 80, pauseBetween = 2000, gradientIndices = [] }) {
+  const [currentTextIndex, setCurrentTextIndex] = useState(0);
+  const [displayText, setDisplayText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    if (isPaused) return;
+    const currentFull = texts[currentTextIndex];
+    let timeout;
+
+    if (!isDeleting && displayText.length < currentFull.length) {
+      timeout = setTimeout(() => setDisplayText(currentFull.slice(0, displayText.length + 1)), speed);
+    } else if (!isDeleting && displayText.length === currentFull.length) {
+      timeout = setTimeout(() => {
+        setIsPaused(true);
+        setTimeout(() => { setIsPaused(false); setIsDeleting(true); }, pauseBetween);
+      }, 0);
+    } else if (isDeleting && displayText.length > 0) {
+      timeout = setTimeout(() => setDisplayText(displayText.slice(0, -1)), speed / 2);
+    } else if (isDeleting && displayText.length === 0) {
+      timeout = setTimeout(() => {
+        setIsDeleting(false);
+        setCurrentTextIndex((currentTextIndex + 1) % texts.length);
+      }, 0);
+    }
+
+    return () => clearTimeout(timeout);
+  }, [displayText, isDeleting, currentTextIndex, texts, speed, pauseBetween, isPaused]);
+
+  return (
+    <span>
+      {displayText.split('').map((char, i) => (
+        <span key={i} className={gradientIndices.includes(currentTextIndex) && i >= 0 ? 'text-gradient-static' : ''}>
+          {char}
+        </span>
+      ))}
+      <span className="typewriter-cursor">|</span>
+    </span>
+  );
+}
+
+/* ============================================
+   MAGNETIC BUTTON COMPONENT
+   ============================================ */
+function MagneticButton({ children, className = '', ...props }) {
+  const ref = useRef(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const handleMouse = (e) => {
+    if (!ref.current) return;
+    const { left, top, width, height } = ref.current.getBoundingClientRect();
+    const x = (e.clientX - left - width / 2) * 0.15;
+    const y = (e.clientY - top - height / 2) * 0.15;
+    setPosition({ x, y });
+  };
+
+  const handleLeave = () => setPosition({ x: 0, y: 0 });
+
+  return (
+    <button
+      ref={ref}
+      className={`magnetic-btn ${className}`}
+      onMouseMove={handleMouse}
+      onMouseLeave={handleLeave}
+      style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ============================================
+   FLOATING CHAT BUBBLES COMPONENT
+   ============================================ */
+function FloatingChatBubbles() {
+  const [visibleBubbles, setVisibleBubbles] = useState([]);
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true });
+
+  const bubbles = [
+    { message: "Is the black bag in stock?", sender: "Customer", type: "incoming", delay: 500 },
+    { message: "Yes! Available in 3 colors 🎨", sender: "Sellora AI", type: "outgoing", delay: 2000 },
+    { message: "I'll take 2! 🛒", sender: "Customer", type: "incoming", delay: 3500 },
+    { message: "Payment link sent! 💳", sender: "Sellora AI", type: "outgoing", delay: 4500 },
+  ];
+
+  useEffect(() => {
+    if (!isInView) return;
+    const timers = bubbles.map((bubble, i) => {
+      return setTimeout(() => {
+        setVisibleBubbles(prev => [...prev, i]);
+      }, bubble.delay);
+    });
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInView]);
+
+  return (
+    <div ref={ref} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {bubbles.map((bubble, i) => (
+        <div
+          key={i}
+          className={`hero-chat-bubble ${bubble.type === 'incoming' ? 'incoming-bubble' : 'outgoing-bubble'} chat-bubble-float ${bubble.type}`}
+          style={{
+            opacity: visibleBubbles.includes(i) ? 1 : 0,
+            animationDelay: visibleBubbles.includes(i) ? '0s' : undefined,
+            animationPlayState: visibleBubbles.includes(i) ? 'running' : 'paused',
+          }}
+        >
+          <span className="bubble-sender">{bubble.sender}</span>
+          {bubble.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================
+   CURSOR TRAIL COMPONENT
+   ============================================ */
+function CursorTrail() {
+  const [isMobile, setIsMobile] = useState(false);
+  const dotsRef = useRef([]);
+  const mousePos = useRef({ x: 0, y: 0 });
+  const dotPositions = useRef(Array.from({ length: 6 }, () => ({ x: 0, y: 0 })));
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) return;
+
+    const handleMouse = (e) => {
+      mousePos.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener("mousemove", handleMouse);
+
+    function animate() {
+      const mp = mousePos.current;
+      const dp = dotPositions.current;
+      const dots = dotsRef.current;
+
+      // First dot follows cursor with spring
+      dp[0].x += (mp.x - dp[0].x) * 0.3;
+      dp[0].y += (mp.y - dp[0].y) * 0.3;
+
+      // Each subsequent dot follows the previous
+      for (let i = 1; i < dp.length; i++) {
+        const factor = 0.2 - i * 0.02;
+        dp[i].x += (dp[i - 1].x - dp[i].x) * Math.max(factor, 0.08);
+        dp[i].y += (dp[i - 1].y - dp[i].y) * Math.max(factor, 0.08);
+      }
+
+      // Apply positions to DOM
+      for (let i = 0; i < dots.length; i++) {
+        if (dots[i]) {
+          dots[i].style.transform = `translate(${dp[i].x - 4}px, ${dp[i].y - 4}px)`;
+          dots[i].style.opacity = 1 - i * 0.14;
+          dots[i].style.width = `${8 - i * 0.8}px`;
+          dots[i].style.height = `${8 - i * 0.8}px`;
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(animate);
+    }
+    animate();
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouse);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [isMobile]);
+
+  if (isMobile) return null;
+
+  const colors = [
+    'rgba(88, 101, 242, 0.6)',
+    'rgba(88, 101, 242, 0.5)',
+    'rgba(68, 131, 242, 0.4)',
+    'rgba(48, 161, 242, 0.3)',
+    'rgba(0, 210, 255, 0.25)',
+    'rgba(0, 210, 255, 0.2)',
+  ];
+
+  return (
+    <>
+      {colors.map((color, i) => (
+        <div
+          key={i}
+          ref={el => dotsRef.current[i] = el}
+          className="cursor-trail-dot"
+          style={{
+            background: color,
+            opacity: 0,
+            position: 'fixed',
+            pointerEvents: 'none',
+            zIndex: 9999,
+            borderRadius: '50%',
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+/* ============================================
+   INTERACTIVE FEATURE DEMO
+   ============================================ */
+function InteractiveFeatureDemo() {
+  const [input, setInput] = useState('');
+  const [response, setResponse] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [showArrow, setShowArrow] = useState(false);
+
+  const responses = {
+    'hi': "Hi there! 👋 Welcome to our store. How can I help you today? We have great deals on bags, shirts, and accessories!",
+    'hello': "Hello! 😊 I'm Sellora AI. Looking for something specific? I can show you our catalog, check prices, or help you place an order!",
+    'price': "Which product are you asking about? 🏷️ Here are our popular items:\n• Black Bag - 450 EGP\n• Blue Shirt - 350 EGP\n• Cotton Tee - 250 EGP",
+    'bag': "The Black Premium Bag is 450 EGP 🖤 Available in Black, Brown, and Navy. Want me to send a payment link?",
+    'available': "Yes, it's in stock! ✅ We have multiple colors and sizes available. Would you like to order?",
+    'order': "Great choice! 🛒 I'll create your order right away. Would you like to pay via Fawry, InstaPay, or Vodafone Cash?",
+    'default': "Thanks for your message! 😊 I can help with:\n• Product info & prices\n• Order placement\n• Payment options\n• Delivery tracking\nJust ask me anything!"
+  };
+
+  const handleSend = () => {
+    if (!input.trim()) return;
+    setIsTyping(true);
+    setShowArrow(false);
+    const lowerInput = input.toLowerCase();
+    let matchedResponse = responses.default;
+    for (const [key, val] of Object.entries(responses)) {
+      if (key !== 'default' && lowerInput.includes(key)) {
+        matchedResponse = val;
+        break;
+      }
+    }
+
+    setTimeout(() => {
+      setResponse(matchedResponse);
+      setIsTyping(false);
+      setShowArrow(true);
+    }, 800);
+  };
+
+  return (
+    <div className="feature-demo">
+      <div className="feature-demo-header">
+        <Sparkles size={14} style={{ color: "var(--accent-primary-light)" }} />
+        <span>Try it — type a message</span>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          className="feature-demo-input"
+          placeholder="e.g. &quot;Is the black bag available?&quot;"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+        />
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={handleSend}
+          style={{ flexShrink: 0, padding: '8px 14px' }}
+        >
+          <Send size={14} />
+        </button>
+      </div>
+      {(isTyping || response) && (
+        <div className="feature-demo-response">
+          <span className="ai-label">Sellora AI</span>
+          {isTyping ? (
+            <span style={{ opacity: 0.6 }}>Typing...</span>
+          ) : (
+            response.split('\n').map((line, i) => (
+              <span key={i}>
+                {line}
+                {i < response.split('\n').length - 1 && <br />}
+              </span>
+            ))
+          )}
+          <div className={`feature-demo-arrow ${showArrow ? 'visible' : ''}`}>
+            <Check size={12} /> AI replied instantly
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================
    ROI CALCULATOR COMPONENT
    ============================================ */
 function ROICalculator() {
@@ -402,7 +683,7 @@ function ROICalculator() {
   ];
 
   return (
-    <section className="section roi-calculator-section" id="roi-calculator" ref={ref}>
+    <section className="section roi-calculator-section section-fade-transition dark-bg" id="roi-calculator" ref={ref}>
       <div className="section-inner">
         <div className="section-header animate-on-scroll">
           <span className="badge badge-primary" style={{ marginBottom: 16 }}>
@@ -422,59 +703,32 @@ function ROICalculator() {
           transition={{ duration: 0.7, ease: "easeOut" }}
         >
           <div className="roi-calculator-inner">
-            {/* Sliders Column */}
             <div className="roi-sliders-col">
               <div className="roi-slider-group">
                 <div className="roi-slider-header">
                   <label>How many DMs do you receive per day?</label>
                   <span className="roi-slider-value">{dms}</span>
                 </div>
-                <input
-                  type="range"
-                  min={10}
-                  max={500}
-                  value={dms}
-                  onChange={(e) => setDms(Number(e.target.value))}
-                  className="roi-slider"
-                />
+                <input type="range" min={10} max={500} value={dms} onChange={(e) => setDms(Number(e.target.value))} className="roi-slider" />
                 <div className="roi-slider-range"><span>10</span><span>500</span></div>
               </div>
-
               <div className="roi-slider-group">
                 <div className="roi-slider-header">
                   <label>Average order value (EGP)</label>
                   <span className="roi-slider-value">{orderValue.toLocaleString()} EGP</span>
                 </div>
-                <input
-                  type="range"
-                  min={50}
-                  max={5000}
-                  step={50}
-                  value={orderValue}
-                  onChange={(e) => setOrderValue(Number(e.target.value))}
-                  className="roi-slider"
-                />
+                <input type="range" min={50} max={5000} step={50} value={orderValue} onChange={(e) => setOrderValue(Number(e.target.value))} className="roi-slider" />
                 <div className="roi-slider-range"><span>50</span><span>5,000</span></div>
               </div>
-
               <div className="roi-slider-group">
                 <div className="roi-slider-header">
                   <label>Hours spent replying per day</label>
                   <span className="roi-slider-value">{hours} hrs</span>
                 </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={12}
-                  value={hours}
-                  onChange={(e) => setHours(Number(e.target.value))}
-                  className="roi-slider"
-                />
+                <input type="range" min={1} max={12} value={hours} onChange={(e) => setHours(Number(e.target.value))} className="roi-slider" />
                 <div className="roi-slider-range"><span>1</span><span>12</span></div>
               </div>
             </div>
-
-            {/* Results Column */}
             <div className="roi-results-col">
               {results.map((item, i) => (
                 <motion.div
@@ -534,17 +788,12 @@ function LiveDashboardPreview() {
   ];
 
   const analyticsData = [
-    { label: "Mon", value: 65 },
-    { label: "Tue", value: 80 },
-    { label: "Wed", value: 45 },
-    { label: "Thu", value: 90 },
-    { label: "Fri", value: 70 },
-    { label: "Sat", value: 95 },
-    { label: "Sun", value: 85 },
+    { label: "Mon", value: 65 }, { label: "Tue", value: 80 }, { label: "Wed", value: 45 },
+    { label: "Thu", value: 90 }, { label: "Fri", value: 70 }, { label: "Sat", value: 95 }, { label: "Sun", value: 85 },
   ];
 
   return (
-    <section className="section dashboard-preview-section" id="dashboard-preview" ref={ref}>
+    <section className="section dashboard-preview-section section-fade-transition" id="dashboard-preview" ref={ref}>
       <div className="section-inner">
         <div className="section-header animate-on-scroll">
           <span className="badge badge-green" style={{ marginBottom: 16 }}>
@@ -563,45 +812,26 @@ function LiveDashboardPreview() {
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.7, ease: "easeOut" }}
         >
-          {/* Browser Chrome */}
           <div className="dashboard-browser-bar">
             <div className="dashboard-browser-dots">
-              <span className="dot red" />
-              <span className="dot yellow" />
-              <span className="dot green" />
+              <span className="dot red" /><span className="dot yellow" /><span className="dot green" />
             </div>
             <div className="dashboard-browser-url">
               <Shield size={12} />
               <span>app.sellora.app/dashboard</span>
             </div>
           </div>
-
-          {/* Tabs */}
           <div className="dashboard-preview-tabs">
             {tabs.map((tab, i) => (
-              <button
-                key={i}
-                className={`dashboard-preview-tab ${activeTab === i ? "active" : ""}`}
-                onClick={() => setActiveTab(i)}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
+              <button key={i} className={`dashboard-preview-tab ${activeTab === i ? "active" : ""}`} onClick={() => setActiveTab(i)}>
+                {tab.icon}<span>{tab.label}</span>
               </button>
             ))}
           </div>
-
-          {/* Content */}
           <div className="dashboard-preview-content">
             <AnimatePresence mode="wait">
               {activeTab === 0 && (
-                <motion.div
-                  key="conversations"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="dashboard-tab-content"
-                >
+                <motion.div key="conversations" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="dashboard-tab-content">
                   {chatMessages.map((msg, i) => (
                     <div key={i} className={`dashboard-chat-msg ${msg.incoming ? "incoming" : "outgoing"}`}>
                       <div className="dashboard-chat-name">{msg.name}</div>
@@ -611,26 +841,10 @@ function LiveDashboardPreview() {
                   ))}
                 </motion.div>
               )}
-
               {activeTab === 1 && (
-                <motion.div
-                  key="orders"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="dashboard-tab-content"
-                >
+                <motion.div key="orders" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="dashboard-tab-content">
                   <table className="dashboard-orders-table">
-                    <thead>
-                      <tr>
-                        <th>Order</th>
-                        <th>Customer</th>
-                        <th>Items</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
+                    <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
                     <tbody>
                       {orders.map((order, i) => (
                         <tr key={i}>
@@ -638,43 +852,23 @@ function LiveDashboardPreview() {
                           <td>{order.customer}</td>
                           <td>{order.items}</td>
                           <td style={{ fontWeight: 600 }}>{order.total}</td>
-                          <td>
-                            <span className="dashboard-order-status" style={{ background: `${order.statusColor}20`, color: order.statusColor }}>
-                              {order.status}
-                            </span>
-                          </td>
+                          <td><span className="dashboard-order-status" style={{ background: `${order.statusColor}20`, color: order.statusColor }}>{order.status}</span></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </motion.div>
               )}
-
               {activeTab === 2 && (
-                <motion.div
-                  key="analytics"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="dashboard-tab-content"
-                >
+                <motion.div key="analytics" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="dashboard-tab-content">
                   <div className="dashboard-analytics-header">
-                    <div>
-                      <div className="dashboard-analytics-label">Weekly Revenue</div>
-                      <div className="dashboard-analytics-total">12,450 EGP</div>
-                    </div>
+                    <div><div className="dashboard-analytics-label">Weekly Revenue</div><div className="dashboard-analytics-total">12,450 EGP</div></div>
                     <span className="dashboard-analytics-change">+23% vs last week</span>
                   </div>
                   <div className="dashboard-chart">
                     {analyticsData.map((bar, i) => (
                       <div key={i} className="dashboard-chart-bar-wrapper">
-                        <motion.div
-                          className="dashboard-chart-bar"
-                          initial={{ height: 0 }}
-                          animate={{ height: `${bar.value}%` }}
-                          transition={{ duration: 0.6, delay: i * 0.08, ease: "easeOut" }}
-                        />
+                        <motion.div className="dashboard-chart-bar" initial={{ height: 0 }} animate={{ height: `${bar.value}%` }} transition={{ duration: 0.6, delay: i * 0.08, ease: "easeOut" }} />
                         <span className="dashboard-chart-label">{bar.label}</span>
                       </div>
                     ))}
@@ -694,65 +888,52 @@ function LiveDashboardPreview() {
    ============================================ */
 function BrandMarquee() {
   const brands = ["Opio", "Town Team", "Ravin", "Cottonil", "Zara Home", "H&M Egypt", "Noon", "Amazon Egypt"];
-  const brandColors = [
-    "rgba(108, 92, 231, 0.12)",
-    "rgba(0, 210, 255, 0.12)",
-    "rgba(59, 165, 92, 0.12)",
-    "rgba(248, 165, 50, 0.12)",
-    "rgba(235, 69, 158, 0.12)",
-    "rgba(237, 66, 69, 0.12)",
-    "rgba(108, 92, 231, 0.12)",
-    "rgba(0, 210, 255, 0.12)",
-  ];
-  const brandTextColors = [
-    "var(--accent-primary-light)",
-    "var(--accent-secondary)",
-    "var(--accent-green)",
-    "var(--accent-orange)",
-    "var(--accent-pink)",
-    "var(--accent-red)",
-    "var(--accent-primary-light)",
-    "var(--accent-secondary)",
-  ];
-
+  const brandColors = ["rgba(108, 92, 231, 0.12)", "rgba(0, 210, 255, 0.12)", "rgba(59, 165, 92, 0.12)", "rgba(248, 165, 50, 0.12)", "rgba(235, 69, 158, 0.12)", "rgba(237, 66, 69, 0.12)", "rgba(108, 92, 231, 0.12)", "rgba(0, 210, 255, 0.12)"];
+  const brandTextColors = ["var(--accent-primary-light)", "var(--accent-secondary)", "var(--accent-green)", "var(--accent-orange)", "var(--accent-pink)", "var(--accent-red)", "var(--accent-primary-light)", "var(--accent-secondary)"];
   const countries = ["EGYPT", "SAUDI", "UAE", "INDIA", "BRAZIL", "NIGERIA"];
-
-  // Double the items for seamless loop
   const doubledBrands = [...brands, ...brands];
   const doubledCountries = [...countries, ...countries];
 
   return (
     <section className="social-proof trusted-by-section">
-      {/* Row 1: Brands */}
       <p className="trusted-by-title">Trusted by leading brands</p>
       <div className="brand-marquee-row">
         <div className="brand-marquee-track brand-marquee-track-left">
           {doubledBrands.map((brand, i) => (
-            <span
-              key={i}
-              className="brand-badge"
-              style={{ background: brandColors[i % brandColors.length], color: brandTextColors[i % brandTextColors.length] }}
-            >
-              {brand}
-            </span>
+            <span key={i} className="brand-badge" style={{ background: brandColors[i % brandColors.length], color: brandTextColors[i % brandTextColors.length] }}>{brand}</span>
           ))}
         </div>
       </div>
-
-      {/* Row 2: Countries (opposite direction) */}
-      <p className="trusted-by-title" style={{ marginTop: "var(--space-xl)" }}>
-        Sellers across the Middle East & beyond
-      </p>
+      <p className="trusted-by-title" style={{ marginTop: "var(--space-xl)" }}>Sellers across the Middle East & beyond</p>
       <div className="brand-marquee-row">
         <div className="brand-marquee-track brand-marquee-track-right">
           {doubledCountries.map((country, i) => (
-            <span key={i} className="social-proof-logo" style={{ margin: "0 var(--space-xl)" }}>
-              {country}
-            </span>
+            <span key={i} className="social-proof-logo" style={{ margin: "0 var(--space-xl)" }}>{country}</span>
           ))}
         </div>
       </div>
     </section>
+  );
+}
+
+/* ============================================
+   SCROLL REVEAL TEXT COMPONENT
+   ============================================ */
+function ScrollRevealText({ children, className = '' }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-80px" });
+
+  return (
+    <div ref={ref} className={`reveal-text ${isInView ? 'revealed' : ''} ${className}`}>
+      {typeof children === 'string'
+        ? children.split('').map((char, i) => (
+            <span key={i} className="reveal-char" style={{ transitionDelay: `${i * 25}ms` }}>
+              {char === ' ' ? '\u00A0' : char}
+            </span>
+          ))
+        : children
+      }
+    </div>
   );
 }
 
@@ -766,14 +947,18 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [cursorGlow, setCursorGlow] = useState({ x: 0, y: 0, visible: false });
+  const [lostRevenue, setLostRevenue] = useState(0);
+  const [showMissedStamp, setShowMissedStamp] = useState(false);
+  const [heroCounterValue, setHeroCounterValue] = useState(0);
+  const [problemMsgsVisible, setProblemMsgsVisible] = useState(0);
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { lang, setLang, t } = useLanguage();
+  const problemRef = useRef(null);
+  const heroCounterRef = useRef(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 50);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -783,18 +968,12 @@ export default function Home() {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-          }
+          if (entry.isIntersecting) entry.target.classList.add("visible");
         });
       },
       { threshold: 0.1 }
     );
-
-    document.querySelectorAll(".animate-on-scroll").forEach((el) => {
-      observer.observe(el);
-    });
-
+    document.querySelectorAll(".animate-on-scroll").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
 
@@ -810,226 +989,142 @@ export default function Home() {
     };
   }, []);
 
+  // Hero counter animation — counts up to 2,500,000 when in view
+  const heroCounterInView = useInView(heroCounterRef, { once: true, margin: "-50px" });
+  useEffect(() => {
+    if (!heroCounterInView) return;
+    let start = 0;
+    const end = 2500000;
+    const duration = 2500;
+    const startTime = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.floor(eased * end);
+      setHeroCounterValue(current);
+      if (progress >= 1) clearInterval(timer);
+    }, 16);
+    return () => clearInterval(timer);
+  }, [heroCounterInView]);
+
+  // Problem section — lost revenue counter & stamp
+  const problemInView = useInView(problemRef, { once: true, margin: "-100px" });
+  useEffect(() => {
+    if (!problemInView) return;
+    // Show messages one by one
+    const msgTimers = [0, 600, 1200, 1800, 2400].map((delay, i) =>
+      setTimeout(() => setProblemMsgsVisible(i + 1), delay)
+    );
+    // Show stamp after messages
+    const stampTimer = setTimeout(() => setShowMissedStamp(true), 3000);
+    // Lost revenue counter
+    const revenueTimer = setInterval(() => {
+      setLostRevenue(prev => prev + Math.floor(Math.random() * 50 + 20));
+    }, 800);
+    return () => {
+      msgTimers.forEach(clearTimeout);
+      clearTimeout(stampTimer);
+      clearInterval(revenueTimer);
+    };
+  }, [problemInView]);
+
+  // How it works timeline — observe steps
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add("in-view");
+        });
+      },
+      { threshold: 0.3 }
+    );
+    document.querySelectorAll(".how-timeline-step").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   const features = [
-    {
-      icon: <Bot size={24} />,
-      color: "purple",
-      title: "AI Auto-Replies",
-      desc: "Instant, intelligent responses across WhatsApp, Instagram & Facebook DMs in Arabic & English. Never miss a sale — even at 3 AM.",
-    },
-    {
-      icon: <Package size={24} />,
-      color: "blue",
-      title: "Product Catalog",
-      desc: "Beautiful product listings shared seamlessly across all channels. Customers browse, ask questions, and order — all in one chat.",
-    },
-    {
-      icon: <ShoppingBag size={24} />,
-      color: "green",
-      title: "Order Management",
-      desc: "Track every order from placement to delivery. Status updates sent automatically to customers across WhatsApp, Instagram & Facebook.",
-    },
-    {
-      icon: <CreditCard size={24} />,
-      color: "orange",
-      title: "Payment Links",
-      desc: "Auto-send payment links via Fawry, InstaPay, Vodafone Cash, Stripe, or PayPal. Get paid instantly.",
-    },
-    {
-      icon: <Users size={24} />,
-      color: "pink",
-      title: "Customer CRM",
-      desc: "Unified inbox for all channels. Track repeat buyers, purchase history, and preferences across WhatsApp, Instagram & Facebook.",
-    },
-    {
-      icon: <Megaphone size={24} />,
-      color: "red",
-      title: "Broadcast Campaigns",
-      desc: "Send targeted promotions to customer segments across all platforms. New product? Flash sale? Reach thousands in one click.",
-    },
+    { icon: <Bot size={24} />, color: "purple", title: "AI Auto-Replies", desc: "Instant, intelligent responses across WhatsApp, Instagram & Facebook DMs in Arabic & English. Never miss a sale — even at 3 AM." },
+    { icon: <Package size={24} />, color: "blue", title: "Product Catalog", desc: "Beautiful product listings shared seamlessly across all channels. Customers browse, ask questions, and order — all in one chat." },
+    { icon: <ShoppingBag size={24} />, color: "green", title: "Order Management", desc: "Track every order from placement to delivery. Status updates sent automatically to customers across WhatsApp, Instagram & Facebook." },
+    { icon: <CreditCard size={24} />, color: "orange", title: "Payment Links", desc: "Auto-send payment links via Fawry, InstaPay, Vodafone Cash, Stripe, or PayPal. Get paid instantly." },
+    { icon: <Users size={24} />, color: "pink", title: "Customer CRM", desc: "Unified inbox for all channels. Track repeat buyers, purchase history, and preferences across WhatsApp, Instagram & Facebook." },
+    { icon: <Megaphone size={24} />, color: "red", title: "Broadcast Campaigns", desc: "Send targeted promotions to customer segments across all platforms. New product? Flash sale? Reach thousands in one click." },
   ];
 
   const pricingPlans = [
-    {
-      tier: "STARTER",
-      name: "Starter",
-      desc: "Perfect for solo sellers just getting started",
-      price: isAnnual ? 399 : 499,
-      features: [
-        "1 connected channel (WA, IG or FB)",
-        "25 products",
-        "50 AI replies/day (Fast AI)",
-        "100 conversations/mo",
-        "30-day message history",
-        "Basic analytics",
-        "Email support",
-      ],
-      cta: "Start Free Trial",
-      featured: false,
-    },
-    {
-      tier: "MOST POPULAR",
-      name: "Professional",
-      desc: "For growing businesses that need AI power",
-      price: isAnnual ? 999 : 1299,
-      features: [
-        "2 connected channels",
-        "Unlimited products",
-        "500 AI replies/day (Smart AI)",
-        "1,000 conversations/mo",
-        "6-month message history",
-        "Full analytics dashboard",
-        "Webhook integrations",
-        "3 team members",
-        "5 broadcast campaigns/mo",
-        "Priority support",
-      ],
-      cta: "Start Free Trial",
-      featured: true,
-    },
-    {
-      tier: "BUSINESS",
-      name: "Business",
-      desc: "For teams managing multiple brands at scale",
-      price: isAnnual ? 2499 : 2999,
-      features: [
-        "All 3 channels",
-        "Unlimited everything",
-        "Unlimited AI (Premium GPT-4o)",
-        "Unlimited conversations",
-        "Unlimited message history",
-        "Full analytics + CSV export",
-        "Webhook integrations",
-        "Unlimited team members",
-        "Unlimited campaigns",
-        "Dedicated support",
-      ],
-      cta: "Contact Sales",
-      featured: false,
-    },
+    { tier: "STARTER", name: "Starter", desc: "Perfect for solo sellers just getting started", price: isAnnual ? 399 : 499, features: ["1 connected channel (WA, IG or FB)", "25 products", "50 AI replies/day (Fast AI)", "100 conversations/mo", "30-day message history", "Basic analytics", "Email support"], cta: "Start Free Trial", featured: false },
+    { tier: "MOST POPULAR", name: "Professional", desc: "For growing businesses that need AI power", price: isAnnual ? 999 : 1299, features: ["2 connected channels", "Unlimited products", "500 AI replies/day (Smart AI)", "1,000 conversations/mo", "6-month message history", "Full analytics dashboard", "Webhook integrations", "3 team members", "5 broadcast campaigns/mo", "Priority support"], cta: "Start Free Trial", featured: true },
+    { tier: "BUSINESS", name: "Business", desc: "For teams managing multiple brands at scale", price: isAnnual ? 2499 : 2999, features: ["All 3 channels", "Unlimited everything", "Unlimited AI (Premium GPT-4o)", "Unlimited conversations", "Unlimited message history", "Full analytics + CSV export", "Webhook integrations", "Unlimited team members", "Unlimited campaigns", "Dedicated support"], cta: "Contact Sales", featured: false },
   ];
 
   const testimonials = [
-    {
-      text: "Sellora saved me 4 hours every day. I used to reply to 200+ messages manually — now AI handles 80% of them perfectly.",
-      name: "Nour Ahmed",
-      role: "Opio Franchise Owner, Cairo",
-      initials: "NA",
-    },
-    {
-      text: "My orders went up 3x in the first month. Customers love browsing my catalog right inside WhatsApp. It's like having a store in their pocket.",
-      name: "Omar Hassan",
-      role: "Town Team Branch Manager, Alexandria",
-      initials: "OH",
-    },
-    {
-      text: "As an agency, we manage multiple local clothing brands like Ravin and Cottonil. Sellora lets us handle all of them from one dashboard. The ROI is insane.",
-      name: "Sara Youssef",
-      role: "Digital Marketing Agency, Mansoura",
-      initials: "SY",
-    },
+    { text: "Sellora saved me 4 hours every day. I used to reply to 200+ messages manually — now AI handles 80% of them perfectly.", name: "Nour Ahmed", role: "Opio Franchise Owner, Cairo", initials: "NA" },
+    { text: "My orders went up 3x in the first month. Customers love browsing my catalog right inside WhatsApp. It's like having a store in their pocket.", name: "Omar Hassan", role: "Town Team Branch Manager, Alexandria", initials: "OH" },
+    { text: "As an agency, we manage multiple local clothing brands like Ravin and Cottonil. Sellora lets us handle all of them from one dashboard. The ROI is insane.", name: "Sara Youssef", role: "Digital Marketing Agency, Mansoura", initials: "SY" },
   ];
 
   const faqs = [
-    {
-      q: "Do I need a WhatsApp Business API account?",
-      a: "We help you set everything up! When you sign up, we guide you through connecting your WhatsApp Business number. The process takes about 10 minutes. You'll need a Meta Business account (free) and a dedicated phone number.",
-    },
-    {
-      q: "Does it work with regular WhatsApp or Instagram?",
-      a: "Sellora works with the WhatsApp Business API, Instagram Business, and Facebook Messenger. We support all three platforms from a single unified dashboard, so you can manage all your conversations in one place.",
-    },
-    {
-      q: "Can the AI reply in Arabic?",
-      a: "Absolutely! Our AI is fluent in both Arabic and English, and can switch between languages automatically based on what your customer writes. It also understands Egyptian dialect, Gulf Arabic, and formal Arabic.",
-    },
-    {
-      q: "What payment methods are supported?",
-      a: "We support Fawry, InstaPay, Vodafone Cash, Orange Cash for Egypt. For international customers: Stripe, PayPal, and bank transfers. More local payment methods are being added regularly.",
-    },
-    {
-      q: "Can I try it for free?",
-      a: "Yes! Every plan comes with a 14-day free trial — no credit card required. You can test all features and see the impact on your business before committing.",
-    },
-    {
-      q: "Is my data secure?",
-      a: "100%. We use bank-level encryption (AES-256), all data is stored in secure cloud infrastructure, and we never share your customer data with third parties. We're also GDPR compliant.",
-    },
+    { q: "Do I need a WhatsApp Business API account?", a: "We help you set everything up! When you sign up, we guide you through connecting your WhatsApp Business number. The process takes about 10 minutes. You'll need a Meta Business account (free) and a dedicated phone number." },
+    { q: "Does it work with regular WhatsApp or Instagram?", a: "Sellora works with the WhatsApp Business API, Instagram Business, and Facebook Messenger. We support all three platforms from a single unified dashboard, so you can manage all your conversations in one place." },
+    { q: "Can the AI reply in Arabic?", a: "Absolutely! Our AI is fluent in both Arabic and English, and can switch between languages automatically based on what your customer writes. It also understands Egyptian dialect, Gulf Arabic, and formal Arabic." },
+    { q: "What payment methods are supported?", a: "We support Fawry, InstaPay, Vodafone Cash, Orange Cash for Egypt. For international customers: Stripe, PayPal, and bank transfers. More local payment methods are being added regularly." },
+    { q: "Can I try it for free?", a: "Yes! Every plan comes with a 14-day free trial — no credit card required. You can test all features and see the impact on your business before committing." },
+    { q: "Is my data secure?", a: "100%. We use bank-level encryption (AES-256), all data is stored in secure cloud infrastructure, and we never share your customer data with third parties. We're also GDPR compliant." },
   ];
 
-  // Helper for footer links that don't exist yet
   const preventNav = (e) => e.preventDefault();
+
+  const problemChatMessages = [
+    { text: "Hi, how much is the black bag? 🖤", time: "11:47 PM", type: "incoming" },
+    { text: "Hello?", time: "11:52 PM", type: "incoming" },
+    { text: "Is anyone there? 😕", time: "12:15 AM", type: "incoming" },
+    { text: "Hi! Sorry I was asleep. The black bag is 450 EGP. Are you interested?", time: "8:30 AM", type: "outgoing" },
+    { text: "I already bought from someone else 🤷‍♀️", time: "9:15 AM", type: "incoming" },
+  ];
 
   return (
     <>
       <ParticleCanvas />
+      <CursorTrail />
       <div className="cursor-glow" style={{ left: cursorGlow.x - 200, top: cursorGlow.y - 200, opacity: cursorGlow.visible ? 1 : 0 }} />
+
       {/* ===== NAVBAR ===== */}
       <nav className={`navbar ${isScrolled ? "scrolled" : ""}`} id="navbar">
         <div className="navbar-inner">
           <a href="#" className="navbar-logo">
             <img src="/logo.png" alt="Sellora" className="navbar-logo-img" style={{ width: 32, height: 32, borderRadius: 8 }} />
-            <span>
-              Sell<span className="text-gradient-static">ora</span>
-            </span>
+            <span>Sell<span className="text-gradient-static">ora</span></span>
           </a>
-
           <div className="navbar-links">
             <a href="#features">{t("nav_features")}</a>
             <a href="#how-it-works">{t("nav_how")}</a>
             <a href="#pricing">{t("nav_pricing")}</a>
             <a href="#faq">{t("nav_faq")}</a>
           </div>
-
           <div className="navbar-actions">
-            {/* Theme Toggle */}
-            <button
-              className="navbar-icon-btn"
-              onClick={toggleTheme}
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              aria-label="Toggle theme"
-            >
+            <button className="navbar-icon-btn" onClick={toggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} aria-label="Toggle theme">
               {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-
-            {/* Language Switcher */}
             <div className="lang-switcher" style={{ position: "relative" }}>
-              <button
-                className="navbar-icon-btn"
-                onClick={() => setLangMenuOpen(!langMenuOpen)}
-                title="Change language"
-                aria-label="Change language"
-              >
+              <button className="navbar-icon-btn" onClick={() => setLangMenuOpen(!langMenuOpen)} title="Change language" aria-label="Change language">
                 <Globe size={18} />
-                <span style={{ fontSize: "var(--font-size-xs)", marginLeft: 4 }}>
-                  {lang.toUpperCase()}
-                </span>
+                <span style={{ fontSize: "var(--font-size-xs)", marginLeft: 4 }}>{lang.toUpperCase()}</span>
               </button>
               {langMenuOpen && (
                 <div className="lang-dropdown">
-                  <button className={`lang-option ${lang === "en" ? "active" : ""}`} onClick={() => { setLang("en"); setLangMenuOpen(false); }}>
-                    🇬🇧 English
-                  </button>
-                  <button className={`lang-option ${lang === "ar" ? "active" : ""}`} onClick={() => { setLang("ar"); setLangMenuOpen(false); }}>
-                    🇸🇦 العربية
-                  </button>
-                  <button className={`lang-option ${lang === "fr" ? "active" : ""}`} onClick={() => { setLang("fr"); setLangMenuOpen(false); }}>
-                    🇫🇷 Français
-                  </button>
+                  <button className={`lang-option ${lang === "en" ? "active" : ""}`} onClick={() => { setLang("en"); setLangMenuOpen(false); }}>🇬🇧 English</button>
+                  <button className={`lang-option ${lang === "ar" ? "active" : ""}`} onClick={() => { setLang("ar"); setLangMenuOpen(false); }}>🇸🇦 العربية</button>
+                  <button className={`lang-option ${lang === "fr" ? "active" : ""}`} onClick={() => { setLang("fr"); setLangMenuOpen(false); }}>🇫🇷 Français</button>
                 </div>
               )}
             </div>
-
             <button className="navbar-login" onClick={() => router.push('/login')}>{t("nav_login")}</button>
             <button className="btn btn-primary btn-sm" onClick={() => router.push('/signup')}>
               {t("nav_get_started")} <ArrowRight size={14} />
             </button>
           </div>
-
-          <button
-            className="navbar-mobile-toggle"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
+          <button className="navbar-mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
@@ -1052,157 +1147,100 @@ export default function Home() {
         </div>
       )}
 
-      {/* ===== HERO ===== */}
-      <section className="hero" id="hero">
+      {/* ===== HERO — CREATIVE REDESIGN ===== */}
+      <section className="hero-creative" id="hero">
         <MorphBlob color="purple" style={{ top: "-10%", right: "-5%", width: "60vw", maxWidth: 600, opacity: 0.8 }} />
         <MorphBlob color="cyan" style={{ bottom: "-5%", left: "-8%", width: "50vw", maxWidth: 500, opacity: 0.6 }} />
         <div className="bg-glow hero-glow-1" />
         <div className="bg-glow hero-glow-2" />
         <div className="bg-grid" />
 
-        {/* Floating elements */}
-        <div className="hero-float-elements">
-          <div className="hero-float-el">
-            <div className="hero-float-icon green">
-              <Check size={16} />
-            </div>
-            <span>Order #1847 confirmed ✓</span>
-          </div>
-          <div className="hero-float-el">
-            <div className="hero-float-icon blue">
-              <Bot size={16} />
-            </div>
-            <span>AI replied in 0.3s</span>
-          </div>
-          <div className="hero-float-el">
-            <div className="hero-float-icon purple">
-              <TrendingUp size={16} />
-            </div>
-            <span>Sales up 340% ↑</span>
-          </div>
-          <div className="hero-float-el">
-            <div className="hero-float-icon orange">
-              <CreditCard size={16} />
-            </div>
-            <span>Payment received 💰</span>
-          </div>
-        </div>
-
-        <div className="hero-layout">
-          <div className="hero-content">
-            <div className="hero-badge">
+        <div className="hero-creative-layout">
+          <div className="hero-creative-top">
+            {/* Glitch Badge */}
+            <div className="glitch-badge">
               <span className="badge badge-primary">
                 <Zap size={12} />
                 {t("hero_badge")}
               </span>
             </div>
 
+            {/* Typewriter Heading */}
             <h1>
-              {t("hero_title_1")} <span className="text-gradient">{t("hero_title_2")}</span> {t("hero_title_3")}{" "}
-              <span className="text-gradient">{t("hero_title_4")}</span>
+              <TypewriterText
+                texts={["Turn your DMs into a 24/7 sales machine", "Automate replies. Close deals. While you sleep.", "Your AI sales agent that never stops selling"]}
+                speed={60}
+                pauseBetween={3000}
+                gradientIndices={[0, 1, 2]}
+              />
             </h1>
 
-            <p className="hero-subtitle">
+            <p className="hero-creative-subtitle">
               {t("hero_subtitle")}
             </p>
 
-            <div className="hero-cta">
-              <button className="btn btn-primary btn-lg" id="hero-cta-primary" onClick={() => router.push('/signup')}>
-                {t("hero_cta_primary")} <ArrowRight size={18} />
-              </button>
-              <button className="btn btn-secondary btn-lg" id="hero-cta-demo" onClick={() => router.push('/login')}>
-                {t("hero_cta_secondary")} <ChevronRight size={18} />
-              </button>
-            </div>
-
-            {/* FEATURE 4: Enhanced Hero Stats */}
-            <div className="hero-stats">
-              <div className="hero-stat">
-                <div className="hero-stat-value text-gradient-static stat-pulse">5,000+</div>
-                <div className="hero-stat-label">{t("hero_stat_sellers")}</div>
-              </div>
-              <div className="hero-stat">
-                <div className="hero-stat-value text-gradient-static stat-pulse">2.5M+</div>
-                <div className="hero-stat-label">{t("hero_stat_messages")}</div>
-              </div>
-              <div className="hero-stat">
-                <div className="hero-stat-value text-gradient-static stat-pulse">3x</div>
-                <div className="hero-stat-label">Average Sales Increase</div>
-              </div>
-              <div className="hero-stat">
-                <div className="hero-stat-value text-gradient-static stat-pulse">98%</div>
-                <div className="hero-stat-label">{t("hero_stat_uptime")}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="hero-phone">
-            <FloatingPhone />
-          </div>
-        </div>
-      </section>
-
-      {/* ===== FEATURE 5: TRUSTED BY LOGOS (replaces old Social Proof) ===== */}
-      <BrandMarquee />
-
-      {/* ===== PHONE MOCKUP + SOCIAL PROOF ===== */}
-      <section className="section phone-showcase-section">
-        <div className="section-inner">
-          <div className="phone-showcase-grid">
-            <div className="phone-showcase-left">
-              <motion.div
-                initial={{ opacity: 0, x: -40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.7 }}
+            {/* Magnetic CTA Buttons */}
+            <div className="hero-creative-cta">
+              <MagneticButton
+                className="btn btn-primary btn-lg"
+                onClick={() => router.push('/signup')}
               >
-                <h2 style={{ fontSize: "var(--font-size-3xl)", fontWeight: 800, lineHeight: 1.2, marginBottom: "var(--space-lg)" }}>
-                  Your AI sales agent <span className="text-gradient-static">never sleeps</span>
-                </h2>
-                <p style={{ fontSize: "var(--font-size-lg)", color: "var(--text-secondary)", lineHeight: 1.7, marginBottom: "var(--space-xl)" }}>
-                  While you rest, Sellora handles inquiries, shows products, processes orders, and sends payment links — all on autopilot. Wake up to new sales, not unread messages.
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-                  {[
-                    { icon: <Headphones size={18} />, text: "24/7 auto-reply in Arabic & English" },
-                    { icon: <ShoppingCart size={18} />, text: "Auto product catalog sharing" },
-                    { icon: <CreditCard size={18} />, text: "Instant payment link generation" },
-                  ].map((item, i) => (
-                    <motion.div
-                      key={i}
-                      className="phone-feature-item"
-                      initial={{ opacity: 0, x: -30 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.3 + i * 0.15 }}
-                    >
-                      <div style={{ color: "var(--accent-primary-light)" }}>{item.icon}</div>
-                      <span>{item.text}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              </motion.div>
+                {t("hero_cta_primary")} <ArrowRight size={18} />
+              </MagneticButton>
+              <MagneticButton
+                className="btn btn-secondary btn-lg"
+                onClick={() => router.push('/login')}
+              >
+                {t("hero_cta_secondary")} <ChevronRight size={18} />
+              </MagneticButton>
             </div>
-            <div className="phone-showcase-right">
+
+            {/* Animated single counter instead of stats grid */}
+            <div className="hero-creative-counter" ref={heroCounterRef}>
+              <Zap size={14} style={{ color: "var(--accent-primary-light)" }} />
+              <span className="counter-value">{heroCounterValue.toLocaleString()}+</span>
+              <span>messages handled</span>
+            </div>
+          </div>
+
+          {/* Phone + Chat Bubbles composite area */}
+          <div className="hero-creative-phone-area">
+            <div className="hero-bubbles-left">
+              <FloatingChatBubbles />
+            </div>
+            <div style={{ position: 'relative', zIndex: 2 }}>
               <FloatingPhone />
             </div>
+            <div className="hero-bubbles-right">
+              {/* Right side bubbles appear naturally through the FloatingChatBubbles */}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ===== PROBLEM ===== */}
-      <section className="section problem" id="problem">
+      {/* ===== BRAND MARQUEE ===== */}
+      <BrandMarquee />
+
+      {/* ===== PROBLEM — VISUAL REDESIGN ===== */}
+      <section className="section problem section-fade-transition dark-bg" id="problem" ref={problemRef}>
         <div className="section-inner">
           <div className="problem-grid">
             <div className="problem-content animate-on-scroll">
-              <span className="badge badge-primary" style={{ marginBottom: 16 }}>
-                <AlertTriangle size={12} />
-                The Problem
-              </span>
-              <h2>
-                You&apos;re losing sales in your{" "}
-                <span className="text-gradient-static">DMs</span> right now
-              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <span className="badge badge-primary">
+                  <AlertTriangle size={12} />
+                  The Problem
+                </span>
+                <div className="problem-bell-shake">
+                  <Bell size={20} />
+                </div>
+              </div>
+              <ScrollRevealText>
+                <h2>
+                  You&apos;re losing sales in your{" "}
+                  <span className="text-gradient-static">DMs</span> right now
+                </h2>
+              </ScrollRevealText>
               <p>
                 Every unanswered message is a lost customer. Every delayed reply
                 is money left on the table. Here&apos;s what&apos;s happening:
@@ -1210,77 +1248,66 @@ export default function Home() {
 
               <div className="problem-list">
                 <div className="problem-item">
-                  <div className="problem-item-icon">
-                    <Clock size={18} />
-                  </div>
+                  <div className="problem-item-icon"><Clock size={18} /></div>
                   <div className="problem-item-text">
                     <h4>Missed messages at night</h4>
-                    <p>
-                      60% of customers message between 10PM–2AM. You&apos;re
-                      asleep, they buy from someone else.
-                    </p>
+                    <p>60% of customers message between 10PM–2AM. You&apos;re asleep, they buy from someone else.</p>
                   </div>
                 </div>
                 <div className="problem-item">
-                  <div className="problem-item-icon">
-                    <Copy size={18} />
-                  </div>
+                  <div className="problem-item-icon"><Copy size={18} /></div>
                   <div className="problem-item-text">
                     <h4>Copy-pasting prices all day</h4>
-                    <p>
-                      You spend 3+ hours/day answering &quot;How much is
-                      this?&quot; and &quot;Is it available?&quot; manually.
-                    </p>
+                    <p>You spend 3+ hours/day answering &quot;How much is this?&quot; and &quot;Is it available?&quot; manually.</p>
                   </div>
                 </div>
                 <div className="problem-item">
-                  <div className="problem-item-icon">
-                    <AlertTriangle size={18} />
-                  </div>
+                  <div className="problem-item-icon"><AlertTriangle size={18} /></div>
                   <div className="problem-item-text">
                     <h4>Lost orders in chat history</h4>
-                    <p>
-                      No tracking. No system. Orders get mixed up, customers get
-                      frustrated, you lose repeat business.
-                    </p>
+                    <p>No tracking. No system. Orders get mixed up, customers get frustrated, you lose repeat business.</p>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="problem-visual animate-on-scroll">
-              <div className="problem-mockup">
+              <div className="problem-mockup" style={{ position: 'relative' }}>
+                {/* Red pulsing MISSED stamp */}
+                {showMissedStamp && (
+                  <div className="missed-stamp missed-stamp-pulse">MISSED</div>
+                )}
                 <div className="problem-chat">
-                  <div className="problem-chat-msg incoming">
-                    Hi, how much is the black bag? 🖤
-                    <span className="time">11:47 PM</span>
-                  </div>
-                  <div className="problem-chat-msg incoming">
-                    Hello?
-                    <span className="time">11:52 PM</span>
-                  </div>
-                  <div className="problem-chat-msg incoming">
-                    Is anyone there? 😕
-                    <span className="time">12:15 AM</span>
-                  </div>
-                  <div className="problem-chat-msg outgoing">
-                    Hi! Sorry I was asleep. The black bag is 450 EGP. Are you
-                    interested?
-                    <span className="time">8:30 AM</span>
-                  </div>
-                  <div className="problem-chat-msg incoming">
-                    I already bought from someone else 🤷‍♀️
-                    <span className="time">9:15 AM</span>
-                  </div>
+                  {problemChatMessages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={`problem-chat-msg ${msg.type}`}
+                      style={{
+                        opacity: problemMsgsVisible > i ? 1 : 0,
+                        transform: problemMsgsVisible > i ? 'translateY(0)' : 'translateY(15px)',
+                        transition: `opacity 0.4s ease ${i * 0.1}s, transform 0.4s ease ${i * 0.1}s`,
+                      }}
+                    >
+                      {msg.text}
+                      <span className="time">{msg.time}</span>
+                    </div>
+                  ))}
                 </div>
+                {/* Lost revenue counter */}
+                {problemInView && (
+                  <div className="lost-revenue-counter">
+                    <DollarSign size={14} />
+                    <span>{lostRevenue.toLocaleString()} EGP lost</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ===== FEATURES ===== */}
-      <section className="section" id="features">
+      {/* ===== FEATURES — HERO FEATURE + MASONRY ===== */}
+      <section className="section section-fade-transition" id="features">
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-green" style={{ marginBottom: 16 }}>
@@ -1291,34 +1318,75 @@ export default function Home() {
               {t("features_title_1")}{" "}
               <span className="text-gradient-static">{t("features_title_2")}</span>
             </h2>
-            <p>
-              {t("features_subtitle")}
-            </p>
+            <p>{t("features_subtitle")}</p>
           </div>
 
-          <div className="features-grid">
-            {features.map((feature, i) => (
-              <div
-                key={i}
-                className="glass-card feature-card animate-on-scroll"
-                style={{ animationDelay: `${i * 0.1}s` }}
-              >
-                <div className={`feature-icon ${feature.color}`}>
-                  {feature.icon}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+            {/* Hero Feature — AI Auto-Replies with interactive demo */}
+            <motion.div
+              className="glass-card feature-hero-card animate-on-scroll"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="feature-hero-left">
+                <div className="feature-icon purple" style={{ width: 64, height: 64 }}>
+                  <Bot size={32} />
                 </div>
-                <h3>{feature.title}</h3>
-                <p>{feature.desc}</p>
+                <h3>
+                  AI Auto-Replies that{" "}
+                  <span className="text-gradient-static">actually sell</span>
+                </h3>
+                <p>
+                  Not a dumb chatbot — an AI sales agent that understands your products,
+                  answers in Arabic & English, and closes deals at 3 AM. Try it below 👇
+                </p>
+                <div style={{ display: 'flex', gap: 'var(--space-md)', flexWrap: 'wrap' }}>
+                  {["Arabic + English", "0.3s response", "24/7 uptime"].map((tag, i) => (
+                    <span key={i} style={{
+                      padding: '4px 12px',
+                      borderRadius: 'var(--radius-full)',
+                      background: 'var(--bg-glass)',
+                      border: '1px solid var(--border-subtle)',
+                      fontSize: 'var(--font-size-xs)',
+                      color: 'var(--text-secondary)',
+                      fontWeight: 500,
+                    }}>{tag}</span>
+                  ))}
+                </div>
               </div>
-            ))}
+              <InteractiveFeatureDemo />
+            </motion.div>
+
+            {/* Masonry layout for other 5 features */}
+            <div className="feature-masonry">
+              {features.slice(1).map((feature, i) => (
+                <motion.div
+                  key={i}
+                  className="glass-card feature-card animate-on-scroll"
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: i * 0.1 }}
+                >
+                  <div className={`feature-icon ${feature.color}`}>
+                    {feature.icon}
+                  </div>
+                  <h3>{feature.title}</h3>
+                  <p>{feature.desc}</p>
+                </motion.div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ===== FEATURE 2: LIVE DASHBOARD PREVIEW (after features) ===== */}
+      {/* ===== LIVE DASHBOARD PREVIEW ===== */}
       <LiveDashboardPreview />
 
-      {/* ===== HOW IT WORKS ===== */}
-      <section className="section how-it-works" id="how-it-works">
+      {/* ===== HOW IT WORKS — HORIZONTAL SCROLLING TIMELINE ===== */}
+      <section className="section how-it-works section-fade-transition dark-bg" id="how-it-works">
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-primary" style={{ marginBottom: 16 }}>
@@ -1332,41 +1400,101 @@ export default function Home() {
             </h2>
           </div>
 
-          <div className="steps-container">
-            <div className="step-card animate-on-scroll">
-              <div className="step-number">1</div>
-              <h3>Connect WhatsApp</h3>
-              <p>
-                Link your WhatsApp Business number in 2 clicks. We handle all
-                the technical setup — API, webhooks, verification.
-              </p>
+          <div className="how-timeline-container">
+            <div className="how-timeline">
+              {[
+                {
+                  num: "1",
+                  title: "Connect WhatsApp",
+                  desc: "Link your WhatsApp Business number in 2 clicks. We handle all the technical setup — API, webhooks, verification.",
+                  mockup: (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-glass)', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+                        <MessageSquare size={12} style={{ color: "var(--accent-green)" }} />
+                        <span style={{ fontSize: 10, fontWeight: 600 }}>WhatsApp Connected ✓</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-glass)', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+                        <Globe size={12} style={{ color: "var(--accent-secondary)" }} />
+                        <span style={{ fontSize: 10, fontWeight: 600 }}>Instagram Connected ✓</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-glass)', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+                        <MessageCircle size={12} style={{ color: "var(--accent-primary-light)" }} />
+                        <span style={{ fontSize: 10, fontWeight: 600 }}>Facebook Connected ✓</span>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  num: "2",
+                  title: "Add Your Products",
+                  desc: "Upload your catalog or import from Instagram. Set prices, add photos, manage variants and stock — all from your dashboard.",
+                  mockup: (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {[
+                        { name: "Black Bag", price: "450 EGP", stock: "23 in stock" },
+                        { name: "Blue Shirt", price: "350 EGP", stock: "45 in stock" },
+                        { name: "Cotton Tee", price: "250 EGP", stock: "12 in stock" },
+                      ].map((item, j) => (
+                        <div key={j} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', background: 'var(--bg-glass)', borderRadius: 4, border: '1px solid var(--border-subtle)', fontSize: 9 }}>
+                          <span style={{ fontWeight: 600 }}>{item.name}</span>
+                          <span style={{ color: "var(--accent-green)", fontSize: 8 }}>{item.price}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ),
+                },
+                {
+                  num: "3",
+                  title: "Start Selling 24/7",
+                  desc: "AI handles inquiries, shows products, takes orders, and sends payment links — even while you sleep. See everything in real-time.",
+                  mockup: (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ padding: '5px 8px', background: 'rgba(0,230,118,0.08)', borderRadius: 4, border: '1px solid rgba(0,230,118,0.15)', fontSize: 9 }}>
+                        <span style={{ color: "var(--accent-green)", fontWeight: 700, fontSize: 8 }}>AI REPLY</span>
+                        <div style={{ marginTop: 2 }}>Yes! Available in 3 colors 🎨 Want to order?</div>
+                      </div>
+                      <div style={{ padding: '5px 8px', background: 'rgba(0,230,118,0.08)', borderRadius: 4, border: '1px solid rgba(0,230,118,0.15)', fontSize: 9 }}>
+                        <span style={{ color: "var(--accent-green)", fontWeight: 700, fontSize: 8 }}>PAYMENT</span>
+                        <div style={{ marginTop: 2 }}>Payment link sent! 💳 900 EGP</div>
+                      </div>
+                      <div style={{ padding: '5px 8px', background: 'rgba(108,92,231,0.08)', borderRadius: 4, border: '1px solid rgba(108,92,231,0.15)', fontSize: 9 }}>
+                        <span style={{ color: "var(--accent-primary-light)", fontWeight: 700, fontSize: 8 }}>ORDER #1850</span>
+                        <div style={{ marginTop: 2 }}>✓ Confirmed & processing</div>
+                      </div>
+                    </div>
+                  ),
+                },
+              ].map((step, i) => (
+                <div key={i} className="how-timeline-step">
+                  <div className="step-number">{step.num}</div>
+                  {i < 2 && (
+                    <div className="step-connector">
+                      <div className="step-connector-line" />
+                    </div>
+                  )}
+                  <div className="step-content">
+                    <h3>{step.title}</h3>
+                    <p>{step.desc}</p>
+                    <div className="step-mockup">{step.mockup}</div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="step-card animate-on-scroll">
-              <div className="step-number">2</div>
-              <h3>Add Your Products</h3>
-              <p>
-                Upload your catalog or import from Instagram. Set prices, add
-                photos, manage variants and stock — all from your dashboard.
-              </p>
-            </div>
-            <div className="step-card animate-on-scroll">
-              <div className="step-number">3</div>
-              <h3>Start Selling 24/7</h3>
-              <p>
-                AI handles inquiries, shows products, takes orders, and sends
-                payment links — even while you sleep. See everything in
-                real-time.
-              </p>
-            </div>
+          </div>
+
+          {/* Scroll hint */}
+          <div style={{ textAlign: 'center', marginTop: 'var(--space-lg)', color: 'var(--text-tertiary)', fontSize: 'var(--font-size-xs)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <ChevronRight size={14} />
+            Scroll to explore
           </div>
         </div>
       </section>
 
-      {/* ===== FEATURE 1: ROI CALCULATOR (before pricing) ===== */}
+      {/* ===== ROI CALCULATOR ===== */}
       <ROICalculator />
 
       {/* ===== PRICING ===== */}
-      <section className="section" id="pricing">
+      <section className="section section-fade-transition" id="pricing">
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-primary" style={{ marginBottom: 16 }}>
@@ -1377,29 +1505,41 @@ export default function Home() {
               {t("pricing_title_1")}{" "}
               <span className="text-gradient-static">{t("pricing_title_2")}</span>
             </h2>
-            <p>
-              {t("pricing_subtitle")}
-            </p>
+            <p>{t("pricing_subtitle")}</p>
+          </div>
+
+          {/* Social proof line */}
+          <div className="pricing-social-proof animate-on-scroll">
+            <div className="proof-icon">
+              <Users size={10} />
+            </div>
+            <span>Most entrepreneurs choose <strong style={{ color: "var(--text-primary)" }}>Professional</strong></span>
+            <div style={{ display: 'flex', marginLeft: 8 }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: 'var(--accent-gradient)',
+                  border: '2px solid var(--bg-primary)',
+                  marginLeft: i > 0 ? -6 : 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 7, fontWeight: 800, color: '#fff',
+                }}>
+                  {['N','O','S','M','K'][i]}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="pricing-toggle animate-on-scroll">
             <span className={!isAnnual ? "active" : ""}>{t("pricing_monthly")}</span>
-            <div
-              className={`pricing-switch ${isAnnual ? "annual" : ""}`}
-              onClick={() => setIsAnnual(!isAnnual)}
-              id="pricing-toggle"
-            />
+            <div className={`pricing-switch ${isAnnual ? "annual" : ""}`} onClick={() => setIsAnnual(!isAnnual)} id="pricing-toggle" />
             <span className={isAnnual ? "active" : ""}>{t("pricing_annual")}</span>
             {isAnnual && <span className="pricing-save">Save 20%</span>}
           </div>
 
           <div className="pricing-grid">
             {pricingPlans.map((plan, i) => (
-              <div
-                key={i}
-                className={`glass-card pricing-card animate-on-scroll ${plan.featured ? "featured" : ""
-                  }`}
-              >
+              <div key={i} className={`glass-card pricing-card animate-on-scroll ${plan.featured ? "featured" : ""}`}>
                 {plan.featured && (
                   <div className="pricing-popular">
                     <span className="badge badge-primary">Most Popular</span>
@@ -1409,28 +1549,29 @@ export default function Home() {
                 <div className="pricing-name">{plan.name}</div>
                 <div className="pricing-desc">{plan.desc}</div>
                 <div className="pricing-price">
-                  <span className="pricing-amount">{plan.price}</span>
+                  <span className="pricing-currency" style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, alignSelf: "baseline", marginBottom: 2 }}>{lang === "en" ? "" : ""}</span>
+                  <span className="pricing-amount pricing-amount-animated">
+                    <AnimatedCounter value={plan.price} duration={1.5} />
+                  </span>
                   <span className="pricing-currency" style={{ fontSize: "var(--font-size-xl)", fontWeight: 700, alignSelf: "baseline", marginBottom: 2 }}>{lang === "en" ? " EGP" : " جنيه"}</span>
                   <span className="pricing-period">/month</span>
                 </div>
                 <div className="pricing-features">
                   {plan.features.map((feature, j) => (
                     <div key={j} className="pricing-feature">
-                      <div className="pricing-feature-check">
-                        <Check size={12} />
-                      </div>
+                      <div className="pricing-feature-check"><Check size={12} /></div>
                       {feature}
                     </div>
                   ))}
                 </div>
-                <button
-                  className={`btn ${plan.featured ? "btn-primary" : "btn-secondary"
-                    } btn-lg`}
+                <MagneticButton
+                  className={`btn ${plan.featured ? "btn-primary" : "btn-secondary"} btn-lg`}
+                  style={{ width: '100%' }}
                   id={`pricing-cta-${i}`}
                   onClick={() => router.push('/signup')}
                 >
                   {plan.cta}
-                </button>
+                </MagneticButton>
               </div>
             ))}
           </div>
@@ -1438,7 +1579,7 @@ export default function Home() {
       </section>
 
       {/* ===== COMPARISON TABLE ===== */}
-      <section className="section" id="comparison" style={{ paddingTop: 0 }}>
+      <section className="section section-fade-transition dark-bg" id="comparison" style={{ paddingTop: 0 }}>
         <div className="section-inner">
           <div className="animate-on-scroll" style={{ overflowX: "auto" }}>
             <h3 style={{ textAlign: "center", marginBottom: "var(--space-xl)", fontSize: "var(--font-size-xl)", fontWeight: 700 }}>
@@ -1453,9 +1594,7 @@ export default function Home() {
                     { name: "Professional", color: "var(--accent-primary-light)" },
                     { name: "Business", color: "var(--accent-orange)" },
                   ].map((p) => (
-                    <th key={p.name} style={{ textAlign: "center", padding: "var(--space-md) var(--space-lg)", fontWeight: 700, color: p.color, borderBottom: "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>
-                      {p.name}
-                    </th>
+                    <th key={p.name} style={{ textAlign: "center", padding: "var(--space-md) var(--space-lg)", fontWeight: 700, color: p.color, borderBottom: "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>{p.name}</th>
                   ))}
                 </tr>
               </thead>
@@ -1485,9 +1624,7 @@ export default function Home() {
                   if (row.category) {
                     return (
                       <tr key={i}>
-                        <td colSpan={4} style={{ padding: "var(--space-lg) var(--space-lg) var(--space-sm)", fontWeight: 700, fontSize: "var(--font-size-xs)", letterSpacing: "0.08em", color: "var(--text-tertiary)", textTransform: "uppercase", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-glass)" }}>
-                          {row.category}
-                        </td>
+                        <td colSpan={4} style={{ padding: "var(--space-lg) var(--space-lg) var(--space-sm)", fontWeight: 700, fontSize: "var(--font-size-xs)", letterSpacing: "0.08em", color: "var(--text-tertiary)", textTransform: "uppercase", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-glass)" }}>{row.category}</td>
                       </tr>
                     );
                   }
@@ -1512,26 +1649,25 @@ export default function Home() {
       </section>
 
       {/* ===== TESTIMONIALS ===== */}
-      <section className="section testimonials" id="testimonials">
+      <section className="section testimonials section-fade-transition" id="testimonials">
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-green" style={{ marginBottom: 16 }}>
               <Star size={12} />
               {t("testimonials_badge")}
             </span>
-            <h2>
-              {t("testimonials_title")}
-            </h2>
-            <p>
-              {t("testimonials_subtitle")}
-            </p>
+            <h2>{t("testimonials_title")}</h2>
+            <p>{t("testimonials_subtitle")}</p>
           </div>
-
           <div className="testimonials-grid">
             {testimonials.map((tItem, i) => (
-              <div
+              <motion.div
                 key={i}
                 className="glass-card testimonial-card animate-on-scroll"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.15 }}
               >
                 <div className="testimonial-stars">
                   {[...Array(5)].map((_, j) => (
@@ -1546,14 +1682,14 @@ export default function Home() {
                     <p>{tItem.role}</p>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
       {/* ===== FAQ ===== */}
-      <section className="section" id="faq">
+      <section className="section section-fade-transition" id="faq">
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-primary" style={{ marginBottom: 16 }}>
@@ -1565,19 +1701,10 @@ export default function Home() {
               <span className="text-gradient-static">{t("faq_title_2")}</span>
             </h2>
           </div>
-
           <div className="faq-list">
             {faqs.map((faq, i) => (
-              <div
-                key={i}
-                className={`faq-item ${openFaq === i ? "open" : ""
-                  }`}
-              >
-                <button
-                  className="faq-question"
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  id={`faq-${i}`}
-                >
+              <div key={i} className={`faq-item ${openFaq === i ? "open" : ""}`}>
+                <button className="faq-question" onClick={() => setOpenFaq(openFaq === i ? null : i)} id={`faq-${i}`}>
                   {faq.q}
                   <Plus size={18} className="faq-icon" />
                 </button>
@@ -1591,7 +1718,7 @@ export default function Home() {
       </section>
 
       {/* ===== CTA ===== */}
-      <section className="section cta-section" id="cta">
+      <section className="section cta-section section-fade-transition" id="cta">
         <div className="section-inner">
           <div className="cta-box animate-on-scroll">
             <div className="cta-box-glow" />
@@ -1599,19 +1726,12 @@ export default function Home() {
               {t("cta_title_1")} <span className="text-gradient-static">{t("cta_title_2")}</span>{" "}
               {t("cta_title_3")}
             </h2>
-            <p>
-              {t("cta_subtitle")}
-            </p>
+            <p>{t("cta_subtitle")}</p>
             <div className="cta-form">
-              <input
-                type="email"
-                className="cta-input"
-                placeholder={t("cta_placeholder")}
-                id="cta-email"
-              />
-              <button className="btn btn-primary" id="cta-submit" onClick={() => router.push('/signup')}>
+              <input type="email" className="cta-input" placeholder={t("cta_placeholder")} id="cta-email" />
+              <MagneticButton className="btn btn-primary" id="cta-submit" onClick={() => router.push('/signup')}>
                 {t("cta_button")} <ArrowRight size={16} />
-              </button>
+              </MagneticButton>
             </div>
           </div>
         </div>
@@ -1624,17 +1744,10 @@ export default function Home() {
             <div className="footer-brand">
               <a href="#" className="navbar-logo">
                 <img src="/logo.png" alt="Sellora" style={{ width: 32, height: 32, borderRadius: 8 }} />
-                <span>
-                  Sell
-                  <span className="text-gradient-static">ora</span>
-                </span>
+                <span>Sell<span className="text-gradient-static">ora</span></span>
               </a>
-              <p>
-                {t("footer_desc")}
-              </p>
+              <p>{t("footer_desc")}</p>
             </div>
-
-            {/* FEATURE 3: Fixed footer links */}
             <div className="footer-col">
               <h4>{t("footer_product")}</h4>
               <a href="#features" onClick={preventNav}>{t("footer_features")}</a>
@@ -1643,7 +1756,6 @@ export default function Home() {
               <a href="#integrations" onClick={preventNav}>{t("footer_integrations")}</a>
               <a href="/api-docs" onClick={preventNav}>{t("footer_api")}</a>
             </div>
-
             <div className="footer-col">
               <h4>{t("footer_company")}</h4>
               <a href="/about" onClick={preventNav}>{t("footer_about")}</a>
@@ -1651,7 +1763,6 @@ export default function Home() {
               <a href="/careers" onClick={preventNav}>{t("footer_careers")}</a>
               <a href="mailto:support@sellora.app" onClick={preventNav}>{t("footer_contact")}</a>
             </div>
-
             <div className="footer-col">
               <h4>{t("footer_legal")}</h4>
               <a href="/privacy" onClick={preventNav}>{t("footer_privacy")}</a>
@@ -1660,25 +1771,16 @@ export default function Home() {
               <a href="/security" onClick={preventNav}>{t("footer_security")}</a>
             </div>
           </div>
-
-          {/* Added new links row */}
           <div className="footer-extra-links">
             <a href="/help" onClick={preventNav}>Help Center</a>
             <a href="/status" onClick={preventNav}>Status</a>
           </div>
-
           <div className="footer-bottom">
             <p>{t("footer_copyright")}</p>
             <div className="footer-social">
-              <a href="#" aria-label="Twitter">
-                <Globe size={16} />
-              </a>
-              <a href="#" aria-label="LinkedIn">
-                <Users size={16} />
-              </a>
-              <a href="#" aria-label="Instagram">
-                <MessageCircle size={16} />
-              </a>
+              <a href="#" aria-label="Twitter"><Globe size={16} /></a>
+              <a href="#" aria-label="LinkedIn"><Users size={16} /></a>
+              <a href="#" aria-label="Instagram"><MessageCircle size={16} /></a>
             </div>
           </div>
         </div>
