@@ -196,6 +196,44 @@ const TOOL_LABELS = {
   recommend_products: { label: "Finding recommendations...", doneLabel: "Recommendations ready", icon: "💡" },
 };
 
+// Convert raw API errors into user-friendly messages
+function getFriendlyError(err) {
+  const msg = (err?.message || "").toLowerCase();
+
+  // Groq rate limit
+  if (msg.includes("rate limit") && msg.includes("tokens per day")) {
+    return "Daily AI usage limit reached. Please try again in a few minutes, or upgrade your Groq plan for more capacity.";
+  }
+  // Generic rate limit
+  if (msg.includes("rate limit") || msg.includes("too many requests") || msg.includes("429")) {
+    return "AI is busy right now. Please wait a moment and try again.";
+  }
+  // API key / auth issues
+  if (msg.includes("invalid api key") || msg.includes("unauthorized") || msg.includes("authentication")) {
+    return "AI service configuration issue. Please check your API keys in Settings.";
+  }
+  // Network / timeout
+  if (msg.includes("timeout") || msg.includes("network") || msg.includes("fetch failed") || msg.includes("econnrefused")) {
+    return "Connection issue. Please check your internet and try again.";
+  }
+  // All providers failed
+  if (msg.includes("all ai providers failed") || msg.includes("all providers")) {
+    return "All AI providers are currently unavailable. Please try again in a few minutes.";
+  }
+  // Model overload
+  if (msg.includes("overloaded") || msg.includes("capacity") || msg.includes("server error")) {
+    return "AI service is overloaded. Please try again shortly.";
+  }
+
+  // Fallback: show a cleaned-up version of the error
+  const rawMsg = err?.message || "An error occurred. Please try again.";
+  // Trim very long error messages
+  if (rawMsg.length > 150) {
+    return rawMsg.substring(0, 150) + "... Please try again.";
+  }
+  return rawMsg;
+}
+
 export default function CopilotPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -467,7 +505,7 @@ export default function CopilotPanel() {
             )}
             {error && (
               <div className="copilot-error">
-                <span>⚠</span> {error.message || "An error occurred. Please try again."}
+                <span>⚠</span> {getFriendlyError(error)}
               </div>
             )}
             <div ref={messagesEndRef} />

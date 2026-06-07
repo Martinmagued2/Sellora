@@ -198,6 +198,7 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
 
     let groqRateLimited = false;
     let lastError = null;
+    let lastErrorType = 'unknown'; // Track error type for better messages
 
     // Attempt 1: Try each provider with tools (streaming)
     for (const providerEntry of providerModels) {
@@ -226,11 +227,21 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
         // Detect Groq rate limit — mark all Groq providers as unavailable
         if (errMsg.includes('Rate limit') && providerEntry.name.startsWith('groq-')) {
           groqRateLimited = true;
+          lastErrorType = 'rate_limit';
           console.warn(`[Agent] Groq rate limit detected, skipping remaining Groq providers`);
         }
         // Detect Groq function calling failures — these are transient, try next provider
         if (errMsg.includes('Failed to call a function') || errMsg.includes('invalid_request_error')) {
+          lastErrorType = 'function_error';
           console.warn(`[Agent] ${providerEntry.name} had function calling error, trying next provider`);
+        }
+        // Detect auth errors
+        if (errMsg.includes('Invalid API Key') || errMsg.includes('Unauthorized') || errMsg.includes('authentication')) {
+          lastErrorType = 'auth_error';
+        }
+        // Detect server errors / overload
+        if (errMsg.includes('overloaded') || errMsg.includes('503') || errMsg.includes('500')) {
+          lastErrorType = 'server_error';
         }
       }
     }
@@ -258,7 +269,27 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
       }
     }
 
-    return Response.json({ error: lastError?.message || 'All AI providers failed. Please try again.' }, { status: 500 });
+    // Return a user-friendly error message based on the error type
+    let userMessage;
+    switch (lastErrorType) {
+      case 'rate_limit':
+        userMessage = 'Daily AI usage limit reached. Please try again in a few minutes when the limit resets.';
+        break;
+      case 'auth_error':
+        userMessage = 'AI service configuration issue. Please check your API keys.';
+        break;
+      case 'server_error':
+        userMessage = 'AI service is temporarily overloaded. Please try again shortly.';
+        break;
+      case 'function_error':
+        userMessage = 'AI had trouble processing the request. Please try again or rephrase your message.';
+        break;
+      default:
+        userMessage = 'All AI providers are currently unavailable. Please try again in a few minutes.';
+        break;
+    }
+
+    return Response.json({ error: userMessage }, { status: 500 });
   } catch (error) {
     console.error("Agent API Error:", error);
     return Response.json({ error: error.message || "Something went wrong." }, { status: 500 });
