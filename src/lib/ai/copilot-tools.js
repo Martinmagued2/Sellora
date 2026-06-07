@@ -787,7 +787,7 @@ export const createCopilotTools = (accountId) => {
           const nameLower = customer_name.toLowerCase();
           const { data: conversations, error: convError } = await supabase
             .from("conversations")
-            .select("id, channel, account_id, customer:customers(id, name, platform_id, phone)")
+            .select("id, channel, status, account_id, customer:customers(id, name, platform_id, phone)")
             .eq("account_id", accountId)
             .order("updated_at", { ascending: false })
             .limit(50);
@@ -797,7 +797,7 @@ export const createCopilotTools = (accountId) => {
           }
 
           const matches = (conversations || []).filter(c =>
-            c.customers?.name?.toLowerCase().includes(nameLower)
+            c.customer?.name?.toLowerCase().includes(nameLower)
           );
 
           if (matches.length === 0) {
@@ -808,8 +808,9 @@ export const createCopilotTools = (accountId) => {
             };
           }
 
-          // Use the most recent matching conversation
-          const conversation = matches[0];
+          // Prefer active conversations over closed ones
+          const activeMatches = matches.filter(c => c.status !== 'closed');
+          const conversation = (activeMatches.length > 0 ? activeMatches : matches)[0];
           const conversation_id = conversation.id;
           const { channel, customer } = conversation;
           const recipientId = customer?.platform_id;
