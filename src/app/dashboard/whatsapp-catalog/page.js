@@ -13,7 +13,8 @@ import { useConfirm } from "../components/ConfirmProvider";
 export default function WhatsAppCatalogPage() {
   const toast = useToast();
   
-  const { confirmAction } = useConfirm();const [loading, setLoading] = useState(true);
+  const confirmAction = useConfirm();
+  const [loading, setLoading] = useState(true);
   const [catalogStatus, setCatalogStatus] = useState(null);
   const [products, setProducts] = useState([]);
   const [syncing, setSyncing] = useState(false);

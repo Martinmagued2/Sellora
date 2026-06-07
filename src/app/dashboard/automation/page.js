@@ -15,7 +15,8 @@ export default function AutomationPage() {
   const toast = useToast();
   // Account / automation state
   
-  const { confirmAction } = useConfirm();const [loading, setLoading] = useState(true);
+  const confirmAction = useConfirm();
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 

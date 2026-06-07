@@ -27,7 +27,8 @@ export default function ProductsPage() {
   const router = useRouter();
   const toast = useToast();
   
-  const { confirmAction } = useConfirm();const [products, setProducts] = useState([]);
+  const confirmAction = useConfirm();
+  const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);

@@ -96,7 +96,8 @@ export default function SegmentsPage() {
   const toast = useToast();
   const router = useRouter();
   
-  const { confirmAction } = useConfirm();const [segments, setSegments] = useState([]);
+  const confirmAction = useConfirm();
+  const [segments, setSegments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [saving, setSaving] = useState(false);

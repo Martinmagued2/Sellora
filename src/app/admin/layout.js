@@ -20,6 +20,7 @@ import {
   Activity,
 } from "lucide-react";
 import { useAdminAuth } from "@/lib/use-admin-auth";
+import { Toaster } from "react-hot-toast";
 import "../dashboard/dashboard.css";
 import "./admin.css";
 
@@ -120,6 +121,7 @@ export default function AdminLayout({ children }) {
 
   return (
     <div className="dashboard-layout admin-layout">
+      <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a2e', color: '#e0e0e0', border: '1px solid rgba(108,92,231,0.2)' } }} />
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">

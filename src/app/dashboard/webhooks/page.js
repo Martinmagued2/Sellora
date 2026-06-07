@@ -20,7 +20,8 @@ const STATUS_CONFIG = {
 export default function WebhooksPage() {
   const toast = useToast();
   
-  const { confirmAction } = useConfirm();const [webhooks, setWebhooks] = useState([]);
+  const confirmAction = useConfirm();
+  const [webhooks, setWebhooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedWebhook, setSelectedWebhook] = useState(null);
   const [deliveries, setDeliveries] = useState([]);

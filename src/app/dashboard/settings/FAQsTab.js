@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, Edit, Trash2 } from "lucide-react";
+import { useConfirm } from "../components/ConfirmProvider";
 
 export default function FAQsTab({
   faqs, setFaqs,
@@ -9,6 +10,7 @@ export default function FAQsTab({
   faqSaving, setFaqSaving,
   editingFaq, setEditingFaq,
 }) {
+  const confirmAction = useConfirm();
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">

@@ -1,6 +1,7 @@
 "use client";
 
 import { Zap, Plus, Edit, Trash2 } from "lucide-react";
+import { useConfirm } from "../components/ConfirmProvider";
 
 export default function QuickRepliesTab({
   quickReplies, setQuickReplies,
@@ -9,6 +10,7 @@ export default function QuickRepliesTab({
   quickReplySaving, setQuickReplySaving,
   editingQuickReply, setEditingQuickReply,
 }) {
+  const confirmAction = useConfirm();
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">

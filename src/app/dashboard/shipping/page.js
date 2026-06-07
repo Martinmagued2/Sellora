@@ -201,7 +201,8 @@ const DEMO_SHIPMENTS = [
 
 export default function ShippingPage() {
   
-  const { confirmAction } = useConfirm();const [shipments, setShipments] = useState([]);
+  const confirmAction = useConfirm();
+  const [shipments, setShipments] = useState([]);
   const [carriers, setCarriers] = useState([]);
   const [config, setConfig] = useState({ api_key: "", api_key_set: false, default_carrier: "aramex", auto_track: true, connected: false });
   const [filter, setFilter] = useState("all");

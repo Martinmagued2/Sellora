@@ -1,6 +1,7 @@
 "use client";
 
 import { Shield, Plus, Edit, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { useConfirm } from "../components/ConfirmProvider";
 
 export default function PoliciesTab({
   supabase,
@@ -10,6 +11,7 @@ export default function PoliciesTab({
   policySaving, setPolicySaving,
   editingPolicy, setEditingPolicy,
 }) {
+  const confirmAction = useConfirm();
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">

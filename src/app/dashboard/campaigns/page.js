@@ -21,7 +21,8 @@ const CHANNEL_ICON = {
 export default function CampaignsPage() {
   const toast = useToast();
   
-  const { confirmAction } = useConfirm();const [campaigns, setCampaigns] = useState([]);
+  const confirmAction = useConfirm();
+  const [campaigns, setCampaigns] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [accountPlan, setAccountPlan] = useState("starter");

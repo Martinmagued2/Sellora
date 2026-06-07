@@ -15,6 +15,7 @@ export default function ChannelsTab({
   shopifySyncing, setShopifySyncing, shopifyDisconnecting, setShopifyDisconnecting,
 }) {
   const toast = useToast();
+  const confirmAction = useConfirm();
   const planLimits = getPlanLimits(account.plan || "starter");
   const connectedChannels = (account.instagram_connected ? 1 : 0) + (account.facebook_connected ? 1 : 0) + (account.whatsapp_connected ? 1 : 0);
   const limitReached = planLimits.channels !== -1 && connectedChannels >= planLimits.channels;
