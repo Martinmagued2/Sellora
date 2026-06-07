@@ -529,7 +529,7 @@ export default function DashboardLayout({ children }) {
         </div>
       )}
 
-      {/* Copilot Assistant Panel */
+      {/* Copilot Assistant Panel */}
       <CopilotPanel />
 
       {/* PWA Install Prompt */}
