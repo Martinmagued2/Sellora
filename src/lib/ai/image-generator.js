@@ -1,6 +1,5 @@
 import ZAI from "z-ai-web-dev-sdk";
 import { getZAIConfig } from "@/lib/ai/z-ai-config";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { readFile, unlink } from "fs/promises";
@@ -12,18 +11,18 @@ const execFileAsync = promisify(execFile);
 /**
  * Shared image generation utility with automatic fallback chain:
  *
- * 1. NVIDIA NIM (qwen-image, FLUX.2-klein — free, same key as text AI)
- * 2. fal.ai FLUX.1 [dev] (best quality, $10 free credits, fal.ai)
- * 3. Gemini 2.5 Flash Image Generation (uses GOOGLE_GENERATIVE_AI_API_KEY)
- * 4. ZAI SDK (works on the deployed platform)
- * 5. z-ai-generate CLI tool (works on server environments)
- * 6. Together AI FLUX.1-schnell-Free (high quality, free key from together.ai)
- * 7. Pollinations.ai (free, no key needed, decent quality with flux-realism)
+ * 1. ZAI SDK (works on the deployed platform, fastest)
+ * 2. z-ai-generate CLI tool (works on server environments)
+ * 3. NVIDIA NIM (qwen-image, FLUX.2-klein — same key as text AI)
+ * 4. fal.ai FLUX.1 [dev] (best quality, $10 free credits)
+ * 5. Gemini 2.5 Flash Image Generation
+ * 6. Together AI FLUX.1-schnell-Free
+ * 7. Pollinations.ai (free, no key needed — may require payment now)
  *
- * Returns: { success: true, imageBase64, source }
+ * Returns: { success: boolean, imageBase64?: string, source?: string, error?: string }
  */
 
-const ZAI_TIMEOUT_MS = 8000;
+const ZAI_TIMEOUT_MS = 15000;
 
 // Gemini models that support native image generation, tried in order
 const GEMINI_IMAGE_MODELS = [
@@ -40,14 +39,78 @@ const GEMINI_IMAGE_MODELS = [
 export async function generateProductImage(prompt, options = {}) {
   const size = options.size || "1024x1024";
 
-  // ─── Attempt 1: NVIDIA NIM Image Generation ───
+  // ─── Attempt 1: ZAI SDK (direct API call) — MOVED TO TOP ───
+  // Works reliably on the deployed platform, no extra keys needed
+  try {
+    const zaiConfig = getZAIConfig();
+    if (zaiConfig) {
+      console.log("[ImageGen] Trying ZAI SDK...");
+      const zai = new ZAI(zaiConfig);
+
+      const zaiResult = await Promise.race([
+        zai.images.generations.create({ prompt, size }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("ZAI timeout")), ZAI_TIMEOUT_MS)
+        ),
+      ]);
+
+      const imageBase64 = zaiResult?.data?.[0]?.base64;
+      if (imageBase64) {
+        console.log("[ImageGen] ✅ Image generated via ZAI SDK");
+        return { success: true, imageBase64, source: "zai" };
+      }
+      throw new Error("No image data in ZAI response");
+    }
+  } catch (zaiError) {
+    const msg = zaiError?.message || "";
+    if (
+      msg.includes("timeout") ||
+      msg.includes("Timeout") ||
+      msg.includes("fetch failed") ||
+      msg.includes("ECONNREFUSED") ||
+      msg.includes("ConnectTimeoutError") ||
+      msg.includes("UND_ERR_CONNECT_TIMEOUT")
+    ) {
+      console.warn("[ImageGen] ZAI SDK unreachable, trying next method");
+    } else {
+      console.warn("[ImageGen] ZAI SDK failed:", msg.substring(0, 200));
+    }
+  }
+
+  // ─── Attempt 2: z-ai-generate CLI tool ───
+  // Works on server environments where the CLI is installed
+  try {
+    console.log("[ImageGen] Trying z-ai-generate CLI...");
+    const tmpFile = join(tmpdir(), `sellora-img-${Date.now()}.png`);
+
+    await execFileAsync("z-ai-generate", ["-p", prompt, "-o", tmpFile, "-s", size], {
+      timeout: 60000,
+      encoding: "utf-8",
+    });
+
+    const imageBuffer = await readFile(tmpFile);
+    try { await unlink(tmpFile); } catch {}
+
+    if (imageBuffer && imageBuffer.length > 1000) {
+      const imageBase64 = imageBuffer.toString("base64");
+      console.log(`[ImageGen] ✅ Image generated via CLI (${(imageBuffer.length / 1024).toFixed(0)}KB)`);
+      return { success: true, imageBase64, source: "cli" };
+    }
+    throw new Error("CLI output file was empty or too small");
+  } catch (cliError) {
+    const msg = cliError?.message || "";
+    if (msg.includes("not found") || msg.includes("ENOENT") || msg.includes("command not found")) {
+      console.warn("[ImageGen] z-ai-generate CLI not available, trying next method");
+    } else {
+      console.warn("[ImageGen] z-ai-generate CLI failed:", msg.substring(0, 200));
+    }
+  }
+
+  // ─── Attempt 3: NVIDIA NIM Image Generation ───
   // Uses the SAME NVIDIA_API_KEY as the text AI — no extra key needed!
-  // OpenAI-compatible /v1/images/generations endpoint
-  // Models: qwen-image (great text rendering), flux.2-klein-4b (fast, high quality)
   const nvidiaApiKey = process.env.NVIDIA_API_KEY;
   if (nvidiaApiKey) {
     const nvidiaBaseURL = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
-    // Try qwen-image first (excellent multilingual text + image), then flux.2-klein
     const nvidiaImageModels = ["qwen-image", "flux.2-klein-4b"];
 
     for (const modelId of nvidiaImageModels) {
@@ -73,13 +136,11 @@ export async function generateProductImage(prompt, options = {}) {
 
         if (response.ok) {
           const data = await response.json();
-          // Try base64 first
           const imageBase64 = data?.data?.[0]?.b64_json;
           if (imageBase64) {
             console.log(`[ImageGen] ✅ Image generated via NVIDIA NIM ${modelId} (${(imageBase64.length / 1024).toFixed(0)}KB base64)`);
             return { success: true, imageBase64, source: `nvidia-${modelId}` };
           }
-          // Try URL
           const imageUrl = data?.data?.[0]?.url;
           if (imageUrl) {
             console.log(`[ImageGen] NVIDIA NIM ${modelId} returned URL, downloading...`);
@@ -102,10 +163,7 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 2: fal.ai FLUX.1 [dev] (Best Quality) ───
-  // fal.ai offers $10 free credits on signup. FLUX.1 [dev] produces
-  // stunning, photorealistic product images — far superior to schnell/free.
-  // Sign up at https://fal.ai and get your key from Dashboard → API Keys
+  // ─── Attempt 4: fal.ai FLUX.1 [dev] (Best Quality) ───
   const falApiKey = process.env.FAL_API_KEY;
   if (falApiKey) {
     try {
@@ -132,7 +190,6 @@ export async function generateProductImage(prompt, options = {}) {
         const imageUrl = data?.images?.[0]?.url;
 
         if (imageUrl) {
-          // Download the image from fal.ai CDN
           const imgResp = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
           if (imgResp.ok) {
             const imgBuf = Buffer.from(await imgResp.arrayBuffer());
@@ -149,14 +206,9 @@ export async function generateProductImage(prompt, options = {}) {
     } catch (falError) {
       console.warn("[ImageGen] fal.ai failed:", falError.message?.substring(0, 200));
     }
-  } else {
-    console.log("[ImageGen] No FAL_API_KEY — add a free key from https://fal.ai for best-quality FLUX images");
   }
 
-  // ─── Attempt 3: Gemini Image Generation (via REST API) ───
-  // Uses the existing GOOGLE_GENERATIVE_AI_API_KEY.
-  // Note: Image generation models may not be available in all regions.
-  // The SDK uses v1beta which may not list these models, so we call REST directly.
+  // ─── Attempt 5: Gemini Image Generation (via REST API) ───
   const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (googleApiKey) {
     for (const modelName of GEMINI_IMAGE_MODELS) {
@@ -200,12 +252,10 @@ export async function generateProductImage(prompt, options = {}) {
               return { success: true, imageBase64, source: `gemini` };
             }
           }
-          // No image in response — model exists but didn't generate image
           console.warn(`[ImageGen] Gemini ${modelName} returned no image data`);
         } else {
           const errorData = await response.json().catch(() => ({}));
           const errMsg = errorData?.error?.message || `HTTP ${response.status}`;
-          // Don't retry remaining Gemini models if it's a location/auth error
           if (errMsg.includes("location is not supported")) {
             console.warn(`[ImageGen] Gemini image generation not available in your region`);
             break;
@@ -222,73 +272,7 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 4: ZAI SDK (direct API call) ───
-  try {
-    const zaiConfig = getZAIConfig();
-    if (zaiConfig) {
-      console.log("[ImageGen] Trying ZAI SDK...");
-      const zai = new ZAI(zaiConfig);
-
-      const zaiResult = await Promise.race([
-        zai.images.generations.create({ prompt, size }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("ZAI timeout")), ZAI_TIMEOUT_MS)
-        ),
-      ]);
-
-      const imageBase64 = zaiResult?.data?.[0]?.base64;
-      if (imageBase64) {
-        console.log("[ImageGen] ✅ Image generated via ZAI SDK");
-        return { success: true, imageBase64, source: "zai" };
-      }
-      throw new Error("No image data in ZAI response");
-    }
-  } catch (zaiError) {
-    const msg = zaiError?.message || "";
-    if (
-      msg.includes("timeout") ||
-      msg.includes("Timeout") ||
-      msg.includes("fetch failed") ||
-      msg.includes("ECONNREFUSED") ||
-      msg.includes("ConnectTimeoutError") ||
-      msg.includes("UND_ERR_CONNECT_TIMEOUT")
-    ) {
-      console.warn("[ImageGen] ZAI SDK unreachable, trying next method");
-    } else {
-      console.warn("[ImageGen] ZAI SDK failed:", msg.substring(0, 200));
-    }
-  }
-
-  // ─── Attempt 5: z-ai-generate CLI tool ───
-  try {
-    console.log("[ImageGen] Trying z-ai-generate CLI...");
-    const tmpFile = join(tmpdir(), `sellora-img-${Date.now()}.png`);
-
-    await execFileAsync("z-ai-generate", ["-p", prompt, "-o", tmpFile, "-s", size], {
-      timeout: 60000,
-      encoding: "utf-8",
-    });
-
-    const imageBuffer = await readFile(tmpFile);
-    try { await unlink(tmpFile); } catch {}
-
-    if (imageBuffer && imageBuffer.length > 1000) {
-      const imageBase64 = imageBuffer.toString("base64");
-      console.log(`[ImageGen] ✅ Image generated via CLI (${(imageBuffer.length / 1024).toFixed(0)}KB)`);
-      return { success: true, imageBase64, source: "cli" };
-    }
-    throw new Error("CLI output file was empty or too small");
-  } catch (cliError) {
-    const msg = cliError?.message || "";
-    if (msg.includes("not found") || msg.includes("ENOENT") || msg.includes("command not found")) {
-      console.warn("[ImageGen] z-ai-generate CLI not available, trying next method");
-    } else {
-      console.warn("[ImageGen] z-ai-generate CLI failed:", msg.substring(0, 200));
-    }
-  }
-
-  // ─── Attempt 6: Together AI (FLUX.1-schnell-Free — high quality) ───
-  // Free to use: https://api.together.xyz — create account → get API key
+  // ─── Attempt 6: Together AI (FLUX.1-schnell-Free) ───
   const togetherApiKey = process.env.TOGETHER_API_KEY;
   if (togetherApiKey) {
     try {
@@ -340,18 +324,16 @@ export async function generateProductImage(prompt, options = {}) {
     } catch (togetherError) {
       console.warn("[ImageGen] Together AI failed:", togetherError.message?.substring(0, 200));
     }
-  } else {
-    console.warn("[ImageGen] No TOGETHER_API_KEY — add a free key from https://api.together.xyz for high-quality FLUX images");
   }
 
-  // ─── Attempt 7: Pollinations.ai (free, no API key) ───
+  // ─── Attempt 7: Pollinations.ai (last resort, may return 402) ───
   try {
-    console.log("[ImageGen] Trying Pollinations.ai (free fallback)...");
+    console.log("[ImageGen] Trying Pollinations.ai (last resort fallback)...");
     const [width, height] = size.split("x").map(Number);
     const encodedPrompt = encodeURIComponent(prompt);
     const seed = Math.floor(Math.random() * 1000000);
 
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width || 1024}&height=${height || 1024}&seed=${seed}&nologo=true&model=flux-realism`;
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width || 1024}&height=${height || 1024}&seed=${seed}&nologo=true&model=flux`;
 
     const response = await fetch(imageUrl, {
       signal: AbortSignal.timeout(60000),
@@ -370,13 +352,13 @@ export async function generateProductImage(prompt, options = {}) {
       throw new Error("Pollinations.ai returned empty or invalid image data");
     }
 
-    console.log(`[ImageGen] ⚠️ Image via Pollinations.ai (${(buffer.length / 1024).toFixed(0)}KB). For better quality, add TOGETHER_API_KEY to .env.local`);
+    console.log(`[ImageGen] ✅ Image via Pollinations.ai (${(buffer.length / 1024).toFixed(0)}KB)`);
     return { success: true, imageBase64, source: "pollinations" };
   } catch (pollinationsError) {
     console.error("[ImageGen] All image generation methods failed");
     return {
       success: false,
-      error: `Image generation failed. Tips: (1) Add TOGETHER_API_KEY from https://api.together.xyz (free, FLUX model), or (2) Gemini image gen may not be available in your region. Last error: ${pollinationsError.message}`,
+      error: `Image generation failed. All providers exhausted. Last error: ${pollinationsError.message}. Tips: (1) Add TOGETHER_API_KEY from https://api.together.xyz (free), or (2) Add FAL_API_KEY from https://fal.ai ($10 free credits), or (3) Gemini image gen may not be available in all regions.`,
     };
   }
 }

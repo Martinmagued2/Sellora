@@ -15,9 +15,9 @@ export const createCopilotTools = (accountId) => {
     // ─── ANALYTICS TOOLS ───
 
     get_store_analytics: tool({
-      description: "Get basic store analytics for a given time period (e.g. recent orders, revenue). Use this when the seller asks 'how are my sales?' or wants a quick overview.",
+      description: "Get basic store analytics for a given time period (e.g. recent orders, revenue). Use when the seller asks 'how are my sales?' or wants a quick overview.",
       inputSchema: z.object({
-        days: z.string().optional().describe("Number of past days to analyze (default 30)"),
+        days: z.string().describe("Number of past days to analyze (default 30)"),
       }),
       execute: async ({ days }) => {
         const daysNum = parseInt(days) || 30;
@@ -177,7 +177,7 @@ export const createCopilotTools = (accountId) => {
     get_latest_sales: tool({
       description: "Get the most recent sales/orders with details. Use when the seller asks about recent sales, latest orders, or what sold recently.",
       inputSchema: z.object({
-        limit: z.string().optional().describe("Number of recent sales to fetch (default 10)"),
+        limit: z.string().describe("Number of recent sales to fetch (default 10)"),
       }),
       execute: async ({ limit }) => {
         const limitNum = parseInt(limit) || 10;
@@ -202,7 +202,7 @@ export const createCopilotTools = (accountId) => {
     get_top_products: tool({
       description: "Get the store's products to analyze inventory or top sellers.",
       inputSchema: z.object({
-        limit: z.string().optional().describe("Number of products to fetch (default 5)"),
+        limit: z.string().describe("Number of products to fetch (default 5)"),
       }),
       execute: async ({ limit }) => {
         const limitNum = parseInt(limit) || 5;
@@ -223,13 +223,13 @@ export const createCopilotTools = (accountId) => {
     }),
 
     create_product: tool({
-      description: "Create a new product in the store. Use this when the seller asks to add a new product. You should ask for at least the product name and price. Generate a compelling description if the seller provides a brief prompt. After creating, tell the user the product was added and suggest they can view it in the Products page.",
+      description: "Create a new product in the store. Use when the seller asks to add a new product. You should ask for at least the product name and price.",
       inputSchema: z.object({
         name: z.string().describe("Product name"),
-        description: z.string().optional().describe("Product description (generate a compelling one if not provided)"),
         price: z.string().describe("Product price"),
-        stock: z.string().optional().describe("Initial stock quantity (default 0)"),
-        category: z.string().optional().describe("Product category (default 'General')"),
+        stock: z.string().describe("Initial stock quantity (default 0)"),
+        category: z.string().describe("Product category (default General)"),
+        description: z.string().describe("Product description (generate a compelling one if not provided)"),
       }),
       execute: async ({ name, description, price, stock, category }) => {
         if (!name) {
@@ -264,12 +264,11 @@ export const createCopilotTools = (accountId) => {
     }),
 
     generate_product_image: tool({
-      description: "Generate a professional product image using AI. Use this AFTER creating a product, when the seller wants an AI-generated image for their product. Also use when the seller explicitly asks to generate or create an image for a product. The image will be uploaded and linked to the product.",
+      description: "Generate a professional product image using AI. Use AFTER creating a product, or when the seller explicitly asks for an AI-generated product image.",
       inputSchema: z.object({
         product_id: z.string().describe("The ID of the product to generate an image for"),
         product_name: z.string().describe("The name of the product"),
-        description: z.string().optional().describe("Product description to help generate a relevant image"),
-        style: z.string().optional().describe("Image style: 'studio' (clean white background, professional), 'lifestyle' (product in use, contextual), 'minimal' (simple, elegant). Default: studio"),
+        style: z.string().describe("Image style: studio, lifestyle, or minimal (default studio)"),
       }),
       execute: async ({ product_id, product_name, description, style }) => {
         try {
@@ -363,22 +362,20 @@ export const createCopilotTools = (accountId) => {
     }),
 
     update_product: tool({
-      description: "Update an existing product's details (name, price, stock, description, category). Use when the seller wants to edit or modify a product. You need the product ID.",
+      description: "Update an existing product's details. You need the product ID and at least one field to update.",
       inputSchema: z.object({
         product_id: z.string().describe("The ID of the product to update"),
-        name: z.string().optional().describe("New product name"),
-        price: z.string().optional().describe("New product price"),
-        stock: z.string().optional().describe("New stock quantity"),
-        description: z.string().optional().describe("New product description"),
-        category: z.string().optional().describe("New product category"),
+        name: z.string().describe("New product name (pass empty string to skip)"),
+        price: z.string().describe("New product price (pass empty string to skip)"),
+        stock: z.string().describe("New stock quantity (pass empty string to skip)"),
+        category: z.string().describe("New product category (pass empty string to skip)"),
       }),
-      execute: async ({ product_id, name, price, stock, description, category }) => {
+      execute: async ({ product_id, name, price, stock, category }) => {
         const updates = {};
-        if (name !== undefined) updates.name = name;
-        if (price !== undefined) { const p = parseFloat(price); if (!isNaN(p)) updates.price = p; }
-        if (stock !== undefined) { const s = parseInt(stock); if (!isNaN(s)) updates.stock = s; }
-        if (description !== undefined) updates.description = description;
-        if (category !== undefined) updates.category = category;
+        if (name && name.trim()) updates.name = name.trim();
+        if (price && price.trim()) { const p = parseFloat(price); if (!isNaN(p)) updates.price = p; }
+        if (stock && stock.trim()) { const s = parseInt(stock); if (!isNaN(s)) updates.stock = s; }
+        if (category && category.trim()) updates.category = category.trim();
 
         if (Object.keys(updates).length === 0) {
           return { success: false, error: "No fields provided to update" };
@@ -404,11 +401,11 @@ export const createCopilotTools = (accountId) => {
     }),
 
     draft_product_description: tool({
-      description: "Draft an SEO-optimized product description based on basic details provided by the seller. Returns a drafted description for the seller to review.",
+      description: "Draft an SEO-optimized product description based on basic details provided by the seller.",
       inputSchema: z.object({
-        product_name: z.string().optional().describe("The name of the product"),
+        product_name: z.string().describe("The name of the product"),
         features: z.string().describe("Key features or keywords to include"),
-        tone: z.string().optional().describe("The tone of the description (e.g., professional, fun, luxurious)"),
+        tone: z.string().describe("Description tone (e.g. professional, fun, luxurious, default professional)"),
       }),
       execute: async ({ product_name, features, tone }) => {
         const finalName = product_name || "Unnamed Product";
@@ -423,9 +420,9 @@ export const createCopilotTools = (accountId) => {
     // ─── INVENTORY & ORDER TOOLS ───
 
     get_inventory_alerts: tool({
-      description: "Get inventory alerts for low-stock and out-of-stock products. Use when the seller asks about inventory issues, stock alerts, or products that need restocking.",
+      description: "Get inventory alerts for low-stock and out-of-stock products. Use when the seller asks about inventory issues or stock alerts.",
       inputSchema: z.object({
-        threshold: z.string().optional().describe("Low stock threshold (default 5)"),
+        threshold: z.string().describe("Low stock threshold (default 5)"),
       }),
       execute: async ({ threshold }) => {
         const lowStockThreshold = parseInt(threshold) || 5;
@@ -453,14 +450,14 @@ export const createCopilotTools = (accountId) => {
     }),
 
     search_products: tool({
-      description: "Search products by name, category, or status. Use when the seller asks to find specific products or filter their catalog.",
+      description: "Search products by name, category, or status.",
       inputSchema: z.object({
-        query: z.string().optional().describe("Search term for product name"),
-        category: z.string().optional().describe("Filter by category"),
-        status: z.string().optional().describe("Filter by status (active, draft, archived)"),
-        limit: z.string().optional().describe("Max results (default 20)"),
+        query: z.string().describe("Search term for product name (pass empty string if not needed)"),
+        category: z.string().describe("Filter by category (pass empty string if not needed)"),
+        limit: z.string().describe("Max results (default 20)"),
       }),
-      execute: async ({ query, category, status, limit }) => {
+      execute: async ({ query, category, limit }) => {
+        const status = undefined;
         const limitNum = parseInt(limit) || 20;
         let dbQuery = supabase
           .from("products")
@@ -468,8 +465,8 @@ export const createCopilotTools = (accountId) => {
           .eq("account_id", accountId)
           .limit(limitNum);
 
-        if (query) dbQuery = dbQuery.ilike("name", `%${query}%`);
-        if (category) dbQuery = dbQuery.eq("category", category);
+        if (query && query.trim()) dbQuery = dbQuery.ilike("name", `%${query.trim()}%`);
+        if (category && category.trim()) dbQuery = dbQuery.eq("category", category.trim());
         if (status) dbQuery = dbQuery.eq("status", status);
 
         const { data, error } = await dbQuery;
@@ -539,9 +536,9 @@ export const createCopilotTools = (accountId) => {
     // ─── CONVERSATION TOOLS ───
 
     get_recent_conversations: tool({
-      description: "Get a summary of recent active conversations and their status. Use when the seller asks about their messages or customer interactions.",
+      description: "Get a summary of recent active conversations and their status.",
       inputSchema: z.object({
-        limit: z.string().optional().describe("Number of conversations to fetch (default 5)"),
+        limit: z.string().describe("Number of conversations to fetch (default 5)"),
       }),
       execute: async ({ limit }) => {
         const limitNum = parseInt(limit) || 5;
@@ -562,10 +559,10 @@ export const createCopilotTools = (accountId) => {
     }),
 
     send_message_to_customer: tool({
-      description: "Send a message directly to a customer through their conversation channel (WhatsApp, Instagram, or Facebook). Use this when the seller asks you to send a message to a customer, reply to a customer, reach out to someone, or notify a customer. You need the conversation ID and the message content. The message will be delivered through the actual channel (WhatsApp, Instagram DM, or Facebook Messenger) AND saved in the database.",
+      description: "Send a message to a customer. Use when the seller asks to message, reply to, or notify a customer. Requires conversation_id and message text. The message is delivered through their channel (WhatsApp/IG/FB) and saved in the database.",
       inputSchema: z.object({
-        conversation_id: z.string().describe("The ID of the conversation to send the message to"),
-        message: z.string().describe("The message content to send to the customer"),
+        conversation_id: z.string().describe("The conversation ID to send the message to"),
+        message: z.string().describe("The message text to send"),
       }),
       execute: async ({ conversation_id, message }) => {
         try {
@@ -722,14 +719,14 @@ export const createCopilotTools = (accountId) => {
     }),
 
     find_conversation: tool({
-      description: "Find a conversation by customer name or channel. Use this when the seller wants to send a message to a specific customer but doesn't know the conversation ID. Returns matching conversations with their IDs.",
+      description: "Find a conversation by customer name. Use this when the seller wants to send a message to a specific customer but doesn't know the conversation ID. Returns matching conversations with their IDs.",
       inputSchema: z.object({
-        customer_name: z.string().optional().describe("Customer name to search for"),
-        channel: z.string().optional().describe("Channel to filter by (whatsapp, instagram, facebook)"),
-        status: z.string().optional().describe("Conversation status to filter by (new, open, in_progress, waiting_customer)"),
-        limit: z.string().optional().describe("Max results (default 10)"),
+        customer_name: z.string().describe("Customer name to search for (required)"),
       }),
-      execute: async ({ customer_name, channel, status, limit }) => {
+      execute: async ({ customer_name }) => {
+        const channel = undefined;
+        const status = undefined;
+        const limit = undefined;
         const limitNum = parseInt(limit) || 10;
 
         let query = supabase
@@ -796,9 +793,9 @@ export const createCopilotTools = (accountId) => {
     }),
 
     get_customer_insights: tool({
-      description: "Get customer analytics and insights — total customers, returning customers, top spenders, and customer distribution. Use when the seller asks about their customers or wants customer analytics. Takes no required parameters.",
+      description: "Get customer analytics and insights — total customers, returning customers, top spenders, and distribution.",
       inputSchema: z.object({
-        summary: z.string().optional().describe("Set to 'true' for a brief summary, or omit for full details"),
+        summary: z.string().describe("Set to 'true' for brief summary, 'false' for full details"),
       }),
       execute: async ({ summary }) => {
         const { data: customers, error } = await supabase
@@ -893,9 +890,9 @@ export const createCopilotTools = (accountId) => {
     }),
 
     send_follow_up: tool({
-      description: "Send a follow-up message to customers with unpaid orders older than 24 hours. Use when the seller wants to follow up on pending orders or asks about unpaid orders. Messages are sent through the actual channel (WhatsApp/IG/FB), not just saved to DB.",
+      description: "Send a follow-up message to customers with unpaid orders older than 24 hours. Use when the seller wants to follow up on pending orders.",
       inputSchema: z.object({
-        order_id: z.string().optional().describe("Specific order ID to follow up on (optional, if omitted follows up on all unpaid orders)"),
+        order_id: z.string().describe("Specific order ID to follow up on, or 'all' for all unpaid orders"),
       }),
       execute: async ({ order_id }) => {
         try {
@@ -909,7 +906,7 @@ export const createCopilotTools = (accountId) => {
             .in("status", ["pending", "confirmed"])
             .lt("created_at", twentyFourHoursAgo);
 
-          if (order_id) query = query.eq("id", order_id);
+          if (order_id && order_id !== "all") query = query.eq("id", order_id);
 
           const { data: unpaidOrders, error } = await query;
 
@@ -1022,9 +1019,9 @@ export const createCopilotTools = (accountId) => {
     }),
 
     get_escalated_conversations: tool({
-      description: "Get conversations that have been flagged with negative sentiment or need human attention. Use when the seller asks about angry customers, escalation, or conversations that need attention.",
+      description: "Get conversations that have been flagged with negative sentiment or need human attention.",
       inputSchema: z.object({
-        limit: z.string().optional().describe("Number of conversations to fetch (default 10)"),
+        limit: z.string().describe("Number of conversations to fetch (default 10)"),
       }),
       execute: async ({ limit }) => {
         const limitNum = parseInt(limit) || 10;
@@ -1075,12 +1072,12 @@ export const createCopilotTools = (accountId) => {
     }),
 
     generate_description: tool({
-      description: "Generate an AI product description in English and Arabic with a price suggestion. Use when the seller wants to generate or create a product description, or when they want a compelling writeup for a product.",
+      description: "Generate an AI product description in English and Arabic with a price suggestion.",
       inputSchema: z.object({
         product_name: z.string().describe("The name of the product"),
-        features: z.string().describe("Key features or keywords to include in the description"),
-        category: z.string().optional().describe("Product category"),
-        tone: z.string().optional().describe("Description tone (e.g. professional, fun, luxurious)"),
+        features: z.string().describe("Key features or keywords to include"),
+        category: z.string().describe("Product category (default General)"),
+        tone: z.string().describe("Description tone (e.g. professional, fun, luxurious, default professional)"),
       }),
       execute: async ({ product_name, features, category, tone }) => {
         try {
