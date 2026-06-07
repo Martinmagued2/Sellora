@@ -3,10 +3,8 @@
 import { useState, useEffect } from "react";
 import { Search, Users, ChevronDown, ChevronUp, Shield, Ban, ArrowUpCircle, ArrowDownCircle, RefreshCw } from "lucide-react";
 import { useAdminAuth } from "@/lib/use-admin-auth";
-import { useToast } from "../dashboard/components/ToastProvider";
 
 export default function AdminAccounts() {
-  const toast = useToast();
   const { isAdmin, loading: adminLoading, userId } = useAdminAuth();
   const [accounts, setAccounts] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
@@ -63,10 +61,10 @@ export default function AdminAccounts() {
       if (json.success) {
         fetchAccounts(pagination.page);
       } else {
-        toast.error(json.error || "Action failed");
+        alert(json.error || "Action failed");
       }
     } catch (e) {
-      toast.error("Network error");
+      alert("Network error");
     }
     setActionLoading((prev) => ({ ...prev, [accountId]: false }));
   };
