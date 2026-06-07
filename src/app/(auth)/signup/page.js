@@ -558,7 +558,7 @@ function SignupForm() {
           </form>
 
           <p className="auth-terms">
-            By signing up, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+            By signing up, you agree to our <a href="mailto:support@sellora.app?subject=Terms of Service">Terms of Service</a> and <a href="mailto:support@sellora.app?subject=Privacy Policy">Privacy Policy</a>
           </p>
 
           <p className="auth-footer">

@@ -125,6 +125,7 @@ export default function DashboardLayout({ children }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const searchRef = useRef(null);
 
   const currentTitle = pageTitles[pathname] || "Dashboard";
@@ -426,9 +427,30 @@ export default function DashboardLayout({ children }) {
             <div style={{ position: "relative" }}>
               <NotificationBell />
             </div>
-            <button className="topbar-btn" id="topbar-help" title="Help & Support" onClick={() => alert('Sellora Help & Support\n\n📧 Email: support@sellora.com\n💬 Use the AI Copilot (purple button) to ask questions\n📋 Settings > Webhooks for API integrations')}>
-              <HelpCircle size={18} />
-            </button>
+            <div style={{ position: "relative" }}>
+              <button className="topbar-btn" id="topbar-help" title="Help & Support" onClick={() => setHelpOpen(!helpOpen)}>
+                <HelpCircle size={18} />
+              </button>
+              {helpOpen && (
+                <div style={{
+                  position: "absolute", right: 0, top: "100%", marginTop: 8, width: 280,
+                  background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+                  borderRadius: "var(--radius-md)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                  padding: "var(--space-lg)", zIndex: 1000,
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: "var(--space-md)" }}>Help & Support</div>
+                  <a href="mailto:support@sellora.com" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", textDecoration: "none" }}>
+                    <MessageCircle size={14} /> support@sellora.com
+                  </a>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)" }}>
+                    <Bot size={14} /> Use the AI Copilot (purple button)
+                  </div>
+                  <Link href="/dashboard/settings?tab=webhooks" onClick={() => setHelpOpen(false)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", textDecoration: "none" }}>
+                    <Settings size={14} /> Webhook Integrations
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

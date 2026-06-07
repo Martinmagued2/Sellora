@@ -730,6 +730,7 @@ export default function Home() {
   ];
 
   const preventNav = (e) => e.preventDefault();
+  const scrollToSection = (e, id) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); };
 
   const problemChatMessages = [
     { text: "Hi, how much is the black bag? 🖤", time: "11:47 PM", type: "incoming" },
@@ -855,7 +856,7 @@ export default function Home() {
             <button className="btn btn-primary btn-xl" onClick={() => router.push('/signup')}>
               Start Free Trial <ArrowRight size={18} />
             </button>
-            <button className="btn btn-ghost btn-xl" onClick={() => router.push('/login')}>
+            <button className="btn btn-ghost btn-xl" onClick={(e) => { document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' }); }}>
               See How It Works <Play size={18} />
             </button>
           </motion.div>
@@ -1415,37 +1416,36 @@ export default function Home() {
             </div>
             <div className="footer-col">
               <h4>{t("footer_product")}</h4>
-              <a href="#features" onClick={preventNav}>{t("footer_features")}</a>
-              <a href="#pricing" onClick={preventNav}>{t("footer_pricing")}</a>
-              <a href="#how-it-works" onClick={preventNav}>{t("footer_how")}</a>
-              <a href="#integrations" onClick={preventNav}>{t("footer_integrations")}</a>
-              <a href="/api-docs" onClick={preventNav}>{t("footer_api")}</a>
+              <a href="#features" onClick={(e) => scrollToSection(e, 'features')}>{t("footer_features")}</a>
+              <a href="#pricing" onClick={(e) => scrollToSection(e, 'pricing')}>{t("footer_pricing")}</a>
+              <a href="#how-it-works" onClick={(e) => scrollToSection(e, 'how-it-works')}>{t("footer_how")}</a>
+              <a href="#features" onClick={(e) => scrollToSection(e, 'features')}>{t("footer_integrations")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_api")}</a>
             </div>
             <div className="footer-col">
               <h4>{t("footer_company")}</h4>
-              <a href="/about" onClick={preventNav}>{t("footer_about")}</a>
-              <a href="/blog" onClick={preventNav}>{t("footer_blog")}</a>
-              <a href="/careers" onClick={preventNav}>{t("footer_careers")}</a>
-              <a href="mailto:support@sellora.app" onClick={preventNav}>{t("footer_contact")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_about")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_blog")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_careers")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_contact")}</a>
             </div>
             <div className="footer-col">
               <h4>{t("footer_legal")}</h4>
-              <a href="/privacy" onClick={preventNav}>{t("footer_privacy")}</a>
-              <a href="/terms" onClick={preventNav}>{t("footer_terms")}</a>
-              <a href="/gdpr" onClick={preventNav}>{t("footer_gdpr")}</a>
-              <a href="/security" onClick={preventNav}>{t("footer_security")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_privacy")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_terms")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_gdpr")}</a>
+              <a href="mailto:support@sellora.app">{t("footer_security")}</a>
             </div>
           </div>
           <div className="footer-extra-links">
-            <a href="/help" onClick={preventNav}>Help Center</a>
-            <a href="/status" onClick={preventNav}>Status</a>
+            <a href="mailto:support@sellora.app">Help Center</a>
+            <a href="mailto:support@sellora.app">Status</a>
           </div>
           <div className="footer-bottom">
             <p>{t("footer_copyright")}</p>
             <div className="footer-social">
-              <a href="#" aria-label="Twitter"><Globe size={16} /></a>
-              <a href="#" aria-label="LinkedIn"><Users size={16} /></a>
-              <a href="#" aria-label="Instagram"><MessageCircle size={16} /></a>
+              <a href="https://instagram.com/shop__sellora" target="_blank" rel="noopener" aria-label="Instagram"><MessageCircle size={16} /></a>
+              <a href="mailto:support@sellora.app" aria-label="Email"><Globe size={16} /></a>
             </div>
           </div>
         </div>

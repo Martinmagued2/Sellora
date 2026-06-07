@@ -42,7 +42,7 @@ function LoginContent() {
     "/dashboard/customers",
     "/dashboard/conversations",
     "/dashboard/settings",
-    "/settings",
+    // "/settings" removed — use /dashboard/settings instead
     "/admin",
     "/admin/accounts",
     "/admin/conversations",
