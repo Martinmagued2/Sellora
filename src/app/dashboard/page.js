@@ -301,7 +301,7 @@ export default function DashboardHome() {
         <div className="dashboard-panel">
           <div className="dashboard-panel-header"><h3>Recent Orders</h3></div>
           <div className="dashboard-panel-body" style={{ padding: 0 }}>
-            <table className="data-table">
+            <div className="table-scroll-wrapper"><table className="data-table">
               <thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
               <tbody>
                 {stats.recentOrders.map((order) => (
@@ -323,7 +323,7 @@ export default function DashboardHome() {
                   <tr><td colSpan="4" style={{ textAlign: "center", padding: "var(--space-xl)", color: "var(--text-tertiary)" }}>No orders yet</td></tr>
                 )}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
 

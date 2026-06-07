@@ -8,6 +8,7 @@ import {
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
   Megaphone, AlertTriangle, BellOff, Mic, MicOff, Image as ImageIcon,
+  ArrowLeft,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -103,6 +104,9 @@ export default function ConversationsPage() {
   // Image recognition
   const [imageRecognitionResults, setImageRecognitionResults] = useState({});
   const [showImageUploader, setShowImageUploader] = useState(false);
+
+  // Mobile navigation
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
   const messagesEndRef = useRef(null);
   const simulatorEndRef = useRef(null);
@@ -710,7 +714,7 @@ export default function ConversationsPage() {
     <div className="conversations-layout" style={{ gridTemplateColumns: showInfoPanel && activeConv && !simulatorMode ? "300px 1fr 320px" : "300px 1fr" }}>
 
       {/* ═══════ LEFT PANEL: Conversation List ═══════ */}
-      <div className="conv-list">
+      <div className={`conv-list${mobileChatOpen ? " mobile-hidden" : ""}`}>
         <div className="conv-list-header">
           <h2>Messages</h2>
           <input type="text" className="conv-search" placeholder="Search conversations..." value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -783,7 +787,7 @@ export default function ConversationsPage() {
             <div
               key={conv.id}
               className={`conv-item ${activeConv?.id === conv.id ? "active" : ""}`}
-              onClick={() => { setActiveConv(conv); setSimulatorMode(false); }}
+              onClick={() => { setActiveConv(conv); setSimulatorMode(false); setMobileChatOpen(true); }}
             >
               {/* Avatar */}
               <div className="conv-avatar" style={{ background: conv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)", position: "relative" }}>
@@ -853,7 +857,7 @@ export default function ConversationsPage() {
       </div>
 
       {/* ═══════ CENTER PANEL: Chat Area ═══════ */}
-      <div className="chat-area">
+      <div className={`chat-area${mobileChatOpen ? " mobile-visible" : ""}`}>
         {simulatorMode ? (
           <>
             <div className="chat-header" style={{ background: "rgba(88, 101, 242, 0.05)", borderBottomColor: "var(--accent-primary)" }}>
@@ -887,6 +891,9 @@ export default function ConversationsPage() {
           <>
             {/* ── Chat Header ── */}
             <div className="chat-header" style={{ flexShrink: 0 }}>
+              <button className="chat-back-btn" onClick={() => setMobileChatOpen(false)} title="Back to conversations">
+                <ArrowLeft size={20} />
+              </button>
               <div className="chat-header-info">
                 <div className="conv-avatar" style={{ width: 38, height: 38, fontSize: 12, background: activeConv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
                   {activeConv.customer?.profile_pic_url ? (

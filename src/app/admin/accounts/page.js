@@ -115,6 +115,7 @@ export default function AdminAccounts() {
             <div style={{ marginTop: "var(--space-sm)" }}>Loading accounts...</div>
           </div>
         ) : (
+          <div className="table-scroll-wrapper">
           <table className="data-table">
             <thead>
               <tr>
@@ -267,6 +268,7 @@ export default function AdminAccounts() {
               )}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

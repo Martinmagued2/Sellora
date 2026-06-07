@@ -115,7 +115,7 @@ export default function AdminMessages() {
             <RefreshCw size={20} className="spin" style={{ display: "inline-block" }} />
           </div>
         ) : (
-          <table className="data-table">
+          <div className="table-scroll-wrapper"><table className="data-table">
             <thead>
               <tr>
                 <th>Content</th>
@@ -203,7 +203,7 @@ export default function AdminMessages() {
                 </tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

@@ -514,7 +514,7 @@ export default function SegmentsPage() {
                     No customers in this segment yet. Click Recompute to refresh.
                   </div>
                 ) : (
-                  <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                  <div className="table-scroll-wrapper">
                     <table className="data-table">
                       <thead>
                         <tr>

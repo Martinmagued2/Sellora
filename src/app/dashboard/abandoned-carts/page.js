@@ -349,6 +349,7 @@ export default function AbandonedCartsPage() {
               <p>{filter !== "all" ? "No carts match this filter." : "No abandoned carts detected yet. Click 'Detect Carts' to scan for new ones."}</p>
             </div>
           ) : (
+            <div className="table-scroll-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -453,6 +454,7 @@ export default function AbandonedCartsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

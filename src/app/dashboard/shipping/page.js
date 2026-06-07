@@ -720,6 +720,7 @@ export default function ShippingPage() {
               <div>Loading shipments...</div>
             </div>
           ) : (
+            <div className="table-scroll-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -814,6 +815,7 @@ export default function ShippingPage() {
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

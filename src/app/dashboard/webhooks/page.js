@@ -480,7 +480,7 @@ export default function WebhooksPage() {
       ) : (
         <div className="dashboard-panel">
           <div className="dashboard-panel-body" style={{ padding: 0 }}>
-            <div style={{ maxHeight: 600, overflowY: "auto" }}>
+            <div className="table-scroll-wrapper">
               <table className="data-table">
                 <thead>
                   <tr>

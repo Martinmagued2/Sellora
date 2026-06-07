@@ -43,7 +43,7 @@ import { useAdminAuth } from "@/lib/use-admin-auth";
 import { StoreProvider } from "@/lib/store-context";
 import CopilotPanel from "./components/CopilotPanel";
 import NotificationBell from "./components/NotificationBell";
-import ToastProvider from "./components/ToastProvider";
+import ToastProvider, { useToast } from "./components/ToastProvider";
 import ConfirmProvider from "./components/ConfirmProvider";
 import InstallPrompt from "./components/InstallPrompt";
 import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
@@ -118,6 +118,7 @@ const pageTitles = {
 export default function DashboardLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
+  const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [accountStatus, setAccountStatus] = useState(null);
@@ -127,6 +128,7 @@ export default function DashboardLayout({ children }) {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const searchRef = useRef(null);
 
   const currentTitle = pageTitles[pathname] || "Dashboard";
@@ -337,26 +339,20 @@ export default function DashboardLayout({ children }) {
       </aside>
 
       {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            zIndex: 99,
-          }}
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+      />
 
       {/* Main content */}
       <main className="dashboard-main">
         {/* Trial Banner */}
         {accountStatus?.plan === "starter" && (trialDaysLeft !== null || isTrialExpired) && (
-          <div style={{
+          <div className="trial-banner" style={{
             background: isTrialExpired ? "var(--accent-orange)" : "var(--accent-primary-light)",
             color: "white", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "center",
-            gap: "var(--space-md)", fontSize: "var(--font-size-sm)", fontWeight: 600, zIndex: 10
+            gap: "var(--space-md)", fontSize: "var(--font-size-sm)", fontWeight: 600, zIndex: 10,
+            flexWrap: "wrap"
           }}>
             {isTrialExpired ? (
               <>
@@ -430,7 +426,7 @@ export default function DashboardLayout({ children }) {
               <NotificationBell />
             </div>
             <div style={{ position: "relative" }}>
-              <button className="topbar-btn" id="topbar-help" title="Help & Support" onClick={() => setHelpOpen(!helpOpen)}>
+              <button className="topbar-btn topbar-help-btn" id="topbar-help" title="Help & Support" onClick={() => setHelpOpen(!helpOpen)}>
                 <HelpCircle size={18} />
               </button>
               {helpOpen && (
@@ -453,6 +449,9 @@ export default function DashboardLayout({ children }) {
                 </div>
               )}
             </div>
+            <button className="topbar-btn topbar-search-toggle" title="Search" onClick={() => setShowMobileSearch(true)}>
+              <Search size={18} />
+            </button>
           </div>
         </header>
 
@@ -490,7 +489,47 @@ export default function DashboardLayout({ children }) {
         </div>
       </main>
 
-      {/* Copilot Assistant Panel */}
+      {/* Mobile Search Overlay */}
+      {showMobileSearch && (
+        <div className="topbar-search-mobile open">
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px", borderBottom: "1px solid var(--border)" }}>
+            <Search size={18} style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
+            <input
+              type="text"
+              placeholder="Search conversations, orders, products..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+              style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: "var(--font-size-md)", color: "var(--text-primary)" }}
+            />
+            <button
+              onClick={() => { setShowMobileSearch(false); setSearchQuery(""); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 4 }}
+            >
+              <X size={20} />
+            </button>
+          </div>
+          {searchQuery.trim() && (
+            <div style={{ padding: "8px 0", maxHeight: "calc(100vh - 80px)", overflowY: "auto" }}>
+              {searchResults.length === 0 ? (
+                <div style={{ padding: "16px", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>No results found</div>
+              ) : searchResults.map((r, i) => (
+                <button key={i} onClick={() => { router.push(r.href); setShowMobileSearch(false); setSearchQuery(""); }} style={{
+                  display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 16px",
+                  background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
+                  textAlign: "left", fontSize: "var(--font-size-sm)"
+                }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-primary)", minWidth: 80 }}>{r.type}</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                  <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{r.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Copilot Assistant Panel */
       <CopilotPanel />
 
       {/* PWA Install Prompt */}

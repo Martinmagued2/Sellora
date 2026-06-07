@@ -395,10 +395,105 @@
   .admin-slide-panel {
     width: 100vw;
   }
+
+  .admin-slide-panel-header {
+    padding: var(--space-md) var(--space-lg);
+  }
+
+  .admin-slide-panel-body {
+    padding: var(--space-lg);
+
+/* ---------- Responsive: Tablet (1024px) ---------- */
+@media (max-width: 1024px) {
+  .admin-slide-panel-header,
+  .admin-slide-panel-body {
+    padding: var(--space-md);
+  }
 }
 
+/* ---------- Responsive: Mobile (768px) ---------- */
 @media (max-width: 768px) {
   .admin-kpi-grid {
     grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+
+  .admin-kpi-card {
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+  }
+
+  .admin-kpi-value {
+    font-size: var(--font-size-2xl);
+  }
+
+  .admin-slide-panel {
+    border-radius: 0;
+    border-left: none;
+    width: 100vw;
+  }
+
+  .admin-slide-panel-header,
+  .admin-slide-panel-body {
+    padding: var(--space-md);
+  }
+
+  .admin-table-container {
+    border-radius: var(--radius-md);
+  }
+
+  .admin-table-container th,
+  .admin-table-container td {
+    padding: var(--space-sm) var(--space-md);
+    white-space: nowrap;
+  }
+
+  .admin-action-btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .admin-ribbon {
+    font-size: var(--font-size-xs);
+    padding: 2px 8px;
+  }
+
+  .admin-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .admin-health-indicator {
+    padding: var(--space-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .admin-broadcast-textarea {
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+
+  .admin-send-btn {
+    width: 100%;
+  }
+
+  .admin-select {
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+}
+
+/* ---------- Responsive: Small Phone (480px) ---------- */
+@media (max-width: 480px) {
+  .admin-kpi-card {
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+  }
+
+  .admin-kpi-value {
+    font-size: var(--font-size-xl);
+  }
+
+  .admin-slide-panel-header,
+  .admin-slide-panel-body {
+    padding: var(--space-sm);
   }
 }

@@ -111,6 +111,7 @@ export default function OrdersPage() {
           {loading ? (
             <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>Loading orders...</div>
           ) : (
+          <div className="table-scroll-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
@@ -190,6 +191,7 @@ export default function OrdersPage() {
                 )}
               </tbody>
             </table>
+          </div>
           )}
         </div>
       </div>

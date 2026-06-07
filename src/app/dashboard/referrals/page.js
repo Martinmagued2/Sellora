@@ -393,7 +393,7 @@ export default function ReferralsPage() {
               <p style={{ fontSize: "var(--font-size-sm)" }}>Share your referral link to start earning commissions</p>
             </div>
           ) : (
-            <table className="data-table">
+            <div className="table-scroll-wrapper"><table className="data-table">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -438,7 +438,7 @@ export default function ReferralsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </div>

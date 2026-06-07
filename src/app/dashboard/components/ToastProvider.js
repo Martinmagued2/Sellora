@@ -4,27 +4,21 @@ import { createContext, useContext, useState, useCallback, useRef } from "react"
 import { AnimatePresence } from "framer-motion";
 import Toast from "./Toast";
 
-const ToastContext = createContext(null);
+const noOp = () => {};
+
+const ToastContext = createContext({
+  showToast: noOp,
+  dismissToast: noOp,
+  success: noOp,
+  error: noOp,
+  warning: noOp,
+  info: noOp,
+});
 
 let toastIdCounter = 0;
 
-// Fallback no-op toast for SSR or when used outside ToastProvider
-const noopToast = {
-  showToast: () => {},
-  dismissToast: () => {},
-  success: () => {},
-  error: () => {},
-  warning: () => {},
-  info: () => {},
-};
-
 export function useToast() {
-  const context = useContext(ToastContext);
-  if (!context) {
-    // Return no-op during SSR/prerender instead of throwing
-    return noopToast;
-  }
-  return context;
+  return useContext(ToastContext);
 }
 
 export default function ToastProvider({ children }) {
