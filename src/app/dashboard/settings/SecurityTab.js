@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Shield, Smartphone, Key, Loader2, Check, Copy, AlertTriangle } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 export default function SecurityTab({
   account, supabase,
@@ -220,11 +221,14 @@ export default function SecurityTab({
 
               {/* QR Code */}
               <div style={{ textAlign: "center", marginBottom: "var(--space-lg)" }}>
-                <img
-                  src={`https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=${encodeURIComponent(totpSetup.otpauthUrl)}&choe=UTF-8`}
-                  alt="2FA QR Code"
-                  style={{ borderRadius: "var(--radius-md)", background: "white", padding: 8 }}
-                />
+                <div style={{ display: "inline-block", borderRadius: "var(--radius-md)", background: "white", padding: 16 }}>
+                  <QRCodeSVG
+                    value={totpSetup.otpauthUrl}
+                    size={200}
+                    level="M"
+                    includeMargin={false}
+                  />
+                </div>
               </div>
 
               {/* Manual entry */}
