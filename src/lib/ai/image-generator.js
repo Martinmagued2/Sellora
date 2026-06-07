@@ -95,16 +95,68 @@ export async function generateProductImage(prompt, options = {}) {
         console.warn(`[ImageGen] Gemini ${modelName} returned no image data (only text)`);
       } catch (geminiError) {
         const msg = geminiError?.message || String(geminiError);
-        errors.push(`Gemini-${modelName}: ${msg.substring(0, 80)}`);
+        errors.push(`Gemini-SDK-${modelName}: ${msg.substring(0, 80)}`);
         if (msg.includes("location is not supported") || msg.includes("not available in your country")) {
           console.warn(`[ImageGen] Gemini image generation not available in your region`);
           break; // No point trying other Gemini models if region-blocked
         }
         if (msg.includes("not found") || msg.includes("does not exist")) {
-          console.warn(`[ImageGen] Gemini model ${modelName} not found, trying next`);
-          continue;
+          console.warn(`[ImageGen] Gemini model ${modelName} not found via SDK, trying raw API`);
         }
-        console.warn(`[ImageGen] Gemini ${modelName} failed: ${msg.substring(0, 150)}`);
+        console.warn(`[ImageGen] Gemini SDK ${modelName} failed: ${msg.substring(0, 150)}`);
+      }
+    }
+
+    // 1a-fallback: Try Gemini via raw fetch with explicit v1beta URL
+    // (in case the SDK has issues with model routing)
+    for (const modelName of GEMINI_IMAGE_MODELS) {
+      try {
+        console.log(`[ImageGen] Trying Gemini ${modelName} via raw fetch (v1beta)...`);
+        const geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${googleApiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [{ text: `Generate a high-quality product image: ${prompt}` }],
+                },
+              ],
+              generationConfig: {
+                responseModalities: ["TEXT", "IMAGE"],
+              },
+            }),
+            signal: AbortSignal.timeout(45000),
+          }
+        );
+
+        if (geminiResponse.ok) {
+          const data = await geminiResponse.json();
+          const parts = data.candidates?.[0]?.content?.parts || [];
+          for (const part of parts) {
+            if (part.inlineData && part.inlineData.data) {
+              const imageBase64 = part.inlineData.data;
+              console.log(`[ImageGen] ✅ Image generated via Gemini ${modelName} (raw fetch, ${(imageBase64.length / 1024).toFixed(0)}KB)`);
+              return { success: true, imageBase64, source: "gemini" };
+            }
+          }
+          console.warn(`[ImageGen] Gemini ${modelName} (raw) returned no image data`);
+        } else {
+          const errorData = await geminiResponse.json().catch(() => ({}));
+          const errMsg = errorData?.error?.message || `HTTP ${geminiResponse.status}`;
+          errors.push(`Gemini-raw-${modelName}: ${errMsg.substring(0, 80)}`);
+          if (errMsg.includes("not found") || errMsg.includes("does not exist")) {
+            continue;
+          }
+          if (errMsg.includes("location is not supported")) {
+            break;
+          }
+          console.warn(`[ImageGen] Gemini ${modelName} (raw) failed: ${errMsg.substring(0, 150)}`);
+        }
+      } catch (rawGeminiError) {
+        errors.push(`Gemini-raw-${modelName}: ${rawGeminiError.message?.substring(0, 80)}`);
+        console.warn(`[ImageGen] Gemini ${modelName} (raw) error: ${rawGeminiError.message?.substring(0, 150)}`);
       }
     }
 
