@@ -494,12 +494,45 @@
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .auth-form-panel {
     padding: var(--space-lg);
   }
 
+  .auth-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .auth-input {
+    font-size: 16px; /* Prevents iOS zoom */
+    padding: 14px 16px 14px 42px;
+  }
+
+  .auth-submit .btn {
+    min-height: 48px;
+  }
+
+  .auth-social-btn {
+    min-height: 48px;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-form-panel {
+    padding: var(--space-md);
+  }
+
   .auth-social-row {
     flex-direction: column;
+  }
+
+  .auth-card {
+    max-width: 100%;
+  }
+
+  .auth-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
   }
 }

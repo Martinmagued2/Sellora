@@ -396,18 +396,9 @@
     width: 100vw;
   }
 
-  .admin-slide-panel-header {
-    padding: var(--space-md) var(--space-lg);
-  }
-
-  .admin-slide-panel-body {
-    padding: var(--space-lg);
-
-/* ---------- Responsive: Tablet (1024px) ---------- */
-@media (max-width: 1024px) {
   .admin-slide-panel-header,
   .admin-slide-panel-body {
-    padding: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
   }
 }
 

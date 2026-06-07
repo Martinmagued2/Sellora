@@ -1567,17 +1567,47 @@ select.form-input {
   .dashboard-panel-header {
     padding: var(--space-md) var(--space-lg);
   }
+
+  .conversations-layout {
+    grid-template-columns: 280px 1fr;
+  }
+
+  .topbar-search {
+    width: 200px;
+  }
+
+  .filter-bar {
+    flex-wrap: wrap;
+  }
+
+  .filter-search {
+    margin-left: 0;
+    width: 100%;
+    order: 10;
+  }
+
+  .filter-search input {
+    width: 100%;
+  }
+
+  .products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
 }
 
 /* ---------- Responsive: Mobile (768px) ---------- */
 @media (max-width: 768px) {
-  /* Sidebar */
+  /* Sidebar - slide-in drawer */
   .sidebar {
     transform: translateX(-100%);
+    width: 280px;
+    box-shadow: none;
+    z-index: 200;
   }
 
   .sidebar.open {
     transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
   }
 
   .sidebar-close {
@@ -1593,7 +1623,7 @@ select.form-input {
     padding: 12px var(--space-md);
   }
 
-  /* Main */
+  /* Main - full width */
   .dashboard-main {
     margin-left: 0;
   }
@@ -1602,6 +1632,12 @@ select.form-input {
   .topbar {
     height: 56px;
     padding: 0 var(--space-md);
+    gap: var(--space-xs);
+  }
+
+  .topbar-left {
+    flex-shrink: 1;
+    min-width: 0;
   }
 
   .topbar-mobile-toggle {
@@ -1610,6 +1646,7 @@ select.form-input {
     min-height: 44px;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
 
   .topbar-search {
@@ -1618,8 +1655,8 @@ select.form-input {
 
   .topbar-search-toggle {
     display: flex;
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 38px;
+    min-height: 38px;
     align-items: center;
     justify-content: center;
   }
@@ -1629,17 +1666,31 @@ select.form-input {
   }
 
   .topbar-btn {
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 38px;
+    min-height: 38px;
   }
 
   .topbar-title {
     font-size: var(--font-size-base);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-right {
+    gap: 2px;
+    flex-shrink: 0;
   }
 
   /* Page Content */
   .page-content {
     padding: var(--space-md);
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
   }
 
   .page-header h1 {
@@ -1653,8 +1704,8 @@ select.form-input {
 
   /* Stats Grid */
   .stats-grid {
-    grid-template-columns: 1fr;
-    gap: var(--space-md);
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
   }
 
   .stat-card {
@@ -1663,7 +1714,7 @@ select.form-input {
   }
 
   .stat-card-value {
-    font-size: var(--font-size-2xl);
+    font-size: var(--font-size-xl);
   }
 
   .stat-card:hover {
@@ -1672,6 +1723,7 @@ select.form-input {
 
   /* Dashboard Grid */
   .dashboard-grid {
+    grid-template-columns: 1fr;
     gap: var(--space-md);
   }
 
@@ -1694,6 +1746,7 @@ select.form-input {
   /* Conversations - Mobile list-OR-chat pattern */
   .conversations-layout {
     grid-template-columns: 1fr;
+    height: calc(100vh - 56px);
   }
 
   .conv-list.mobile-hidden {
@@ -1737,93 +1790,101 @@ select.form-input {
     font-size: 16px; /* Prevents iOS zoom */
   }
 
-  .conv-item {
-    padding: var(--space-md);
-  }
-
-  /* Data Tables */
+  /* Tables */
   .data-table th,
   .data-table td {
     padding: var(--space-sm) var(--space-md);
-    white-space: nowrap;
+    font-size: var(--font-size-xs);
   }
 
   .data-table tbody tr:hover {
     transform: none;
   }
 
-  /* Products Grid */
-  .products-grid {
-    grid-template-columns: 1fr;
-    gap: var(--space-md);
-  }
-
-  /* Modal */
-  .modal {
-    width: 96%;
-    max-width: none;
-    border-radius: var(--radius-md);
-  }
-
-  .modal-header,
-  .modal-body,
-  .modal-footer {
+  .table-scroll-wrapper {
+    margin: calc(var(--space-md) * -1);
     padding: var(--space-md);
-  }
-
-  .modal-footer {
-    flex-wrap: wrap;
   }
 
   /* Filter Bar */
   .filter-bar {
     flex-direction: column;
     align-items: stretch;
+    gap: var(--space-sm);
   }
 
   .filter-tabs {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-  }
-
-  .filter-tab {
-    min-height: 44px;
-    padding: 8px 12px;
+    flex-wrap: nowrap;
   }
 
   .filter-search {
     margin-left: 0;
-    width: 100%;
   }
 
   .filter-search input {
     width: 100%;
-  }
-
-  /* Variant Management */
-  .variant-row {
-    grid-template-columns: 1fr;
-    gap: var(--space-xs);
-    padding: var(--space-md);
-  }
-
-  .variant-header {
-    display: none;
-  }
-
-  .variant-row input {
     font-size: 16px; /* Prevents iOS zoom */
   }
 
-  .variant-remove-btn {
-    min-width: 44px;
-    min-height: 44px;
+  /* Products Grid */
+  .products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--space-sm);
   }
 
-  /* AI Insights Bar */
-  .ai-insights-bar {
-    flex-wrap: wrap;
+  .product-card-image {
+    height: 140px;
+  }
+
+  .product-card-body {
     padding: var(--space-md);
+  }
+
+  /* Modal */
+  .modal {
+    width: 95%;
+    max-height: 85vh;
+    border-radius: var(--radius-lg);
+  }
+
+  .modal-header,
+  .modal-body {
+    padding: var(--space-md);
+  }
+
+  .modal-footer {
+    padding: var(--space-md);
+    flex-direction: column;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+
+  /* AI Insights */
+  .ai-insights-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+  }
+
+  /* Form Elements */
+  .form-input,
+  .form-textarea {
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+
+  /* Image Upload */
+  .image-upload-area {
+    min-height: 120px;
+    padding: var(--space-md);
+  }
+
+  .ai-image-controls {
+    flex-direction: column;
   }
 
   /* Empty State */
@@ -1831,48 +1892,24 @@ select.form-input {
     padding: var(--space-2xl) var(--space-md);
   }
 
-  /* Form Inputs - Prevent iOS zoom */
-  .form-input,
-  select.form-input,
-  .form-textarea {
-    font-size: 16px;
+  /* Buttons - ensure good touch targets */
+  .btn {
+    min-height: 44px;
   }
 
-  /* Copilot Panel - Fullscreen on mobile */
-  .copilot-panel {
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    border-radius: 0 !important;
-  }
-
-  .copilot-fab {
-    bottom: 20px;
-    right: 20px;
-  }
-
-  /* Toast Container - Bottom center on mobile */
-  .toast-container {
-    top: auto !important;
-    bottom: 80px;
-    right: var(--space-md);
-    left: var(--space-md);
-    align-items: center;
-  }
-
-  /* Webhook URL truncate */
-  .webhook-url {
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .btn-sm {
+    min-height: 36px;
   }
 }
 
 /* ---------- Responsive: Small Phone (480px) ---------- */
 @media (max-width: 480px) {
-  .topbar {
-    padding: 0 var(--space-sm);
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card-value {
+    font-size: var(--font-size-lg);
   }
 
   .topbar-title {
@@ -1887,59 +1924,45 @@ select.form-input {
     font-size: var(--font-size-lg);
   }
 
-  .stat-card {
-    padding: var(--space-sm);
-    border-radius: var(--radius-sm);
+  .products-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-xs);
   }
 
-  .stat-card-icon {
+  .product-card-image {
+    height: 120px;
+  }
+
+  .product-card-body {
+    padding: var(--space-sm);
+  }
+
+  .product-card-name {
+    font-size: var(--font-size-sm);
+  }
+
+  .product-card-price {
+    font-size: var(--font-size-base);
+  }
+
+  .conv-item {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .conv-avatar {
     width: 36px;
     height: 36px;
-  }
-
-  .stat-card-value {
-    font-size: var(--font-size-xl);
-  }
-
-  .dashboard-panel {
-    border-radius: var(--radius-sm);
-  }
-
-  .dashboard-panel-body {
-    padding: var(--space-xs);
-  }
-
-  .modal {
-    width: 100%;
-    border-radius: 0;
-    max-height: 100vh;
+    font-size: var(--font-size-xs);
   }
 
   .chat-msg {
     max-width: 92%;
+    padding: var(--space-sm) var(--space-md);
   }
 
-  .conv-avatar {
-    width: 38px;
-    height: 38px;
-    font-size: 12px;
-  }
-
-  .filter-tab {
-    padding: 6px 10px;
-    font-size: var(--font-size-xs);
-  }
-
-  .copilot-fab {
-    bottom: 16px;
-    right: 16px;
-    width: 48px;
-    height: 48px;
-  }
-
-  .toast-container {
-    bottom: 70px;
-    left: var(--space-sm);
-    right: var(--space-sm);
+  .modal {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
   }
 }
