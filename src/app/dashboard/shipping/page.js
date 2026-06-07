@@ -25,6 +25,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
 import { useToast } from "../components/ToastProvider";
+import { useConfirm } from "../components/ConfirmProvider";
 
 const STATUS_CONFIG = {
   pending: { label: "Pending", color: "gray", icon: Clock },
@@ -199,7 +200,8 @@ const DEMO_SHIPMENTS = [
 ];
 
 export default function ShippingPage() {
-  const [shipments, setShipments] = useState([]);
+  
+  const { confirmAction } = useConfirm();const [shipments, setShipments] = useState([]);
   const [carriers, setCarriers] = useState([]);
   const [config, setConfig] = useState({ api_key: "", api_key_set: false, default_carrier: "aramex", auto_track: true, connected: false });
   const [filter, setFilter] = useState("all");
@@ -451,7 +453,7 @@ export default function ShippingPage() {
 
   // Delete tracking
   const handleDelete = async (shipment) => {
-    if (!confirm("Delete this tracking record?")) return;
+    if (!(await confirmAction("Delete this tracking record?"))) return;
     if (shipment.id?.startsWith("demo-")) return;
     try {
       await fetch(`/api/shipping/track?id=${shipment.id}`, { method: "DELETE" });

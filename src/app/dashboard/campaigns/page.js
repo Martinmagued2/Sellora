@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
+import { useConfirm } from "../components/ConfirmProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
 
 const CHANNEL_ICON = {
@@ -19,7 +20,8 @@ const CHANNEL_ICON = {
 
 export default function CampaignsPage() {
   const toast = useToast();
-  const [campaigns, setCampaigns] = useState([]);
+  
+  const { confirmAction } = useConfirm();const [campaigns, setCampaigns] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [accountPlan, setAccountPlan] = useState("starter");
@@ -119,7 +121,7 @@ export default function CampaignsPage() {
   }, [showCreateModal, estimateAudience]);
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this campaign?")) return;
+    if (!(await confirmAction("Delete this campaign?"))) return;
     await supabase.from("campaigns").delete().eq("id", id);
     fetchCampaigns();
   };
@@ -196,7 +198,7 @@ export default function CampaignsPage() {
   };
 
   const handleSendCampaign = async (campaignId) => {
-    if (!confirm("Send this campaign to all matching customers? This cannot be undone.")) return;
+    if (!(await confirmAction("Send this campaign to all matching customers? This cannot be undone."))) return;
     setSendingCampaignId(campaignId);
     setSendResult(null);
 

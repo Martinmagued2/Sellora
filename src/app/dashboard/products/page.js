@@ -21,11 +21,13 @@ import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useCurrentStore } from "@/lib/store-context";
 import { useToast } from "../components/ToastProvider";
+import { useConfirm } from "../components/ConfirmProvider";
 
 export default function ProductsPage() {
   const router = useRouter();
   const toast = useToast();
-  const [products, setProducts] = useState([]);
+  
+  const { confirmAction } = useConfirm();const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -337,7 +339,7 @@ export default function ProductsPage() {
     setSaving(false);
   };
 
-  const handleEdit = (product) => {
+  const handleEdit = async (product) => {
     setEditingProduct(product);
     setImagePreview(product.image_urls && product.image_urls.length > 0 ? product.image_urls[0] : null);
     // Load existing variants
@@ -355,7 +357,7 @@ export default function ProductsPage() {
   };
 
   const handleDelete = async (id, imageUrls) => {
-    if (!confirm("Delete this product?")) return;
+    if (!(await confirmAction("Delete this product?"))) return;
 
     if (imageUrls && imageUrls.length > 0) {
       try {

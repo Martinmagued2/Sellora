@@ -8,10 +8,12 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
+import { useConfirm } from "../components/ConfirmProvider";
 
 export default function WhatsAppCatalogPage() {
   const toast = useToast();
-  const [loading, setLoading] = useState(true);
+  
+  const { confirmAction } = useConfirm();const [loading, setLoading] = useState(true);
   const [catalogStatus, setCatalogStatus] = useState(null);
   const [products, setProducts] = useState([]);
   const [syncing, setSyncing] = useState(false);
@@ -71,7 +73,7 @@ export default function WhatsAppCatalogPage() {
   };
 
   const handleClearCatalog = async () => {
-    if (!confirm("Are you sure you want to remove all products from your WhatsApp catalog?")) return;
+    if (!(await confirmAction("Are you sure you want to remove all products from your WhatsApp catalog?"))) return;
     setClearing(true);
     try {
       const res = await fetch("/api/whatsapp/catalog", { method: "DELETE" });

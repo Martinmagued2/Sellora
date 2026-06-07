@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
+import { useConfirm } from "../components/ConfirmProvider";
 
 const STATUS_CONFIG = {
   success: { label: "Success", color: "var(--accent-green)", bg: "rgba(0, 230, 118, 0.1)", icon: CheckCircle },
@@ -18,7 +19,8 @@ const STATUS_CONFIG = {
 
 export default function WebhooksPage() {
   const toast = useToast();
-  const [webhooks, setWebhooks] = useState([]);
+  
+  const { confirmAction } = useConfirm();const [webhooks, setWebhooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedWebhook, setSelectedWebhook] = useState(null);
   const [deliveries, setDeliveries] = useState([]);
@@ -136,7 +138,7 @@ export default function WebhooksPage() {
   };
 
   const handleDeleteWebhook = async (whId) => {
-    if (!confirm("Delete this webhook? All delivery logs will also be removed.")) return;
+    if (!(await confirmAction("Delete this webhook? All delivery logs will also be removed."))) return;
     await supabase.from("account_webhooks").delete().eq("id", whId);
     if (selectedWebhook === whId) setSelectedWebhook(null);
     fetchWebhooks();

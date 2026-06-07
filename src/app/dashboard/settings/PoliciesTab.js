@@ -110,7 +110,7 @@ export default function PoliciesTab({
                     <Edit size={11} style={{ color: "var(--text-secondary)" }} />
                   </button>
                   <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
-                    if (!confirm("Delete this policy?")) return;
+                    if (!(await confirmAction("Delete this policy?"))) return;
                     await fetch(`/api/policies?id=${policy.id}`, { method: "DELETE" });
                     setPolicies((prev) => prev.filter(p => p.id !== policy.id));
                   }}>

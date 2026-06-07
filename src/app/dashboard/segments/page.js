@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
+import { useConfirm } from "../components/ConfirmProvider";
 
 const ICON_MAP = { Users, Star, Crown, Heart, Shield, Zap, Target, Gift };
 
@@ -94,7 +95,8 @@ const OPERATOR_OPTIONS = {
 export default function SegmentsPage() {
   const toast = useToast();
   const router = useRouter();
-  const [segments, setSegments] = useState([]);
+  
+  const { confirmAction } = useConfirm();const [segments, setSegments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -237,7 +239,7 @@ export default function SegmentsPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this segment?")) return;
+    if (!(await confirmAction("Delete this segment?"))) return;
     try {
       const res = await fetch(`/api/segments/${id}`, { method: "DELETE" });
       if (res.ok) {

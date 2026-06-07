@@ -44,6 +44,7 @@ import { StoreProvider } from "@/lib/store-context";
 import CopilotPanel from "./components/CopilotPanel";
 import NotificationBell from "./components/NotificationBell";
 import ToastProvider from "./components/ToastProvider";
+import ConfirmProvider from "./components/ConfirmProvider";
 import InstallPrompt from "./components/InstallPrompt";
 import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
 import StoreSwitcher from "./components/StoreSwitcher";
@@ -246,6 +247,7 @@ export default function DashboardLayout({ children }) {
   return (
     <StoreProvider>
     <ToastProvider>
+    <ConfirmProvider>
     <ServiceWorkerRegistration />
     <div className="dashboard-layout">
       {/* Sidebar */}
@@ -494,6 +496,7 @@ export default function DashboardLayout({ children }) {
       {/* PWA Install Prompt */}
       <InstallPrompt />
     </div>
+    </ConfirmProvider>
     </ToastProvider>
     </StoreProvider>
   );

@@ -92,7 +92,7 @@ export default function FAQsTab({
                     <Edit size={11} style={{ color: "var(--text-secondary)" }} />
                   </button>
                   <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
-                    if (!confirm("Delete this FAQ?")) return;
+                    if (!(await confirmAction("Delete this FAQ?"))) return;
                     await fetch(`/api/faqs?id=${faq.id}`, { method: "DELETE" });
                     setFaqs((prev) => prev.filter(f => f.id !== faq.id));
                   }}>

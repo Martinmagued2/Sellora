@@ -123,7 +123,7 @@ export default function QuickRepliesTab({
                     <Edit size={11} style={{ color: "var(--text-secondary)" }} />
                   </button>
                   <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
-                    if (!confirm("Delete this template?")) return;
+                    if (!(await confirmAction("Delete this template?"))) return;
                     await fetch(`/api/quick-replies?id=${qr.id}`, { method: "DELETE" });
                     setQuickReplies((prev) => prev.filter(q => q.id !== qr.id));
                   }}>

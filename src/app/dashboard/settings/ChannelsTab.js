@@ -3,6 +3,7 @@
 import { MessageCircle, Globe, Check, Plus, X, Link as LinkIcon, Loader2 } from "lucide-react";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useToast } from "../components/ToastProvider";
+import { useConfirm } from "../components/ConfirmProvider";
 
 export default function ChannelsTab({
   account, setAccount, supabase, router,
@@ -68,7 +69,7 @@ export default function ChannelsTab({
                   <Check size={16} /> Connected
                 </button>
                 <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
-                  if (!confirm('Disconnect Instagram? You will stop receiving Instagram messages.')) return;
+                  if (!(await confirmAction('Disconnect Instagram? You will stop receiving Instagram messages.'))) return;
                   await supabase.from('accounts').update({ instagram_connected: false, instagram_page_id: null, instagram_access_token: null }).eq('id', account.id);
                   setAccount(prev => ({ ...prev, instagram_connected: false, instagram_page_id: null, instagram_access_token: null }));
                 }}>Disconnect</button>
@@ -146,7 +147,7 @@ export default function ChannelsTab({
                   <Check size={16} /> Connected
                 </button>
                 <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
-                  if (!confirm('Disconnect Facebook? You will stop receiving Facebook messages.')) return;
+                  if (!(await confirmAction('Disconnect Facebook? You will stop receiving Facebook messages.'))) return;
                   await supabase.from('accounts').update({ facebook_connected: false, facebook_page_id: null, facebook_access_token: null }).eq('id', account.id);
                   setAccount(prev => ({ ...prev, facebook_connected: false, facebook_page_id: null, facebook_access_token: null }));
                 }}>Disconnect</button>
@@ -237,7 +238,7 @@ export default function ChannelsTab({
                     {shopifySyncing ? 'Syncing...' : 'Sync Data'}
                   </button>
                   <button className="btn btn-secondary btn-sm" style={{ flex: 1, color: "var(--accent-red)" }} disabled={shopifyDisconnecting} onClick={async () => {
-                    if (!confirm('Are you sure you want to disconnect Shopify?')) return;
+                    if (!(await confirmAction('Are you sure you want to disconnect Shopify?'))) return;
                     setShopifyDisconnecting(true);
                     try {
                       const res = await fetch('/api/integrations/shopify/disconnect', { method: 'POST' });
@@ -294,7 +295,7 @@ export default function ChannelsTab({
                   <div><strong>Verify Token:</strong> Set via WHATSAPP_WEBHOOK_VERIFY_TOKEN env var</div>
                 </div>
                 <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
-                  if (!confirm('Disconnect WhatsApp? You will stop receiving WhatsApp messages.')) return;
+                  if (!(await confirmAction('Disconnect WhatsApp? You will stop receiving WhatsApp messages.'))) return;
                   await supabase.from('accounts').update({ whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }).eq('id', account.id);
                   setAccount(prev => ({ ...prev, whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }));
                 }}>Disconnect</button>

@@ -9,11 +9,13 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
+import { useConfirm } from "../components/ConfirmProvider";
 
 export default function AutomationPage() {
   const toast = useToast();
   // Account / automation state
-  const [loading, setLoading] = useState(true);
+  
+  const { confirmAction } = useConfirm();const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -192,7 +194,7 @@ export default function AutomationPage() {
   };
 
   const handleQuickReplyDelete = async (id) => {
-    if (!confirm("Delete this template?")) return;
+    if (!(await confirmAction("Delete this template?"))) return;
     await fetch(`/api/quick-replies?id=${id}`, { method: "DELETE" });
     setQuickReplies((prev) => prev.filter(q => q.id !== id));
   };
