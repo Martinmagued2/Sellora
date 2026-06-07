@@ -8,6 +8,7 @@ import {
   Filter,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 
 const ICON_MAP = { Users, Star, Crown, Heart, Shield, Zap, Target, Gift };
 
@@ -91,6 +92,7 @@ const OPERATOR_OPTIONS = {
 };
 
 export default function SegmentsPage() {
+  const toast = useToast();
   const router = useRouter();
   const [segments, setSegments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -200,10 +202,10 @@ export default function SegmentsPage() {
         resetForm();
         fetchSegments();
       } else {
-        alert(data.error || "Failed to create segment");
+        toast.error(data.error || "Failed to create segment");
       }
     } catch (err) {
-      alert("Failed to create segment");
+      toast.error("Failed to create segment");
     }
     setSaving(false);
   };
@@ -226,10 +228,10 @@ export default function SegmentsPage() {
       if (data.success) {
         fetchSegments();
       } else {
-        alert(data.error || "Failed to create segment");
+        toast.error(data.error || "Failed to create segment");
       }
     } catch (err) {
-      alert("Failed to create segment from template");
+      toast.error("Failed to create segment from template");
     }
     setSaving(false);
   };

@@ -1,8 +1,10 @@
 "use client";
 
 import { Upload } from "lucide-react";
+import { useToast } from "../components/ToastProvider";
 
 export default function ProfileTab({ account, updateField, supabase, uploadingLogo, setUploadingLogo }) {
+  const toast = useToast();
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">
@@ -33,7 +35,7 @@ export default function ProfileTab({ account, updateField, supabase, uploadingLo
                 input.onchange = async (e) => {
                   const file = e.target.files[0];
                   if (!file) return;
-                  if (file.size > 2 * 1024 * 1024) { alert('File must be under 2MB'); return; }
+                  if (file.size > 2 * 1024 * 1024) { toast.warning('File must be under 2MB'); return; }
                   setUploadingLogo(true);
                   try {
                     const ext = file.name.split('.').pop();
@@ -72,7 +74,7 @@ export default function ProfileTab({ account, updateField, supabase, uploadingLo
                       await supabase.from('accounts').update({ logo_url: logoUrl }).eq('id', user.id);
                       updateField('logo_url', logoUrl);
                     }
-                  } catch (err) { alert('Upload failed: ' + err.message); }
+                  } catch (err) { toast.error('Upload failed: ' + err.message); }
                   finally { setUploadingLogo(false); }
                 };
                 input.click();

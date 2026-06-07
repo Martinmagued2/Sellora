@@ -8,6 +8,7 @@ import {
   Copy, AlertCircle, ChevronDown, ChevronUp, Globe, Camera, MessageSquare,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
 
 const CHANNEL_ICON = {
@@ -17,6 +18,7 @@ const CHANNEL_ICON = {
 };
 
 export default function CampaignsPage() {
+  const toast = useToast();
   const [campaigns, setCampaigns] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -188,7 +190,7 @@ export default function CampaignsPage() {
       setAudienceCount(null);
       fetchCampaigns();
     } else {
-      alert("Failed to create campaign: " + error.message);
+      toast.error("Failed to create campaign: " + error.message);
     }
     setSaving(false);
   };

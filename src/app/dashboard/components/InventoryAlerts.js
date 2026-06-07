@@ -9,8 +9,10 @@ import {
   Eye,
   RefreshCw,
 } from "lucide-react";
+import { useToast } from "./ToastProvider";
 
 export default function InventoryAlerts() {
+  const toast = useToast();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState({});
@@ -44,7 +46,7 @@ export default function InventoryAlerts() {
 
       const newStock = parseInt(restockAmount);
       if (isNaN(newStock) || newStock < 0) {
-        alert("Please enter a valid stock quantity.");
+        toast.warning("Please enter a valid stock quantity.");
         setUpdating((prev) => ({ ...prev, [productId]: false }));
         return;
       }
@@ -64,11 +66,11 @@ export default function InventoryAlerts() {
         );
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to restock product.");
+        toast.error(data.error || "Failed to restock product.");
       }
     } catch (err) {
       console.error("Restock error:", err);
-      alert("Failed to restock product.");
+      toast.error("Failed to restock product.");
     }
     setUpdating((prev) => ({ ...prev, [productId]: false }));
   };
@@ -90,11 +92,11 @@ export default function InventoryAlerts() {
         );
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to update AI visibility.");
+        toast.error(data.error || "Failed to update AI visibility.");
       }
     } catch (err) {
       console.error("Toggle hidden error:", err);
-      alert("Failed to update AI visibility.");
+      toast.error("Failed to update AI visibility.");
     }
     setUpdating((prev) => ({ ...prev, [productId]: false }));
   };

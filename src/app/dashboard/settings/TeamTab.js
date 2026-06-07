@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, Trash2, Lock, Crown, Loader2 } from "lucide-react";
+import { useToast } from "../components/ToastProvider";
 
 export default function TeamTab({
   account, supabase,
@@ -8,6 +9,7 @@ export default function TeamTab({
   inviteEmail, setInviteEmail,
   teamSaving, setTeamSaving,
 }) {
+  const toast = useToast();
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header"><h3>Team Members</h3></div>
@@ -61,14 +63,14 @@ export default function TeamTab({
                   const data = await res.json();
 
                   if (!res.ok) {
-                    alert(data.error || "Failed to send invite");
+                    toast.error(data.error || "Failed to send invite");
                   } else if (data.member) {
                     setTeamMembers([...teamMembers, data.member]);
                     setInviteEmail("");
-                    alert("Invitation sent successfully!");
+                    toast.success("Invitation sent successfully!");
                   }
                 } catch (err) {
-                  alert("An error occurred while sending the invite.");
+                  toast.error("An error occurred while sending the invite.");
                 } finally {
                   setTeamSaving(false);
                 }

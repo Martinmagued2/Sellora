@@ -7,6 +7,7 @@ import {
   Activity, Zap, Shield, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 
 const STATUS_CONFIG = {
   success: { label: "Success", color: "var(--accent-green)", bg: "rgba(0, 230, 118, 0.1)", icon: CheckCircle },
@@ -16,6 +17,7 @@ const STATUS_CONFIG = {
 };
 
 export default function WebhooksPage() {
+  const toast = useToast();
   const [webhooks, setWebhooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedWebhook, setSelectedWebhook] = useState(null);
@@ -125,10 +127,10 @@ export default function WebhooksPage() {
         fetchDeliveries(selectedWebhook, deliveryPage, statusFilter);
         fetchWebhooks();
       } else {
-        alert(data.error || "Failed to retry delivery");
+        toast.error(data.error || "Failed to retry delivery");
       }
     } catch (err) {
-      alert("Failed to retry: " + err.message);
+      toast.error("Failed to retry: " + err.message);
     }
     setRetryingId(null);
   };
@@ -164,7 +166,7 @@ export default function WebhooksPage() {
       setNewWebhook({ url: "", events: ["order.created"], secret: "" });
       fetchWebhooks();
     } else {
-      alert("Failed to create webhook: " + error.message);
+      toast.error("Failed to create webhook: " + error.message);
     }
     setCreating(false);
   };
@@ -543,7 +545,7 @@ export default function WebhooksPage() {
                             <button
                               className="topbar-btn"
                               title="View response"
-                              onClick={() => alert(`Response Body:\n\n${del.response_body}`)}
+                              onClick={() => toast.info(`Response Body: ${del.response_body?.substring(0, 200)}...`) }
                               style={{ marginLeft: 4 }}
                             >
                               <ExternalLink size={14} />

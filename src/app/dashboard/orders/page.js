@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote, Link2, Loader2, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
+import { useToast } from "../components/ToastProvider";
 
 const statusColors = {
   pending: "pending", confirmed: "confirmed", shipped: "active",
@@ -26,6 +27,7 @@ export default function OrdersPage() {
   const [generatingLink, setGeneratingLink] = useState(null); // order ID being generated
 
   const { currentStoreId } = useCurrentStore();
+  const toast = useToast();
 
   const supabase = createClient();
 
@@ -65,17 +67,17 @@ export default function OrdersPage() {
       if (res.ok && data.paymentLink) {
         // Copy to clipboard
         await navigator.clipboard.writeText(data.paymentLink);
-        alert("Payment link copied to clipboard!\n\n" + data.paymentLink);
+        toast.success("Payment link copied to clipboard!\n\n" + data.paymentLink);
         // Update the viewed order
         if (viewOrder?.id === orderId) {
           setViewOrder((prev) => ({ ...prev, payment_link: data.paymentLink, payment_method: "paymob" }));
         }
         fetchOrders();
       } else {
-        alert("Failed to generate payment link: " + (data.error || "Unknown error"));
+        toast.error("Failed to generate payment link: " + (data.error || "Unknown error"));
       }
     } catch (err) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
     setGeneratingLink(null);
   };

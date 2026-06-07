@@ -1,6 +1,7 @@
 "use client";
 
 import { Bot, Plus, X, ToggleLeft, ToggleRight, Trash2, AlertTriangle } from "lucide-react";
+import { useToast } from "../components/ToastProvider";
 
 export default function AutoRepliesTab({
   account, updateField, supabase,
@@ -9,6 +10,7 @@ export default function AutoRepliesTab({
   newReply, setNewReply,
   replySaving, setReplySaving,
 }) {
+  const toast = useToast();
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">
@@ -86,7 +88,7 @@ export default function AutoRepliesTab({
                       response: newReply.response, match_type: newReply.match_type, is_active: true
                     }).select().single();
                     if (inserted) { setAutoReplies([...autoReplies, inserted]); setNewReply({ keyword: "", response: "", match_type: "contains" }); setShowAddReply(false); }
-                  } catch (err) { alert('Failed to save: ' + err.message); }
+                  } catch (err) { toast.error('Failed to save: ' + err.message); }
                   finally { setReplySaving(false); }
                 }}>{replySaving ? 'Saving...' : 'Save Reply'}</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => setShowAddReply(false)}>Cancel</button>

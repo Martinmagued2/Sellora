@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock, ToggleLeft, ToggleRight, AlertCircle, HelpCircle } from "lucide-react";
+import { useToast } from "../components/ToastProvider";
 
 export default function AutomationTab({
   account, supabase,
@@ -13,6 +14,7 @@ export default function AutomationTab({
   whatsappGreeting, setWhatsappGreeting,
   greetingDelaySeconds, setGreetingDelaySeconds,
 }) {
+  const toast = useToast();
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">
@@ -219,7 +221,7 @@ export default function AutomationTab({
                 body: JSON.stringify({ account_id: user.id }),
               });
               const data = await res.json();
-              alert(data.message || `Sent ${data.sent || 0} follow-up messages`);
+              toast.success(data.message || `Sent ${data.sent || 0} follow-up messages`);
             }}
           >
             <Clock size={16} /> Send Follow-Ups Now

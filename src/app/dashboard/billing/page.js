@@ -6,9 +6,11 @@ import {
   Zap, Star, Crown, ChevronRight, ExternalLink, Smartphone, Building2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
 
 export default function BillingPage() {
+  const toast = useToast();
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [purchasingPlan, setPurchasingPlan] = useState(null);
@@ -75,7 +77,7 @@ export default function BillingPage() {
         window.location.href = data.url;
       }
     } catch (err) {
-      alert("Billing Error: " + err.message);
+      toast.error("Billing Error: " + err.message);
       setPurchasingPlan(null);
     }
   };
@@ -303,7 +305,7 @@ export default function BillingPage() {
                           const { data: { user } } = await supabase.auth.getUser();
                           await supabase.from('accounts').update({ billing_address: billingAddress }).eq('id', user.id);
                           setShowAddressForm(false);
-                        } catch (err) { alert('Failed to save address'); }
+                        } catch (err) { toast.error('Failed to save address'); }
                         finally { setAddressSaving(false); }
                       }}>{addressSaving ? 'Saving...' : 'Save Address'}</button>
                       <button className="btn btn-secondary btn-sm" onClick={() => setShowAddressForm(false)}>Cancel</button>

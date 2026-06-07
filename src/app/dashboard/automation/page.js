@@ -8,8 +8,10 @@ import {
   Globe, Smartphone, Save, Check, ShoppingCart, ChevronRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 
 export default function AutomationPage() {
+  const toast = useToast();
   // Account / automation state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -149,9 +151,9 @@ export default function AutomationPage() {
         body: JSON.stringify({ account_id: user.id }),
       });
       const data = await res.json();
-      alert(data.message || `Sent ${data.sent || 0} follow-up messages`);
+      toast.info(data.message || `Sent ${data.sent || 0} follow-up messages`);
     } catch (err) {
-      alert("Failed to send follow-ups: " + err.message);
+      toast.error("Failed to send follow-ups: " + err.message);
     }
     setSendingFollowUps(false);
   };

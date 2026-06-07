@@ -10,6 +10,7 @@ import {
   FileText, Loader2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
 
 function TrendArrow({ value }) {
@@ -24,6 +25,7 @@ function TrendArrow({ value }) {
 }
 
 export default function AnalyticsPage() {
+  const toast = useToast();
   const [stats, setStats] = useState(null);
   const [salesData, setSalesData] = useState(null);
   const [customerData, setCustomerData] = useState(null);
@@ -197,7 +199,7 @@ export default function AnalyticsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: exportOrders } = await supabase.from("orders").select("*").eq("account_id", user.id).order("created_at", { ascending: false });
-    if (!exportOrders || exportOrders.length === 0) { alert("No data to export"); return; }
+    if (!exportOrders || exportOrders.length === 0) { toast.warning("No data to export"); return; }
     const headers = ["Order ID", "Date", "Total", "Status", "Payment Status", "Channel"];
     const csvContent = [
       headers.join(","),
@@ -223,7 +225,7 @@ export default function AnalyticsPage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || "Failed to generate PDF");
+        toast.error(data.error || "Failed to generate PDF");
         return;
       }
       const blob = await res.blob();
@@ -237,7 +239,7 @@ export default function AnalyticsPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Failed to export PDF: " + err.message);
+      toast.error("Failed to export PDF: " + err.message);
     }
     setExportingPdf(false);
   };

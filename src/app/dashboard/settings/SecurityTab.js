@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Shield, Smartphone, Key, Loader2, Check, Copy, AlertTriangle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { useToast } from "../components/ToastProvider";
 
 export default function SecurityTab({
   account, supabase,
@@ -13,6 +14,7 @@ export default function SecurityTab({
   showDeleteConfirm, setShowDeleteConfirm,
   deleteConfirmText, setDeleteConfirmText,
 }) {
+  const toast = useToast();
   // 2FA state
   const [totpSetup, setTotpSetup] = useState(null); // { secret, qrUrl, otpauthUrl }
   const [totpCode, setTotpCode] = useState("");
@@ -375,7 +377,7 @@ export default function SecurityTab({
                     await supabase.from('accounts').delete().eq('id', user.id);
                     await supabase.auth.signOut();
                     window.location.href = '/';
-                  } catch (err) { alert('Failed to delete account: ' + err.message); }
+                  } catch (err) { toast.error('Failed to delete account: ' + err.message); }
                 }}>Permanently Delete</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}>Cancel</button>
               </div>

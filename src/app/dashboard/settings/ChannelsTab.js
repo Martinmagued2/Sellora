@@ -2,6 +2,7 @@
 
 import { MessageCircle, Globe, Check, Plus, X, Link as LinkIcon, Loader2 } from "lucide-react";
 import { getPlanLimits } from "@/lib/plan-limits";
+import { useToast } from "../components/ToastProvider";
 
 export default function ChannelsTab({
   account, setAccount, supabase, router,
@@ -12,6 +13,7 @@ export default function ChannelsTab({
   shopifyDomain, setShopifyDomain, shopifyConnecting, setShopifyConnecting,
   shopifySyncing, setShopifySyncing, shopifyDisconnecting, setShopifyDisconnecting,
 }) {
+  const toast = useToast();
   const planLimits = getPlanLimits(account.plan || "starter");
   const connectedChannels = (account.instagram_connected ? 1 : 0) + (account.facebook_connected ? 1 : 0) + (account.whatsapp_connected ? 1 : 0);
   const limitReached = planLimits.channels !== -1 && connectedChannels >= planLimits.channels;
@@ -112,7 +114,7 @@ export default function ChannelsTab({
                         setAccount(prev => ({ ...prev, instagram_connected: true, instagram_page_id: manualIG.pageId, instagram_access_token: manualIG.accessToken }));
                         setMetaStatus({ type: 'success', platform: 'instagram', message: data.message || 'Instagram connected successfully!' });
                         setShowManualIG(false);
-                      } catch (err) { alert('Failed: ' + err.message); }
+                      } catch (err) { toast.error('Failed: ' + err.message); }
                       finally { setManualIGSaving(false); }
                     }}>
                       {manualIGSaving ? 'Saving...' : 'Save & Connect'}
@@ -190,7 +192,7 @@ export default function ChannelsTab({
                         setAccount(prev => ({ ...prev, facebook_connected: true, facebook_page_id: manualFB.pageId, facebook_access_token: manualFB.accessToken }));
                         setMetaStatus({ type: 'success', platform: 'facebook', message: data.message || 'Facebook connected successfully!' });
                         setShowManualFB(false);
-                      } catch (err) { alert('Failed: ' + err.message); }
+                      } catch (err) { toast.error('Failed: ' + err.message); }
                       finally { setManualFBSaving(false); }
                     }}>
                       {manualFBSaving ? 'Saving...' : 'Save & Connect'}
@@ -228,8 +230,8 @@ export default function ChannelsTab({
                       const res = await fetch('/api/integrations/shopify/sync', { method: 'POST' });
                       const data = await res.json();
                       if (data.error) throw new Error(data.error);
-                      alert(`Synced ${data.syncedProducts} products and ${data.syncedOrders} orders`);
-                    } catch(e) { alert(e.message); }
+                      toast.success(`Synced ${data.syncedProducts} products and ${data.syncedOrders} orders`);
+                    } catch(e) { toast.error(e.message); }
                     finally { setShopifySyncing(false); }
                   }}>
                     {shopifySyncing ? 'Syncing...' : 'Sync Data'}
@@ -323,7 +325,7 @@ export default function ChannelsTab({
                         setAccount(prev => ({ ...prev, whatsapp_connected: true, whatsapp_phone_number_id: manualWA.phoneNumberId, whatsapp_access_token: manualWA.accessToken }));
                         setShowManualWA(false);
                         setMetaStatus({ type: 'success', platform: 'whatsapp', message: 'WhatsApp connected successfully!' });
-                      } catch (err) { alert('Failed: ' + err.message); }
+                      } catch (err) { toast.error('Failed: ' + err.message); }
                       finally { setManualWASaving(false); }
                     }}>
                       {manualWASaving ? 'Saving...' : 'Save & Connect'}

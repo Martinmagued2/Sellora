@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Mic, MicOff, Loader2 } from "lucide-react";
+import { useToast } from "./ToastProvider";
 
 /**
  * VoiceRecorder component
@@ -12,6 +13,7 @@ import { Mic, MicOff, Loader2 } from "lucide-react";
  * - Returns transcribed text via onTranscribe callback
  */
 export default function VoiceRecorder({ onTranscribe, disabled = false, compact = false }) {
+  const toast = useToast();
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -181,9 +183,9 @@ export default function VoiceRecorder({ onTranscribe, disabled = false, compact 
     } catch (err) {
       console.error("Microphone access error:", err);
       if (err.name === "NotAllowedError") {
-        alert("Microphone access denied. Please allow microphone access in your browser settings.");
+        toast.error("Microphone access denied. Please allow microphone access in your browser settings.");
       } else {
-        alert("Could not access microphone. Please check your device.");
+        toast.error("Could not access microphone. Please check your device.");
       }
     }
   }, [disabled, onTranscribe, startVisualization, stopAnalyser, cleanupStream]);

@@ -7,8 +7,10 @@ import {
   AlertCircle, ExternalLink, Settings, ChevronRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 
 export default function WhatsAppCatalogPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [catalogStatus, setCatalogStatus] = useState(null);
   const [products, setProducts] = useState([]);
@@ -56,13 +58,13 @@ export default function WhatsAppCatalogPage() {
       const res = await fetch("/api/whatsapp/catalog", { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        alert(`Sync complete! ${data.synced} products synced, ${data.failed} failed.`);
+        toast.success(`Sync complete! ${data.synced} products synced, ${data.failed} failed.`);
       } else {
-        alert("Sync failed: " + (data.error || "Unknown error"));
+        toast.error("Sync failed: " + (data.error || "Unknown error"));
       }
       fetchData();
     } catch (err) {
-      alert("Sync error: " + err.message);
+      toast.error("Sync error: " + err.message);
     } finally {
       setSyncing(false);
     }
@@ -75,13 +77,13 @@ export default function WhatsAppCatalogPage() {
       const res = await fetch("/api/whatsapp/catalog", { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
-        alert(`Cleared ${data.deleted} products from WhatsApp catalog.`);
+        toast.success(`Cleared ${data.deleted} products from WhatsApp catalog.`);
       } else {
-        alert("Clear failed: " + (data.error || "Unknown error"));
+        toast.error("Clear failed: " + (data.error || "Unknown error"));
       }
       fetchData();
     } catch (err) {
-      alert("Clear error: " + err.message);
+      toast.error("Clear error: " + err.message);
     } finally {
       setClearing(false);
     }
@@ -93,12 +95,12 @@ export default function WhatsAppCatalogPage() {
       const res = await fetch(`/api/whatsapp/catalog/${productId}`, { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        alert("Product synced to WhatsApp catalog!");
+        toast.success("Product synced to WhatsApp catalog!");
       } else {
-        alert("Sync failed: " + (data.error || "Unknown error"));
+        toast.error("Sync failed: " + (data.error || "Unknown error"));
       }
     } catch (err) {
-      alert("Sync error: " + err.message);
+      toast.error("Sync error: " + err.message);
     } finally {
       setSyncingProduct(null);
     }
@@ -109,12 +111,12 @@ export default function WhatsAppCatalogPage() {
       const res = await fetch(`/api/whatsapp/catalog/${productId}`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
-        alert("Product removed from WhatsApp catalog.");
+        toast.success("Product removed from WhatsApp catalog.");
       } else {
-        alert("Remove failed: " + (data.error || "Unknown error"));
+        toast.error("Remove failed: " + (data.error || "Unknown error"));
       }
     } catch (err) {
-      alert("Remove error: " + err.message);
+      toast.error("Remove error: " + err.message);
     }
   };
 

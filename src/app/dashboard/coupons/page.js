@@ -8,6 +8,7 @@ import {
   ToggleLeft, ToggleRight, Search, Gift,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 import { getPlanLimits, isLimitExceeded } from "@/lib/plan-limits";
 
 const TYPE_CONFIG = {
@@ -32,6 +33,7 @@ function generateCouponCode() {
 }
 
 export default function CouponsPage() {
+  const toast = useToast();
   const router = useRouter();
   const [coupons, setCoupons] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -194,7 +196,7 @@ export default function CouponsPage() {
         });
         const data = await res.json();
         if (!res.ok) {
-          alert(data.error || "Failed to update coupon");
+          toast.error(data.error || "Failed to update coupon");
           setSaving(false);
           return;
         }
@@ -217,7 +219,7 @@ export default function CouponsPage() {
         });
         const data = await res.json();
         if (!res.ok) {
-          alert(data.error || "Failed to create coupon");
+          toast.error(data.error || "Failed to create coupon");
           setSaving(false);
           return;
         }
@@ -226,7 +228,7 @@ export default function CouponsPage() {
       closeModal();
       fetchCoupons();
     } catch (err) {
-      alert("Failed to save coupon: " + err.message);
+      toast.error("Failed to save coupon: " + err.message);
     }
     setSaving(false);
   };
@@ -254,10 +256,10 @@ export default function CouponsPage() {
         fetchCoupons();
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to delete coupon");
+        toast.error(data.error || "Failed to delete coupon");
       }
     } catch (err) {
-      alert("Failed to delete coupon: " + err.message);
+      toast.error("Failed to delete coupon: " + err.message);
     }
   };
 

@@ -8,8 +8,10 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
+import { useToast } from "../components/ToastProvider";
 
 export default function CustomersPage() {
+  const toast = useToast();
   const [customers, setCustomers] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -99,7 +101,7 @@ export default function CustomersPage() {
       setEditMode(false);
       fetchCustomers();
     } else {
-      alert("Error saving: " + error.message);
+      toast.error("Error saving: " + error.message);
     }
     setSaving(false);
   };

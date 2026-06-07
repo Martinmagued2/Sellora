@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
+import { useToast } from "../components/ToastProvider";
 
 const STATUS_CONFIG = {
   pending: { label: "Pending", color: "gray", icon: Clock },
@@ -226,6 +227,7 @@ export default function ShippingPage() {
 
   const supabase = createClient();
   const { currentStoreId } = useCurrentStore();
+  const toast = useToast();
 
   // Fetch config
   const fetchConfig = useCallback(async () => {
@@ -333,10 +335,10 @@ export default function ShippingPage() {
         await fetchShipments();
         setConfigForm((prev) => ({ ...prev, api_key: "" }));
       } else {
-        alert("Failed to save config: " + (data.error || "Unknown error"));
+        toast.error("Failed to save config: " + (data.error || "Unknown error"));
       }
     } catch (err) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
     setSavingConfig(false);
   };
@@ -344,7 +346,7 @@ export default function ShippingPage() {
   // Add tracking
   const handleAddTracking = async () => {
     if (!addForm.tracking_number.trim()) {
-      alert("Tracking number is required");
+      toast.warning("Tracking number is required");
       return;
     }
     setAddingTracking(true);
@@ -360,10 +362,10 @@ export default function ShippingPage() {
         setAddForm({ order_id: "", tracking_number: "", carrier: "aramex", title: "" });
         await fetchShipments();
       } else {
-        alert("Failed to add tracking: " + (data.error || "Unknown error"));
+        toast.error("Failed to add tracking: " + (data.error || "Unknown error"));
       }
     } catch (err) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
     setAddingTracking(false);
   };
@@ -431,18 +433,18 @@ export default function ShippingPage() {
                 type: "text",
               }),
             });
-            alert("Shipping update sent to customer!");
+            toast.success("Shipping update sent to customer!");
           } else {
-            alert("No conversation found for this order's customer.");
+            toast.warning("No conversation found for this order's customer.");
           }
         } else {
-          alert("No customer associated with this order.");
+          toast.warning("No customer associated with this order.");
         }
       } else {
-        alert("This tracking is not linked to an order with a customer.");
+        toast.warning("This tracking is not linked to an order with a customer.");
       }
     } catch (err) {
-      alert("Error sending update: " + err.message);
+      toast.error("Error sending update: " + err.message);
     }
     setSendingUpdate(null);
   };
