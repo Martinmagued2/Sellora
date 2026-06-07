@@ -8,10 +8,21 @@ const ToastContext = createContext(null);
 
 let toastIdCounter = 0;
 
+// Fallback no-op toast for SSR or when used outside ToastProvider
+const noopToast = {
+  showToast: () => {},
+  dismissToast: () => {},
+  success: () => {},
+  error: () => {},
+  warning: () => {},
+  info: () => {},
+};
+
 export function useToast() {
   const context = useContext(ToastContext);
   if (!context) {
-    throw new Error("useToast must be used within a ToastProvider");
+    // Return no-op during SSR/prerender instead of throwing
+    return noopToast;
   }
   return context;
 }
