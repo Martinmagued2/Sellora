@@ -20,9 +20,11 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useCurrentStore } from "@/lib/store-context";
+import { useToast } from "../components/ToastProvider";
 
 export default function ProductsPage() {
   const router = useRouter();
+  const toast = useToast();
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -167,11 +169,11 @@ export default function ProductsPage() {
   const handleFileSelect = (file) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      alert("Please select an image file (jpg, png, webp)");
+      toast.warning("Please select an image file (jpg, png, webp)");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image must be smaller than 5MB");
+      toast.warning("Image must be smaller than 5MB");
       return;
     }
     setImageFile(file);
@@ -195,7 +197,7 @@ export default function ProductsPage() {
     const description = form?.elements?.description?.value;
 
     if (!productName?.trim()) {
-      alert("Please enter a product name first, then generate an image.");
+      toast.warning("Please enter a product name first, then generate an image.");
       return;
     }
 
@@ -213,7 +215,7 @@ export default function ProductsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.error || "Image generation failed. Please try again.");
+        toast.error(data.error || "Image generation failed. Please try again.");
         return;
       }
 
@@ -223,7 +225,7 @@ export default function ProductsPage() {
       setGeneratedImageUrl(data.image_url);
     } catch (err) {
       console.error("Image generation error:", err);
-      alert("Image generation failed. Please try again.");
+      toast.error("Image generation failed. Please try again.");
     } finally {
       setGeneratingImage(false);
     }
@@ -284,7 +286,7 @@ export default function ProductsPage() {
           .getPublicUrl(fileName);
         imageUrl = urlData.publicUrl;
       } else if (uploadError && !imageUrl) {
-        alert("Image upload failed: " + (uploadError.message || "Unknown error."));
+        toast.error("Image upload failed: " + (uploadError.message || "Unknown error."));
       }
     }
 
@@ -398,7 +400,7 @@ export default function ProductsPage() {
     const category = form?.elements?.category?.value;
 
     if (!productName?.trim()) {
-      alert("Please enter a product name first, then generate a description.");
+      toast.warning("Please enter a product name first, then generate a description.");
       return;
     }
 
@@ -416,7 +418,7 @@ export default function ProductsPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.error || "Description generation failed.");
+        toast.error(data.error || "Description generation failed.");
         return;
       }
 
@@ -429,7 +431,7 @@ export default function ProductsPage() {
       if (data.price_suggestion) setAiPriceSuggestion(data.price_suggestion);
     } catch (err) {
       console.error("Description generation error:", err);
-      alert("Description generation failed. Please try again.");
+      toast.error("Description generation failed. Please try again.");
     } finally {
       setGeneratingDesc(false);
     }
