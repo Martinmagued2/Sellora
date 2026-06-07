@@ -140,3 +140,29 @@ Stage Summary:
 - Gemini is now the primary provider (most likely to work on Vercel)
 - 4 providers with no API key requirements (HuggingFace, Pollinations, ZAI SDK local, CLI)
 - Waiting for Vercel deployment to complete for testing
+
+---
+Task ID: mobile-responsiveness
+Agent: main
+Task: Make entire Sellora app mobile-friendly + fix useToast TypeError
+
+Work Log:
+- Fixed ToastProvider.js: replaced createContext(null) with safe no-op fallback containing all 6 function properties (showToast, dismissToast, success, error, warning, info) to prevent "TypeError: _ is not a function" on production
+- Updated dashboard layout.js: imported useToast hook, added mobile search overlay with showMobileSearch state, added topbar-search-toggle button for mobile, added topbar-help-btn class for CSS hiding
+- Rewrote globals.css responsive section (3 breakpoints: 1024px, 768px, 480px): mobile menu overlay, hero scaling, grid collapses, touch targets (44px), CTA stacking, footer columns
+- Rewrote dashboard.css responsive section (3 breakpoints): sidebar drawer, mobile search, conversations mobile list-OR-chat pattern with back button, fullscreen copilot, toast bottom-center, iOS zoom prevention (16px inputs), table scroll wrappers, variant stacking, reduced padding
+- Rewrote admin.css responsive section (2 breakpoints): KPI grid, slide panel, table scroll, iOS zoom prevention
+- Added new CSS classes: .table-scroll-wrapper, .sidebar-overlay/.visible, .topbar-search-toggle, .topbar-search-mobile/.open, .chat-back-btn, .conv-list.mobile-hidden, .chat-area.mobile-visible, .topbar-help-btn
+- Wrapped data tables in scroll containers across 8+ dashboard/admin pages
+- Conversations page already had mobile navigation logic (mobileChatOpen state, back button, class toggling)
+- Cleaned up 5000+ lines of duplicated responsive CSS from previous sessions
+- Resolved git merge conflicts with remote (ConfirmProvider, helpOpen state, help dropdown)
+- Pushed to GitHub main branch
+
+Stage Summary:
+- ToastProvider TypeError bug fixed (was createContext(null), now has safe no-op default)
+- All 3 CSS files now have clean, non-duplicated responsive sections
+- Homepage fully responsive at 1024/768/480px breakpoints
+- Dashboard fully responsive: sidebar drawer, mobile search, conversations back-nav, copilot fullscreen, touch-friendly targets
+- Admin pages responsive with scrollable tables
+- Deployed to Vercel via GitHub push
