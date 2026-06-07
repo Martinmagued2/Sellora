@@ -62,3 +62,25 @@ Stage Summary:
 - Root cause 1: Groq can't handle optional tool params → made all params required
 - Root cause 2: Pollinations.ai now requires payment → reordered fallback chain
 - Both "send message to customer" and image generation should now work
+
+---
+Task ID: 1
+Agent: main
+Task: Fix Sellora AI Agent - send_message_to_customer tool failure + image generation failure
+
+Work Log:
+- Investigated the `invalid_request_error: Failed to call a function` error when user asks agent to send a message to a customer
+- Root cause: Groq LLM fails with multi-step tool calls (find_conversation → send_message_to_customer), causing `invalid_request_error` when trying to generate the function call parameters
+- Created new `message_customer` combined tool that takes `customer_name` + `message` and handles both conversation lookup AND message delivery in a single tool call
+- Fixed `generate_product_image` tool - added missing `description` field to Zod inputSchema (was used in execute but never declared in schema)
+- Updated system prompts in both `/api/chat/route.js` and `/api/agent/route.js` to prioritize `message_customer` over the two-step approach
+- Increased ZAI SDK image generation timeout from 15s to 30s for better reliability on Vercel
+- Added detection for 'Failed to call a function' and 'invalid_request_error' errors in the provider fallback chain
+- Committed and pushed to main branch (commit c130c9d)
+
+Stage Summary:
+- `message_customer` tool added - single-step customer messaging eliminates Groq multi-step failures
+- `generate_product_image` schema fixed - description field now in schema
+- System prompts updated to direct LLM to use `message_customer` instead of two-step approach
+- Image generation timeout increased for better reliability
+- All changes deployed to GitHub, will auto-deploy to Vercel
