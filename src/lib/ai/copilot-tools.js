@@ -562,7 +562,7 @@ export const createCopilotTools = (accountId) => {
     }),
 
     send_message_to_customer: tool({
-      description: "Send a message directly to a customer through their conversation channel (WhatsApp, Instagram, or Facebook). Use this when the seller asks you to send a message to a customer, reply to a customer, reach out to someone, or notify a customer. You need the conversation ID and the message content. The message will be delivered through the actual channel (not just saved in DB).",
+      description: "Send a message directly to a customer through their conversation channel (WhatsApp, Instagram, or Facebook). Use this when the seller asks you to send a message to a customer, reply to a customer, reach out to someone, or notify a customer. You need the conversation ID and the message content. The message will be delivered through the actual channel (WhatsApp, Instagram DM, or Facebook Messenger) AND saved in the database.",
       inputSchema: z.object({
         conversation_id: z.string().describe("The ID of the conversation to send the message to"),
         message: z.string().describe("The message content to send to the customer"),
@@ -573,34 +573,149 @@ export const createCopilotTools = (accountId) => {
             return { success: false, error: "Conversation ID and message content are required" };
           }
 
-          // Call the existing messages/send API which handles all channels
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
-          const res = await fetch(`${appUrl}/api/messages/send`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              conversationId: conversation_id,
-              content: message,
-              type: "text",
-            }),
+          // ─── Direct delivery: no HTTP fetch to self ───
+          // Previously this tool made a fetch to /api/messages/send which could fail
+          // on Vercel (DNS resolution, cold starts, timeouts). Now we call the
+          // Meta/WhatsApp APIs directly, just like send_follow_up does.
+
+          // 1. Look up the conversation + customer + account info
+          const { data: conversation, error: convError } = await supabase
+            .from("conversations")
+            .select("id, channel, account_id, customer:customers(id, name, platform_id, phone)")
+            .eq("id", conversation_id)
+            .single();
+
+          if (convError || !conversation) {
+            return { success: false, error: `Conversation not found: ${convError?.message || 'unknown'}` };
+          }
+
+          const { account_id, channel, customer } = conversation;
+          const recipientId = customer?.platform_id;
+          const customerName = customer?.name || 'Customer';
+
+          // 2. Get the account's channel tokens
+          const { data: accountData, error: accountError } = await supabase
+            .from("accounts")
+            .select("whatsapp_access_token, whatsapp_phone_number_id, whatsapp_connected, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id")
+            .eq("id", account_id)
+            .single();
+
+          if (accountError || !accountData) {
+            return { success: false, error: "Account not found" };
+          }
+
+          // 3. Deliver the message through the actual channel
+          let delivered = false;
+          let deliveryError = null;
+
+          if (channel === "whatsapp") {
+            if (!accountData.whatsapp_connected || !accountData.whatsapp_access_token) {
+              return { success: false, error: "WhatsApp is not connected. Please connect WhatsApp in Settings to send messages." };
+            }
+            const phone = customer?.phone || customer?.platform_id;
+            if (!phone) {
+              return { success: false, error: "Customer has no phone number for WhatsApp delivery." };
+            }
+            try {
+              const { sendWhatsAppMessage } = await import("@/lib/whatsapp");
+              await sendWhatsAppMessage({
+                to: phone,
+                message,
+                phoneNumberId: accountData.whatsapp_phone_number_id,
+                accessToken: accountData.whatsapp_access_token,
+              });
+              delivered = true;
+            } catch (e) {
+              deliveryError = e.message;
+              console.error("[send_message_to_customer] WhatsApp delivery failed:", e.message);
+            }
+          } else if (channel === "instagram") {
+            if (!recipientId) {
+              return { success: false, error: "Customer has no Instagram platform ID for delivery." };
+            }
+            if (!accountData.instagram_access_token || !accountData.instagram_page_id) {
+              return { success: false, error: "Instagram is not connected. Please connect Instagram in Settings to send messages." };
+            }
+            try {
+              const { sendMessage } = await import("@/lib/channels/meta");
+              await sendMessage({
+                recipientId,
+                message,
+                pageId: accountData.instagram_page_id,
+                accessToken: accountData.instagram_access_token,
+              });
+              delivered = true;
+            } catch (e) {
+              deliveryError = e.message;
+              console.error("[send_message_to_customer] Instagram delivery failed:", e.message);
+            }
+          } else if (channel === "facebook") {
+            if (!recipientId) {
+              return { success: false, error: "Customer has no Facebook platform ID for delivery." };
+            }
+            if (!accountData.facebook_access_token || !accountData.facebook_page_id) {
+              return { success: false, error: "Facebook is not connected. Please connect Facebook in Settings to send messages." };
+            }
+            try {
+              const { sendMessage } = await import("@/lib/channels/meta");
+              await sendMessage({
+                recipientId,
+                message,
+                pageId: accountData.facebook_page_id,
+                accessToken: accountData.facebook_access_token,
+              });
+              delivered = true;
+            } catch (e) {
+              deliveryError = e.message;
+              console.error("[send_message_to_customer] Facebook delivery failed:", e.message);
+            }
+          } else {
+            return { success: false, error: `Unknown channel: ${channel}. Cannot deliver message.` };
+          }
+
+          // 4. Store the outgoing message in the database (always, even if delivery failed)
+          const { error: insertError } = await supabase.from("messages").insert({
+            conversation_id,
+            account_id,
+            direction: "outgoing",
+            content: message,
+            type: "text",
+            is_ai: true,
+            delivery_status: delivered ? "delivered" : "failed",
           });
 
-          const data = await res.json();
+          if (insertError) {
+            console.error("[send_message_to_customer] Failed to store message:", insertError.message);
+          }
 
-          if (!res.ok || !data.success) {
+          // 5. Update conversation metadata
+          await supabase
+            .from("conversations")
+            .update({
+              last_message_at: new Date().toISOString(),
+              status: "waiting_customer",
+            })
+            .eq("id", conversation_id);
+
+          // 6. Return result
+          if (!delivered) {
             return {
               success: false,
-              error: data.error || "Failed to send message to customer",
+              error: `Message was saved but could NOT be delivered to ${customerName} on ${channel}: ${deliveryError || 'Channel not connected'}. The message is stored in the conversation and the customer may see it when they message again. Try reconnecting ${channel} in Settings.`,
+              conversation_id,
+              _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversation" },
             };
           }
 
           return {
             success: true,
-            message: `Message sent to customer successfully!`,
+            message: `Message delivered to ${customerName} on ${channel} successfully!`,
             conversation_id,
+            channel,
             _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversation" },
           };
         } catch (err) {
+          console.error("[send_message_to_customer] Unexpected error:", err);
           return { success: false, error: `Failed to send message: ${err.message}` };
         }
       },

@@ -98,6 +98,29 @@ function getFallbackTextFromTools(toolInvs) {
         }
         lines.push(`✅ Healthy: ${output.healthyCount} products`);
         break;
+      case 'find_conversation':
+        if (output.conversations?.length > 0) {
+          lines.push(`**Found ${output.conversations.length} conversation(s):**`);
+          output.conversations.forEach(c => lines.push(`  - ${c.customer_name} (${c.channel}) — ID: ${c.id}`));
+        } else {
+          lines.push(`No conversations found matching your search.`);
+        }
+        break;
+      case 'send_message_to_customer':
+        if (output.success) {
+          lines.push(`✅ **Message delivered!** ${output.message || 'Sent successfully'}`);
+          if (output.channel) lines.push(`  Channel: ${output.channel}`);
+        } else {
+          lines.push(`❌ **Message not delivered:** ${output.error || 'Unknown error'}`);
+        }
+        break;
+      case 'send_follow_up':
+        if (output.sent > 0) {
+          lines.push(`✅ **Follow-up sent** to ${output.sent} customer(s)`);
+        } else {
+          lines.push(output.message || 'No unpaid orders to follow up on');
+        }
+        break;
       default:
         if (output.message) lines.push(output.message);
         break;
@@ -165,6 +188,10 @@ const TOOL_LABELS = {
   get_order_details: { label: "Loading order details...", doneLabel: "Order details loaded", icon: "🧾" },
   get_recent_conversations: { label: "Loading conversations...", doneLabel: "Conversations loaded", icon: "💬" },
   get_customer_insights: { label: "Analyzing customers...", doneLabel: "Customer insights ready", icon: "👥" },
+  find_conversation: { label: "Finding conversation...", doneLabel: "Conversation found", icon: "🔍" },
+  send_message_to_customer: { label: "Sending message to customer...", doneLabel: "Message sent to customer", icon: "💬" },
+  send_follow_up: { label: "Sending follow-up messages...", doneLabel: "Follow-ups sent", icon: "📧" },
+  recommend_products: { label: "Finding recommendations...", doneLabel: "Recommendations ready", icon: "💡" },
 };
 
 export default function CopilotPanel() {
