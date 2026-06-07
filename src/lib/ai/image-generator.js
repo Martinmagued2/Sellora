@@ -14,14 +14,16 @@ const execFileAsync = promisify(execFile);
  *
  * 1. Gemini Image Generation (GOOGLE_GENERATIVE_AI_API_KEY — already on Vercel)
  *    - Uses @google/generative-ai SDK for proper API versioning
- *    - Tries: gemini-2.0-flash-preview-image-generation, gemini-2.0-flash-exp
- *    - Also tries Imagen 3 via REST API
+ *    - Tries: gemini-2.0-flash-preview-image-generation, gemini-2.0-flash-exp,
+ *            gemini-2.0-flash-lite-preview-image-generation
+ *    - Also tries Imagen 3 models via REST API (predict endpoint)
  * 2. ZAI SDK (works from dev environments with internal-api access)
  * 3. z-ai-generate CLI tool (works on server environments)
  * 4. Together AI FLUX.1-schnell-Free (TOGETHER_API_KEY)
  * 5. NVIDIA NIM (qwen-image, FLUX.2-klein — same key as text AI)
  * 6. fal.ai FLUX.1 [dev] (best quality, $10 free credits)
- * 7. Pollinations.ai (free, no key — last resort)
+ * 7. HuggingFace Inference API (free tier, no key needed)
+ * 8. Pollinations.ai (free, no key — last resort)
  *
  * Returns: { success: boolean, imageBase64?: string, source?: string, error?: string }
  */
@@ -30,13 +32,18 @@ const ZAI_TIMEOUT_MS = 45000;
 
 // Gemini models that support native image generation, tried in order
 // These models support responseModalities: ["IMAGE", "TEXT"]
+// Order: latest/reliable first, fallbacks after
 const GEMINI_IMAGE_MODELS = [
   "gemini-2.0-flash-preview-image-generation",
   "gemini-2.0-flash-exp",
+  "gemini-2.0-flash-lite-preview-image-generation",
 ];
 
-// Imagen 3 model (uses a different API endpoint / predictImages)
-const IMAGEN_MODEL = "imagen-3.0-generate-002";
+// Imagen models (uses predict API, not generateContent)
+const IMAGEN_MODELS = [
+  "imagen-3.0-generate-002",
+  "imagen-3.0-generate-001",
+];
 
 /**
  * Generate a product image using AI with automatic fallback.
@@ -101,48 +108,54 @@ export async function generateProductImage(prompt, options = {}) {
       }
     }
 
-    // 1b: Try Imagen 3 via REST API (different endpoint than generateContent)
-    try {
-      console.log(`[ImageGen] Trying Imagen 3 (${IMAGEN_MODEL}) via REST API...`);
-      const [width, height] = size.split("x").map(Number);
+    // 1b: Try Imagen models via REST API (different endpoint than generateContent)
+    for (const imagenModel of IMAGEN_MODELS) {
+      try {
+        console.log(`[ImageGen] Trying Imagen (${imagenModel}) via REST API...`);
+        const [width, height] = size.split("x").map(Number);
 
-      const imagenResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_MODEL}:predict?key=${googleApiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            instances: [{ prompt }],
-            parameters: {
-              sampleCount: 1,
-              aspectRatio: width && height ? (width > height ? "16:9" : width < height ? "9:16" : "1:1") : "1:1",
-            },
-          }),
-          signal: AbortSignal.timeout(45000),
-        }
-      );
-
-      if (imagenResponse.ok) {
-        const data = await imagenResponse.json();
-        const predictions = data.predictions || [];
-        for (const pred of predictions) {
-          // Imagen 3 returns base64 in bytesBase64Encoded field
-          const imageBase64 = pred.bytesBase64Encoded;
-          if (imageBase64) {
-            console.log(`[ImageGen] ✅ Image generated via Imagen 3 (${(imageBase64.length / 1024).toFixed(0)}KB base64)`);
-            return { success: true, imageBase64, source: "imagen3" };
+        const imagenResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${imagenModel}:predict?key=${googleApiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              instances: [{ prompt }],
+              parameters: {
+                sampleCount: 1,
+                aspectRatio: width && height ? (width > height ? "16:9" : width < height ? "9:16" : "1:1") : "1:1",
+              },
+            }),
+            signal: AbortSignal.timeout(45000),
           }
+        );
+
+        if (imagenResponse.ok) {
+          const data = await imagenResponse.json();
+          const predictions = data.predictions || [];
+          for (const pred of predictions) {
+            // Imagen returns base64 in bytesBase64Encoded field
+            const imageBase64 = pred.bytesBase64Encoded;
+            if (imageBase64) {
+              console.log(`[ImageGen] ✅ Image generated via ${imagenModel} (${(imageBase64.length / 1024).toFixed(0)}KB base64)`);
+              return { success: true, imageBase64, source: "imagen3" };
+            }
+          }
+          console.warn(`[ImageGen] ${imagenModel} returned no image data`);
+        } else {
+          const errorData = await imagenResponse.json().catch(() => ({}));
+          const errMsg = errorData?.error?.message || `HTTP ${imagenResponse.status}`;
+          errors.push(`Imagen-${imagenModel}: ${errMsg.substring(0, 80)}`);
+          if (errMsg.includes("not found") || errMsg.includes("does not exist")) {
+            console.warn(`[ImageGen] ${imagenModel} not found, trying next`);
+            continue;
+          }
+          console.warn(`[ImageGen] ${imagenModel} failed: ${errMsg.substring(0, 150)}`);
         }
-        console.warn(`[ImageGen] Imagen 3 returned no image data`);
-      } else {
-        const errorData = await imagenResponse.json().catch(() => ({}));
-        const errMsg = errorData?.error?.message || `HTTP ${imagenResponse.status}`;
-        errors.push(`Imagen3: ${errMsg.substring(0, 80)}`);
-        console.warn(`[ImageGen] Imagen 3 failed: ${errMsg.substring(0, 150)}`);
+      } catch (imagenError) {
+        errors.push(`Imagen-${imagenModel}: ${imagenError.message?.substring(0, 80)}`);
+        console.warn(`[ImageGen] ${imagenModel} error: ${imagenError.message?.substring(0, 150)}`);
       }
-    } catch (imagenError) {
-      errors.push(`Imagen3: ${imagenError.message?.substring(0, 80)}`);
-      console.warn(`[ImageGen] Imagen 3 error: ${imagenError.message?.substring(0, 150)}`);
     }
   }
 
@@ -374,7 +387,62 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 7: Pollinations.ai (last resort, free) ───
+  // ─── Attempt 7: HuggingFace Inference API (free tier, no key needed) ───
+  try {
+    console.log("[ImageGen] Trying HuggingFace Inference API...");
+    // Free models that work without API key (rate-limited)
+    const hfModels = [
+      "stabilityai/stable-diffusion-xl-base-1.0",
+      "runwayml/stable-diffusion-v1-5",
+    ];
+
+    for (const hfModel of hfModels) {
+      try {
+        const hfResponse = await fetch(
+          `https://api-inference.huggingface.co/models/${hfModel}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              inputs: prompt,
+              parameters: {
+                width: parseInt(size.split("x")[0]) || 1024,
+                height: parseInt(size.split("x")[1]) || 1024,
+              },
+            }),
+            signal: AbortSignal.timeout(30000),
+          }
+        );
+
+        if (hfResponse.ok) {
+          const contentType = hfResponse.headers.get("content-type") || "";
+          if (contentType.includes("image")) {
+            const arrayBuffer = await hfResponse.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            if (buffer.length > 1000) {
+              const imageBase64 = buffer.toString("base64");
+              console.log(`[ImageGen] ✅ Image via HuggingFace (${hfModel}, ${(buffer.length / 1024).toFixed(0)}KB)`);
+              return { success: true, imageBase64, source: "huggingface" };
+            }
+          }
+          // Might return JSON error (model loading)
+          const text = await hfResponse.text().catch(() => "");
+          if (text.includes("loading") || text.includes("currently loading")) {
+            console.warn(`[ImageGen] HuggingFace ${hfModel} is loading, trying next`);
+            continue;
+          }
+        } else {
+          console.warn(`[ImageGen] HuggingFace ${hfModel} returned ${hfResponse.status}`);
+        }
+      } catch (hfError) {
+        console.warn(`[ImageGen] HuggingFace ${hfModel} failed: ${hfError.message?.substring(0, 100)}`);
+      }
+    }
+  } catch (hfGlobalError) {
+    errors.push(`HuggingFace: ${hfGlobalError.message?.substring(0, 80)}`);
+  }
+
+  // ─── Attempt 8: Pollinations.ai (last resort, free) ───
   try {
     console.log("[ImageGen] Trying Pollinations.ai (last resort fallback)...");
     const [width, height] = size.split("x").map(Number);
