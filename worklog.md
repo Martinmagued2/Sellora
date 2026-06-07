@@ -40,3 +40,25 @@ Stage Summary:
 - Fix: streamText naturally streams tool calls + text correctly to useChat
 - Error handling preserved: initial connection/auth/rate-limit errors caught before streaming starts
 - Provider fallback chain preserved with Groq rate limit detection
+
+---
+Task ID: 3
+Agent: Main
+Task: Fix Groq tool calling error and image generation failure
+
+Work Log:
+- Diagnosed "invalid_request_error: Failed to call a function" as Groq API limitation with optional tool parameters
+- Removed ALL .optional() from copilot tool inputSchema fields — Groq's function calling fails with optional params
+- Changed to required fields with "pass empty string to skip" pattern
+- Simplified find_conversation to only require customer_name (removed channel, status, limit optional params)
+- Shortened tool descriptions for better Groq parsing
+- Fixed image generation: moved ZAI SDK and CLI tool to top of fallback chain (they work on Vercel)
+- Pollinations.ai now returns 402 (payment required), moved to last resort
+- Fixed update_product, search_products, send_follow_up execute functions for new schema patterns
+- Committed and pushed: 045414b
+
+Stage Summary:
+- 2 files modified: copilot-tools.js, image-generator.js
+- Root cause 1: Groq can't handle optional tool params → made all params required
+- Root cause 2: Pollinations.ai now requires payment → reordered fallback chain
+- Both "send message to customer" and image generation should now work
