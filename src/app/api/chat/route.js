@@ -1,4 +1,4 @@
-import { generateText, createUIMessageStream, createUIMessageStreamResponse } from "ai";
+import { streamText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -104,18 +104,18 @@ export async function POST(req) {
 YOU ARE NOT A CHATBOT — you are an AGENTIC AI that takes ACTION. You have tools to fetch real data, create products, generate reports, manage orders, and run the store. Always use your tools when relevant.
 
 CORE CAPABILITIES:
-- 📊 Sales & Revenue: Generate detailed sales reports, analyze income trends, show latest orders, get order details
-- 📦 Product Management: Create new products, update existing ones, search products, delete/archive products, check inventory, draft descriptions, get inventory alerts
-- 🎨 Product Images: Generate AI product images with different styles (studio, lifestyle, minimal) and automatically link them to products
-- 🛒 Order Management: View latest sales, update order status, get order details
-- 👥 Customer Insights: Analyze customer data, show top spenders, returning customer stats
-- 💬 Conversation Overview: Check recent conversations, see unread messages
-- 📨 Send Messages: Find customer conversations and send messages directly to customers via their channel (WhatsApp, Instagram, Facebook). When the seller asks you to message a customer, use find_conversation first to get the conversation ID, then use send_message_to_customer to actually deliver the message.
-- 🔍 Search & Filter: Search products by name/category, filter inventory
+- Sales & Revenue: Generate detailed sales reports, analyze income trends, show latest orders, get order details
+- Product Management: Create new products, update existing ones, search products, delete/archive products, check inventory, draft descriptions, get inventory alerts
+- Product Images: Generate AI product images with different styles (studio, lifestyle, minimal) and automatically link them to products
+- Order Management: View latest sales, update order status, get order details
+- Customer Insights: Analyze customer data, show top spenders, returning customer stats
+- Conversation Overview: Check recent conversations, see unread messages
+- Send Messages: Find customer conversations and send messages directly to customers via their channel (WhatsApp, Instagram, Facebook). When the seller asks you to message a customer, use find_conversation first to get the conversation ID, then use send_message_to_customer to actually deliver the message.
+- Search & Filter: Search products by name/category, filter inventory
 
 BEHAVIOR GUIDELINES:
 1. Be PROACTIVE — if the seller gives a vague request like "add a product", ask for the necessary details (name, price) then create it immediately.
-2. ALWAYS write a detailed, well-formatted text response AFTER every tool call. Never just call a tool and stop — you MUST explain the results to the user in detail.
+2. ALWAYS write a detailed, well-formatted text response AFTER every tool call. Never just call a tool and stop — you MUST explain the results to the user in detail. This is critical — the user MUST see your text reply.
 3. When creating products from a prompt, GENERATE a compelling product description even if the seller doesn't ask for one.
 4. After creating a product, ALWAYS offer to generate an AI product image. Say something like "Would you like me to generate a product image for this?" If they say yes, call generate_product_image with the product ID and name. If they included style preferences (lifestyle, minimal), use those.
 5. When the seller asks to "add a product with image" or "create product and generate image", create the product FIRST, then immediately call generate_product_image with the returned product ID.
@@ -139,10 +139,11 @@ MESSAGING CUSTOMERS — CRITICAL RULES:
 18. If send_message_to_customer returns an error (e.g., channel not connected), clearly tell the seller what went wrong and suggest they reconnect the channel in Settings.
 19. After sending a message, write a clear confirmation like: "I've sent your message to [Customer Name] on [channel]. They should receive it shortly."
 
-CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response explaining the results. Do NOT just return tool results silently. The user needs to READ your analysis. Write at least 3-5 sentences analyzing the data from every tool call. Use bullet points, bold text, and clear formatting.`;
+CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response explaining the results. Do NOT just return tool results silently. The user needs to READ your analysis. Write at least 3-5 sentences analyzing the data from every tool call. Use bullet points, bold text, and clear formatting.
+
+MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools, you must also write explanatory text that the user can read. Never return only tool results without a text explanation.`;
 
     // Build provider model list with fallback chain
-    // Each Groq model has its own rate limit, so we add multiple as fallbacks.
     const providerModels = [];
 
     if (process.env.GROQ_API_KEY) {
@@ -171,8 +172,7 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
       providerModels.push({ name: 'openai', model: openai('gpt-4o-mini') });
     }
 
-    // NVIDIA NIM — free tier: 1,000 credits, 40 req/min
-    // Top models: Llama 3.3 70B, Nemotron 70B, DeepSeek R1, Mistral Large 2
+    // NVIDIA NIM
     if (process.env.NVIDIA_API_KEY) {
       const nvidia = createOpenAI({
         apiKey: process.env.NVIDIA_API_KEY,
@@ -191,25 +191,26 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
 
     const tools = createCopilotTools(user.id);
 
-    // ─── Use generateText for reliable error handling ───
-    // generateText fully completes before returning, so rate limit errors
-    // and other API errors are caught in try/catch and we can fall back
-    // to the next provider. streamText does NOT support this because errors
-    // surface mid-stream after the response headers are already sent.
+    // ─── Use streamText for proper streaming with useChat ───
+    // streamText produces the correct stream format that the useChat hook
+    // can parse, including both tool calls AND text responses.
+    // Error handling: If streamText fails at the start (rate limit, auth error),
+    // it throws before we return the response, so we can fall back to the next provider.
+    // Mid-stream errors cannot be caught (same trade-off as /api/agent/route.js),
+    // but initial errors (most common) are handled properly.
 
+    let groqRateLimited = false;
     let lastError = null;
-    let groqRateLimited = false; // Skip remaining Groq providers after rate limit
 
-    // Attempt 1: Try each provider with tools
+    // Attempt 1: Try each provider with tools (streaming)
     for (const providerEntry of providerModels) {
-      // If Groq was rate-limited, skip all remaining Groq providers
       if (groqRateLimited && providerEntry.name.startsWith('groq-')) {
         console.warn(`[Agent] Skipping ${providerEntry.name} because Groq rate limit was already hit`);
         continue;
       }
 
       try {
-        const result = await generateText({
+        const result = await streamText({
           model: providerEntry.model,
           maxSteps: 5,
           temperature: 0.2,
@@ -218,56 +219,8 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
           tools,
         });
 
-        console.log(`[Agent] ${providerEntry.name} succeeded (${result.steps.length} steps, text: ${result.text?.length || 0} chars)`);
-
-        // Build the UI message stream from the generateText result.
-        // Key: write each step's chunks in the correct order —
-        // tool calls first, then tool results, then text for that step.
-        // Each text section gets its own text-start/text-end pair.
-        const stream = createUIMessageStream({
-          execute: ({ writer }) => {
-            for (const [stepIndex, step] of result.steps.entries()) {
-              // 1. Write tool calls for this step
-              for (const toolCall of step.toolCalls || []) {
-                writer.write({
-                  type: 'tool-input-start',
-                  toolCallId: toolCall.toolCallId,
-                  toolName: toolCall.toolName,
-                });
-                writer.write({
-                  type: 'tool-input-available',
-                  toolCallId: toolCall.toolCallId,
-                  toolName: toolCall.toolName,
-                  input: toolCall.args,
-                });
-              }
-
-              // 2. Write tool results for this step
-              for (const toolResult of step.toolResults || []) {
-                writer.write({
-                  type: 'tool-output-available',
-                  toolCallId: toolResult.toolCallId,
-                  output: toolResult.result,
-                });
-              }
-
-              // 3. Write step text (each step gets its own text-start/end pair)
-              const stepText = step.text || "";
-              const isLastStep = stepIndex === result.steps.length - 1;
-              // For the last step, use result.text which is the canonical text
-              const textToWrite = isLastStep ? (result.text || stepText) : stepText;
-
-              if (textToWrite) {
-                const textId = `txt-${stepIndex}-${Date.now()}`;
-                writer.write({ type: 'text-start', id: textId });
-                writer.write({ type: 'text-delta', id: textId, delta: textToWrite });
-                writer.write({ type: 'text-end', id: textId });
-              }
-            }
-          },
-        });
-
-        return createUIMessageStreamResponse({ stream });
+        console.log(`[Agent] ${providerEntry.name} stream started successfully`);
+        return result.toUIMessageStreamResponse();
       } catch (providerError) {
         lastError = providerError;
         const errMsg = providerError?.message || '';
@@ -281,18 +234,15 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
       }
     }
 
-    // Attempt 2: Fallback - generate WITHOUT tools
+    // Attempt 2: Fallback — stream WITHOUT tools
     console.warn("[Agent] All providers with tools failed, trying without tools...");
-    // Reset Groq rate limit flag for the without-tools attempt since daily limits may differ
-    // Actually, if rate-limited with tools, it'll still be rate-limited without tools. Keep the flag.
     for (const providerEntry of providerModels) {
-      // Skip Groq if rate-limited
       if (groqRateLimited && providerEntry.name.startsWith('groq-')) {
         continue;
       }
 
       try {
-        const result = await generateText({
+        const result = await streamText({
           model: providerEntry.model,
           maxSteps: 1,
           temperature: 0.2,
@@ -300,20 +250,8 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
           messages: coreMessages,
         });
 
-        console.log(`[Agent] ${providerEntry.name} succeeded without tools (text: ${result.text?.length || 0} chars)`);
-
-        const stream = createUIMessageStream({
-          execute: ({ writer }) => {
-            const textId = "txt-" + Date.now();
-            writer.write({ type: 'text-start', id: textId });
-            if (result.text) {
-              writer.write({ type: 'text-delta', id: textId, delta: result.text });
-            }
-            writer.write({ type: 'text-end', id: textId });
-          },
-        });
-
-        return createUIMessageStreamResponse({ stream });
+        console.log(`[Agent] ${providerEntry.name} stream started without tools`);
+        return result.toUIMessageStreamResponse();
       } catch (providerError) {
         console.warn(`[Agent] ${providerEntry.name} without tools also failed:`, providerError?.message?.substring(0, 120) || providerError);
       }

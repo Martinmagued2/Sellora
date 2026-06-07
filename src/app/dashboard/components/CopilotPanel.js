@@ -8,8 +8,9 @@ import VoiceRecorder from "./VoiceRecorder";
 
 // Helper: extract text content from a UIMessage
 // Handles ALL possible formats: parts array, content string, content array
+// Also checks for text within tool-invocation steps (streamText format)
 function getMessageText(msg) {
-  // 1. Try parts first (AI SDK v6 format)
+  // 1. Try parts first (AI SDK v6 format from streamText)
   if (msg.parts && Array.isArray(msg.parts)) {
     const textFromParts = msg.parts
       .filter((p) => p.type === "text")
@@ -21,10 +22,11 @@ function getMessageText(msg) {
   if (typeof msg.content === "string" && msg.content.trim()) return msg.content;
   // 3. Content as array of content parts
   if (Array.isArray(msg.content)) {
-    return msg.content
+    const textParts = msg.content
       .filter((c) => c.type === "text")
       .map((c) => c.text)
       .join("");
+    if (textParts) return textParts;
   }
   return "";
 }
