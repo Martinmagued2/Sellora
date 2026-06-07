@@ -8,10 +8,11 @@ import {
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
   Megaphone, AlertTriangle, BellOff, Mic, MicOff, Image as ImageIcon,
-  ArrowLeft,
+  ArrowLeft, Filter,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
+import { useDevice } from "@/lib/use-device";
 import RecommendationsCard from "../components/RecommendationsCard";
 import VoiceRecorder from "../components/VoiceRecorder";
 import ImageUploader from "../components/ImageUploader";
@@ -42,6 +43,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function ConversationsPage() {
+  const { isMobile } = useDevice();
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -105,8 +107,15 @@ export default function ConversationsPage() {
   const [imageRecognitionResults, setImageRecognitionResults] = useState({});
   const [showImageUploader, setShowImageUploader] = useState(false);
 
-  // Mobile navigation
+  // Mobile navigation (legacy)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
+
+  // ─── New Mobile View State ───
+  const [mobileView, setMobileView] = useState("list"); // 'list' | 'chat' | 'profile'
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showMobileStatusMenu, setShowMobileStatusMenu] = useState(false);
+  const [showMobileQRSheet, setShowMobileQRSheet] = useState(false);
 
   const messagesEndRef = useRef(null);
   const simulatorEndRef = useRef(null);
@@ -298,7 +307,7 @@ export default function ConversationsPage() {
 
   // ─── Send message ───
   const handleSend = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!newMsg.trim() || !activeConv || sending) return;
     setSending(true);
 
@@ -710,6 +719,850 @@ export default function ConversationsPage() {
 
   const statusColor = STATUS_OPTIONS.find((s) => s.value === activeConv?.status)?.color || "var(--text-tertiary)";
 
+  // ─── Shared: Render a single message ───
+  const renderMessage = (msg) => (
+    <div
+      key={msg.id}
+      className={`chat-msg ${msg.direction === "incoming" ? "incoming" : msg.is_ai ? "ai-reply" : "outgoing"}`}
+    >
+      {msg.is_ai && <span className="ai-label"><Bot size={10} /> AI Auto-Reply</span>}
+      {msg.sentiment && (msg.sentiment === "negative" || msg.sentiment === "urgent") && msg.direction === "incoming" && (
+        <span style={{
+          fontSize: 10, padding: "2px 8px", borderRadius: 8, marginBottom: 4, display: "inline-block",
+          background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+        }}>
+          🔴 {msg.sentiment}
+        </span>
+      )}
+      {msg.intent && msg.intent !== "general" && msg.direction === "incoming" && (
+        <span style={{
+          fontSize: 10, padding: "2px 8px", borderRadius: 8, marginBottom: 4, display: "inline-block",
+          background: INTENT_CONFIG[msg.intent]?.color + "22",
+          color: INTENT_CONFIG[msg.intent]?.color,
+        }}>
+          {INTENT_CONFIG[msg.intent]?.label}
+        </span>
+      )}
+      {msg.type === "product_card" ? (
+        <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)" }}>
+          <div style={{ whiteSpace: "pre-line" }}>{msg.content}</div>
+        </div>
+      ) : msg.type === "image" && msg.media_url ? (
+        <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)", maxWidth: 280 }}>
+          <div className="chat-image-thumbnail" onClick={() => {
+            if (!imageRecognitionResults[msg.id]) {
+              handleAutoRecognize(msg.id, msg.media_url);
+            }
+          }}>
+            <img src={msg.media_url} alt="Customer sent image" className="chat-image-thumb" />
+            {!imageRecognitionResults[msg.id] && (
+              <div className="chat-image-recognize-hint">
+                <Camera size={12} /> Click to find matching products
+              </div>
+            )}
+          </div>
+          {msg.content && <div style={{ marginTop: 6, fontSize: 12, whiteSpace: "pre-line" }}>{msg.content}</div>}
+          {imageRecognitionResults[msg.id] && (
+            <div className="chat-image-recognition-results">
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-secondary)", textTransform: "uppercase", marginBottom: 4 }}>
+                🔍 Product Matches
+              </div>
+              {(imageRecognitionResults[msg.id].products || []).slice(0, 3).map((product) => (
+                <div key={product.id} className="chat-recognition-product" onClick={() => handleSendProduct(product)}>
+                  <Package size={11} style={{ color: "var(--accent-primary-light)", flexShrink: 0 }} />
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    <div style={{ fontWeight: 600, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{product.name}</div>
+                    <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>{product.price} EGP • {product.confidence}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>{msg.content}</>
+      )}
+      <span className="msg-time">{formatTime(msg.created_at)}</span>
+    </div>
+  );
+
+  // ═══════════════════════════════════════════════════════
+  //  MOBILE RENDERING
+  // ═══════════════════════════════════════════════════════
+  if (isMobile) {
+    return (
+      <div style={{ height: "calc(100vh - 56px)", overflow: "hidden", position: "relative" }}>
+
+        {/* ═══ MOBILE VIEW: Conversation List ═══ */}
+        {mobileView === "list" && (
+          <div className="mobile-conv-list">
+            {/* Header */}
+            <div className="mobile-conv-list-header">
+              <h2>Chats</h2>
+              <div className="mobile-conv-list-actions">
+                <button onClick={() => setShowMobileSearch(!showMobileSearch)} title="Search">
+                  <Search size={20} />
+                </button>
+                <button onClick={() => setShowMobileFilters(!showMobileFilters)} title="Filters">
+                  <Filter size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Expandable search bar */}
+            {showMobileSearch && (
+              <div className="mobile-search-bar">
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
+
+            {/* Horizontally scrollable filter chips */}
+            <div className="mobile-filter-chips">
+              {[{ value: "all", label: "All" }, ...STATUS_OPTIONS].map((s) => (
+                <button
+                  key={s.value}
+                  className={`mobile-filter-chip ${statusFilter === s.value ? "active" : ""}`}
+                  onClick={() => setStatusFilter(s.value)}
+                >
+                  {s.value !== "all" && (
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+                  )}
+                  {s.label}
+                </button>
+              ))}
+              <div className="mobile-filter-chip-divider" />
+              {[
+                { value: "all", label: "All" },
+                { value: "instagram", label: "📷 IG" },
+                { value: "facebook", label: "🌐 FB" },
+                { value: "whatsapp", label: "📱 WA" },
+              ].map((ch) => (
+                <button
+                  key={ch.value}
+                  className={`mobile-filter-chip ${channelFilter === ch.value ? "channel-active" : ""}`}
+                  onClick={() => setChannelFilter(ch.value)}
+                >
+                  {ch.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Conversation items */}
+            <div className="mobile-conv-items">
+              {loading ? (
+                <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)" }}>
+                  <Loader2 size={24} className="spin" style={{ margin: "0 auto 8px" }} />
+                  <div style={{ fontSize: "var(--font-size-sm)" }}>Loading...</div>
+                </div>
+              ) : filteredConvs.length === 0 ? (
+                <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+                  No conversations found
+                </div>
+              ) : filteredConvs.map((conv) => (
+                <div
+                  key={conv.id}
+                  className="mobile-conv-item"
+                  onClick={() => {
+                    setActiveConv(conv);
+                    setSimulatorMode(false);
+                    setMobileView("chat");
+                    setConversationSummary("");
+                  }}
+                >
+                  {/* Avatar */}
+                  <div className="mobile-conv-avatar" style={{ background: conv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
+                    {conv.customer?.profile_pic_url ? (
+                      <img src={conv.customer.profile_pic_url} alt="" />
+                    ) : (
+                      conv.customer?.name?.split(" ").map(n => n[0]).join("") || "?"
+                    )}
+                    <span className="mobile-conv-avatar-badge">
+                      {CHANNEL_ICON[conv.channel] || CHANNEL_ICON.instagram}
+                    </span>
+                  </div>
+
+                  {/* Content */}
+                  <div className="mobile-conv-content">
+                    <div className="mobile-conv-top">
+                      <span className="mobile-conv-name">
+                        {conv.customer?.name || "Unknown"}
+                        {conv.customer?.is_returning && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 8, background: "rgba(88,101,242,0.15)", color: "var(--accent-primary-light)" }}>↩</span>}
+                      </span>
+                      <span className={`mobile-conv-time ${conv.unread_count > 0 ? "unread" : ""}`}>
+                        {formatRelative(conv.last_message_at)}
+                      </span>
+                    </div>
+                    <div className="mobile-conv-preview">
+                      {conv.lastMessage?.is_ai && <Bot size={11} style={{ color: "var(--accent-secondary)", flexShrink: 0 }} />}
+                      {conv.lastMessage?.intent && conv.lastMessage.intent !== "general" && (
+                        <span className="mobile-conv-intent" style={{ background: INTENT_CONFIG[conv.lastMessage.intent]?.color + "22", color: INTENT_CONFIG[conv.lastMessage.intent]?.color }}>
+                          {INTENT_CONFIG[conv.lastMessage.intent]?.label}
+                        </span>
+                      )}
+                      <span className="mobile-conv-preview-text">
+                        {conv.lastMessage?.content?.slice(0, 50) || "No messages yet"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Unread badge */}
+                  {conv.unread_count > 0 && (
+                    <span className="mobile-conv-unread">{conv.unread_count}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* FAB */}
+            <button className="mobile-fab" onClick={() => setShowBroadcastModal(true)} title="Quick Broadcast">
+              <Megaphone size={22} />
+            </button>
+          </div>
+        )}
+
+        {/* ═══ MOBILE VIEW: Chat ═══ */}
+        {mobileView === "chat" && activeConv && (
+          <div className="mobile-chat-view">
+            {/* Chat Header */}
+            <div className="mobile-chat-header" style={{ position: "relative" }}>
+              <button className="mobile-chat-header-back" onClick={() => setMobileView("list")}>
+                <ArrowLeft size={22} />
+              </button>
+
+              <div className="mobile-chat-header-info" onClick={() => setMobileView("profile")}>
+                <div className="mobile-chat-header-avatar" style={{ background: activeConv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
+                  {activeConv.customer?.profile_pic_url ? (
+                    <img src={activeConv.customer.profile_pic_url} alt="" />
+                  ) : (
+                    activeConv.customer?.name?.split(" ").map(n => n[0]).join("")
+                  )}
+                </div>
+                <div className="mobile-chat-header-text">
+                  <div className="mobile-chat-header-name">{activeConv.customer?.name}</div>
+                  <div className="mobile-chat-header-channel">
+                    {CHANNEL_ICON[activeConv.channel]}
+                    {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : "WhatsApp"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mobile-chat-header-actions">
+                {/* Negative sentiment indicator */}
+                {(activeConv.tags || []).some(t => t.startsWith("sentiment:negative") || t.startsWith("sentiment:urgent")) && (
+                  <span style={{
+                    display: "flex", alignItems: "center", gap: 3,
+                    padding: "2px 6px", borderRadius: 10, fontSize: 9, fontWeight: 600,
+                    background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+                  }}>
+                    🔴
+                  </span>
+                )}
+                {/* AI Escalation indicator */}
+                {(activeConv.tags || []).some(t => t.startsWith("escalated:")) && (
+                  <span style={{
+                    display: "flex", alignItems: "center", gap: 3,
+                    padding: "2px 6px", borderRadius: 10, fontSize: 9, fontWeight: 600,
+                    background: "rgba(231, 76, 60, 0.15)", color: "#e74c3c",
+                  }}>
+                    🤖
+                  </span>
+                )}
+                <button onClick={handleSummarize} disabled={summarizing} title="Summarize">
+                  {summarizing ? <Loader2 size={18} className="spin" /> : <FileText size={18} />}
+                </button>
+                <button onClick={() => setShowMobileStatusMenu(!showMobileStatusMenu)} title="Status">
+                  <MoreVertical size={18} />
+                </button>
+              </div>
+
+              {/* Status dropdown menu */}
+              {showMobileStatusMenu && (
+                <div className="mobile-status-menu">
+                  {STATUS_OPTIONS.map((s) => (
+                    <button
+                      key={s.value}
+                      className="mobile-status-option"
+                      onClick={() => { updateConvStatus(s.value); setShowMobileStatusMenu(false); }}
+                      style={{ background: activeConv.status === s.value ? "rgba(108,92,231,0.08)" : "none" }}
+                    >
+                      <span className="mobile-status-dot" style={{ background: s.color }} />
+                      {s.label}
+                      {activeConv.status === s.value && <Check size={14} style={{ marginLeft: "auto", color: "var(--accent-primary)" }} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Messages */}
+            <div className="mobile-chat-messages">
+              {/* AI Summary banner */}
+              {conversationSummary && (
+                <div className="mobile-summary-banner">
+                  <FileText size={14} style={{ color: "var(--accent-primary-light)", flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: "var(--accent-primary-light)", fontSize: 10, marginBottom: 2, textTransform: "uppercase" }}>AI Summary</div>
+                    {conversationSummary}
+                  </div>
+                  <button onClick={() => setConversationSummary("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 0, marginLeft: "auto", flexShrink: 0 }}>
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+              {messages.map(renderMessage)}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Quick actions row */}
+            <div className="mobile-quick-actions">
+              <button className="mobile-quick-action-btn" onClick={() => setShowProductPicker(true)}>
+                <Package size={13} /> Product
+              </button>
+              <button className="mobile-quick-action-btn" onClick={() => { setShowOrderModal(true); setOrderItems([]); }}>
+                <ShoppingBag size={13} /> Order
+              </button>
+              <button className={`mobile-quick-action-btn ${showMobileQRSheet ? "active" : ""}`} onClick={() => setShowMobileQRSheet(!showMobileQRSheet)}>
+                <Zap size={13} /> Quick Reply
+              </button>
+              <button className="mobile-quick-action-btn" onClick={() => updateConvStatus("closed")} style={{ marginLeft: "auto", color: "var(--text-tertiary)" }}>
+                Close
+              </button>
+            </div>
+
+            {/* Input area */}
+            <form className="mobile-chat-input-area" onSubmit={handleSend}>
+              <div className="mobile-chat-input-wrapper">
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={newMsg}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewMsg(val);
+                    if (val.startsWith("/")) {
+                      const query = val.slice(1).toLowerCase();
+                      const matches = quickReplies.filter(qr =>
+                        qr.shortcut?.toLowerCase().startsWith(query) ||
+                        qr.title?.toLowerCase().includes(query) ||
+                        qr.content?.toLowerCase().includes(query)
+                      ).slice(0, 6);
+                      setSlashResults(matches);
+                      setShowSlashMenu(matches.length > 0);
+                      setSlashActiveIndex(0);
+                    } else {
+                      setShowSlashMenu(false);
+                      setSlashResults([]);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (showSlashMenu && slashResults.length > 0) {
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setSlashActiveIndex(prev => Math.min(prev + 1, slashResults.length - 1));
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setSlashActiveIndex(prev => Math.max(prev - 1, 0));
+                      } else if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                        if (slashResults[slashActiveIndex]) {
+                          e.preventDefault();
+                          const qr = slashResults[slashActiveIndex];
+                          const personalized = (qr.content || "")
+                            .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+                            .replace(/\{business_name\}/g, "our store");
+                          setNewMsg(personalized);
+                          setShowSlashMenu(false);
+                          setSlashResults([]);
+                        }
+                      } else if (e.key === "Escape") {
+                        setShowSlashMenu(false);
+                        setSlashResults([]);
+                      }
+                    }
+                  }}
+                />
+                <VoiceRecorder
+                  compact
+                  onTranscribe={(text) => { setNewMsg(text); }}
+                  disabled={sending}
+                />
+                <ImageUploader
+                  compact
+                  onProductSelect={(product) => handleSendProduct(product)}
+                  onSendImageMessage={handleSendImageMessage}
+                  disabled={sending}
+                />
+              </div>
+              <button type="submit" className="mobile-chat-send-btn" disabled={!newMsg.trim() || sending}>
+                <Send size={18} />
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ═══ MOBILE VIEW: Simulator (full screen) ═══ */}
+        {mobileView === "chat" && simulatorMode && (
+          <div className="mobile-chat-view">
+            <div className="mobile-chat-header" style={{ background: "rgba(88, 101, 242, 0.05)" }}>
+              <button className="mobile-chat-header-back" onClick={() => { setSimulatorMode(false); setMobileView("list"); }}>
+                <ArrowLeft size={22} />
+              </button>
+              <div className="mobile-chat-header-info">
+                <div className="mobile-chat-header-avatar" style={{ background: "var(--accent-gradient)", color: "white" }}>
+                  <Bot size={18} />
+                </div>
+                <div className="mobile-chat-header-text">
+                  <div className="mobile-chat-header-name">AI Simulator</div>
+                  <div className="mobile-chat-header-channel" style={{ color: "var(--accent-primary-light)" }}>Testing your catalog</div>
+                </div>
+              </div>
+            </div>
+            <div className="mobile-chat-messages">
+              <div className="chat-msg ai-reply"><span className="ai-label"><Bot size={12} /> Sellora AI</span><div className="msg-bubble">Hi! Ask me about your inventory, prices, or try to buy something!</div></div>
+              {simMessages.map((msg) => (
+                <div key={msg.id} className={`chat-msg ${msg.role === "user" ? "outgoing" : "ai-reply"}`}>
+                  {msg.role !== "user" && <span className="ai-label"><Bot size={12} /> Sellora AI</span>}
+                  <div className="msg-bubble">{msg.content}</div>
+                </div>
+              ))}
+              {simLoading && <div className="chat-msg ai-reply"><div className="msg-bubble" style={{ opacity: 0.7 }}>•••</div></div>}
+              <div ref={simulatorEndRef} />
+            </div>
+            <div className="mobile-chat-input-area">
+              <div className="mobile-chat-input-wrapper">
+                <input
+                  type="text"
+                  placeholder="Test a customer message..."
+                  value={simInput || ""}
+                  onChange={(e) => setSimInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSimSubmit())}
+                  disabled={simLoading}
+                />
+              </div>
+              <button type="button" className="mobile-chat-send-btn" onClick={handleSimSubmit} disabled={!(simInput || "").trim() || simLoading}>
+                <Send size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ MOBILE VIEW: Profile Sheet ═══ */}
+        {mobileView === "profile" && activeConv && (
+          <>
+            <div className="mobile-profile-overlay" onClick={() => setMobileView("chat")} />
+            <div className="mobile-profile-sheet">
+              {/* Handle */}
+              <div className="mobile-profile-handle" />
+
+              {/* Header with close */}
+              <div className="mobile-profile-header">
+                <button onClick={() => setMobileView("chat")}>
+                  <ArrowLeft size={18} />
+                </button>
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>Customer Info</span>
+                <button onClick={() => setMobileView("chat")}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="mobile-profile-body">
+                {/* Avatar */}
+                <div className="mobile-profile-avatar" style={{ background: customerInfo?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
+                  {customerInfo?.profile_pic_url ? (
+                    <img src={customerInfo.profile_pic_url} alt="" />
+                  ) : (
+                    customerInfo?.name?.split(" ").map(n => n[0]).join("") || "?"
+                  )}
+                </div>
+                <div className="mobile-profile-name">{customerInfo?.name || "Unknown"}</div>
+                <div className="mobile-profile-channel">
+                  {CHANNEL_ICON[customerInfo?.platform || customerInfo?.channel]}
+                  {customerInfo?.platform || customerInfo?.channel}
+                  {customerInfo?.is_returning && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 8, background: "rgba(59,165,92,0.15)", color: "var(--accent-green)" }}>Returning</span>}
+                </div>
+
+                {/* Stats */}
+                <div className="mobile-profile-stats">
+                  <div className="mobile-profile-stat">
+                    <div className="mobile-profile-stat-value" style={{ color: "var(--accent-primary-light)" }}>{customerInfo?.total_orders || 0}</div>
+                    <div className="mobile-profile-stat-label">Orders</div>
+                  </div>
+                  <div className="mobile-profile-stat">
+                    <div className="mobile-profile-stat-value" style={{ color: "var(--accent-green)" }}>{customerInfo?.total_spent?.toLocaleString() || 0}</div>
+                    <div className="mobile-profile-stat-label">EGP Spent</div>
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="mobile-profile-section-title">Details</div>
+                {customerInfo?.phone && (
+                  <div className="mobile-profile-detail">
+                    <Phone size={14} className="mobile-profile-detail-icon" /> {customerInfo.phone}
+                  </div>
+                )}
+                {customerInfo?.email && (
+                  <div className="mobile-profile-detail">
+                    <Mail size={14} className="mobile-profile-detail-icon" /> {customerInfo.email}
+                  </div>
+                )}
+                {customerInfo?.address && (
+                  <div className="mobile-profile-detail">
+                    <MapPin size={14} className="mobile-profile-detail-icon" /> {customerInfo.address}
+                  </div>
+                )}
+                <div className="mobile-profile-detail">
+                  <Hash size={14} className="mobile-profile-detail-icon" /> {customerInfo?.platform_id?.slice(0, 16) || "N/A"}
+                </div>
+                <div className="mobile-profile-detail" style={{ marginBottom: 16 }}>
+                  <Clock size={14} className="mobile-profile-detail-icon" /> Joined {customerInfo?.first_seen_at ? formatDate(customerInfo.first_seen_at) : formatDate(customerInfo?.created_at)}
+                </div>
+
+                {/* Tags */}
+                <div className="mobile-profile-section-title">Tags</div>
+                <div className="mobile-profile-tags">
+                  {(customerInfo?.tags || []).map((tag, i) => (
+                    <span key={i} className="mobile-profile-tag" style={tag === "VIP" ? { background: "rgba(88,101,242,0.15)", color: "var(--accent-primary-light)", borderColor: "rgba(88,101,242,0.3)" } : {}}>
+                      {tag}
+                    </span>
+                  ))}
+                  {(!customerInfo?.tags || customerInfo.tags.length === 0) && (
+                    <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>No tags</span>
+                  )}
+                </div>
+
+                {/* Recent orders */}
+                <div className="mobile-profile-section-title">Recent Orders</div>
+                {customerOrders.length === 0 ? (
+                  <p style={{ fontSize: 12, color: "var(--text-tertiary)", margin: 0 }}>No orders yet</p>
+                ) : customerOrders.map((order) => (
+                  <div key={order.id} className="mobile-profile-order">
+                    <div className="mobile-profile-order-top">
+                      <span style={{ fontWeight: 600, color: "var(--accent-primary-light)" }}>{order.order_number}</span>
+                      <span style={{ fontWeight: 700 }}>{order.total} EGP</span>
+                    </div>
+                    <div className="mobile-profile-order-bottom">
+                      {order.status} • {formatDate(order.created_at)}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Recommendations */}
+                <RecommendationsCard
+                  customerId={activeConv?.customer?.id}
+                  onSendProduct={handleSendProduct}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ═══ Mobile Quick Reply Bottom Sheet ═══ */}
+        {showMobileQRSheet && (
+          <>
+            <div className="mobile-profile-overlay" onClick={() => { setShowMobileQRSheet(false); setQrSearch(""); }} />
+            <div className="mobile-qr-sheet">
+              <div className="mobile-profile-handle" />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px 12px" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Quick Replies</span>
+                <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Tap to fill</span>
+              </div>
+              <div style={{ padding: "0 16px 8px" }}>
+                <input
+                  className="mobile-qr-search"
+                  type="text"
+                  placeholder="Search templates..."
+                  value={qrSearch}
+                  onChange={(e) => setQrSearch(e.target.value)}
+                />
+              </div>
+              <div className="mobile-qr-items">
+                {quickReplies.length === 0 ? (
+                  <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+                    No templates yet. Add some in Settings.
+                  </div>
+                ) : Object.keys(quickRepliesByCategory).length === 0 ? (
+                  <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+                    No matches found.
+                  </div>
+                ) : Object.entries(quickRepliesByCategory).map(([category, qrs]) => (
+                  <div key={category}>
+                    <div className="mobile-qr-category">{category}</div>
+                    {qrs.map((qr) => (
+                      <div
+                        key={qr.id}
+                        className="mobile-qr-item"
+                        onClick={() => {
+                          const personalized = (qr.content || "")
+                            .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+                            .replace(/\{business_name\}/g, "our store");
+                          setNewMsg(personalized);
+                          setShowMobileQRSheet(false);
+                          setQrSearch("");
+                        }}
+                      >
+                        <div className="mobile-qr-item-title">{qr.title}</div>
+                        <div className="mobile-qr-item-preview">{qr.content}</div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ═══ Shared Modals (used by both mobile and desktop) ═══ */}
+
+        {/* Product Picker Modal */}
+        {showProductPicker && (
+          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowProductPicker(false)}>
+            <div className="modal" style={{ maxWidth: 480 }}>
+              <div className="modal-header">
+                <h3>Send Product</h3>
+                <button className="modal-close" onClick={() => setShowProductPicker(false)}><X size={18} /></button>
+              </div>
+              <div style={{ padding: "var(--space-md)" }}>
+                <input type="text" className="form-input" placeholder="Search products..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} style={{ marginBottom: "var(--space-md)" }} />
+                <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {products.map((p) => (
+                    <div key={p.id} onClick={() => handleSendProduct(p)} style={{
+                      display: "flex", alignItems: "center", gap: "var(--space-md)", padding: "var(--space-md)",
+                      background: "var(--bg-glass)", borderRadius: 12, cursor: "pointer", border: "1px solid var(--border-subtle)",
+                      transition: "all 0.2s",
+                    }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--bg-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                        {p.image_urls?.[0] ? <img src={p.image_urls[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={18} style={{ color: "var(--text-tertiary)" }} />}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{p.category} • {p.stock} in stock</div>
+                      </div>
+                      <div style={{ fontWeight: 700, color: "var(--accent-green)", fontSize: "var(--font-size-sm)" }}>{p.price} EGP</div>
+                    </div>
+                  ))}
+                  {products.length === 0 && <p style={{ textAlign: "center", color: "var(--text-tertiary)", padding: "var(--space-xl)" }}>No products found</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Order Modal */}
+        {showOrderModal && (
+          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowOrderModal(false)}>
+            <div className="modal" style={{ maxWidth: 560 }}>
+              <div className="modal-header">
+                <h3>Create Order — {activeConv?.customer?.name}</h3>
+                <button className="modal-close" onClick={() => setShowOrderModal(false)}><X size={18} /></button>
+              </div>
+              <div className="modal-body">
+                {/* Add products */}
+                <div className="form-group">
+                  <label className="form-label">Add Products</label>
+                  <input type="text" className="form-input" placeholder="Search products to add..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
+                  {productSearch && (
+                    <div style={{ maxHeight: 150, overflowY: "auto", marginTop: 6, background: "var(--bg-glass)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                      {products.filter(p => !orderItems.find(i => i.id === p.id)).map((p) => (
+                        <div key={p.id} onClick={() => { setOrderItems([...orderItems, { ...p, qty: 1 }]); setProductSearch(""); }} style={{
+                          display: "flex", justifyContent: "space-between", padding: "8px 12px", cursor: "pointer", fontSize: "var(--font-size-sm)",
+                          borderBottom: "1px solid var(--border-subtle)",
+                        }}>
+                          <span>{p.name}</span>
+                          <span style={{ fontWeight: 600, color: "var(--accent-green)" }}>{p.price} EGP</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Order items */}
+                {orderItems.length > 0 && (
+                  <div style={{ marginBottom: "var(--space-md)" }}>
+                    <label className="form-label">Items</label>
+                    {orderItems.map((item, i) => (
+                      <div key={item.id} style={{
+                        display: "flex", alignItems: "center", gap: "var(--space-sm)", padding: "8px 12px",
+                        background: "var(--bg-glass)", borderRadius: 10, marginBottom: 4, border: "1px solid var(--border-subtle)",
+                      }}>
+                        <span style={{ flex: 1, fontSize: "var(--font-size-sm)", fontWeight: 500 }}>{item.name}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <button type="button" onClick={() => { const items = [...orderItems]; items[i].qty = Math.max(1, items[i].qty - 1); setOrderItems(items); }}
+                            style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--border-subtle)", background: "none", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Minus size={12} />
+                          </button>
+                          <span style={{ fontWeight: 700, fontSize: "var(--font-size-sm)", minWidth: 20, textAlign: "center" }}>{item.qty}</span>
+                          <button type="button" onClick={() => { const items = [...orderItems]; items[i].qty++; setOrderItems(items); }}
+                            style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--border-subtle)", background: "none", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Plus size={12} />
+                          </button>
+                        </div>
+                        <span style={{ fontWeight: 700, fontSize: "var(--font-size-sm)", minWidth: 60, textAlign: "right" }}>{item.price * item.qty} EGP</span>
+                        <button type="button" onClick={() => setOrderItems(orderItems.filter((_, j) => j !== i))}
+                          style={{ background: "none", border: "none", color: "var(--accent-red)", cursor: "pointer", padding: 2 }}>
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ textAlign: "right", fontWeight: 800, fontSize: "var(--font-size-lg)", marginTop: "var(--space-sm)" }}>
+                      Total: {orderItems.reduce((s, i) => s + i.price * i.qty, 0)} EGP
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment method */}
+                <div className="form-group">
+                  <label className="form-label">Payment Method</label>
+                  <select className="form-input" value={orderPaymentMethod} onChange={(e) => { setOrderPaymentMethod(e.target.value); if (e.target.value === "paymob") setSendPaymentLink(true); }}>
+                    <option value="cod">Cash on Delivery</option>
+                    <option value="paymob">💳 Paymob — Online Payment</option>
+                    <option value="vodafone_cash">Vodafone Cash</option>
+                    <option value="instapay">InstaPay</option>
+                    <option value="fawry">Fawry</option>
+                    <option value="card">Card / Online</option>
+                  </select>
+                  {orderPaymentMethod !== "cod" && orderPaymentMethod !== "paymob" && (
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}>
+                      <input type="checkbox" checked={sendPaymentLink} onChange={(e) => setSendPaymentLink(e.target.checked)} style={{ accentColor: "var(--accent-primary)" }} />
+                      Send Paymob payment link to customer
+                    </label>
+                  )}
+                  {orderPaymentMethod === "paymob" && (
+                    <div style={{ marginTop: 6, padding: "8px 12px", background: "rgba(108,92,231,0.1)", borderRadius: 8, border: "1px solid rgba(108,92,231,0.2)", fontSize: 11, color: "var(--accent-primary-light)" }}>
+                      💳 A Paymob payment link will be sent to the customer. They can pay with card, Fawry, Vodafone Cash, or InstaPay.
+                    </div>
+                  )}
+                </div>
+
+                {/* Address */}
+                <div className="form-group">
+                  <label className="form-label">Shipping Address</label>
+                  <textarea className="form-input form-textarea" value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} placeholder="Customer address..." rows={2} />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowOrderModal(false)}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={handleCreateOrder} disabled={orderItems.length === 0 || orderSaving}>
+                  {orderSaving ? <><Loader2 size={16} className="spin" /> Creating...</> : <><Check size={16} /> Create Order</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Broadcast Modal */}
+        {showBroadcastModal && (
+          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowBroadcastModal(false)}>
+            <div className="modal" style={{ maxWidth: 560 }}>
+              <div className="modal-header">
+                <h3><Megaphone size={18} style={{ display: "inline", verticalAlign: -3, marginRight: 8 }} />Quick Broadcast</h3>
+                <button className="modal-close" onClick={() => { setShowBroadcastModal(false); setBroadcastResult(null); }}><X size={18} /></button>
+              </div>
+              <div className="modal-body">
+                <p style={{ color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)", marginBottom: "var(--space-lg)" }}>
+                  Send a message to all open conversations at once. Each message is personalized with the customer&apos;s name.
+                </p>
+
+                {broadcastResult && (
+                  <div style={{
+                    padding: "var(--space-md)", marginBottom: "var(--space-md)", borderRadius: "var(--radius-md)",
+                    background: broadcastResult.type === "success" ? "rgba(0,200,83,0.1)" : "rgba(255,82,82,0.1)",
+                    border: `1px solid ${broadcastResult.type === "success" ? "rgba(0,200,83,0.3)" : "rgba(255,82,82,0.3)"}`,
+                    color: broadcastResult.type === "success" ? "var(--accent-green)" : "var(--accent-red)",
+                    fontSize: "var(--font-size-sm)", fontWeight: 500,
+                  }}>
+                    {broadcastResult.message}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Broadcast Message</label>
+                  <textarea
+                    className="form-input form-textarea"
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    rows={4}
+                    placeholder="Hi {name}! We have an exciting new offer at {business_name}..."
+                  />
+                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+                    Use {"{name}"} for customer name, {"{business_name}"} for your store name
+                  </p>
+                </div>
+
+                <div style={{
+                  padding: "var(--space-sm) var(--space-md)",
+                  background: "rgba(108,92,231,0.08)", borderRadius: "var(--radius-sm)",
+                  fontSize: "var(--font-size-sm)", color: "var(--accent-primary-light)",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <MessageCircle size={14} />
+                  {conversations.filter(c => c.status !== "closed").length} open conversations will receive this message
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowBroadcastModal(false); setBroadcastResult(null); }}>Cancel</button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!broadcastMessage.trim() || broadcastSending}
+                  onClick={async () => {
+                    setBroadcastSending(true);
+                    setBroadcastResult(null);
+                    try {
+                      const openConvIds = conversations
+                        .filter(c => c.status !== "closed")
+                        .map(c => c.id);
+
+                      if (openConvIds.length === 0) {
+                        setBroadcastResult({ type: "error", message: "No open conversations to broadcast to." });
+                        setBroadcastSending(false);
+                        return;
+                      }
+
+                      const res = await fetch("/api/broadcasts", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          conversationIds: openConvIds,
+                          message: broadcastMessage.trim(),
+                        }),
+                      });
+                      const data = await res.json();
+
+                      if (res.ok) {
+                        setBroadcastResult({
+                          type: "success",
+                          message: `Broadcast sent! ${data.sent} delivered, ${data.failed} failed out of ${data.total} conversations.`,
+                        });
+                        setBroadcastMessage("");
+                        fetchConversations();
+                      } else {
+                        setBroadcastResult({ type: "error", message: data.error || "Failed to send broadcast" });
+                      }
+                    } catch (err) {
+                      setBroadcastResult({ type: "error", message: "Broadcast failed: " + err.message });
+                    }
+                    setBroadcastSending(false);
+                  }}
+                >
+                  {broadcastSending ? <><Loader2 size={16} className="spin" /> Sending...</> : <><Megaphone size={16} /> Send Broadcast</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  DESKTOP RENDERING (UNCHANGED)
+  // ═══════════════════════════════════════════════════════
   return (
     <div className="conversations-layout" style={{ gridTemplateColumns: showInfoPanel && activeConv && !simulatorMode ? "300px 1fr 320px" : "300px 1fr" }}>
 
@@ -987,73 +1840,7 @@ export default function ConversationsPage() {
                   </button>
                 </div>
               )}
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`chat-msg ${msg.direction === "incoming" ? "incoming" : msg.is_ai ? "ai-reply" : "outgoing"}`}
-                >
-                  {msg.is_ai && <span className="ai-label"><Bot size={10} /> AI Auto-Reply</span>}
-                  {msg.sentiment && (msg.sentiment === "negative" || msg.sentiment === "urgent") && msg.direction === "incoming" && (
-                    <span style={{
-                      fontSize: 10, padding: "2px 8px", borderRadius: 8, marginBottom: 4, display: "inline-block",
-                      background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
-                    }}>
-                      🔴 {msg.sentiment}
-                    </span>
-                  )}
-                  {msg.intent && msg.intent !== "general" && msg.direction === "incoming" && (
-                    <span style={{
-                      fontSize: 10, padding: "2px 8px", borderRadius: 8, marginBottom: 4, display: "inline-block",
-                      background: INTENT_CONFIG[msg.intent]?.color + "22",
-                      color: INTENT_CONFIG[msg.intent]?.color,
-                    }}>
-                      {INTENT_CONFIG[msg.intent]?.label}
-                    </span>
-                  )}
-                  {msg.type === "product_card" ? (
-                    <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)" }}>
-                      <div style={{ whiteSpace: "pre-line" }}>{msg.content}</div>
-                    </div>
-                  ) : msg.type === "image" && msg.media_url ? (
-                    <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)", maxWidth: 280 }}>
-                      <div className="chat-image-thumbnail" onClick={() => {
-                        // Auto-run recognition on click if not already done
-                        if (!imageRecognitionResults[msg.id]) {
-                          handleAutoRecognize(msg.id, msg.media_url);
-                        }
-                      }}>
-                        <img src={msg.media_url} alt="Customer sent image" className="chat-image-thumb" />
-                        {!imageRecognitionResults[msg.id] && (
-                          <div className="chat-image-recognize-hint">
-                            <Camera size={12} /> Click to find matching products
-                          </div>
-                        )}
-                      </div>
-                      {msg.content && <div style={{ marginTop: 6, fontSize: 12, whiteSpace: "pre-line" }}>{msg.content}</div>}
-                      {/* Show recognition results if available */}
-                      {imageRecognitionResults[msg.id] && (
-                        <div className="chat-image-recognition-results">
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-secondary)", textTransform: "uppercase", marginBottom: 4 }}>
-                            🔍 Product Matches
-                          </div>
-                          {(imageRecognitionResults[msg.id].products || []).slice(0, 3).map((product) => (
-                            <div key={product.id} className="chat-recognition-product" onClick={() => handleSendProduct(product)}>
-                              <Package size={11} style={{ color: "var(--accent-primary-light)", flexShrink: 0 }} />
-                              <div style={{ flex: 1, overflow: "hidden" }}>
-                                <div style={{ fontWeight: 600, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{product.name}</div>
-                                <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>{product.price} EGP • {product.confidence}%</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <>{msg.content}</>
-                  )}
-                  <span className="msg-time">{formatTime(msg.created_at)}</span>
-                </div>
-              ))}
+              {messages.map(renderMessage)}
               <div ref={messagesEndRef} />
             </div>
 
