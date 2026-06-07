@@ -18,3 +18,25 @@ Stage Summary:
 - Commit: 95bd673 "Fix AI Agent: send replies to customers & deliver messages"
 - Deployment triggered on Vercel
 - The agent should now: (1) actually deliver messages when asked to send to customers, (2) send AI auto-replies to customers on IG/FB/WA, (3) show clear error messages if channels are not connected
+
+---
+Task ID: 2
+Agent: Main
+Task: Fix AI Agent reply text not showing to store owner in CopilotPanel
+
+Work Log:
+- Deep analysis of the /api/chat/route.js revealed the root cause: generateText + manual createUIMessageStream construction was incompatible with useChat hook
+- When the AI called tools, text portions were lost in the format conversion — agent "acted" but never "replied"
+- Rewrote /api/chat/route.js to use streamText instead of generateText — streamText naturally produces the correct UI message stream format
+- Also rewrote /api/agent/route.js with the same streamText approach, consistent provider fallback chain, and personalized system prompt
+- Strengthened system prompts with "MOST IMPORTANT: You MUST ALWAYS generate a text response" rule
+- Updated CopilotPanel.js getMessageText helper for better streamText format handling
+- Committed and pushed: 5422046 "fix: Switch AI Agent from generateText to streamText for proper reply delivery"
+- Verified deployment on Vercel — both /api/chat and /api/agent return proper auth errors
+
+Stage Summary:
+- 3 files modified: /api/chat/route.js, /api/agent/route.js, CopilotPanel.js
+- Root cause: generateText → manual stream conversion lost text content
+- Fix: streamText naturally streams tool calls + text correctly to useChat
+- Error handling preserved: initial connection/auth/rate-limit errors caught before streaming starts
+- Provider fallback chain preserved with Groq rate limit detection
