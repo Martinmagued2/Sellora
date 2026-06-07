@@ -107,3 +107,36 @@ Stage Summary:
 - If ZAI fails, Gemini is next (key already on Vercel)
 - If both fail, Pollinations.ai (free) as last resort
 - All changes deployed (commit 5dd8ed9)
+---
+Task ID: image-gen-fix
+Agent: Main Agent
+Task: Fix Sellora AI Agent image generation (Z-img) — currently failing with all providers
+
+Work Log:
+- Read and analyzed image-generator.js (8 provider fallback chain)
+- Diagnosed all 5 failing providers from user's error output:
+  - ZAI SDK: "fetch failed" — internal-api.z.ai not accessible from Vercel
+  - CLI: "spawn z-ai-generate ENOENT" — CLI not available on Vercel
+  - Gemini: "models not found for API version v1" — raw fetch using wrong API version
+  - Pollinations: "All endpoints failed (402 or unavailable)" — free tier dead
+- Tested ZAI SDK locally — WORKS (generated test image successfully)
+- Tested z-ai-generate CLI locally — WORKS
+- Root cause: On Vercel, ZAI SDK can't reach internal-api.z.ai; Gemini raw fetch was somehow routing to v1 instead of v1beta
+- Key fix: Rewrote image-generator.js with:
+  1. Gemini moved to FIRST priority (API key already on Vercel, confirmed working for text)
+  2. Using @google/generative-ai SDK (defaults to v1beta) instead of raw fetch
+  3. Added gemini-2.0-flash as first model (confirmed working on Vercel for text)
+  4. Added gemini-2.0-flash-exp and gemini-2.0-flash-lite-preview-image-generation
+  5. Added raw fetch v1beta fallback (safety net if SDK has issues)
+  6. Added Imagen 3 (imagen-3.0-generate-002 + imagen-3.0-generate-001) via predict API
+  7. Added HuggingFace Inference API (free, no key needed)
+  8. Removed hardcoded ZAI_RUNTIME_CONFIG (only works from dev environment)
+  9. Kept ZAI SDK as local-dev only fallback (env vars based)
+  10. Fixed Pollinations with additional API endpoint variants
+- Deployed 4 commits to trigger Vercel rebuilds
+
+Stage Summary:
+- Image generation code rewritten with comprehensive fallback chain
+- Gemini is now the primary provider (most likely to work on Vercel)
+- 4 providers with no API key requirements (HuggingFace, Pollinations, ZAI SDK local, CLI)
+- Waiting for Vercel deployment to complete for testing
