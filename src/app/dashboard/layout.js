@@ -41,6 +41,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 import { StoreProvider } from "@/lib/store-context";
+import { useDevice } from "@/lib/use-device";
 import CopilotPanel from "./components/CopilotPanel";
 import NotificationBell from "./components/NotificationBell";
 import ToastProvider, { useToast } from "./components/ToastProvider";
@@ -48,6 +49,7 @@ import ConfirmProvider from "./components/ConfirmProvider";
 import InstallPrompt from "./components/InstallPrompt";
 import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
 import StoreSwitcher from "./components/StoreSwitcher";
+import BottomNav from "./components/BottomNav";
 import "./dashboard.css";
 
 const sidebarLinks = [
@@ -119,6 +121,7 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const toast = useToast();
+  const { isMobile } = useDevice();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [accountStatus, setAccountStatus] = useState(null);
@@ -251,98 +254,102 @@ export default function DashboardLayout({ children }) {
     <ToastProvider>
     <ConfirmProvider>
     <ServiceWorkerRegistration />
-    <div className="dashboard-layout">
-      {/* Sidebar */}
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="sidebar-header">
-          <Link href="/" className="sidebar-logo">
-            <img src="/logo.png" alt="Sellora" style={{ width: 28, height: 28, borderRadius: 6 }} />
-            <span>
-              Sell<span className="text-gradient-static">ora</span>
-            </span>
-          </Link>
-          <button
-            className="sidebar-close"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <nav className="sidebar-nav">
-          {sidebarLinks.map((section, i) => (
-            <div className="sidebar-section" key={i}>
-              <div className="sidebar-section-title">{section.section}</div>
-              {section.links.map((link) => {
-                const Icon = link.icon;
-                const isActive = pathname === link.href;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`sidebar-link ${isActive ? "active" : ""}`}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <span className="sidebar-link-icon">
-                      <Icon size={18} />
-                    </span>
-                    {link.label}
-                    {link.badgeKey && sidebarBadges[link.badgeKey] > 0 && (
-                      <span className="sidebar-link-badge">{sidebarBadges[link.badgeKey]}</span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-          {/* Admin Panel Link - only visible to admin users */}
-          {isAdminUser && (
-            <div className="sidebar-section">
-              <div className="sidebar-section-title">Admin</div>
-              <Link
-                href={adminLink.href}
-                className={`sidebar-link ${pathname?.startsWith("/admin") ? "active" : ""}`}
-                style={{ color: "var(--accent-orange)" }}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <span className="sidebar-link-icon">
-                  <Shield size={18} />
-                </span>
-                {adminLink.label}
-              </Link>
-            </div>
-          )}
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="sidebar-user">
-            <div className="sidebar-user-avatar">{initials}</div>
-            <div className="sidebar-user-info">
-              <div className="sidebar-user-name">
-                {user?.user_metadata?.business_name || user?.user_metadata?.full_name || "My Store"}
-              </div>
-              <div className="sidebar-user-plan">
-                {user?.email || "Free Trial"}
-              </div>
-            </div>
+    <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
+      {/* Sidebar — only on desktop / tablet */}
+      {!isMobile && (
+        <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+          <div className="sidebar-header">
+            <Link href="/" className="sidebar-logo">
+              <img src="/logo.png" alt="Sellora" style={{ width: 28, height: 28, borderRadius: 6 }} />
+              <span>
+                Sell<span className="text-gradient-static">ora</span>
+              </span>
+            </Link>
+            <button
+              className="sidebar-close"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <X size={18} />
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            className="sidebar-link"
-            style={{ marginTop: "var(--space-sm)", color: "var(--text-tertiary)" }}
-            title="Log out"
-          >
-            <span className="sidebar-link-icon"><LogOut size={18} /></span>
-            Log Out
-          </button>
-        </div>
-      </aside>
 
-      {/* Mobile overlay */}
-      <div
-        className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`}
-        onClick={() => setSidebarOpen(false)}
-      />
+          <nav className="sidebar-nav">
+            {sidebarLinks.map((section, i) => (
+              <div className="sidebar-section" key={i}>
+                <div className="sidebar-section-title">{section.section}</div>
+                {section.links.map((link) => {
+                  const Icon = link.icon;
+                  const isActive = pathname === link.href;
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className={`sidebar-link ${isActive ? "active" : ""}`}
+                      onClick={() => setSidebarOpen(false)}
+                    >
+                      <span className="sidebar-link-icon">
+                        <Icon size={18} />
+                      </span>
+                      {link.label}
+                      {link.badgeKey && sidebarBadges[link.badgeKey] > 0 && (
+                        <span className="sidebar-link-badge">{sidebarBadges[link.badgeKey]}</span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+            {/* Admin Panel Link - only visible to admin users */}
+            {isAdminUser && (
+              <div className="sidebar-section">
+                <div className="sidebar-section-title">Admin</div>
+                <Link
+                  href={adminLink.href}
+                  className={`sidebar-link ${pathname?.startsWith("/admin") ? "active" : ""}`}
+                  style={{ color: "var(--accent-orange)" }}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <span className="sidebar-link-icon">
+                    <Shield size={18} />
+                  </span>
+                  {adminLink.label}
+                </Link>
+              </div>
+            )}
+          </nav>
+
+          <div className="sidebar-footer">
+            <div className="sidebar-user">
+              <div className="sidebar-user-avatar">{initials}</div>
+              <div className="sidebar-user-info">
+                <div className="sidebar-user-name">
+                  {user?.user_metadata?.business_name || user?.user_metadata?.full_name || "My Store"}
+                </div>
+                <div className="sidebar-user-plan">
+                  {user?.email || "Free Trial"}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="sidebar-link"
+              style={{ marginTop: "var(--space-sm)", color: "var(--text-tertiary)" }}
+              title="Log out"
+            >
+              <span className="sidebar-link-icon"><LogOut size={18} /></span>
+              Log Out
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* Mobile overlay for sidebar — only needed on tablet */}
+      {!isMobile && (
+        <div
+          className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* Main content */}
       <main className="dashboard-main">
@@ -370,85 +377,103 @@ export default function DashboardLayout({ children }) {
           </div>
         )}
 
-        {/* Topbar */}
-        <header className="topbar">
+        {/* Topbar — mobile vs desktop */}
+        <header className={`topbar${isMobile ? " mobile-topbar" : ""}`}>
           <div className="topbar-left">
-            <button
-              className="topbar-mobile-toggle"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Menu size={20} />
-            </button>
-            <h1 className="topbar-title">{currentTitle}</h1>
-          </div>
-
-          <div className="topbar-search" ref={searchRef} style={{ position: "relative" }}>
-            <Search size={16} className="topbar-search-icon" />
-            <input
-              type="text"
-              className="topbar-search-input"
-              placeholder="Search conversations, orders, products..."
-              id="dashboard-search"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setShowSearch(true); }}
-              onFocus={() => setShowSearch(true)}
-            />
-            {showSearch && searchQuery.trim() && (
-              <div style={{
-                position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100,
-                background: "var(--bg-elevated)", borderRadius: "0 0 12px 12px",
-                boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)",
-                borderTop: "none", maxHeight: 320, overflowY: "auto"
-              }}>
-                {searchResults.length === 0 ? (
-                  <div style={{ padding: "16px", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>No results found</div>
-                ) : searchResults.map((r, i) => (
-                  <button key={i} onClick={() => { router.push(r.href); setShowSearch(false); setSearchQuery(""); }} style={{
-                    display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 16px",
-                    background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
-                    textAlign: "left", fontSize: "var(--font-size-sm)"
-                  }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-primary)", minWidth: 80 }}>{r.type}</span>
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
-                    <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{r.sub}</span>
-                  </button>
-                ))}
-              </div>
+            {isMobile ? (
+              /* Mobile: show logo + title */
+              <>
+                <Link href="/dashboard" className="topbar-logo-mobile">
+                  <img src="/logo.png" alt="Sellora" style={{ width: 28, height: 28, borderRadius: 6 }} />
+                </Link>
+                <h1 className="topbar-title">{currentTitle}</h1>
+              </>
+            ) : (
+              /* Desktop: show hamburger + title */
+              <>
+                <button
+                  className="topbar-mobile-toggle"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <Menu size={20} />
+                </button>
+                <h1 className="topbar-title">{currentTitle}</h1>
+              </>
             )}
           </div>
 
+          {/* Desktop search */}
+          {!isMobile && (
+            <div className="topbar-search" ref={searchRef} style={{ position: "relative" }}>
+              <Search size={16} className="topbar-search-icon" />
+              <input
+                type="text"
+                className="topbar-search-input"
+                placeholder="Search conversations, orders, products..."
+                id="dashboard-search"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setShowSearch(true); }}
+                onFocus={() => setShowSearch(true)}
+              />
+              {showSearch && searchQuery.trim() && (
+                <div style={{
+                  position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100,
+                  background: "var(--bg-elevated)", borderRadius: "0 0 12px 12px",
+                  boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)",
+                  borderTop: "none", maxHeight: 320, overflowY: "auto"
+                }}>
+                  {searchResults.length === 0 ? (
+                    <div style={{ padding: "16px", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>No results found</div>
+                  ) : searchResults.map((r, i) => (
+                    <button key={i} onClick={() => { router.push(r.href); setShowSearch(false); setSearchQuery(""); }} style={{
+                      display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 16px",
+                      background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
+                      textAlign: "left", fontSize: "var(--font-size-sm)"
+                    }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-primary)", minWidth: 80 }}>{r.type}</span>
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                      <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{r.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="topbar-right">
-            <StoreSwitcher />
+            {!isMobile && <StoreSwitcher />}
             <button className="topbar-btn" id="topbar-ai" title="Sellora Agent" onClick={() => document.getElementById("copilot-toggle")?.click()}>
               <Bot size={18} />
             </button>
             <div style={{ position: "relative" }}>
               <NotificationBell />
             </div>
-            <div style={{ position: "relative" }}>
-              <button className="topbar-btn topbar-help-btn" id="topbar-help" title="Help & Support" onClick={() => setHelpOpen(!helpOpen)}>
-                <HelpCircle size={18} />
-              </button>
-              {helpOpen && (
-                <div style={{
-                  position: "absolute", right: 0, top: "100%", marginTop: 8, width: 280,
-                  background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
-                  borderRadius: "var(--radius-md)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-                  padding: "var(--space-lg)", zIndex: 1000,
-                }}>
-                  <div style={{ fontWeight: 600, marginBottom: "var(--space-md)" }}>Help & Support</div>
-                  <a href="mailto:support@sellora.com" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", textDecoration: "none" }}>
-                    <MessageCircle size={14} /> support@sellora.com
-                  </a>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)" }}>
-                    <Bot size={14} /> Use the AI Copilot (purple button)
+            {!isMobile && (
+              <div style={{ position: "relative" }}>
+                <button className="topbar-btn topbar-help-btn" id="topbar-help" title="Help & Support" onClick={() => setHelpOpen(!helpOpen)}>
+                  <HelpCircle size={18} />
+                </button>
+                {helpOpen && (
+                  <div style={{
+                    position: "absolute", right: 0, top: "100%", marginTop: 8, width: 280,
+                    background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+                    borderRadius: "var(--radius-md)", boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                    padding: "var(--space-lg)", zIndex: 1000,
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: "var(--space-md)" }}>Help & Support</div>
+                    <a href="mailto:support@sellora.com" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", textDecoration: "none" }}>
+                      <MessageCircle size={14} /> support@sellora.com
+                    </a>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)" }}>
+                      <Bot size={14} /> Use the AI Copilot (purple button)
+                    </div>
+                    <Link href="/dashboard/settings?tab=webhooks" onClick={() => setHelpOpen(false)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", textDecoration: "none" }}>
+                      <Settings size={14} /> Webhook Integrations
+                    </Link>
                   </div>
-                  <Link href="/dashboard/settings?tab=webhooks" onClick={() => setHelpOpen(false)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", textDecoration: "none" }}>
-                    <Settings size={14} /> Webhook Integrations
-                  </Link>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
             <button className="topbar-btn topbar-search-toggle" title="Search" onClick={() => setShowMobileSearch(true)}>
               <Search size={18} />
             </button>
@@ -534,6 +559,9 @@ export default function DashboardLayout({ children }) {
 
       {/* PWA Install Prompt */}
       <InstallPrompt />
+
+      {/* Mobile Bottom Navigation */}
+      {isMobile && <BottomNav sidebarBadges={sidebarBadges} />}
     </div>
     </ConfirmProvider>
     </ToastProvider>
