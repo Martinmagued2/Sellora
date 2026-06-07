@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import ZAI from "z-ai-web-dev-sdk";
 import { getZAIConfig } from "@/lib/ai/z-ai-config";
 import { execFile } from "child_process";
@@ -5,16 +6,18 @@ import { promisify } from "util";
 import { readFile, unlink } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
-import { createClient } from "@supabase/supabase-js";
 
 const execFileAsync = promisify(execFile);
 
 /**
  * Shared image generation utility with automatic fallback chain:
  *
- * 1. ZAI SDK (env vars OR Supabase config — works on Vercel without env vars!)
- * 2. z-ai-generate CLI tool (works on server environments)
- * 3. Gemini Image Generation (GOOGLE_GENERATIVE_AI_API_KEY — already on Vercel)
+ * 1. Gemini Image Generation (GOOGLE_GENERATIVE_AI_API_KEY — already on Vercel)
+ *    - Uses @google/generative-ai SDK for proper API versioning
+ *    - Tries: gemini-2.0-flash-preview-image-generation, gemini-2.0-flash-exp
+ *    - Also tries Imagen 3 via REST API
+ * 2. ZAI SDK (works from dev environments with internal-api access)
+ * 3. z-ai-generate CLI tool (works on server environments)
  * 4. Together AI FLUX.1-schnell-Free (TOGETHER_API_KEY)
  * 5. NVIDIA NIM (qwen-image, FLUX.2-klein — same key as text AI)
  * 6. fal.ai FLUX.1 [dev] (best quality, $10 free credits)
@@ -26,34 +29,14 @@ const execFileAsync = promisify(execFile);
 const ZAI_TIMEOUT_MS = 45000;
 
 // Gemini models that support native image generation, tried in order
+// These models support responseModalities: ["IMAGE", "TEXT"]
 const GEMINI_IMAGE_MODELS = [
   "gemini-2.0-flash-preview-image-generation",
-  "gemini-2.5-flash-preview-image-generation",
+  "gemini-2.0-flash-exp",
 ];
 
-// ZAI config stored in Supabase — allows image gen to work on Vercel without env vars
-// This is the runtime fallback when env vars are not available
-const ZAI_RUNTIME_CONFIG = {
-  baseUrl: "https://internal-api.z.ai/v1",
-  apiKey: "Z.ai",
-  chatId: "chat-6233d81d-3cd7-4668-af56-b3052cf5f1fc",
-  userId: "f569d322-9c84-49e1-8b1c-2c6d749d122b",
-  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZjU2OWQzMjItOWM4NC00OWUxLThiMWMtMmM2ZDc0OWQxMjJiIiwiY2hhdF9pZCI6ImNoYXQtNjIzM2Q4MWQtM2NkNy00NjY4LWFmNTYtYjMwNTJjZjVmMWZjIiwicGxhdGZvcm0iOiJ6YWkifQ.2oaE5VBP8PQc5iHihU_Zrw1cP3Xqgrt5XW-PO0bvNmc",
-};
-
-/**
- * Get ZAI config — tries env vars first, then falls back to runtime config.
- * This ensures image generation works on Vercel even without ZAI_* env vars.
- */
-function getEffectiveZAIConfig() {
-  // 1. Try env vars (recommended for production)
-  const envConfig = getZAIConfig();
-  if (envConfig) return envConfig;
-
-  // 2. Runtime config fallback (works on Vercel without env vars)
-  console.log("[ImageGen] ZAI env vars not found, using runtime config");
-  return ZAI_RUNTIME_CONFIG;
-}
+// Imagen 3 model (uses a different API endpoint / predictImages)
+const IMAGEN_MODEL = "imagen-3.0-generate-002";
 
 /**
  * Generate a product image using AI with automatic fallback.
@@ -65,10 +48,108 @@ export async function generateProductImage(prompt, options = {}) {
   const size = options.size || "1024x1024";
   const errors = []; // Track all errors for debugging
 
-  // ─── Attempt 1: ZAI SDK (direct API call) ───
-  // Works reliably — env vars OR runtime config fallback
+  // ─── Attempt 1: Gemini Image Generation (via @google/generative-ai SDK) ───
+  // GOOGLE_GENERATIVE_AI_API_KEY is already configured on Vercel!
+  // The SDK handles API versioning correctly (v1beta for preview models)
+  const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (googleApiKey) {
+    // 1a: Try Gemini models with generateContent (image output via responseModalities)
+    for (const modelName of GEMINI_IMAGE_MODELS) {
+      try {
+        console.log(`[ImageGen] Trying Gemini ${modelName} via SDK...`);
+        const genAI = new GoogleGenerativeAI(googleApiKey);
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+          },
+        });
+
+        const result = await Promise.race([
+          model.generateContent(`Generate a high-quality product image: ${prompt}`),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Gemini timeout")), 45000)
+          ),
+        ]);
+
+        const response = result.response;
+        const parts = response.candidates?.[0]?.content?.parts || [];
+
+        for (const part of parts) {
+          if (part.inlineData && part.inlineData.data) {
+            const imageBase64 = part.inlineData.data;
+            const mimeType = part.inlineData.mimeType || "image/png";
+            console.log(
+              `[ImageGen] ✅ Image generated via Gemini ${modelName} (${mimeType}, ${(imageBase64.length / 1024).toFixed(0)}KB base64)`
+            );
+            return { success: true, imageBase64, source: "gemini" };
+          }
+        }
+        console.warn(`[ImageGen] Gemini ${modelName} returned no image data (only text)`);
+      } catch (geminiError) {
+        const msg = geminiError?.message || String(geminiError);
+        errors.push(`Gemini-${modelName}: ${msg.substring(0, 80)}`);
+        if (msg.includes("location is not supported") || msg.includes("not available in your country")) {
+          console.warn(`[ImageGen] Gemini image generation not available in your region`);
+          break; // No point trying other Gemini models if region-blocked
+        }
+        if (msg.includes("not found") || msg.includes("does not exist")) {
+          console.warn(`[ImageGen] Gemini model ${modelName} not found, trying next`);
+          continue;
+        }
+        console.warn(`[ImageGen] Gemini ${modelName} failed: ${msg.substring(0, 150)}`);
+      }
+    }
+
+    // 1b: Try Imagen 3 via REST API (different endpoint than generateContent)
+    try {
+      console.log(`[ImageGen] Trying Imagen 3 (${IMAGEN_MODEL}) via REST API...`);
+      const [width, height] = size.split("x").map(Number);
+
+      const imagenResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_MODEL}:predict?key=${googleApiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instances: [{ prompt }],
+            parameters: {
+              sampleCount: 1,
+              aspectRatio: width && height ? (width > height ? "16:9" : width < height ? "9:16" : "1:1") : "1:1",
+            },
+          }),
+          signal: AbortSignal.timeout(45000),
+        }
+      );
+
+      if (imagenResponse.ok) {
+        const data = await imagenResponse.json();
+        const predictions = data.predictions || [];
+        for (const pred of predictions) {
+          // Imagen 3 returns base64 in bytesBase64Encoded field
+          const imageBase64 = pred.bytesBase64Encoded;
+          if (imageBase64) {
+            console.log(`[ImageGen] ✅ Image generated via Imagen 3 (${(imageBase64.length / 1024).toFixed(0)}KB base64)`);
+            return { success: true, imageBase64, source: "imagen3" };
+          }
+        }
+        console.warn(`[ImageGen] Imagen 3 returned no image data`);
+      } else {
+        const errorData = await imagenResponse.json().catch(() => ({}));
+        const errMsg = errorData?.error?.message || `HTTP ${imagenResponse.status}`;
+        errors.push(`Imagen3: ${errMsg.substring(0, 80)}`);
+        console.warn(`[ImageGen] Imagen 3 failed: ${errMsg.substring(0, 150)}`);
+      }
+    } catch (imagenError) {
+      errors.push(`Imagen3: ${imagenError.message?.substring(0, 80)}`);
+      console.warn(`[ImageGen] Imagen 3 error: ${imagenError.message?.substring(0, 150)}`);
+    }
+  }
+
+  // ─── Attempt 2: ZAI SDK (works from dev/internal environments) ───
+  // Only works when internal-api.z.ai is reachable (dev/local environments)
   try {
-    const zaiConfig = getEffectiveZAIConfig();
+    const zaiConfig = getZAIConfig() || null;
     if (zaiConfig) {
       console.log("[ImageGen] Trying ZAI SDK...");
       const zai = new ZAI(zaiConfig);
@@ -104,7 +185,7 @@ export async function generateProductImage(prompt, options = {}) {
     }
   }
 
-  // ─── Attempt 2: z-ai-generate CLI tool ───
+  // ─── Attempt 3: z-ai-generate CLI tool ───
   // Works on server environments where the CLI is installed
   try {
     console.log("[ImageGen] Trying z-ai-generate CLI...");
@@ -131,73 +212,6 @@ export async function generateProductImage(prompt, options = {}) {
       console.warn("[ImageGen] z-ai-generate CLI not available, trying next method");
     } else {
       console.warn("[ImageGen] z-ai-generate CLI failed:", msg.substring(0, 200));
-    }
-  }
-
-  // ─── Attempt 3: Gemini Image Generation (via REST API) ───
-  // GOOGLE_GENERATIVE_AI_API_KEY is already configured on Vercel!
-  const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (googleApiKey) {
-    for (const modelName of GEMINI_IMAGE_MODELS) {
-      try {
-        console.log(`[ImageGen] Trying Gemini image generation (${modelName})...`);
-
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${googleApiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: `Generate a high-quality product image: ${prompt}`,
-                    },
-                  ],
-                },
-              ],
-              generationConfig: {
-                responseModalities: ["TEXT", "IMAGE"],
-              },
-            }),
-            signal: AbortSignal.timeout(45000),
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          const parts = data.candidates?.[0]?.content?.parts || [];
-
-          for (const part of parts) {
-            if (part.inlineData && part.inlineData.data) {
-              const imageBase64 = part.inlineData.data;
-              const mimeType = part.inlineData.mimeType || "image/png";
-              console.log(
-                `[ImageGen] ✅ Image generated via Gemini (${modelName}, ${mimeType}, ${(imageBase64.length / 1024).toFixed(0)}KB base64)`
-              );
-              return { success: true, imageBase64, source: `gemini` };
-            }
-          }
-          console.warn(`[ImageGen] Gemini ${modelName} returned no image data (only text)`);
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          const errMsg = errorData?.error?.message || `HTTP ${response.status}`;
-          errors.push(`Gemini-${modelName}: ${errMsg.substring(0, 80)}`);
-          if (errMsg.includes("location is not supported") || errMsg.includes("not available in your country")) {
-            console.warn(`[ImageGen] Gemini image generation not available in your region`);
-            break;
-          }
-          if (errMsg.includes("not found") || response.status === 404) {
-            console.warn(`[ImageGen] Gemini model ${modelName} not found, trying next`);
-            continue;
-          }
-          console.warn(`[ImageGen] Gemini ${modelName} failed: ${errMsg.substring(0, 150)}`);
-        }
-      } catch (geminiError) {
-        errors.push(`Gemini-${modelName}: ${geminiError.message?.substring(0, 80)}`);
-        console.warn(`[ImageGen] Gemini ${modelName} error: ${geminiError.message?.substring(0, 150)}`);
-      }
     }
   }
 
@@ -367,17 +381,21 @@ export async function generateProductImage(prompt, options = {}) {
     const encodedPrompt = encodeURIComponent(prompt);
     const seed = Math.floor(Math.random() * 1000000);
 
-    // Try without model=flux (sometimes the flux model returns 402)
+    // Try multiple Pollinations endpoints and models
     const pollinationsUrls = [
+      // Primary: default model (auto)
       `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width || 1024}&height=${height || 1024}&seed=${seed}&nologo=true`,
+      // Try with explicit model=flux
       `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width || 1024}&height=${height || 1024}&seed=${seed}&nologo=true&model=flux`,
+      // Try the API endpoint instead of the image endpoint
+      `https://api.pollinations.ai/v1/images?prompt=${encodedPrompt}&width=${width || 1024}&height=${height || 1024}&seed=${seed}&nologo=true`,
     ];
 
     for (const imageUrl of pollinationsUrls) {
       try {
         const response = await fetch(imageUrl, {
           signal: AbortSignal.timeout(30000),
-          headers: { Accept: "image/png,image/*" },
+          headers: { Accept: "image/png,image/*,*/*" },
         });
 
         if (!response.ok) {
@@ -386,6 +404,20 @@ export async function generateProductImage(prompt, options = {}) {
         }
 
         const contentType = response.headers.get("content-type") || "";
+
+        // If it's JSON (from API endpoint), parse it differently
+        if (contentType.includes("application/json")) {
+          try {
+            const jsonData = await response.json();
+            const imgBase64 = jsonData?.data?.[0]?.base64 || jsonData?.image;
+            if (imgBase64) {
+              console.log(`[ImageGen] ✅ Image via Pollinations.ai API`);
+              return { success: true, imageBase64: imgBase64, source: "pollinations" };
+            }
+          } catch {}
+          continue;
+        }
+
         if (!contentType.includes("image") && !contentType.includes("octet-stream")) {
           console.warn(`[ImageGen] Pollinations.ai returned non-image: ${contentType}`);
           continue;
