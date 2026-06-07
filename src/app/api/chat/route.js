@@ -110,7 +110,7 @@ CORE CAPABILITIES:
 - Order Management: View latest sales, update order status, get order details
 - Customer Insights: Analyze customer data, show top spenders, returning customer stats
 - Conversation Overview: Check recent conversations, see unread messages
-- Send Messages: Find customer conversations and send messages directly to customers via their channel (WhatsApp, Instagram, Facebook). When the seller asks you to message a customer, use find_conversation first to get the conversation ID, then use send_message_to_customer to actually deliver the message.
+- Send Messages: Send messages directly to customers via their channel (WhatsApp, Instagram, Facebook). When the seller asks to message a customer, ALWAYS use the message_customer tool — it finds the conversation and delivers the message in ONE step. Do NOT use find_conversation + send_message_to_customer separately; use message_customer instead.
 - Search & Filter: Search products by name/category, filter inventory
 
 BEHAVIOR GUIDELINES:
@@ -131,12 +131,9 @@ BEHAVIOR GUIDELINES:
 15. When generating product images, if the user doesn't specify a style, use "studio" (clean white background) as default. Describe the generated image to the user and confirm it was linked to the product.
 
 MESSAGING CUSTOMERS — CRITICAL RULES:
-16. When the seller asks to "send a message to [customer name]" or "tell [customer name] something" or "remind [customer name]", you MUST:
-    a. First call find_conversation with the customer's name to find their conversation
-    b. Then call send_message_to_customer with the conversation ID and the message
-    c. ALWAYS confirm to the seller whether the message was delivered or not
-17. If find_conversation returns no results, tell the seller that no conversation was found for that customer name and suggest they check the Conversations page.
-18. If send_message_to_customer returns an error (e.g., channel not connected), clearly tell the seller what went wrong and suggest they reconnect the channel in Settings.
+16. When the seller asks to "send a message to [customer name]" or "tell [customer name] something" or "remind [customer name]", you MUST use the message_customer tool with the customer_name and message parameters. This tool finds the conversation AND sends the message in one step. Do NOT call find_conversation + send_message_to_customer separately.
+17. If message_customer returns no conversation found, tell the seller and suggest they check the Conversations page.
+18. If message_customer returns an error (e.g., channel not connected), clearly tell the seller what went wrong and suggest they reconnect the channel in Settings.
 19. After sending a message, write a clear confirmation like: "I've sent your message to [Customer Name] on [channel]. They should receive it shortly."
 
 CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response explaining the results. Do NOT just return tool results silently. The user needs to READ your analysis. Write at least 3-5 sentences analyzing the data from every tool call. Use bullet points, bold text, and clear formatting.
@@ -230,6 +227,10 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
         if (errMsg.includes('Rate limit') && providerEntry.name.startsWith('groq-')) {
           groqRateLimited = true;
           console.warn(`[Agent] Groq rate limit detected, skipping remaining Groq providers`);
+        }
+        // Detect Groq function calling failures — these are transient, try next provider
+        if (errMsg.includes('Failed to call a function') || errMsg.includes('invalid_request_error')) {
+          console.warn(`[Agent] ${providerEntry.name} had function calling error, trying next provider`);
         }
       }
     }

@@ -268,6 +268,7 @@ export const createCopilotTools = (accountId) => {
       inputSchema: z.object({
         product_id: z.string().describe("The ID of the product to generate an image for"),
         product_name: z.string().describe("The name of the product"),
+        description: z.string().optional().describe("Product description for better image context (optional)"),
         style: z.string().describe("Image style: studio, lifestyle, or minimal (default studio)"),
       }),
       execute: async ({ product_id, product_name, description, style }) => {
@@ -765,6 +766,180 @@ export const createCopilotTools = (accountId) => {
           count: results.length,
           _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversations" },
         };
+      },
+    }),
+
+    // ─── COMBINED MESSAGING TOOL (single-step, avoids multi-tool failures) ───
+
+    message_customer: tool({
+      description: "Send a message to a customer by name. This is the PREFERRED way to message customers — it finds the conversation and sends the message in one step. Use when the seller says 'send a message to [name]', 'tell [name] something', 'remind [name] about something', or 'notify [name]'.",
+      inputSchema: z.object({
+        customer_name: z.string().describe("The name of the customer to message"),
+        message: z.string().describe("The message text to send to the customer"),
+      }),
+      execute: async ({ customer_name, message }) => {
+        try {
+          if (!customer_name || !message) {
+            return { success: false, error: "Customer name and message are required" };
+          }
+
+          // Step 1: Find the conversation by customer name
+          const nameLower = customer_name.toLowerCase();
+          const { data: conversations, error: convError } = await supabase
+            .from("conversations")
+            .select("id, channel, account_id, customer:customers(id, name, platform_id, phone)")
+            .eq("account_id", accountId)
+            .order("updated_at", { ascending: false })
+            .limit(50);
+
+          if (convError) {
+            return { success: false, error: `Failed to search conversations: ${convError.message}` };
+          }
+
+          const matches = (conversations || []).filter(c =>
+            c.customers?.name?.toLowerCase().includes(nameLower)
+          );
+
+          if (matches.length === 0) {
+            return {
+              success: false,
+              error: `No conversation found for customer "${customer_name}". Please check the customer name or go to Conversations to find them.`,
+              _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversations" },
+            };
+          }
+
+          // Use the most recent matching conversation
+          const conversation = matches[0];
+          const conversation_id = conversation.id;
+          const { channel, customer } = conversation;
+          const recipientId = customer?.platform_id;
+          const customerName = customer?.name || customer_name;
+
+          // Step 2: Get account channel tokens
+          const { data: accountData, error: accountError } = await supabase
+            .from("accounts")
+            .select("whatsapp_access_token, whatsapp_phone_number_id, whatsapp_connected, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id")
+            .eq("id", accountId)
+            .single();
+
+          if (accountError || !accountData) {
+            return { success: false, error: "Account not found" };
+          }
+
+          // Step 3: Deliver the message through the channel
+          let delivered = false;
+          let deliveryError = null;
+
+          if (channel === "whatsapp") {
+            if (!accountData.whatsapp_connected || !accountData.whatsapp_access_token) {
+              return { success: false, error: "WhatsApp is not connected. Please connect WhatsApp in Settings to send messages." };
+            }
+            const phone = customer?.phone || customer?.platform_id;
+            if (!phone) {
+              return { success: false, error: `Customer ${customerName} has no phone number for WhatsApp delivery.` };
+            }
+            try {
+              const { sendWhatsAppMessage } = await import("@/lib/whatsapp");
+              await sendWhatsAppMessage({
+                to: phone,
+                message,
+                phoneNumberId: accountData.whatsapp_phone_number_id,
+                accessToken: accountData.whatsapp_access_token,
+              });
+              delivered = true;
+            } catch (e) {
+              deliveryError = e.message;
+              console.error("[message_customer] WhatsApp delivery failed:", e.message);
+            }
+          } else if (channel === "instagram") {
+            if (!recipientId) {
+              return { success: false, error: `Customer ${customerName} has no Instagram platform ID for delivery.` };
+            }
+            if (!accountData.instagram_access_token || !accountData.instagram_page_id) {
+              return { success: false, error: "Instagram is not connected. Please connect Instagram in Settings to send messages." };
+            }
+            try {
+              const { sendMessage } = await import("@/lib/channels/meta");
+              await sendMessage({
+                recipientId,
+                message,
+                pageId: accountData.instagram_page_id,
+                accessToken: accountData.instagram_access_token,
+              });
+              delivered = true;
+            } catch (e) {
+              deliveryError = e.message;
+              console.error("[message_customer] Instagram delivery failed:", e.message);
+            }
+          } else if (channel === "facebook") {
+            if (!recipientId) {
+              return { success: false, error: `Customer ${customerName} has no Facebook platform ID for delivery.` };
+            }
+            if (!accountData.facebook_access_token || !accountData.facebook_page_id) {
+              return { success: false, error: "Facebook is not connected. Please connect Facebook in Settings to send messages." };
+            }
+            try {
+              const { sendMessage } = await import("@/lib/channels/meta");
+              await sendMessage({
+                recipientId,
+                message,
+                pageId: accountData.facebook_page_id,
+                accessToken: accountData.facebook_access_token,
+              });
+              delivered = true;
+            } catch (e) {
+              deliveryError = e.message;
+              console.error("[message_customer] Facebook delivery failed:", e.message);
+            }
+          } else {
+            return { success: false, error: `Unknown channel: ${channel}. Cannot deliver message.` };
+          }
+
+          // Step 4: Store the outgoing message in the database
+          const { error: insertError } = await supabase.from("messages").insert({
+            conversation_id,
+            account_id: accountId,
+            direction: "outgoing",
+            content: message,
+            type: "text",
+            is_ai: true,
+            delivery_status: delivered ? "delivered" : "failed",
+          });
+
+          if (insertError) {
+            console.error("[message_customer] Failed to store message:", insertError.message);
+          }
+
+          // Step 5: Update conversation metadata
+          await supabase
+            .from("conversations")
+            .update({
+              last_message_at: new Date().toISOString(),
+              status: "waiting_customer",
+            })
+            .eq("id", conversation_id);
+
+          // Step 6: Return result
+          if (!delivered) {
+            return {
+              success: false,
+              error: `Message saved but could NOT be delivered to ${customerName} on ${channel}: ${deliveryError || 'Channel not connected'}. Try reconnecting ${channel} in Settings.`,
+              conversation_id,
+              _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversation" },
+            };
+          }
+
+          return {
+            success: true,
+            message: `Message delivered to ${customerName} on ${channel} successfully!`,
+            conversation_id,
+            channel,
+            _action: { type: "navigate", path: "/dashboard/conversations", label: "View Conversation" },
+          };
+        } catch (err) {
+          console.error("[message_customer] Unexpected error:", err);
+          return { success: false, error: `Failed to send message: ${err.message}` };
+        }
       },
     }),
 

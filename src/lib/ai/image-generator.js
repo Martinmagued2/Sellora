@@ -22,7 +22,7 @@ const execFileAsync = promisify(execFile);
  * Returns: { success: boolean, imageBase64?: string, source?: string, error?: string }
  */
 
-const ZAI_TIMEOUT_MS = 15000;
+const ZAI_TIMEOUT_MS = 30000;
 
 // Gemini models that support native image generation, tried in order
 const GEMINI_IMAGE_MODELS = [
