@@ -34,6 +34,7 @@ const ZAI_TIMEOUT_MS = 45000;
 // These models support responseModalities: ["IMAGE", "TEXT"]
 // Order: latest/reliable first, fallbacks after
 const GEMINI_IMAGE_MODELS = [
+  "gemini-2.0-flash",  // Stable model confirmed working on Vercel for text; also supports image output
   "gemini-2.0-flash-preview-image-generation",
   "gemini-2.0-flash-exp",
   "gemini-2.0-flash-lite-preview-image-generation",
