@@ -410,6 +410,203 @@ function LiveDashboardPreview() {
 }
 
 /* ============================================
+   SVG WAVE DIVIDER — animated wave between sections
+   ============================================ */
+function SVGWaveDivider({ flip = false, color1 = "var(--bg-primary)", color2 = "var(--bg-secondary)", style = {} }) {
+  return (
+    <div className={`svg-wave-divider ${flip ? "flipped" : ""}`} style={{ ...style, position: "relative", zIndex: 2 }}>
+      <svg viewBox="0 0 1440 100" preserveAspectRatio="none" style={{ display: "block", width: "100%", height: 80 }}>
+        <defs>
+          <linearGradient id={`wave-grad-${flip ? "f" : "n"}`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.15" />
+            <stop offset="50%" stopColor="var(--accent-secondary)" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity="0.15" />
+          </linearGradient>
+        </defs>
+        <path fill={color1 === color2 ? "var(--bg-secondary)" : color2} d="M0,40 C360,100 720,0 1080,60 C1260,80 1380,50 1440,40 L1440,100 L0,100 Z" opacity="0.5">
+          <animate attributeName="d" dur="8s" repeatCount="indefinite" values="
+            M0,40 C360,100 720,0 1080,60 C1260,80 1380,50 1440,40 L1440,100 L0,100 Z;
+            M0,60 C360,10 720,90 1080,30 C1260,50 1380,70 1440,50 L1440,100 L0,100 Z;
+            M0,40 C360,100 720,0 1080,60 C1260,80 1380,50 1440,40 L1440,100 L0,100 Z" />
+        </path>
+        <path fill={color1 === color2 ? "var(--bg-secondary)" : color2} d="M0,60 C480,10 960,90 1440,30 L1440,100 L0,100 Z" opacity="0.7">
+          <animate attributeName="d" dur="6s" repeatCount="indefinite" values="
+            M0,60 C480,10 960,90 1440,30 L1440,100 L0,100 Z;
+            M0,40 C480,80 960,20 1440,60 L1440,100 L0,100 Z;
+            M0,60 C480,10 960,90 1440,30 L1440,100 L0,100 Z" />
+        </path>
+      </svg>
+    </div>
+  );
+}
+
+/* ============================================
+   SVG FLOATING RINGS — animated geometric shapes
+   ============================================ */
+function SVGFloatingRings() {
+  return (
+    <div className="svg-floating-rings" aria-hidden="true">
+      {/* Large ring — top right */}
+      <svg className="svg-ring svg-ring-1" viewBox="0 0 200 200" width="180" height="180">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="var(--accent-primary)" strokeWidth="0.5" strokeOpacity="0.15">
+          <animateTransform attributeName="transform" type="rotate" from="0 100 100" to="360 100 100" dur="30s" repeatCount="indefinite" />
+        </circle>
+        <circle cx="100" cy="100" r="60" fill="none" stroke="var(--accent-secondary)" strokeWidth="0.5" strokeOpacity="0.1" strokeDasharray="8 12">
+          <animateTransform attributeName="transform" type="rotate" from="360 100 100" to="0 100 100" dur="25s" repeatCount="indefinite" />
+        </circle>
+        <circle cx="100" cy="100" r="40" fill="none" stroke="var(--accent-primary-light)" strokeWidth="0.3" strokeOpacity="0.08" strokeDasharray="3 8">
+          <animateTransform attributeName="transform" type="rotate" from="0 100 100" to="360 100 100" dur="20s" repeatCount="indefinite" />
+        </circle>
+      </svg>
+
+      {/* Medium ring — bottom left */}
+      <svg className="svg-ring svg-ring-2" viewBox="0 0 160 160" width="140" height="140">
+        <circle cx="80" cy="80" r="60" fill="none" stroke="var(--accent-secondary)" strokeWidth="0.5" strokeOpacity="0.12" strokeDasharray="12 8">
+          <animateTransform attributeName="transform" type="rotate" from="0 80 80" to="360 80 80" dur="35s" repeatCount="indefinite" />
+        </circle>
+        <circle cx="80" cy="80" r="45" fill="none" stroke="var(--accent-primary)" strokeWidth="0.3" strokeOpacity="0.08">
+          <animateTransform attributeName="transform" type="rotate" from="360 80 80" to="0 80 80" dur="28s" repeatCount="indefinite" />
+        </circle>
+      </svg>
+
+      {/* Small ring — middle left */}
+      <svg className="svg-ring svg-ring-3" viewBox="0 0 120 120" width="100" height="100">
+        <circle cx="60" cy="60" r="45" fill="none" stroke="var(--accent-primary-light)" strokeWidth="0.4" strokeOpacity="0.1" strokeDasharray="5 10">
+          <animateTransform attributeName="transform" type="rotate" from="0 60 60" to="360 60 60" dur="22s" repeatCount="indefinite" />
+        </circle>
+      </svg>
+    </div>
+  );
+}
+
+/* ============================================
+   SVG HEX GRID — subtle decorative hexagons
+   ============================================ */
+function SVGHexGrid() {
+  const hexSize = 30;
+  const cols = 8;
+  const rows = 4;
+  const hexW = hexSize * 2;
+  const hexH = Math.sqrt(3) * hexSize;
+
+  const hexPoints = (cx, cy, r) => {
+    return Array.from({ length: 6 }, (_, i) => {
+      const angle = (Math.PI / 180) * (60 * i - 30);
+      return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+    }).join(" ");
+  };
+
+  return (
+    <svg className="svg-hex-grid" viewBox="0 0 500 250" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      {Array.from({ length: rows }, (_, row) =>
+        Array.from({ length: cols }, (_, col) => {
+          const cx = col * hexW * 0.75 + 30;
+          const cy = row * hexH + (col % 2 === 1 ? hexH / 2 : 0) + 30;
+          const opacity = 0.03 + Math.random() * 0.04;
+          return (
+            <polygon
+              key={`${row}-${col}`}
+              points={hexPoints(cx, cy, hexSize - 2)}
+              fill="none"
+              stroke="var(--accent-primary)"
+              strokeWidth="0.5"
+              strokeOpacity={opacity}
+            />
+          );
+        })
+      )}
+    </svg>
+  );
+}
+
+/* ============================================
+   SVG DATA FLOW — animated flowing dots along paths
+   ============================================ */
+function SVGDataFlow() {
+  return (
+    <svg className="svg-data-flow" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="flow-grad-1" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0" />
+          <stop offset="50%" stopColor="var(--accent-primary)" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="var(--accent-secondary)" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="flow-grad-2" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="var(--accent-secondary)" stopOpacity="0" />
+          <stop offset="50%" stopColor="var(--accent-secondary)" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* Path 1 — top curve */}
+      <path id="flow-path-1" d="M-20,80 C100,20 200,140 320,80 C440,20 520,100 620,60" fill="none" stroke="url(#flow-grad-1)" strokeWidth="1" />
+      <circle r="3" fill="var(--accent-primary)" opacity="0.8">
+        <animateMotion dur="6s" repeatCount="indefinite">
+          <mpath href="#flow-path-1" />
+        </animateMotion>
+      </circle>
+      <circle r="2" fill="var(--accent-secondary)" opacity="0.6">
+        <animateMotion dur="6s" repeatCount="indefinite" begin="2s">
+          <mpath href="#flow-path-1" />
+        </animateMotion>
+      </circle>
+
+      {/* Path 2 — middle curve */}
+      <path id="flow-path-2" d="M-20,200 C80,260 180,160 300,220 C420,280 500,180 620,240" fill="none" stroke="url(#flow-grad-2)" strokeWidth="1" />
+      <circle r="2.5" fill="var(--accent-secondary)" opacity="0.7">
+        <animateMotion dur="7s" repeatCount="indefinite">
+          <mpath href="#flow-path-2" />
+        </animateMotion>
+      </circle>
+      <circle r="2" fill="var(--accent-primary)" opacity="0.5">
+        <animateMotion dur="7s" repeatCount="indefinite" begin="3s">
+          <mpath href="#flow-path-2" />
+        </animateMotion>
+      </circle>
+
+      {/* Path 3 — bottom curve */}
+      <path id="flow-path-3" d="M-20,320 C120,280 240,360 380,300 C480,260 560,340 620,310" fill="none" stroke="url(#flow-grad-1)" strokeWidth="0.8" strokeOpacity="0.5" />
+      <circle r="2" fill="var(--accent-primary)" opacity="0.6">
+        <animateMotion dur="8s" repeatCount="indefinite">
+          <mpath href="#flow-path-3" />
+        </animateMotion>
+      </circle>
+    </svg>
+  );
+}
+
+/* ============================================
+   SVG GRAIN OVERLAY — subtle noise texture
+   ============================================ */
+function SVGGrainOverlay() {
+  return (
+    <svg className="svg-grain-overlay" aria-hidden="true">
+      <filter id="grain-filter">
+        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#grain-filter)" opacity="0.03" />
+    </svg>
+  );
+}
+
+/* ============================================
+   SVG DOT PATTERN — decorative dot grid
+   ============================================ */
+function SVGDotPattern() {
+  return (
+    <svg className="svg-dot-pattern" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <pattern id="dot-grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+          <circle cx="10" cy="10" r="0.8" fill="var(--accent-primary)" opacity="0.12" />
+        </pattern>
+      </defs>
+      <rect width="200" height="200" fill="url(#dot-grid)" />
+    </svg>
+  );
+}
+
+/* ============================================
    BRAND MARQUEE
    ============================================ */
 function BrandMarquee() {
@@ -646,6 +843,7 @@ export default function Home() {
   return (
     <>
       <ParticleCanvas />
+      <SVGGrainOverlay />
       <div className="cursor-glow" style={{ left: cursorGlow.x - 200, top: cursorGlow.y - 200, opacity: cursorGlow.visible ? 1 : 0 }} />
 
       {/* ===== NAVBAR ===== */}
@@ -711,6 +909,9 @@ export default function Home() {
         <div className="bg-glow hero-glow-2" />
         <div className="bg-grid" />
 
+        {/* SVG Data Flow Lines */}
+        <SVGDataFlow />
+
         {/* 3D Hero Scene */}
         <Suspense fallback={null}>
           <HeroScene3D />
@@ -768,9 +969,11 @@ export default function Home() {
 
       {/* ===== BRAND MARQUEE ===== */}
       <BrandMarquee />
+      <SVGWaveDivider />
 
       {/* ===== THE PROBLEM ===== */}
-      <section className="section problem" id="problem">
+      <section className="section problem" id="problem" style={{ position: "relative", overflow: "hidden" }}>
+        <SVGHexGrid />
         <div className="section-inner">
           <div className="problem-grid">
             <motion.div className="problem-content" initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
@@ -812,9 +1015,11 @@ export default function Home() {
 
       {/* ===== THE SOLUTION ===== */}
       <SolutionSection />
+      <SVGWaveDivider flip />
 
       {/* ===== AI CAPABILITIES — 3D TILT CARDS ===== */}
-      <section className="section" id="features">
+      <section className="section" id="features" style={{ position: "relative", overflow: "hidden" }}>
+        <SVGFloatingRings />
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-green" style={{ marginBottom: 16 }}><Sparkles size={12} /> AI Capabilities</span>
@@ -858,6 +1063,7 @@ export default function Home() {
 
       {/* ===== LIVE DASHBOARD PREVIEW ===== */}
       <LiveDashboardPreview />
+      <SVGWaveDivider />
 
       {/* ===== INTEGRATIONS ===== */}
       <IntegrationsSection />
@@ -889,7 +1095,11 @@ export default function Home() {
       </section>
 
       {/* ===== ROI CALCULATOR ===== */}
-      <ROICalculator />
+      <section style={{ position: "relative", overflow: "hidden" }}>
+        <SVGDotPattern />
+        <ROICalculator />
+        <SVGWaveDivider flip />
+      </section>
 
       {/* ===== PRICING ===== */}
       <section className="section" id="pricing">
@@ -1019,6 +1229,7 @@ export default function Home() {
       </section>
 
       {/* ===== FINAL CTA — IMMERSIVE ===== */}
+      <SVGWaveDivider />
       <section className="section cta-section" id="cta">
         <div className="section-inner">
           <div className="cta-box animate-on-scroll">

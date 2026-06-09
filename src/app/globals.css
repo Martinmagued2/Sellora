@@ -3837,3 +3837,160 @@ html[data-theme="light"] .glassmorphism-card {
     padding: 6px 14px;
   }
 }
+
+/* ============================================
+   SVG DECORATIONS — Waves, Rings, Grids, etc.
+   ============================================ */
+
+/* ── Wave Dividers ── */
+.svg-wave-divider {
+  position: relative;
+  width: 100%;
+  margin-top: -1px;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.svg-wave-divider.flipped {
+  transform: scaleY(-1);
+}
+
+.svg-wave-divider svg {
+  display: block;
+  width: 100%;
+}
+
+/* ── Floating Rings ── */
+.svg-floating-rings {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.svg-ring {
+  position: absolute;
+}
+
+.svg-ring-1 {
+  top: 5%;
+  right: 3%;
+  opacity: 0.6;
+  animation: svg-ring-float-1 20s ease-in-out infinite;
+}
+
+.svg-ring-2 {
+  bottom: 15%;
+  left: 2%;
+  opacity: 0.5;
+  animation: svg-ring-float-2 25s ease-in-out infinite;
+}
+
+.svg-ring-3 {
+  top: 40%;
+  left: 8%;
+  opacity: 0.4;
+  animation: svg-ring-float-3 18s ease-in-out infinite;
+}
+
+@keyframes svg-ring-float-1 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-15px) rotate(5deg); }
+  66% { transform: translateY(10px) rotate(-3deg); }
+}
+
+@keyframes svg-ring-float-2 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  40% { transform: translateY(12px) rotate(-4deg); }
+  70% { transform: translateY(-8px) rotate(3deg); }
+}
+
+@keyframes svg-ring-float-3 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(6deg); }
+}
+
+/* ── Hex Grid ── */
+.svg-hex-grid {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 600px;
+  height: 300px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* ── Data Flow Lines ── */
+.svg-data-flow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+}
+
+/* ── Grain Overlay ── */
+.svg-grain-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* ── Dot Pattern ── */
+.svg-dot-pattern {
+  position: absolute;
+  top: 50%;
+  right: 5%;
+  transform: translateY(-50%);
+  width: 300px;
+  height: 300px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.7;
+}
+
+/* ── Responsive: hide heavy SVGs on mobile ── */
+@media (max-width: 768px) {
+  .svg-ring-2,
+  .svg-ring-3 {
+    display: none;
+  }
+
+  .svg-ring-1 {
+    width: 100px;
+    height: 100px;
+    right: 5%;
+    top: 10%;
+  }
+
+  .svg-hex-grid {
+    display: none;
+  }
+
+  .svg-data-flow {
+    opacity: 0.25;
+  }
+
+  .svg-dot-pattern {
+    display: none;
+  }
+
+  .svg-grain-overlay {
+    opacity: 0.2;
+  }
+
+  .svg-wave-divider svg {
+    height: 50px;
+  }
+}
