@@ -200,7 +200,7 @@ export const createCopilotTools = (accountId) => {
     // ─── PRODUCT TOOLS ───
 
     get_top_products: tool({
-      description: "Get the store's products to analyze inventory or top sellers.",
+      description: "Get the store's products to analyze inventory or top sellers. Returns product details including variants (sizes, colors, etc.) if they exist.",
       inputSchema: z.object({
         limit: z.string().describe("Number of products to fetch (default 5)"),
       }),
@@ -208,7 +208,7 @@ export const createCopilotTools = (accountId) => {
         const limitNum = parseInt(limit) || 5;
         const { data, error } = await supabase
           .from("products")
-          .select("id, name, price, stock, category, status")
+          .select("id, name, price, stock, category, status, variants")
           .eq("account_id", accountId)
           .eq("status", "active")
           .limit(limitNum);
@@ -223,40 +223,83 @@ export const createCopilotTools = (accountId) => {
     }),
 
     create_product: tool({
-      description: "Create a new product in the store. Use when the seller asks to add a new product. You should ask for at least the product name and price.",
+      description: "Create a new product in the store. Use when the seller asks to add a new product. You should ask for at least the product name and price. If the seller mentions variants (sizes, colors, etc.), include them in the variants array — each variant gets its own price and stock. When variants are provided, the product's base price is set to the lowest variant price, and total stock is the sum of all variant stocks.",
       inputSchema: z.object({
         name: z.string().describe("Product name"),
-        price: z.string().describe("Product price"),
-        stock: z.string().describe("Initial stock quantity (default 0)"),
+        price: z.string().describe("Product base price (required if no variants; ignored if variants are provided)"),
+        stock: z.string().describe("Initial stock quantity (required if no variants; ignored if variants are provided)"),
         category: z.string().describe("Product category (default General)"),
         description: z.string().describe("Product description (generate a compelling one if not provided)"),
+        variants: z.array(z.object({
+          name: z.string().describe("Variant name e.g. 'Red / Large' or 'Size M'"),
+          sku: z.string().describe("SKU code (pass empty string if none)"),
+          price: z.string().describe("Variant price in absolute amount (not offset)"),
+          stock: z.string().describe("Variant stock quantity"),
+        })).optional().describe("Product variants (sizes, colors, etc). Each variant has its own absolute price and stock. Include when seller mentions multiple sizes, colors, or options."),
       }),
-      execute: async ({ name, description, price, stock, category }) => {
+      execute: async ({ name, description, price, stock, category, variants }) => {
         if (!name) {
           return { success: false, error: "Product name is required" };
         }
-        const priceNum = parseFloat(price);
-        if (isNaN(priceNum)) {
-          return { success: false, error: "Product price is required and must be a number" };
+
+        const hasVariants = variants && variants.length > 0 && variants.some(v => v.name?.trim());
+
+        // Clean and validate variants
+        let cleanVariants = [];
+        if (hasVariants) {
+          cleanVariants = variants
+            .filter(v => v.name?.trim())
+            .map(v => ({
+              name: v.name.trim(),
+              sku: v.sku?.trim() || null,
+              price: Number(v.price) || 0,
+              stock: Number(v.stock) || 0,
+            }));
         }
+
+        // Calculate base price and stock
+        let basePrice, baseStock;
+        if (cleanVariants.length > 0) {
+          basePrice = Math.min(...cleanVariants.map(v => v.price));
+          baseStock = cleanVariants.reduce((sum, v) => sum + v.stock, 0);
+        } else {
+          basePrice = parseFloat(price);
+          baseStock = parseInt(stock) || 0;
+          if (isNaN(basePrice)) {
+            return { success: false, error: "Product price is required and must be a number" };
+          }
+        }
+
+        const insertData = {
+          account_id: accountId,
+          name,
+          description: description || "",
+          price: basePrice,
+          stock: baseStock,
+          category: category || "General",
+          status: "active",
+          variants: cleanVariants.length > 0 ? cleanVariants : null,
+        };
+
         const { data, error } = await supabase
           .from("products")
-          .insert({
-            account_id: accountId,
-            name,
-            description: description || "",
-            price: priceNum,
-            stock: parseInt(stock) || 0,
-            category: category || "General",
-            status: "active",
-          })
-          .select("id, name, price, stock, category")
+          .insert(insertData)
+          .select("id, name, price, stock, category, variants")
           .single();
 
         if (error) return { success: false, error: `Failed to create product: ${error.message}` };
+
+        let message = `Product "${name}" created successfully!`;
+        if (cleanVariants.length > 0) {
+          message += ` With ${cleanVariants.length} variant${cleanVariants.length > 1 ? 's' : ''}: ${cleanVariants.map(v => `${v.name} (${v.price} EGP, ${v.stock} in stock)`).join(', ')}.`;
+          message += ` Base price: ${basePrice} EGP, total stock: ${baseStock}.`;
+        } else {
+          message += ` Price: ${basePrice} EGP, Stock: ${baseStock}.`;
+        }
+
         return {
           success: true,
-          message: `Product "${name}" created successfully!`,
+          message,
           product: data,
           _action: { type: "navigate", path: "/dashboard/products", label: "Go to Products" },
         };
@@ -363,20 +406,58 @@ export const createCopilotTools = (accountId) => {
     }),
 
     update_product: tool({
-      description: "Update an existing product's details. You need the product ID and at least one field to update.",
+      description: "Update an existing product's details. You need the product ID and at least one field to update. Supports updating variants (sizes, colors, etc.) — when variants are provided, the product's base price is set to the lowest variant price, and total stock is the sum of all variant stocks. Pass an empty variants array [] to remove all variants from a product.",
       inputSchema: z.object({
         product_id: z.string().describe("The ID of the product to update"),
         name: z.string().describe("New product name (pass empty string to skip)"),
-        price: z.string().describe("New product price (pass empty string to skip)"),
-        stock: z.string().describe("New stock quantity (pass empty string to skip)"),
+        price: z.string().describe("New product price (pass empty string to skip; ignored if variants are provided)"),
+        stock: z.string().describe("New stock quantity (pass empty string to skip; ignored if variants are provided)"),
         category: z.string().describe("New product category (pass empty string to skip)"),
+        description: z.string().describe("New product description (pass empty string to skip)"),
+        variants: z.array(z.object({
+          name: z.string().describe("Variant name e.g. 'Red / Large' or 'Size M'"),
+          sku: z.string().describe("SKU code (pass empty string if none)"),
+          price: z.string().describe("Variant price in absolute amount (not offset)"),
+          stock: z.string().describe("Variant stock quantity"),
+        })).optional().describe("Replace ALL variants for this product. Each variant has its own absolute price and stock. Pass [] to remove all variants. Omit this field to keep existing variants unchanged."),
       }),
-      execute: async ({ product_id, name, price, stock, category }) => {
+      execute: async ({ product_id, name, price, stock, category, description, variants }) => {
         const updates = {};
         if (name && name.trim()) updates.name = name.trim();
-        if (price && price.trim()) { const p = parseFloat(price); if (!isNaN(p)) updates.price = p; }
-        if (stock && stock.trim()) { const s = parseInt(stock); if (!isNaN(s)) updates.stock = s; }
         if (category && category.trim()) updates.category = category.trim();
+        if (description && description.trim()) updates.description = description.trim();
+
+        // Handle variants update
+        const hasVariantsUpdate = variants !== undefined;
+        if (hasVariantsUpdate) {
+          // Clean and validate variants
+          let cleanVariants = [];
+          if (variants && variants.length > 0 && variants.some(v => v.name?.trim())) {
+            cleanVariants = variants
+              .filter(v => v.name?.trim())
+              .map(v => ({
+                name: v.name.trim(),
+                sku: v.sku?.trim() || null,
+                price: Number(v.price) || 0,
+                stock: Number(v.stock) || 0,
+              }));
+          }
+
+          if (cleanVariants.length > 0) {
+            updates.variants = cleanVariants;
+            updates.price = Math.min(...cleanVariants.map(v => v.price));
+            updates.stock = cleanVariants.reduce((sum, v) => sum + v.stock, 0);
+          } else {
+            // Removing all variants — keep existing price/stock or use provided values
+            updates.variants = null;
+            if (price && price.trim()) { const p = parseFloat(price); if (!isNaN(p)) updates.price = p; }
+            if (stock && stock.trim()) { const s = parseInt(stock); if (!isNaN(s)) updates.stock = s; }
+          }
+        } else {
+          // No variants update — just update price/stock directly
+          if (price && price.trim()) { const p = parseFloat(price); if (!isNaN(p)) updates.price = p; }
+          if (stock && stock.trim()) { const s = parseInt(stock); if (!isNaN(s)) updates.stock = s; }
+        }
 
         if (Object.keys(updates).length === 0) {
           return { success: false, error: "No fields provided to update" };
@@ -387,14 +468,23 @@ export const createCopilotTools = (accountId) => {
           .update(updates)
           .eq("id", product_id)
           .eq("account_id", accountId)
-          .select("id, name, price, stock, category")
+          .select("id, name, price, stock, category, variants")
           .single();
 
         if (error) return { success: false, error: `Failed to update product: ${error.message}` };
         if (!data) return { success: false, error: "Product not found" };
+
+        let message = `Product "${data.name}" updated successfully!`;
+        if (hasVariantsUpdate && data.variants && data.variants.length > 0) {
+          message += ` Now has ${data.variants.length} variant${data.variants.length > 1 ? 's' : ''}: ${data.variants.map(v => `${v.name} (${v.price} EGP, ${v.stock} in stock)`).join(', ')}.`;
+          message += ` Base price: ${data.price} EGP, total stock: ${data.stock}.`;
+        } else if (hasVariantsUpdate) {
+          message += ` Variants removed. Price: ${data.price} EGP, Stock: ${data.stock}.`;
+        }
+
         return {
           success: true,
-          message: `Product "${data.name}" updated successfully!`,
+          message,
           product: data,
           _action: { type: "navigate", path: "/dashboard/products", label: "Go to Products" },
         };
@@ -421,7 +511,7 @@ export const createCopilotTools = (accountId) => {
     // ─── INVENTORY & ORDER TOOLS ───
 
     get_inventory_alerts: tool({
-      description: "Get inventory alerts for low-stock and out-of-stock products. Use when the seller asks about inventory issues or stock alerts.",
+      description: "Get inventory alerts for low-stock and out-of-stock products, including variant-level stock details. Use when the seller asks about inventory issues or stock alerts.",
       inputSchema: z.object({
         threshold: z.string().describe("Low stock threshold (default 5)"),
       }),
@@ -429,7 +519,7 @@ export const createCopilotTools = (accountId) => {
         const lowStockThreshold = parseInt(threshold) || 5;
         const { data: products, error } = await supabase
           .from("products")
-          .select("id, name, price, stock, category, status")
+          .select("id, name, price, stock, category, status, variants")
           .eq("account_id", accountId)
           .eq("status", "active");
 
@@ -441,8 +531,8 @@ export const createCopilotTools = (accountId) => {
 
         return {
           success: true,
-          outOfStock: outOfStock.map(p => ({ id: p.id, name: p.name, stock: p.stock, category: p.category })),
-          lowStock: lowStock.map(p => ({ id: p.id, name: p.name, stock: p.stock, category: p.category })),
+          outOfStock: outOfStock.map(p => ({ id: p.id, name: p.name, stock: p.stock, category: p.category, variants: p.variants })),
+          lowStock: lowStock.map(p => ({ id: p.id, name: p.name, stock: p.stock, category: p.category, variants: p.variants })),
           healthyCount: healthy.length,
           totalActiveProducts: products.length,
           _action: { type: "navigate", path: "/dashboard/products", label: "Manage Products" },
@@ -451,7 +541,7 @@ export const createCopilotTools = (accountId) => {
     }),
 
     search_products: tool({
-      description: "Search products by name, category, or status.",
+      description: "Search products by name, category, or status. Returns product details including variants (sizes, colors, etc.) if they exist. Use this when the seller asks about a specific product or wants to find a product to update.",
       inputSchema: z.object({
         query: z.string().describe("Search term for product name (pass empty string if not needed)"),
         category: z.string().describe("Filter by category (pass empty string if not needed)"),
@@ -462,7 +552,7 @@ export const createCopilotTools = (accountId) => {
         const limitNum = parseInt(limit) || 20;
         let dbQuery = supabase
           .from("products")
-          .select("id, name, price, stock, category, status, created_at")
+          .select("id, name, price, stock, category, status, variants, created_at")
           .eq("account_id", accountId)
           .limit(limitNum);
 

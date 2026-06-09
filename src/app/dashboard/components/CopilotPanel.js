@@ -78,7 +78,13 @@ function getFallbackTextFromTools(toolInvs) {
         break;
       case 'create_product':
         lines.push(`✅ **Product Created:** ${output.product?.name || output.message || 'Success'}`);
-        if (output.product) lines.push(`  Price: ${output.product.price} | Stock: ${output.product.stock} | Category: ${output.product.category}`);
+        if (output.product) {
+          lines.push(`  Price: ${output.product.price} | Stock: ${output.product.stock} | Category: ${output.product.category}`);
+          if (output.product.variants && output.product.variants.length > 0) {
+            lines.push(`  **Variants:**`);
+            output.product.variants.forEach(v => lines.push(`    - ${v.name}: ${v.price} EGP (${v.stock} in stock)`));
+          }
+        }
         break;
       case 'generate_product_image':
         if (output.success) {

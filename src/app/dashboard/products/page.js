@@ -152,7 +152,7 @@ export default function ProductsPage() {
   const addVariant = () => {
     setVariants((prev) => [
       ...prev,
-      { name: "", sku: "", price_offset: 0, stock: 0, image_url: "" },
+      { name: "", sku: "", price: 0, stock: 0, image_url: "" },
     ]);
   };
 
@@ -294,23 +294,36 @@ export default function ProductsPage() {
     }
 
     // Build variants array: clean up empty entries
+    const hasVariants = variants.some((v) => v.name.trim() !== "");
     const cleanVariants = variants
       .filter((v) => v.name.trim() !== "")
       .map((v) => ({
         name: v.name.trim(),
         sku: v.sku.trim() || null,
-        price_offset: Number(v.price_offset) || 0,
+        price: Number(v.price) || 0,
         stock: Number(v.stock) || 0,
         image_url: v.image_url.trim() || null,
       }));
+
+    // Calculate base price/stock from variants or form fields
+    let basePrice, baseStock;
+    if (hasVariants) {
+      // When variants exist, use the lowest variant price as the base price
+      // and sum all variant stocks as the total stock
+      basePrice = cleanVariants.length > 0 ? Math.min(...cleanVariants.map(v => v.price)) : 0;
+      baseStock = cleanVariants.reduce((sum, v) => sum + v.stock, 0);
+    } else {
+      basePrice = parseFloat(fd.get("price"));
+      baseStock = parseInt(fd.get("stock"));
+    }
 
     const payload = {
       account_id: user.id,
       name: fd.get("name"),
       description: fd.get("description"),
-      price: parseFloat(fd.get("price")),
+      price: basePrice,
       category: fd.get("category"),
-      stock: parseInt(fd.get("stock")),
+      stock: baseStock,
       status: fd.get("status") || "active",
       variants: cleanVariants,
     };
@@ -349,7 +362,7 @@ export default function ProductsPage() {
       existingVariants.map((v) => ({
         name: v.name || "",
         sku: v.sku || "",
-        price_offset: v.price_offset ?? 0,
+        price: v.price ?? v.price_offset ?? 0,
         stock: v.stock ?? 0,
         image_url: v.image_url || "",
       }))
@@ -657,27 +670,30 @@ export default function ProductsPage() {
                       <tr>
                         <th>Variant</th>
                         <th>SKU</th>
-                        <th>Price Offset</th>
+                        <th>Price</th>
                         <th>Stock</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {viewProduct.variants.map((v, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600 }}>{v.name}</td>
-                          <td style={{ color: "var(--text-tertiary)", fontSize: 12 }}>{v.sku || "—"}</td>
-                          <td>
-                            <span className={`price-offset ${v.price_offset > 0 ? "positive" : v.price_offset < 0 ? "negative" : ""}`}>
-                              {v.price_offset > 0 ? "+" : ""}{v.price_offset} EGP
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`stock-cell ${v.stock === 0 ? "out" : v.stock <= 5 ? "low" : ""}`}>
-                              {v.stock}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {viewProduct.variants.map((v, i) => {
+                        const variantPrice = v.price ?? (v.price_offset !== undefined ? (viewProduct.price + v.price_offset) : null);
+                        return (
+                          <tr key={i}>
+                            <td style={{ fontWeight: 600 }}>{v.name}</td>
+                            <td style={{ color: "var(--text-tertiary)", fontSize: 12 }}>{v.sku || "—"}</td>
+                            <td>
+                              <span className="price-offset">
+                                {variantPrice !== null ? `${variantPrice} EGP` : "—"}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`stock-cell ${v.stock === 0 ? "out" : v.stock <= 5 ? "low" : ""}`}>
+                                {v.stock}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -791,16 +807,36 @@ export default function ProductsPage() {
                     <div style={{ marginTop: 4, fontSize: 11, color: "var(--accent-green)" }}>💡 {aiPriceSuggestion}</div>
                   )}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
-                  <div className="form-group">
-                    <label className="form-label">Price (EGP)</label>
-                    <input type="number" name="price" className="form-input" placeholder="0.00" defaultValue={editingProduct?.price || ""} required min="0" step="0.01" />
+                {/* Price & Stock — only show when there are NO variants */}
+                {variants.length === 0 && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+                    <div className="form-group">
+                      <label className="form-label">Price (EGP)</label>
+                      <input type="number" name="price" className="form-input" placeholder="0.00" defaultValue={editingProduct?.price || ""} required min="0" step="0.01" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Stock</label>
+                      <input type="number" name="stock" className="form-input" placeholder="0" defaultValue={editingProduct?.stock || 0} required min="0" />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Stock</label>
-                    <input type="number" name="stock" className="form-input" placeholder="0" defaultValue={editingProduct?.stock || 0} required min="0" />
+                )}
+                {/* When variants exist, show a hint instead */}
+                {variants.length > 0 && (
+                  <div style={{
+                    padding: "var(--space-md)",
+                    background: "rgba(108, 92, 231, 0.06)",
+                    border: "1px solid rgba(108, 92, 231, 0.15)",
+                    borderRadius: "var(--radius-md)",
+                    fontSize: "var(--font-size-xs)",
+                    color: "var(--text-secondary)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-sm)",
+                  }}>
+                    <Layers size={14} style={{ color: "var(--accent-primary-light)", flexShrink: 0 }} />
+                    Price and stock are set per variant below. Remove all variants to use a single price/stock instead.
                   </div>
-                </div>
+                )}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
                   <div className="form-group">
                     <label className="form-label">Category</label>
@@ -832,7 +868,7 @@ export default function ProductsPage() {
                     )}
                   </label>
                   <p style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2, marginBottom: "var(--space-sm)" }}>
-                    Add size, color, or other variant options. Each variant can have its own SKU, price adjustment, and stock.
+                    Add size, color, or other variant options. Each variant has its own price and stock.
                   </p>
 
                   {/* Column headers */}
@@ -840,7 +876,7 @@ export default function ProductsPage() {
                     <div className="variant-header">
                       <span>Name</span>
                       <span>SKU</span>
-                      <span>Price ±</span>
+                      <span>Price</span>
                       <span>Stock</span>
                       <span></span>
                     </div>
@@ -864,9 +900,10 @@ export default function ProductsPage() {
                         <input
                           type="number"
                           placeholder="0"
-                          value={v.price_offset}
-                          onChange={(e) => updateVariant(index, "price_offset", e.target.value)}
+                          value={v.price}
+                          onChange={(e) => updateVariant(index, "price", e.target.value)}
                           step="0.01"
+                          min="0"
                         />
                         <input
                           type="number"

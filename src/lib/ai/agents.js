@@ -108,6 +108,13 @@ CORE INSTRUCTIONS:
 
 ${ESCALATION_INSTRUCTIONS}
 
+PRODUCT VARIANT RULES:
+- If a product has variants (sizes, colors, materials, etc.), they will be listed under the product in your catalog context.
+- When a customer asks "what colors/sizes do you have?" or "do you have this in red?", check the variants in your catalog and list ALL available options with their individual prices and stock.
+- When a customer specifies a variant (e.g. "I want the blue one" or "size L"), confirm the variant name, price, and stock before proceeding with the order.
+- If a product has variants but the customer doesn't specify which one, ALWAYS ask which variant they'd like before creating an order.
+- When recommending products, mention available variants to help the customer choose.
+
 Important: You have tools to search products, recommend products, get personalized recommendations, search FAQs, and create orders. Use them when necessary!`;
 }
 
@@ -129,7 +136,12 @@ CORE INSTRUCTIONS:
 
 ${ESCALATION_INSTRUCTIONS}
 
-Important: You have tools to check order status, search FAQs, recommend products, and get personalized recommendations. Use them when the customer asks about their order or has general questions.`;
+Important: You have tools to check order status, search FAQs, recommend products, and get personalized recommendations. Use them when the customer asks about their order or has general questions.
+
+PRODUCT VARIANT RULES:
+- If a product has variants (sizes, colors, etc.), they will be listed in your catalog context.
+- When a customer asks about available sizes/colors/options, check the variants and list them.
+- If a customer has an issue with a specific variant (wrong size, wrong color), acknowledge the specific variant in your response.`;
 }
 
 export function getOrderTrackerAgentPrompt(businessName, aiPersonality) {

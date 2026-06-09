@@ -640,10 +640,10 @@ export async function processIncomingMessage({
 
           console.log(`[PROCESSOR] Generating AI reply for account ${account.id}, conversation ${conversation.id}, message: "${text?.substring(0, 50)}..."`);
 
-          // Fetch products for AI context
+          // Fetch products for AI context (including variants like sizes/colors)
           const { data: products } = await getSupabase()
             .from("products")
-            .select("name, price, description, category")
+            .select("name, price, description, category, stock, variants")
             .eq("account_id", account.id)
             .eq("status", "active")
             .limit(50);

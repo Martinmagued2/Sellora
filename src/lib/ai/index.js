@@ -406,15 +406,20 @@ export async function generateAIReply({
 
       const { data: products } = await getSupabase()
         .from("products")
-        .select("name, price, description, category, stock")
+        .select("name, price, description, category, stock, variants")
         .eq("account_id", accountId)
         .eq("status", "active")
         .limit(30);
 
       if (products && products.length > 0) {
-        productContext = `\n\nYOUR CURRENT PRODUCT CATALOG:\n${products.map(p => 
-          `• ${p.name} — ${p.price} ${currency} (Stock: ${p.stock}, Category: ${p.category || 'General'})${p.description ? `\n  Description: ${p.description.slice(0, 150)}` : ''}`
-        ).join('\n')}\n\nIMPORTANT: When customers ask what you sell or about products, reference this catalog directly. Do NOT say you need to check — you already have this information.`;
+        productContext = `\n\nYOUR CURRENT PRODUCT CATALOG:\n${products.map(p => {
+          let line = `• ${p.name} — ${p.price} ${currency} (Stock: ${p.stock}, Category: ${p.category || 'General'})`;
+          if (p.description) line += `\n  Description: ${p.description.slice(0, 150)}`;
+          if (p.variants && p.variants.length > 0) {
+            line += `\n  Variants: ${p.variants.map(v => `${v.name} (${v.price} ${currency}, ${v.stock} in stock)`).join(' | ')}`;
+          }
+          return line;
+        }).join('\n')}\n\nIMPORTANT: When customers ask what you sell or about products, reference this catalog directly. Do NOT say you need to check — you already have this information. If a product has variants (sizes, colors, etc.), ALWAYS mention the available options to the customer. For example, if they ask 'what colors do you have?', check the variants and list them.`;
       } else {
         productContext = "\n\nNOTE: Your store currently has no products added yet. If the customer asks about products, let them know the store is still being set up.";
       }

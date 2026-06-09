@@ -63,7 +63,7 @@ export const createSalesTools = (accountId, customerId) => {
           // Get all active products (exclude hidden_from_ai and out-of-stock from AI recommendations)
           const { data: allProducts } = await supabase
             .from("products")
-            .select("id, name, description, price, stock, category")
+            .select("id, name, description, price, stock, category, variants")
             .eq("account_id", accountId)
             .eq("status", "active")
             .neq("hidden_from_ai", true)
@@ -196,7 +196,7 @@ export const createSalesTools = (accountId, customerId) => {
         // Fetch all active products for this account (exclude hidden_from_ai and out-of-stock)
         const { data: products, error } = await getSupabase()
           .from("products")
-          .select("id, name, description, price, stock, category")
+          .select("id, name, description, price, stock, category, variants")
           .eq("account_id", accountId)
           .eq("status", "active")
           .neq("hidden_from_ai", true)
@@ -216,12 +216,15 @@ export const createSalesTools = (accountId, customerId) => {
           const nameLower = (product.name || "").toLowerCase();
           const descLower = (product.description || "").toLowerCase();
           const catLower = (product.category || "").toLowerCase();
-          const allText = `${nameLower} ${descLower} ${catLower}`;
+          // Also search in variant names (e.g. "red", "large", "32GB")
+          const variantText = (product.variants || []).map(v => v.name).join(" ").toLowerCase();
+          const allText = `${nameLower} ${descLower} ${catLower} ${variantText}`;
 
           for (const term of searchTerms) {
             if (nameLower.includes(term)) score += 10; // Name match is strongest
             if (catLower.includes(term)) score += 8;   // Category match
             if (descLower.includes(term)) score += 5;   // Description match
+            if (variantText.includes(term)) score += 7;  // Variant match (e.g. "red", "large")
             if (allText.includes(term)) score += 2;     // Any mention
           }
 
@@ -256,7 +259,7 @@ export const createSalesTools = (accountId, customerId) => {
         const finalQuery = query || search_query;
         let dbQuery = getSupabase()
           .from("products")
-          .select("id, name, description, price, stock, category")
+          .select("id, name, description, price, stock, category, variants")
           .eq("account_id", accountId)
           .eq("status", "active")
           .neq("hidden_from_ai", true)
@@ -296,7 +299,7 @@ export const createSalesTools = (accountId, customerId) => {
 
         let dbQuery = getSupabase()
           .from("products")
-          .select("id, name, stock")
+          .select("id, name, stock, variants")
           .eq("account_id", accountId);
 
         if (finalId) {
@@ -314,7 +317,17 @@ export const createSalesTools = (accountId, customerId) => {
         }
 
         const product = Array.isArray(data) ? data[0] : data;
-        return { success: true, product: product.name, in_stock: product.stock > 0, stock_quantity: product.stock, productId: product.id };
+        const result = { success: true, product: product.name, in_stock: product.stock > 0, stock_quantity: product.stock, productId: product.id };
+        // Include variant-level stock if available
+        if (product.variants && product.variants.length > 0) {
+          result.variants = product.variants.map(v => ({
+            name: v.name,
+            price: v.price,
+            in_stock: v.stock > 0,
+            stock_quantity: v.stock,
+          }));
+        }
+        return result;
       },
     }),
 
@@ -337,7 +350,7 @@ export const createSalesTools = (accountId, customerId) => {
 
           const { data } = await getSupabase()
             .from("products")
-            .select("id, name, price")
+            .select("id, name, price, variants")
             .eq("id", finalId)
             .eq("account_id", accountId)
             .single();
@@ -349,7 +362,8 @@ export const createSalesTools = (accountId, customerId) => {
               name: data.name,
               price: data.price,
               quantity: item.quantity,
-              subtotal: lineTotal
+              subtotal: lineTotal,
+              variants: data.variants || null,
             });
           }
         }
@@ -530,7 +544,7 @@ export const createSalesTools = (accountId, customerId) => {
 
           const { data } = await getSupabase()
             .from("products")
-            .select("id, name, price, stock")
+            .select("id, name, price, stock, variants")
             .eq("id", finalId)
             .eq("account_id", accountId)
             .single();
@@ -622,7 +636,7 @@ export const createSupportTools = (accountId, customerId) => {
         // Fetch active products (exclude hidden_from_ai and out-of-stock)
         const { data: products, error } = await getSupabase()
           .from("products")
-          .select("id, name, description, price, stock, category")
+          .select("id, name, description, price, stock, category, variants")
           .eq("account_id", accountId)
           .eq("status", "active")
           .neq("hidden_from_ai", true)
@@ -641,12 +655,14 @@ export const createSupportTools = (accountId, customerId) => {
           const nameLower = (product.name || "").toLowerCase();
           const descLower = (product.description || "").toLowerCase();
           const catLower = (product.category || "").toLowerCase();
-          const allText = `${nameLower} ${descLower} ${catLower}`;
+          const variantText = (product.variants || []).map(v => v.name).join(" ").toLowerCase();
+          const allText = `${nameLower} ${descLower} ${catLower} ${variantText}`;
 
           for (const term of searchTerms) {
             if (nameLower.includes(term)) score += 10;
             if (catLower.includes(term)) score += 8;
             if (descLower.includes(term)) score += 5;
+            if (variantText.includes(term)) score += 7;
             if (allText.includes(term)) score += 2;
           }
 
