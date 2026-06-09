@@ -5,7 +5,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, MeshDistortMaterial } from "@react-three/drei";
 
 /* ─── ChatBubble ─── floating speech-bubble shape */
-function ChatBubble({ position = [0, 0, 0], color = "#5865F2", scale = 1 }) {
+function ChatBubble({ color = "#5865F2", scale = 1 }) {
   const meshRef = useRef();
 
   useFrame((state) => {
@@ -17,7 +17,7 @@ function ChatBubble({ position = [0, 0, 0], color = "#5865F2", scale = 1 }) {
 
   return (
     <Float speed={2} rotationIntensity={0.4} floatIntensity={0.6}>
-      <mesh ref={meshRef} position={position} scale={scale}>
+      <mesh ref={meshRef} scale={scale}>
         <sphereGeometry args={[0.5, 32, 32]} />
         <MeshDistortMaterial
           color={color}
@@ -34,7 +34,7 @@ function ChatBubble({ position = [0, 0, 0], color = "#5865F2", scale = 1 }) {
 }
 
 /* ─── GlowOrb ─── soft emissive orb */
-function GlowOrb({ position = [0, 0, 0], color = "#00D2FF", scale = 1 }) {
+function GlowOrb({ color = "#00D2FF", scale = 1 }) {
   const meshRef = useRef();
 
   useFrame((state) => {
@@ -47,7 +47,7 @@ function GlowOrb({ position = [0, 0, 0], color = "#00D2FF", scale = 1 }) {
 
   return (
     <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.4}>
-      <mesh ref={meshRef} position={position}>
+      <mesh ref={meshRef}>
         <sphereGeometry args={[0.35, 32, 32]} />
         <meshStandardMaterial
           color={color}
@@ -69,11 +69,11 @@ function NetworkLines() {
 
   const points = useMemo(
     () => [
-      [-2.5, 1.2, -1],
-      [2.8, -0.8, 0.5],
-      [0, 2.2, -0.5],
-      [-1.5, -1.5, 0.8],
-      [1.8, 1.5, -1.2],
+      [-4, 2, -1],
+      [4.5, -1.5, 0.5],
+      [0, 3.5, -0.5],
+      [-2.5, -2.5, 0.8],
+      [3, 2.5, -1.2],
     ],
     []
   );
@@ -111,8 +111,8 @@ function NetworkLines() {
   );
 }
 
-/* ─── Orb ─── larger central decorative orb */
-function Orb({ position = [0, 0, 0], color = "#5865F2", scale = 1 }) {
+/* ─── Orb ─── larger decorative orb */
+function Orb({ color = "#5865F2", scale = 1 }) {
   const meshRef = useRef();
 
   useFrame((state) => {
@@ -124,7 +124,7 @@ function Orb({ position = [0, 0, 0], color = "#5865F2", scale = 1 }) {
 
   return (
     <Float speed={1} rotationIntensity={0.3} floatIntensity={0.5}>
-      <mesh ref={meshRef} position={position} scale={scale}>
+      <mesh ref={meshRef} scale={scale}>
         <icosahedronGeometry args={[1, 4]} />
         <MeshDistortMaterial
           color={color}
@@ -150,20 +150,43 @@ function Scene() {
       <pointLight position={[-5, -3, 3]} intensity={0.8} color="#00D2FF" />
       <pointLight position={[0, 5, -5]} intensity={0.5} color="#5865F2" />
 
-      {/* Central decorative orb */}
-      <Orb position={[0, 0, 0]} color="#5865F2" scale={1.8} />
-      <Orb position={[2.5, 1.2, -1]} color="#00D2FF" scale={0.8} />
+      {/* Central decorative orb — offset to the right so it doesn't overlap hero text */}
+      <group position={[3.5, 0.5, 0]}>
+        <Orb color="#5865F2" scale={1.8} />
+      </group>
 
-      {/* Chat bubbles */}
-      <ChatBubble position={[-2.5, 1.5, 0.5]} color="#5865F2" scale={0.6} />
-      <ChatBubble position={[2, -1, 0.8]} color="#00D2FF" scale={0.5} />
-      <ChatBubble position={[-1, -1.5, -0.3]} color="#5865F2" scale={0.45} />
-      <ChatBubble position={[1.5, 2, -0.5]} color="#00D2FF" scale={0.55} />
+      {/* Secondary orb — upper right */}
+      <group position={[5.5, 2, -1]}>
+        <Orb color="#00D2FF" scale={0.9} />
+      </group>
 
-      {/* Glow orbs */}
-      <GlowOrb position={[-3, 0, 1]} color="#00D2FF" scale={0.7} />
-      <GlowOrb position={[3, 0.5, -0.5]} color="#5865F2" scale={0.6} />
-      <GlowOrb position={[0, -2, 1.5]} color="#00D2FF" scale={0.5} />
+      {/* Chat bubbles — spread across the right half of the hero */}
+      <group position={[4.5, 2.5, 0.5]}>
+        <ChatBubble color="#5865F2" scale={0.6} />
+      </group>
+      <group position={[6, -0.5, 0.8]}>
+        <ChatBubble color="#00D2FF" scale={0.5} />
+      </group>
+      <group position={[2.5, -1.8, -0.3]}>
+        <ChatBubble color="#5865F2" scale={0.45} />
+      </group>
+      <group position={[5, 1, -0.5]}>
+        <ChatBubble color="#00D2FF" scale={0.55} />
+      </group>
+
+      {/* Glow orbs — scattered around the periphery */}
+      <group position={[-4, 1, 1]}>
+        <GlowOrb color="#00D2FF" scale={0.7} />
+      </group>
+      <group position={[7, 0.5, -0.5]}>
+        <GlowOrb color="#5865F2" scale={0.6} />
+      </group>
+      <group position={[1, -3, 1.5]}>
+        <GlowOrb color="#00D2FF" scale={0.5} />
+      </group>
+      <group position={[-2, 3, -1]}>
+        <GlowOrb color="#5865F2" scale={0.55} />
+      </group>
 
       {/* Network lines */}
       <NetworkLines />
@@ -183,7 +206,7 @@ export default function HeroScene3D() {
       }}
     >
       <Canvas
-        camera={{ position: [0, 0, 6], fov: 50 }}
+        camera={{ position: [0, 0, 8], fov: 55 }}
         dpr={[1, 1.5]}
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
