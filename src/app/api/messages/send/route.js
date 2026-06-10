@@ -69,7 +69,7 @@ export async function POST(request) {
         return NextResponse.json({ error: "WhatsApp not connected" }, { status: 400 });
       }
 
-      const phoneNumber = customer?.phone;
+      const phoneNumber = customer?.phone || customer?.platform_id;
       if (!phoneNumber) {
         return NextResponse.json({ error: "Customer has no phone number for WhatsApp" }, { status: 400 });
       }

@@ -329,6 +329,7 @@ export default function ConversationsPage() {
           // Still save locally even if Meta delivery fails
           await supabase.from("messages").insert({
             conversation_id: activeConv.id,
+            account_id: activeConv.account_id,
             direction: "outgoing",
             content: newMsg.trim(),
             type: "text",
@@ -353,6 +354,7 @@ export default function ConversationsPage() {
           // Still save locally even if WhatsApp delivery fails
           await supabase.from("messages").insert({
             conversation_id: activeConv.id,
+            account_id: activeConv.account_id,
             direction: "outgoing",
             content: newMsg.trim(),
             type: "text",
@@ -363,6 +365,7 @@ export default function ConversationsPage() {
         // For other channels (or no channel), just save locally
         await supabase.from("messages").insert({
           conversation_id: activeConv.id,
+          account_id: activeConv.account_id,
           direction: "outgoing",
           content: newMsg.trim(),
           type: "text",
@@ -450,6 +453,7 @@ export default function ConversationsPage() {
           // Fallback: save locally even if delivery fails
           await supabase.from("messages").insert({
             conversation_id: activeConv.id,
+            account_id: activeConv.account_id,
             direction: "outgoing",
             content,
             type: "product_card",
@@ -460,6 +464,7 @@ export default function ConversationsPage() {
         // For other channels, just save locally
         await supabase.from("messages").insert({
           conversation_id: activeConv.id,
+          account_id: activeConv.account_id,
           direction: "outgoing",
           content,
           type: "product_card",
@@ -476,6 +481,7 @@ export default function ConversationsPage() {
       // Fallback: save locally
       await supabase.from("messages").insert({
         conversation_id: activeConv.id,
+        account_id: activeConv.account_id,
         direction: "outgoing",
         content,
         type: "product_card",
@@ -559,6 +565,7 @@ export default function ConversationsPage() {
             // Fallback: save locally
             await supabase.from("messages").insert({
               conversation_id: activeConv.id,
+              account_id: activeConv.account_id,
               direction: "outgoing",
               content: confirmationContent,
               type: "text",
@@ -569,6 +576,7 @@ export default function ConversationsPage() {
           // For other channels, just save locally
           await supabase.from("messages").insert({
             conversation_id: activeConv.id,
+            account_id: activeConv.account_id,
             direction: "outgoing",
             content: confirmationContent,
             type: "text",
@@ -580,6 +588,7 @@ export default function ConversationsPage() {
         // Fallback: save locally
         await supabase.from("messages").insert({
           conversation_id: activeConv.id,
+          account_id: activeConv.account_id,
           direction: "outgoing",
           content: confirmationContent,
           type: "text",
@@ -608,6 +617,7 @@ export default function ConversationsPage() {
     try {
       await supabase.from("messages").insert({
         conversation_id: activeConv.id,
+        account_id: activeConv.account_id,
         direction: "outgoing",
         content,
         type: "text",

@@ -173,6 +173,7 @@ export async function processIncomingMessage({
           platform_id: senderId,
           platform: channel,
           channel: channel,
+          phone: channel === "whatsapp" ? senderId : null,
           profile_pic_url: senderProfilePic || null,
           first_seen_at: new Date().toISOString(),
           is_returning: false,
