@@ -52,6 +52,9 @@ export default function ProductsPage() {
   // Variants state
   const [variants, setVariants] = useState([]);
 
+  // Active coupons for discount display
+  const [activeCoupons, setActiveCoupons] = useState([]);
+
   // View product details modal
   const [viewProduct, setViewProduct] = useState(null);
 
@@ -95,6 +98,80 @@ export default function ProductsPage() {
   }, [filter, search, currentStoreId]);
 
   useEffect(() => { ensureBuckets(); fetchProducts(); }, [ensureBuckets, fetchProducts]);
+
+  // Fetch active coupons for discount display
+  useEffect(() => {
+    const fetchActiveCoupons = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const now = new Date().toISOString();
+        const { data, error } = await supabase
+          .from("coupons")
+          .select("*")
+          .eq("account_id", user.id)
+          .eq("is_active", true)
+          .lte("starts_at", now)
+          .or(`expires_at.is.null,expires_at.gte.${now}`);
+        if (!error && data) {
+          // Filter out exhausted coupons
+          const active = data.filter(c => c.max_uses === null || c.used_count < c.max_uses);
+          setActiveCoupons(active);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch active coupons:", err.message);
+      }
+    };
+    fetchActiveCoupons();
+  }, [supabase]);
+
+  // Helper: find the best applicable coupon for a product
+  const getDiscountForProduct = useCallback((product) => {
+    if (!activeCoupons.length) return null;
+    let bestDiscount = null;
+    let bestSavings = 0;
+
+    for (const coupon of activeCoupons) {
+      // Check if coupon applies to this product
+      let applies = false;
+      if (coupon.applies_to === "all") {
+        applies = true;
+      } else if (coupon.applies_to === "specific_products") {
+        applies = Array.isArray(coupon.product_ids) && coupon.product_ids.includes(product.id);
+      } else if (coupon.applies_to === "specific_categories") {
+        applies = Array.isArray(coupon.categories) && product.category && coupon.categories.includes(product.category);
+      }
+
+      if (!applies) continue;
+
+      // Check min_order_value (product price as proxy)
+      if (coupon.min_order_value && product.price < coupon.min_order_value) continue;
+
+      // Calculate savings
+      let savings = 0;
+      if (coupon.type === "percentage") {
+        savings = product.price * (coupon.value / 100);
+      } else if (coupon.type === "fixed") {
+        savings = Math.min(parseFloat(coupon.value), product.price);
+      } else if (coupon.type === "free_shipping") {
+        // Free shipping doesn't change product price display
+        continue;
+      }
+
+      // Pick the coupon that gives the biggest discount
+      if (savings > bestSavings) {
+        bestSavings = savings;
+        bestDiscount = {
+          coupon,
+          discountAmount: savings,
+          newPrice: Math.max(product.price - savings, 0),
+          label: coupon.type === "percentage" ? `${coupon.value}% OFF` : `${parseFloat(coupon.value).toLocaleString()} EGP OFF`,
+        };
+      }
+    }
+
+    return bestDiscount;
+  }, [activeCoupons]);
 
   // Fetch top recommended products
   const fetchTopRecommended = useCallback(async () => {
@@ -510,6 +587,24 @@ export default function ProductsPage() {
                 <span className={`product-card-status ${product.status}`}>
                   <span className="status-dot" /> {product.status.charAt(0).toUpperCase() + product.status.slice(1)}
                 </span>
+                {(() => {
+                  const discount = getDiscountForProduct(product);
+                  if (discount) {
+                    return (
+                      <span style={{
+                        position: "absolute", top: 8, right: 8,
+                        background: "var(--accent-red)", color: "white",
+                        padding: "3px 8px", borderRadius: 8, fontSize: 10,
+                        fontWeight: 700, letterSpacing: "0.02em",
+                        boxShadow: "0 2px 8px rgba(255, 82, 82, 0.35)",
+                        zIndex: 2,
+                      }}>
+                        {discount.label}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <div className="product-card-body">
                 <h3 className="product-card-name">
@@ -522,7 +617,21 @@ export default function ProductsPage() {
                 </h3>
                 <p className="product-card-category">{product.category}</p>
                 <div className="product-card-footer">
-                  <span className="product-card-price">{product.price.toLocaleString()} EGP</span>
+                  {(() => {
+                    const discount = getDiscountForProduct(product);
+                    if (discount) {
+                      return (
+                        <div className="product-card-pricing">
+                          <div className="product-card-price-row">
+                            <span className="product-card-price-old">{product.price.toLocaleString()} EGP</span>
+                            <span className="product-card-discount-badge">{discount.label}</span>
+                          </div>
+                          <span className="product-card-price-new">{discount.newPrice.toLocaleString()} EGP</span>
+                        </div>
+                      );
+                    }
+                    return <span className="product-card-price">{product.price.toLocaleString()} EGP</span>;
+                  })()}
                   <span className={`product-card-stock ${product.stock === 0 ? "out" : product.stock <= 5 ? "low" : ""}`}>
                     {product.stock === 0 ? "Out of stock" : `${product.stock} in stock`}
                   </span>
@@ -588,15 +697,58 @@ export default function ProductsPage() {
                   }}>
                     #{i + 1}
                   </div>
+                  {(() => {
+                    const discount = getDiscountForProduct(product);
+                    if (discount) {
+                      return (
+                        <span style={{
+                          position: "absolute", top: 8, right: 8,
+                          background: "var(--accent-red)", color: "white",
+                          padding: "2px 6px", borderRadius: 8, fontSize: 9,
+                          fontWeight: 700, letterSpacing: "0.02em",
+                          boxShadow: "0 2px 6px rgba(255, 82, 82, 0.35)",
+                        }}>
+                          {discount.label}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div style={{ padding: "var(--space-md)" }}>
                   <h4 style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {product.name}
                   </h4>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 800, color: "var(--accent-primary-light)" }}>
-                      {product.price?.toLocaleString()} EGP
-                    </span>
+                    {(() => {
+                      const discount = getDiscountForProduct(product);
+                      if (discount) {
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 11, color: "var(--text-tertiary)", textDecoration: "line-through" }}>
+                                {product.price?.toLocaleString()} EGP
+                              </span>
+                              <span style={{
+                                fontSize: 9, padding: "1px 6px", borderRadius: 10,
+                                background: "rgba(255, 82, 82, 0.12)", color: "var(--accent-red)",
+                                fontWeight: 700, letterSpacing: "0.02em",
+                              }}>
+                                {discount.label}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 800, color: "var(--accent-primary-light)" }}>
+                              {discount.newPrice.toLocaleString()} EGP
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 800, color: "var(--accent-primary-light)" }}>
+                          {product.price?.toLocaleString()} EGP
+                        </span>
+                      );
+                    })()}
                     <span style={{
                       fontSize: 10, padding: "2px 8px", borderRadius: 12,
                       background: "rgba(0,210,255,0.1)", color: "var(--accent-secondary)",
@@ -636,7 +788,32 @@ export default function ProductsPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Price</div>
-                  <div style={{ fontWeight: 800, color: "var(--accent-primary-light)" }}>{viewProduct.price?.toLocaleString()} EGP</div>
+                  {(() => {
+                    const discount = getDiscountForProduct(viewProduct);
+                    if (discount) {
+                      return (
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontWeight: 800, color: "var(--accent-primary-light)" }}>{discount.newPrice.toLocaleString()} EGP</span>
+                            <span style={{
+                              fontSize: 10, padding: "2px 8px", borderRadius: 10,
+                              background: "rgba(255, 82, 82, 0.12)", color: "var(--accent-red)",
+                              fontWeight: 700,
+                            }}>
+                              {discount.label}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--text-tertiary)", textDecoration: "line-through", marginTop: 2 }}>
+                            {viewProduct.price?.toLocaleString()} EGP
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--accent-green)", marginTop: 2 }}>
+                            You save {discount.discountAmount.toLocaleString()} EGP
+                          </div>
+                        </div>
+                      );
+                    }
+                    return <div style={{ fontWeight: 800, color: "var(--accent-primary-light)" }}>{viewProduct.price?.toLocaleString()} EGP</div>;
+                  })()}
                 </div>
                 <div>
                   <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Stock</div>

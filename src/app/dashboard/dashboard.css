@@ -667,6 +667,44 @@
   color: var(--accent-primary-light);
 }
 
+/* Discount pricing layout */
+.product-card-pricing {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.product-card-price-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.product-card-price-old {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+  text-decoration-color: var(--accent-red);
+}
+
+.product-card-price-new {
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  color: var(--accent-primary-light);
+}
+
+.product-card-discount-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 82, 82, 0.12);
+  color: var(--accent-red);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
 .product-card-stock {
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
