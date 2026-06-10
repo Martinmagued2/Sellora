@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
+import { dispatchWebhook } from "@/lib/webhooks";
 
 let _supabase = null;
 function getSupabase() {
@@ -669,6 +670,21 @@ export const createSalesTools = (accountId, customerId) => {
           result.coupon_code = coupon_code.trim().toUpperCase();
           result.message += ` Coupon ${coupon_code.trim().toUpperCase()} applied! ${discountAmount.toFixed(2)} ${currency} discount.`;
         }
+
+        // Dispatch webhook for order.created
+        dispatchWebhook(accountId, "order.created", {
+          orderId: order.id,
+          orderNumber: order.order_number,
+          items: dbItems,
+          subtotal,
+          total,
+          currency,
+          couponCode: coupon_code || null,
+          discountAmount,
+          customerId,
+          status: "pending",
+          source: "ai_agent",
+        }).catch(err => console.error("[ORDER] Webhook dispatch failed:", err.message));
 
         return result;
       },

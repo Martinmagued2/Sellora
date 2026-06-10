@@ -30,6 +30,7 @@ export default function WebhooksPage() {
   const [deliveryPage, setDeliveryPage] = useState(1);
   const [deliveryTotal, setDeliveryTotal] = useState(0);
   const [retryingId, setRetryingId] = useState(null);
+  const [testingId, setTestingId] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newWebhook, setNewWebhook] = useState({ url: "", events: ["order.created"], secret: "" });
@@ -148,6 +149,34 @@ export default function WebhooksPage() {
   const handleToggleWebhook = async (wh) => {
     await supabase.from("account_webhooks").update({ is_active: !wh.is_active }).eq("id", wh.id);
     fetchWebhooks();
+  };
+
+  const handleTestWebhook = async (wh) => {
+    setTestingId(wh.id);
+    try {
+      const event = wh.events?.[0] || "order.created";
+      const res = await fetch("/api/webhooks/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhookId: wh.id, event }),
+      });
+      const data = await res.json();
+      if (data.success && data.results?.[0]) {
+        const result = data.results[0];
+        if (result.ok) {
+          toast.success(`Test sent! Got ${result.status} in ${result.durationMs}ms`);
+        } else {
+          toast.error(`Test failed: ${result.error || `HTTP ${result.status}`}`);
+        }
+      } else {
+        toast.error(data.error || "Test failed");
+      }
+      fetchWebhooks();
+      if (selectedWebhook) fetchDeliveries(selectedWebhook, deliveryPage, statusFilter);
+    } catch (err) {
+      toast.error("Test failed: " + err.message);
+    }
+    setTestingId(null);
   };
 
   const handleCreateWebhook = async (e) => {
@@ -314,6 +343,15 @@ export default function WebhooksPage() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "var(--space-xs)", marginLeft: "var(--space-lg)" }}>
+                    <button
+                      className="topbar-btn"
+                      title="Send test event"
+                      onClick={(e) => { e.stopPropagation(); handleTestWebhook(wh); }}
+                      disabled={testingId === wh.id}
+                      style={{ color: "var(--accent-primary-light)" }}
+                    >
+                      {testingId === wh.id ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
+                    </button>
                     <button
                       className="topbar-btn"
                       title="View deliveries"

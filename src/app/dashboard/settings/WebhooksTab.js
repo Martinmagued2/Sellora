@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2, Lock, Loader2 } from "lucide-react";
+import { Plus, Trash2, Lock, Loader2, Zap } from "lucide-react";
 
 export default function WebhooksTab({
   account, supabase,
@@ -8,6 +8,31 @@ export default function WebhooksTab({
   newWebhookUrl, setNewWebhookUrl,
   webhookSaving, setWebhookSaving,
 }) {
+
+  const handleTestWebhook = async (wh) => {
+    try {
+      const event = wh.events?.[0] || "order.created";
+      const res = await fetch("/api/webhooks/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhookId: wh.id, event }),
+      });
+      const data = await res.json();
+      if (data.success && data.results?.[0]) {
+        const result = data.results[0];
+        if (result.ok) {
+          alert(`Test sent! Got HTTP ${result.status} in ${result.durationMs}ms`);
+        } else {
+          alert(`Test failed: ${result.error || `HTTP ${result.status}`}`);
+        }
+      } else {
+        alert("Test failed: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Test failed: " + err.message);
+    }
+  };
+
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header"><h3>Webhook Integrations</h3></div>
@@ -62,6 +87,9 @@ export default function WebhooksTab({
                         {wh.last_status_code ? ` • Last: ${wh.last_status_code}` : ""}
                       </div>
                     </div>
+                    <button className="btn btn-sm" style={{ background: "rgba(108, 92, 231, 0.1)", color: "var(--accent-primary-light)", border: "none" }} onClick={() => handleTestWebhook(wh)} title="Send test event">
+                      <Zap size={14} />
+                    </button>
                     <button className="btn btn-sm" style={{ background: "rgba(255,82,82,0.1)", color: "var(--accent-red)", border: "none" }} onClick={async () => {
                       await supabase.from("account_webhooks").delete().eq("id", wh.id);
                       setWebhooks(webhooks.filter(w => w.id !== wh.id));
