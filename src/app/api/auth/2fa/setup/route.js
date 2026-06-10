@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { generateSecret, buildOtpauthUrl, generateBackupCodes } from "@/lib/totp";
+import { generateSecret, buildOtpauthUrl, encryptSecret } from "@/lib/totp";
 
 // Lazy Supabase admin client (server-side only)
 let _supabase = null;
@@ -17,8 +17,10 @@ function getSupabase() {
 /**
  * POST /api/auth/2fa/setup
  *
- * Generates a TOTP secret and returns QR code URL for setup.
- * The secret is temporarily stored — it won't be activated until verified.
+ * Generates a TOTP secret and returns otpauth URL for QR code generation.
+ * The secret is stored encrypted — it won't be activated until verified.
+ * SECURITY: The secret is NOT sent to any external API (no Google Charts).
+ *           The client uses qrcode.react to render the QR code locally.
  */
 export async function POST(request) {
   try {
@@ -53,17 +55,22 @@ export async function POST(request) {
     const email = account?.email || user.email || "user";
     const otpauthUrl = buildOtpauthUrl(secret, email);
 
-    // Store the secret temporarily (not yet enabled)
+    // Store the secret ENCRYPTED (not yet enabled)
     // It will be enabled only after successful verification
+    const encryptedSecret = encryptSecret(secret);
     await supabase
       .from("accounts")
-      .update({ totp_secret: secret })
+      .update({ totp_secret: encryptedSecret })
       .eq("id", user.id);
 
+    // Return the secret and otpauth URL for client-side QR rendering.
+    // NOTE: The secret is returned to the authenticated user so they can
+    // manually enter it in their authenticator app. It is NOT sent to
+    // any external API. The client should use qrcode.react to render the QR.
     return NextResponse.json({
       secret,
       otpauthUrl,
-      qrUrl: `https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=${encodeURIComponent(otpauthUrl)}&choe=UTF-8`,
+      // No more Google Charts URL — client renders QR locally
     });
   } catch (err) {
     console.error("[2FA Setup] Error:", err);

@@ -8,30 +8,35 @@ export async function POST(req) {
     const topic = req.headers.get('x-shopify-topic');
     const shop = req.headers.get('x-shopify-shop-domain');
 
-    // Verify HMAC signature if SHOPIFY_API_SECRET is configured
+    // HMAC signature verification is MANDATORY
     const apiSecret = process.env.SHOPIFY_API_SECRET;
-    if (apiSecret && hmacHeader) {
-      const generatedHash = crypto
-        .createHmac('sha256', apiSecret)
-        .update(rawBody, 'utf8')
-        .digest('base64');
+    if (!apiSecret) {
+      console.error('SHOPIFY_API_SECRET is not configured — cannot verify webhook authenticity');
+      return new NextResponse('Server misconfiguration: webhook secret not set', { status: 500 });
+    }
 
-      try {
-        const isValid = crypto.timingSafeEqual(
-          Buffer.from(generatedHash, 'base64'),
-          Buffer.from(hmacHeader, 'base64')
-        );
-        if (!isValid) {
-          console.error('Invalid Shopify webhook HMAC signature');
-          return new NextResponse('Invalid signature', { status: 401 });
-        }
-      } catch (e) {
-        console.error('Shopify HMAC comparison error:', e.message);
-        return new NextResponse('Invalid signature', { status: 401 });
-      }
-    } else if (apiSecret && !hmacHeader) {
+    if (!hmacHeader) {
       console.error('Shopify webhook missing HMAC header — rejecting');
       return new NextResponse('Missing HMAC signature', { status: 401 });
+    }
+
+    const generatedHash = crypto
+      .createHmac('sha256', apiSecret)
+      .update(rawBody, 'utf8')
+      .digest('base64');
+
+    try {
+      const isValid = crypto.timingSafeEqual(
+        Buffer.from(generatedHash, 'base64'),
+        Buffer.from(hmacHeader, 'base64')
+      );
+      if (!isValid) {
+        console.error('Invalid Shopify webhook HMAC signature');
+        return new NextResponse('Invalid signature', { status: 401 });
+      }
+    } catch (e) {
+      console.error('Shopify HMAC comparison error:', e.message);
+      return new NextResponse('Invalid signature', { status: 401 });
     }
     
     console.log(`Received Shopify Webhook: ${topic} for ${shop}`);

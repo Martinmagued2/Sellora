@@ -603,11 +603,30 @@ export const createSalesTools = (accountId, customerId) => {
               total = Math.max(0, total - discountAmount);
               couponId = coupon.id;
 
-              // Increment used_count
-              await getSupabase()
-                .from("coupons")
-                .update({ used_count: coupon.used_count + 1 })
-                .eq("id", coupon.id);
+              // SECURITY FIX: Atomic coupon increment to prevent double-spend
+              // Use conditional update: only increment if used_count < max_uses
+              if (coupon.max_uses === null) {
+                // No limit — safe to increment directly
+                await getSupabase()
+                  .from("coupons")
+                  .update({ used_count: coupon.used_count + 1 })
+                  .eq("id", coupon.id);
+              } else {
+                // Has limit — use conditional update to prevent race condition
+                const { data: updateResult } = await getSupabase()
+                  .from("coupons")
+                  .update({ used_count: coupon.used_count + 1 })
+                  .eq("id", coupon.id)
+                  .eq("used_count", coupon.used_count) // Only succeed if count hasn't changed
+                  .select("id");
+                
+                if (!updateResult || updateResult.length === 0) {
+                  // Race condition detected — another request already used this coupon
+                  discountAmount = 0;
+                  total = subtotal;
+                  couponId = null;
+                }
+              }
             }
           }
         }

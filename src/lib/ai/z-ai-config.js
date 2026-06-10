@@ -1,7 +1,3 @@
-import { writeFileSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
-import os from "os";
-
 /**
  * Get the ZAI SDK config, preferring environment variables over config files.
  *
@@ -12,9 +8,13 @@ import os from "os";
  *   ZAI_USER_ID   - Optional user ID
  *   ZAI_TOKEN     - Optional auth token
  *
- * Config file fallback (.z-ai-config):
- *   Searches: process.cwd() → ~/.z-ai-config → /etc/.z-ai-config
+ * SECURITY: This module NO LONGER writes secrets to the filesystem.
+ * Config files are only READ (never written) as a fallback.
  */
+
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+import os from "os";
 
 // Read config from environment variables
 function getConfigFromEnv() {
@@ -32,7 +32,7 @@ function getConfigFromEnv() {
   return null;
 }
 
-// Read config from file system
+// Read config from file system (READ ONLY — never writes)
 function getConfigFromFile() {
   const cwd = process.cwd();
   const homeDir = os.homedir();
@@ -47,13 +47,7 @@ function getConfigFromFile() {
       if (existsSync(configPath)) {
         const config = JSON.parse(readFileSync(configPath, "utf-8"));
         if (config.baseUrl && config.apiKey) {
-          // Also write to project dir so the SDK can find it there too
-          if (configPath !== join(cwd, ".z-ai-config")) {
-            try {
-              writeFileSync(join(cwd, ".z-ai-config"), JSON.stringify(config, null, 2));
-              console.log("[Z-AI-Config] Copied config from", configPath, "to project dir");
-            } catch {}
-          }
+          // SECURITY FIX: No longer copies config to project dir
           return config;
         }
       }
@@ -65,23 +59,19 @@ function getConfigFromFile() {
 /**
  * Get ZAI SDK config object. Returns null if no config found.
  * Use this to construct `new ZAI(config)` directly, bypassing ZAI.create().
- * Also writes the config to .z-ai-config file as a safety net.
+ *
+ * SECURITY: No longer writes API keys to the filesystem.
  */
 export function getZAIConfig() {
   // 1. Try environment variables first (works on Vercel/production)
   const envConfig = getConfigFromEnv();
   if (envConfig) {
-    // Safety net: write env config to file so ZAI.create() would also work
-    try {
-      const cwd = process.cwd();
-      const configPath = join(cwd, ".z-ai-config");
-      writeFileSync(configPath, JSON.stringify(envConfig, null, 2));
-    } catch {}
     console.log("[Z-AI-Config] Using config from environment variables");
+    // SECURITY FIX: No longer writes env config to file
     return envConfig;
   }
 
-  // 2. Try config files (works in development)
+  // 2. Try config files (works in development) — READ ONLY
   const fileConfig = getConfigFromFile();
   if (fileConfig) {
     console.log("[Z-AI-Config] Using config from file");

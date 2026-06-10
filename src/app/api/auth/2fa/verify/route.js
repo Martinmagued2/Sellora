@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { verifyTOTP, generateBackupCodes } from "@/lib/totp";
+import { verifyTOTP, generateBackupCodes, decryptSecret } from "@/lib/totp";
 
 // Lazy Supabase admin client (server-side only)
 let _supabase = null;
@@ -21,40 +21,42 @@ function getSupabase() {
  * 1. Setup verification (enabling 2FA for the first time)
  * 2. Login verification (authenticating with 2FA after login)
  * 3. Backup code verification
+ *
+ * SECURITY FIXES:
+ * - Always requires authenticated user via Authorization header
+ * - Removed userId body parameter (was allowing unauthenticated access)
+ * - Added TOTP replay protection (tracks last_used_time_step)
+ * - Records 2FA verification server-side for middleware enforcement
  */
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { code, setupVerification, userId } = body;
+    const { code, setupVerification } = body;
 
     if (!code) {
       return NextResponse.json({ error: "Code is required" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
-
-    // Determine the user
-    let targetUserId = userId;
-
-    if (!targetUserId) {
-      // Try to get from auth header
-      const authHeader = request.headers.get("authorization");
-      if (authHeader) {
-        const token = authHeader.replace("Bearer ", "");
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (authError || !user) {
-          return NextResponse.json({ error: "Invalid authentication" }, { status: 401 });
-        }
-        targetUserId = user.id;
-      } else {
-        return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-      }
+    // SECURITY: Always require authentication via Authorization header
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    // Get the account with TOTP secret
+    const supabase = getSupabase();
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Invalid authentication" }, { status: 401 });
+    }
+
+    const targetUserId = user.id;
+
+    // Get the account with TOTP secret (do NOT expose secret to client)
     const { data: account, error: accountError } = await supabase
       .from("accounts")
-      .select("totp_secret, totp_enabled, totp_backup_codes, email")
+      .select("totp_secret, totp_enabled, totp_backup_codes, email, last_totp_time_step")
       .eq("id", targetUserId)
       .single();
 
@@ -84,7 +86,10 @@ export async function POST(request) {
         const updatedCodes = backupCodes.filter(c => c !== code);
         await supabase
           .from("accounts")
-          .update({ totp_backup_codes: updatedCodes })
+          .update({
+            totp_backup_codes: updatedCodes,
+            two_factor_verified_at: new Date().toISOString(),
+          })
           .eq("id", targetUserId);
 
         return NextResponse.json({ verified: true, method: "backup_code" });
@@ -92,23 +97,28 @@ export async function POST(request) {
       return NextResponse.json({ error: "Invalid backup code" }, { status: 400 });
     }
 
-    // Verify TOTP code
-    const isValid = verifyTOTP(account.totp_secret, code);
+    // Verify TOTP code with replay protection
+    const result = verifyTOTP(account.totp_secret, code, 1, account.last_totp_time_step);
 
-    if (!isValid) {
+    if (!result.valid) {
       return NextResponse.json({ error: "Invalid verification code" }, { status: 400 });
     }
+
+    // Update the last used time step for replay protection
+    const updateData = {
+      last_totp_time_step: result.timeStep,
+      two_factor_verified_at: new Date().toISOString(),
+    };
 
     // If this is a setup verification, enable 2FA and generate backup codes
     if (setupVerification) {
       const backupCodes = generateBackupCodes(8);
+      updateData.totp_enabled = true;
+      updateData.totp_backup_codes = backupCodes;
 
       await supabase
         .from("accounts")
-        .update({
-          totp_enabled: true,
-          totp_backup_codes: backupCodes,
-        })
+        .update(updateData)
         .eq("id", targetUserId);
 
       return NextResponse.json({
@@ -118,7 +128,12 @@ export async function POST(request) {
       });
     }
 
-    // For login verification, just return success
+    // For login verification, update replay protection + 2FA verified timestamp
+    await supabase
+      .from("accounts")
+      .update(updateData)
+      .eq("id", targetUserId);
+
     return NextResponse.json({ verified: true });
   } catch (err) {
     console.error("[2FA Verify] Error:", err);

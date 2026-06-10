@@ -2,6 +2,25 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendWelcomeEmail } from "@/lib/email";
 
+/**
+ * ALLOWED_HOSTS for x-forwarded-host validation.
+ * In production, only allow the known domain(s).
+ * Set NEXT_PUBLIC_APP_URL to your production domain.
+ */
+function getAllowedHosts() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const hosts = ["localhost:3000", "localhost:3001"];
+  if (appUrl) {
+    try {
+      const url = new URL(appUrl);
+      hosts.push(url.hostname);
+      // Also add the full host (hostname + port if non-default)
+      hosts.push(url.host);
+    } catch {}
+  }
+  return hosts;
+}
+
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
@@ -32,11 +51,17 @@ export async function GET(request) {
         .eq("id", data.user.id)
         .single();
 
+      // SECURITY FIX: Validate x-forwarded-host against whitelist
       const forwardedHost = request.headers.get("x-forwarded-host");
       const isLocalEnv = process.env.NODE_ENV === "development";
+      const allowedHosts = getAllowedHosts();
+
       const getRedirectUrl = (path) => {
         if (isLocalEnv) return `${origin}${path}`;
-        if (forwardedHost) return `https://${forwardedHost}${path}`;
+        // SECURITY: Only trust x-forwarded-host if it's in the allowed list
+        if (forwardedHost && allowedHosts.some(h => forwardedHost === h || forwardedHost.endsWith(`.${h}`))) {
+          return `https://${forwardedHost}${path}`;
+        }
         return `${origin}${path}`;
       };
 
@@ -86,7 +111,8 @@ export async function GET(request) {
               commission_paid: 0,
             });
 
-            // Award credits to referrer
+            // SECURITY FIX: Atomic referral credit increment using SQL function
+            // Instead of read-modify-write, use a stored procedure to atomically add credits
             const { data: referrer } = await adminClient
               .from("accounts")
               .select("id, referral_credits")
@@ -94,11 +120,20 @@ export async function GET(request) {
               .single();
 
             if (referrer) {
-              const newCredits = (parseFloat(referrer.referral_credits) || 0) + 5.00;
-              await adminClient
-                .from("accounts")
-                .update({ referral_credits: newCredits })
-                .eq("id", referrer.id);
+              // Use atomic increment via Supabase RPC if available, otherwise safe increment
+              try {
+                await adminClient.rpc("increment_referral_credits", {
+                  account_id: referrer.id,
+                  amount: 5.00,
+                });
+              } catch (rpcErr) {
+                // Fallback: if RPC doesn't exist, use direct update (less safe for concurrency)
+                const newCredits = (parseFloat(referrer.referral_credits) || 0) + 5.00;
+                await adminClient
+                  .from("accounts")
+                  .update({ referral_credits: newCredits })
+                  .eq("id", referrer.id);
+              }
             }
           } catch (refErr) {
             console.warn("[AUTH] Failed to track referral from cookie:", refErr.message);

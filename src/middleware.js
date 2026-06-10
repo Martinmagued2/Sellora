@@ -38,7 +38,7 @@ export async function middleware(request) {
       rateLimitTier = "email";
     }
 
-    // Only rate limit POST/PUT/DELETE/PATCH on API routes
+    // Rate limit POST/PUT/DELETE/PATCH on API routes
     if (pathname.startsWith("/api/") && method !== "GET") {
       const rlKey = createRateLimitKey(request);
       const rlResult = checkRateLimit(rlKey, rateLimitTier);
@@ -50,6 +50,15 @@ export async function middleware(request) {
       // Add rate limit headers to the response
       supabaseResponse.headers.set("X-RateLimit-Remaining", String(rlResult.remaining));
       supabaseResponse.headers.set("X-RateLimit-Reset", String(Math.ceil(rlResult.resetAt / 1000)));
+    }
+
+    // SECURITY FIX: Also rate limit auth page POSTs (not just API routes)
+    if (rateLimitTier === "auth" && method === "POST" && !pathname.startsWith("/api/")) {
+      const rlKey = createRateLimitKey(request);
+      const rlResult = checkRateLimit(rlKey, "auth");
+      if (rlResult.limited) {
+        return rateLimitResponse(rlResult.resetAt);
+      }
     }
   }
 
@@ -85,15 +94,15 @@ export async function middleware(request) {
   } = await supabase.auth.getUser();
 
   // ─── Route classification ───
-  // (pathname already declared at top — reused here)
-
   const protectedPaths = ["/dashboard", "/onboarding"];
   const adminPaths = ["/admin"];
   const authPaths = ["/login", "/signup", "/forgot-password"];
+  const twoFactorPath = "/auth/verify-2fa";
 
   const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
   const isAdminRoute = adminPaths.some((path) => pathname.startsWith(path));
   const isAuthPage = authPaths.some((path) => pathname.startsWith(path));
+  const is2FAVerifyPage = pathname.startsWith(twoFactorPath);
 
   // ─── 1. Redirect unauthenticated users away from protected routes ───
   if ((isProtected || isAdminRoute) && !user) {
@@ -102,7 +111,35 @@ export async function middleware(request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // ─── 2. Admin route enforcement ───
+  // ─── 2. 2FA enforcement (SERVER-SIDE) ───
+  // SECURITY FIX: Check 2FA status server-side instead of relying on sessionStorage
+  if (user && isProtected && !is2FAVerifyPage) {
+    try {
+      const { data: account } = await supabase
+        .from("accounts")
+        .select("totp_enabled, two_factor_verified_at")
+        .eq("id", user.id)
+        .single();
+
+      if (account?.totp_enabled) {
+        // Check if 2FA has been verified recently (within last 12 hours)
+        const verifiedAt = account.two_factor_verified_at;
+        const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+
+        if (!verifiedAt || new Date(verifiedAt) < twelveHoursAgo) {
+          // 2FA not verified or expired — redirect to verification page
+          const verifyUrl = new URL("/auth/verify-2fa", request.url);
+          verifyUrl.searchParams.set("redirectTo", pathname);
+          return NextResponse.redirect(verifyUrl);
+        }
+      }
+    } catch (err) {
+      // Gracefully handle errors (column may not exist yet)
+      console.warn("[MIDDLEWARE] 2FA check failed:", err.message);
+    }
+  }
+
+  // ─── 3. Admin route enforcement ───
   // Check the user's role from the accounts table in DB
   if (isAdminRoute && user) {
     try {
@@ -129,9 +166,39 @@ export async function middleware(request) {
     }
   }
 
-  // ─── 3. Redirect authenticated users away from auth pages ───
+  // ─── 4. Redirect authenticated users away from auth pages ───
   if (isAuthPage && user) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // ─── 5. Redirect away from 2FA verify page if not needed ───
+  if (is2FAVerifyPage && user) {
+    try {
+      const { data: account } = await supabase
+        .from("accounts")
+        .select("totp_enabled, two_factor_verified_at")
+        .eq("id", user.id)
+        .single();
+
+      if (!account?.totp_enabled) {
+        // 2FA not enabled, redirect to dashboard
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+
+      const verifiedAt = account.two_factor_verified_at;
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      if (verifiedAt && new Date(verifiedAt) >= twelveHoursAgo) {
+        // 2FA already verified, redirect to intended page
+        const redirectTo = request.nextUrl.searchParams.get("redirectTo") || "/dashboard";
+        // SECURITY: Validate redirectTo is a relative path
+        if (redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
+          return NextResponse.redirect(new URL(redirectTo, request.url));
+        }
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+    } catch (err) {
+      // Graceful fallback
+    }
   }
 
   return supabaseResponse;

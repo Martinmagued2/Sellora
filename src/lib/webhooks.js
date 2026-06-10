@@ -29,6 +29,54 @@ function getSupabase() {
  */
 
 /**
+ * SECURITY: Validate that a webhook URL is safe to fetch.
+ * Prevents SSRF (Server-Side Request Forgery) by blocking:
+ * - Non-HTTP(S) protocols (file://, ftp://, etc.)
+ * - Internal/private IP ranges (127.0.0.1, 10.x, 172.16-31.x, 192.168.x)
+ * - Cloud metadata endpoints (169.254.169.254)
+ * - IPv6 loopback and link-local
+ */
+function isWebhookUrlSafe(urlString) {
+  try {
+    const url = new URL(urlString);
+    // Only allow http: and https: protocols
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return false;
+    }
+    // In production, only allow https
+    if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
+      return false;
+    }
+    const hostname = url.hostname.toLowerCase();
+
+    // Block localhost variations
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+      return false;
+    }
+
+    // Block cloud metadata endpoint
+    if (hostname === "169.254.169.254" || hostname.startsWith("169.254.")) {
+      return false;
+    }
+
+    // Block private IP ranges (10.x, 172.16-31.x, 192.168.x)
+    const ipMatch = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipMatch) {
+      const [, a, b] = ipMatch.map(Number);
+      if (a === 10) return false; // 10.0.0.0/8
+      if (a === 172 && b >= 16 && b <= 31) return false; // 172.16.0.0/12
+      if (a === 192 && b === 168) return false; // 192.168.0.0/16
+      if (a === 0) return false; // 0.0.0.0/8
+      if (a === 127) return false; // 127.0.0.0/8
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Record a webhook delivery in the database.
  */
 async function recordDelivery({ accountId, webhookId, event, payload, responseStatus, responseBody, durationMs, status, attempts }) {
@@ -83,15 +131,24 @@ export async function dispatchWebhook(accountId, eventType, payload) {
 
     if (matchingWebhooks.length === 0) return;
 
+    // SECURITY: Validate webhook URLs to prevent SSRF
+    const safeWebhooks = matchingWebhooks.filter((wh) => {
+      if (!isWebhookUrlSafe(wh.url)) {
+        console.warn(`[Webhook] Blocked unsafe URL: ${wh.url} (SSRF protection)`);
+        return false;
+      }
+      return true;
+    });
+
     const body = JSON.stringify({
       event: eventType,
       timestamp: new Date().toISOString(),
       data: payload,
     });
 
-    // Fire all webhooks in parallel (non-blocking)
+    // Fire all safe webhooks in parallel (non-blocking)
     const results = await Promise.allSettled(
-      matchingWebhooks.map(async (wh) => {
+      safeWebhooks.map(async (wh) => {
         const headers = {
           "Content-Type": "application/json",
           "X-Sellora-Event": eventType,

@@ -7,6 +7,7 @@ import {
   Save, Check, Loader2, Webhook, UsersRound, Lock, HelpCircle, Clock, Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { SAFE_ACCOUNT_FIELDS } from "@/lib/safe-fields";
 
 import ProfileTab from "./ProfileTab";
 import ChannelsTab from "./ChannelsTab";
@@ -143,7 +144,7 @@ function SettingsContent() {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase.from("accounts").select("*").eq("id", user.id).single();
+      const { data } = await supabase.from("accounts").select(SAFE_ACCOUNT_FIELDS).eq("id", user.id).single();
       if (data) setAccount(data);
 
       // Check for Meta OAuth callback feedback

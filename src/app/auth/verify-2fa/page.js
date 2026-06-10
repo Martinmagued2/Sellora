@@ -16,13 +16,22 @@ function Verify2FAContent() {
   const [backupMode, setBackupMode] = useState(false);
   const [backupCode, setBackupCode] = useState("");
 
-  const supabase = createClient();
+  // SECURITY FIX: Validate redirectTo is a safe relative path
+  const getSafeRedirectTo = () => {
+    const raw = searchParams.get("redirectTo") || "/dashboard";
+    // Only allow relative paths that start with / and don't start with //
+    if (raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\")) {
+      return raw;
+    }
+    return "/dashboard";
+  };
 
   useEffect(() => {
+    const supabase = createClient();
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        router.push("/auth/login");
+        router.push("/login");
         return;
       }
 
@@ -35,8 +44,7 @@ function Verify2FAContent() {
 
       if (!account?.totp_enabled) {
         // No 2FA needed, redirect to dashboard
-        const redirectTo = searchParams.get("redirectTo") || "/dashboard";
-        router.push(redirectTo);
+        router.push(getSafeRedirectTo());
         return;
       }
 
@@ -44,7 +52,8 @@ function Verify2FAContent() {
       setLoading(false);
     };
     checkAuth();
-  }, [router, searchParams, supabase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
   const handleVerify = async () => {
     const verifyCode = backupMode ? backupCode : code;
@@ -58,9 +67,11 @@ function Verify2FAContent() {
     setError("");
 
     try {
+      const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
+      // SECURITY FIX: No longer sending userId in the body — server always uses JWT
       const res = await fetch("/api/auth/2fa/verify", {
         method: "POST",
         headers: {
@@ -70,7 +81,7 @@ function Verify2FAContent() {
         body: JSON.stringify({
           code: verifyCode,
           setupVerification: false,
-          userId: userId,
+          // SECURITY: userId is NO LONGER sent — server extracts from JWT
         }),
       });
 
@@ -81,13 +92,13 @@ function Verify2FAContent() {
         return;
       }
 
-      // Mark 2FA as verified in session storage
-      sessionStorage.setItem("sellora_2fa_verified", "true");
-      sessionStorage.setItem("sellora_2fa_verified_at", new Date().toISOString());
+      // SECURITY FIX: 2FA verification is now recorded server-side
+      // (two_factor_verified_at column updated by the API).
+      // No longer using sessionStorage for 2FA state.
+      // The middleware checks two_factor_verified_at on every request.
 
       // Redirect to intended page
-      const redirectTo = searchParams.get("redirectTo") || "/dashboard";
-      router.push(redirectTo);
+      router.push(getSafeRedirectTo());
     } catch (err) {
       setError("Verification failed. Please try again.");
     }
@@ -266,6 +277,7 @@ function Verify2FAContent() {
         <div style={{ textAlign: "center", marginTop: "var(--space-md, 16px)" }}>
           <button
             onClick={async () => {
+              const supabase = createClient();
               await supabase.auth.signOut();
               router.push("/");
             }}

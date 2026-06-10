@@ -154,7 +154,10 @@ export async function logout() {
 export async function resetPassword(formData) {
   const supabase = await createClient();
   const email = formData.get("email");
-  const origin = formData.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  // SECURITY FIX: Never trust client-supplied origin.
+  // Always use the server-side environment variable for redirect URLs.
+  const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   if (!email) return { error: "Email is required" };
 

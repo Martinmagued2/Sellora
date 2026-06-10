@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { SAFE_ACCOUNT_FIELDS } from "@/lib/safe-fields";
 import { 
   Camera, Globe, Check, Loader2, ArrowRight, ArrowLeft, 
   Store, Sparkles, MessageSquare, Send, CheckCircle2 
@@ -53,7 +54,7 @@ export default function OnboardingPage() {
       
       const { data: accountData } = await supabase
         .from("accounts")
-        .select("*")
+        .select(SAFE_ACCOUNT_FIELDS)
         .eq("id", userData.user.id)
         .single();
         
@@ -101,7 +102,7 @@ export default function OnboardingPage() {
         plan: "starter",
         plan_status: "trialing",
       });
-      const { data: newAcct } = await supabase.from("accounts").select("*").eq("id", userId).single();
+      const { data: newAcct } = await supabase.from("accounts").select(SAFE_ACCOUNT_FIELDS).eq("id", userId).single();
       if (newAcct) setAccount(newAcct);
     }
     

@@ -1,47 +1,113 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import crypto from "crypto";
 
 // ─── Server-side: API route admin verification ───
 
-let _supabase = null;
-function getSupabase() {
-  if (!_supabase) {
-    _supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+/**
+ * Timing-safe string comparison to prevent timing attacks.
+ */
+function timingSafeCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) {
+    // Still do a comparison to avoid leaking length via timing
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
   }
-  return _supabase;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * Create a Supabase server client that reads cookies from the request.
+ */
+async function getSupabaseWithCookies() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // The `setAll` method is called from a Server Component.
+            // This can be ignored if you have middleware refreshing sessions.
+          }
+        },
+      },
+    }
+  );
 }
 
 /**
  * Verify admin access from an API request.
- * Checks in order:
- *   1. x-admin-key header matches ADMIN_SECRET_KEY env var
- *   2. Account with x-account-id header has role = 'admin' in DB
  *
- * Returns { isAdmin: boolean, accountId?: string }
+ * ALWAYS requires a valid JWT session first. The user ID is extracted
+ * from the JWT and checked against the accounts table for admin role.
+ *
+ * The x-account-id header is only used as a secondary consistency check
+ * AFTER successful JWT verification.
+ *
+ * The x-admin-key header is accepted as a fallback for server-to-server
+ * calls only, using timing-safe comparison.
+ *
+ * Returns { isAdmin: boolean, accountId?: string, userId?: string }
  */
 export async function verifyAdmin(request) {
-  // Check 1: Admin secret key
+  // ── Check 1: Admin secret key (server-to-server fallback) ──
   const adminKey = request.headers.get("x-admin-key");
-  if (adminKey && adminKey === process.env.ADMIN_SECRET_KEY) {
-    return { isAdmin: true, accountId: "secret-key" };
+  if (adminKey && process.env.ADMIN_SECRET_KEY) {
+    if (timingSafeCompare(adminKey, process.env.ADMIN_SECRET_KEY)) {
+      return { isAdmin: true, accountId: "secret-key" };
+    }
   }
 
-  // Check 2: Account ID with admin role in DB
-  const accountId = request.headers.get("x-account-id");
-  if (!accountId) return { isAdmin: false };
-
+  // ── Check 2: JWT session verification (primary auth path) ──
   try {
-    const supabase = getSupabase();
-    const { data: account, error } = await supabase
+    const supabase = await getSupabaseWithCookies();
+    const {
+      data: { user },
+      error: sessionError,
+    } = await supabase.auth.getUser();
+
+    if (sessionError || !user) {
+      return { isAdmin: false };
+    }
+
+    const userId = user.id;
+
+    // Look up the account by user ID
+    const { createClient } = await import("@supabase/supabase-js");
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { data: account, error } = await adminSupabase
       .from("accounts")
       .select("id, role")
-      .eq("id", accountId)
+      .eq("id", userId)
       .single();
 
     if (error || !account) return { isAdmin: false };
-    if (account.role === "admin") return { isAdmin: true, accountId: account.id };
+
+    if (account.role !== "admin") return { isAdmin: false };
+
+    // Secondary check: if x-account-id is provided, it must match
+    const headerAccountId = request.headers.get("x-account-id");
+    if (headerAccountId && headerAccountId !== account.id) {
+      return { isAdmin: false };
+    }
+
+    return { isAdmin: true, accountId: account.id, userId };
   } catch (e) {
     console.error("Admin auth check failed:", e);
   }
@@ -57,7 +123,11 @@ export async function isUserAdmin(userId) {
   if (!userId) return false;
 
   try {
-    const supabase = getSupabase();
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
     const { data: account, error } = await supabase
       .from("accounts")
       .select("role")

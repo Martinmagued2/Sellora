@@ -8,6 +8,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
+import { SAFE_ACCOUNT_FIELDS } from "@/lib/safe-fields";
 
 export default function BillingPage() {
   const toast = useToast();
@@ -25,7 +26,7 @@ export default function BillingPage() {
     const fetchAccount = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase.from("accounts").select("*").eq("id", user.id).single();
+        const { data } = await supabase.from("accounts").select(SAFE_ACCOUNT_FIELDS).eq("id", user.id).single();
         if (data) {
           setAccount(data);
           if (data.billing_address) setBillingAddress(data.billing_address);

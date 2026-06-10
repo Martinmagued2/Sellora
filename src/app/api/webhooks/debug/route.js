@@ -3,11 +3,12 @@
  * GET /api/webhooks/debug
  *
  * Returns comprehensive diagnostics about why incoming messages
- * might not be working.
+ * might not be working. Requires admin authentication.
  */
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 let _supabase = null;
 function getSupabase() {
@@ -20,7 +21,13 @@ function getSupabase() {
   return _supabase;
 }
 
-export async function GET() {
+export async function GET(request) {
+  // ── Admin authentication required ──
+  const { isAdmin } = await verifyAdmin(request);
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const result = {
     timestamp: new Date().toISOString(),
     can_receive_incoming: false,
@@ -95,17 +102,11 @@ export async function GET() {
           connected: acct.instagram_connected,
           page_id: acct.instagram_page_id || "NOT SET",
           has_token: !!acct.instagram_access_token,
-          token_preview: acct.instagram_access_token
-            ? acct.instagram_access_token.substring(0, 15) + "..."
-            : "NONE",
         },
         facebook: {
           connected: acct.facebook_connected,
           page_id: acct.facebook_page_id || "NOT SET",
           has_token: !!acct.facebook_access_token,
-          token_preview: acct.facebook_access_token
-            ? acct.facebook_access_token.substring(0, 15) + "..."
-            : "NONE",
         },
       }));
 
@@ -192,7 +193,7 @@ export async function GET() {
       `4. ${(groqKey || googleKey) ? "OK" : "FIX"} Add GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to Vercel env vars`,
       "5. Redeploy on Vercel",
       "6. Go to Meta App Dashboard > Webhooks > Add Callback URL: https://sellora-ruby.vercel.app/api/webhook",
-      `7. Use this Verify Token: ${metaVerifyToken || "YOUR_VERIFY_TOKEN"}`,
+      "7. Use the META_WEBHOOK_VERIFY_TOKEN you set in step 2 as the Verify Token",
       "8. Subscribe to: messages, messaging_postbacks (for both Instagram and Messenger)",
       "9. Make sure your Page is selected at the bottom of the webhooks page",
     ];

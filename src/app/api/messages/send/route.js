@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendMessage, sendProductCard } from "@/lib/channels/meta";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import { createClient as createSupabaseClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import crypto from "crypto";
 
 const META_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -51,17 +53,64 @@ export async function POST(request) {
     }
 
     // SECURITY: Verify the requester owns this conversation's account
-    // Accept either x-account-id header or accountId in body
-    const claimedAccountId = request.headers.get("x-account-id") || bodyAccountId;
-    if (claimedAccountId && claimedAccountId !== conversation.account_id) {
-      return NextResponse.json({ error: "You do not have access to this conversation" }, { status: 403 });
-    }
-    // If no account ID provided at all, require admin key
-    if (!claimedAccountId) {
-      const adminKey = request.headers.get("x-admin-key");
-      if (adminKey !== process.env.ADMIN_SECRET_KEY) {
-        return NextResponse.json({ error: "Authentication required. Provide x-account-id header or x-admin-key." }, { status: 401 });
+    // Primary auth: Supabase session (JWT). Fallback: admin key for server-to-server.
+    let authenticatedUserId = null;
+    let isAdminCall = false;
+
+    // Check admin key first (server-to-server fallback)
+    const adminKey = request.headers.get("x-admin-key");
+    if (adminKey && process.env.ADMIN_SECRET_KEY) {
+      const bufA = Buffer.from(adminKey, "utf8");
+      const bufB = Buffer.from(process.env.ADMIN_SECRET_KEY, "utf8");
+      if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+        isAdminCall = true;
       }
+    }
+
+    // If not an admin call, verify Supabase session
+    if (!isAdminCall) {
+      try {
+        const cookieStore = await cookies();
+        const supabaseAuth = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          {
+            cookies: {
+              getAll() {
+                return cookieStore.getAll();
+              },
+              setAll(cookiesToSet) {
+                try {
+                  cookiesToSet.forEach(({ name, value, options }) =>
+                    cookieStore.set(name, value, options)
+                  );
+                } catch {
+                  // Server Component context — ignore
+                }
+              },
+            },
+          }
+        );
+
+        const { data: { user }, error: sessionError } = await supabaseAuth.getUser();
+        if (sessionError || !user) {
+          return NextResponse.json({ error: "Authentication required. Log in to send messages." }, { status: 401 });
+        }
+        authenticatedUserId = user.id;
+      } catch (e) {
+        return NextResponse.json({ error: "Authentication required. Log in to send messages." }, { status: 401 });
+      }
+
+      // Verify the authenticated user owns this conversation
+      if (authenticatedUserId !== conversation.account_id) {
+        return NextResponse.json({ error: "You do not have access to this conversation" }, { status: 403 });
+      }
+    }
+
+    // Secondary consistency check: if x-account-id is provided, it must match
+    const headerAccountId = request.headers.get("x-account-id") || bodyAccountId;
+    if (headerAccountId && headerAccountId !== conversation.account_id) {
+      return NextResponse.json({ error: "You do not have access to this conversation" }, { status: 403 });
     }
 
     const effectiveChannel = channelOverride || conversation.channel;
