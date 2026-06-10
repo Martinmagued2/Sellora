@@ -87,8 +87,17 @@ export async function POST(req) {
     }
 
     const calculatedHmac = calculateMac(body.obj, process.env.PAYMOB_HMAC_SECRET);
-    if (calculatedHmac !== hmacParam) {
-      console.error("[PAYMOB_HMAC] Validation FAILED! Signature mismatch.");
+    try {
+      const isValid = crypto.timingSafeEqual(
+        Buffer.from(calculatedHmac, 'hex'),
+        Buffer.from(hmacParam, 'hex')
+      );
+      if (!isValid) {
+        console.error("[PAYMOB_HMAC] Validation FAILED! Signature mismatch.");
+        return NextResponse.json({ error: "Invalid HMAC signature" }, { status: 401 });
+      }
+    } catch (e) {
+      console.error("[PAYMOB_HMAC] Comparison error:", e.message);
       return NextResponse.json({ error: "Invalid HMAC signature" }, { status: 401 });
     }
     console.log("[PAYMOB_HMAC] Validation SUCCESS.");
@@ -102,7 +111,7 @@ export async function POST(req) {
     const paymentMethod = transaction.source_data?.sub_type || transaction.source_data?.type || 'unknown';
 
     // 3. Find processing record
-    const { data: paymentRecord } = await supabaseAdmin
+    const { data: paymentRecord } = await getSupabaseAdmin()
       .from("payments")
       .select("*")
       .eq("merchant_order_id", merchantOrderId)
@@ -203,7 +212,7 @@ export async function POST(req) {
 
     // ─── SUBSCRIPTION PAYMENT ───
     // Get current account parameters
-    const { data: account } = await supabaseAdmin
+    const { data: account } = await getSupabaseAdmin()
       .from("accounts")
       .select("subscription_ends_at")
       .eq("id", paymentRecord.account_id)

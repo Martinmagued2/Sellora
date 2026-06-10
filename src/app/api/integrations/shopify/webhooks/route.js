@@ -30,7 +30,8 @@ export async function POST(req) {
         return new NextResponse('Invalid signature', { status: 401 });
       }
     } else if (apiSecret && !hmacHeader) {
-      console.warn('Shopify webhook missing HMAC header');
+      console.error('Shopify webhook missing HMAC header — rejecting');
+      return new NextResponse('Missing HMAC signature', { status: 401 });
     }
     
     console.log(`Received Shopify Webhook: ${topic} for ${shop}`);

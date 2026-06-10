@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 let _supabase = null;
 function getSupabase() {
@@ -24,6 +25,12 @@ function getSupabase() {
  */
 export async function GET(request) {
   try {
+    // SECURITY: Require admin authentication
+    const { isAdmin } = await verifyAdmin(request);
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
+    }
+
     const url = new URL(request.url);
     const emailFilter = url.searchParams.get("email") || "";
     const action = url.searchParams.get("action") || "diagnose";
@@ -300,6 +307,12 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
+    // SECURITY: Require admin authentication
+    const { isAdmin } = await verifyAdmin(request);
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Forbidden — admin access required" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { accountId, platforms } = body;
 

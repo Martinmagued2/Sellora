@@ -16,5 +16,5 @@ export function verifyMetaSignature(reqText, signatureHeader, appSecret) {
     .update(reqText)
     .digest('hex');
 
-  return signature === expectedHash;
+  return crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedHash, 'hex'));
 }

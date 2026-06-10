@@ -3,6 +3,8 @@
  * Handles order-level payments (customer checkout) via Paymob Accept API
  */
 
+import crypto from 'crypto';
+
 const PAYMOB_BASE = "https://accept.paymob.com/api";
 
 /**
@@ -159,8 +161,6 @@ export async function createCheckout({ amountCents, merchantOrderId, items, bill
  * @returns {boolean} Whether signature is valid
  */
 export function verifyHmac(obj, hmacSecret, providedHmac) {
-  const crypto = require("crypto");
-
   const fields = [
     "amount_cents", "created_at", "currency", "error_occured",
     "has_parent_transaction", "id", "integration_id", "is_3d_secure",
@@ -185,5 +185,9 @@ export function verifyHmac(obj, hmacSecret, providedHmac) {
   }
 
   const calculated = crypto.createHmac("sha512", hmacSecret).update(concatenatedString).digest("hex");
-  return calculated === providedHmac;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(calculated, 'hex'), Buffer.from(providedHmac, 'hex'));
+  } catch (e) {
+    return false;
+  }
 }

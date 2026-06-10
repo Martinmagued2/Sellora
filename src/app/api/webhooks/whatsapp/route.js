@@ -52,18 +52,20 @@ export async function POST(request) {
   const signature = headersList.get("x-hub-signature-256");
   const ip = request.headers.get("x-forwarded-for") || "unknown";
 
-  // Verify the webhook signature securely (only if app secret is configured)
-  if (process.env.WHATSAPP_APP_SECRET) {
-    if (!verifyMetaSignature(rawBody, signature, process.env.WHATSAPP_APP_SECRET)) {
-      console.error("[WA-WEBHOOK] Invalid WhatsApp webhook signature");
-      await logSecurityEvent({
-        eventType: "invalid_hmac",
-        ipAddress: ip,
-        route: "/api/webhooks/whatsapp",
-        details: { channel: "whatsapp" },
-      });
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-    }
+  // Verify the webhook signature securely — REQUIRE app secret in production
+  if (!process.env.WHATSAPP_APP_SECRET) {
+    console.error("[WA-WEBHOOK] CRITICAL: WHATSAPP_APP_SECRET not configured. Rejecting request for security.");
+    return NextResponse.json({ error: "Webhook not properly configured" }, { status: 500 });
+  }
+  if (!verifyMetaSignature(rawBody, signature, process.env.WHATSAPP_APP_SECRET)) {
+    console.error("[WA-WEBHOOK] Invalid WhatsApp webhook signature");
+    await logSecurityEvent({
+      eventType: "invalid_hmac",
+      ipAddress: ip,
+      route: "/api/webhooks/whatsapp",
+      details: { channel: "whatsapp" },
+    });
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   let body;

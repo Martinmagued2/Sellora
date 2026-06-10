@@ -267,9 +267,11 @@ function buildProviderChain() {
 
   if (process.env.OPENAI_API_KEY) {
     try {
-      const { openai } = require("@ai-sdk/openai");
+      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
       providers.push({ name: 'openai', model: openai("gpt-4o-mini") });
-    } catch (e) {}
+    } catch (e) {
+      console.warn("[AI] OpenAI setup failed:", e?.message);
+    }
   }
 
   return providers;

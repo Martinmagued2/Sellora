@@ -157,8 +157,9 @@ export async function sendProductListMessage({
 /**
  * Send an image message via WhatsApp
  */
-export async function sendImageMessage({ to, imageUrl, caption, phoneNumberId }) {
+export async function sendImageMessage({ to, imageUrl, caption, phoneNumberId, accessToken }) {
   const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
 
   const response = await fetch(
     `${WHATSAPP_API_URL}/${phoneId}/messages`,
@@ -166,7 +167,7 @@ export async function sendImageMessage({ to, imageUrl, caption, phoneNumberId })
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
@@ -193,8 +194,9 @@ export async function sendImageMessage({ to, imageUrl, caption, phoneNumberId })
 /**
  * Send a document message via WhatsApp
  */
-export async function sendDocumentMessage({ to, documentUrl, filename, caption, phoneNumberId }) {
+export async function sendDocumentMessage({ to, documentUrl, filename, caption, phoneNumberId, accessToken }) {
   const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
 
   const response = await fetch(
     `${WHATSAPP_API_URL}/${phoneId}/messages`,
@@ -202,7 +204,7 @@ export async function sendDocumentMessage({ to, documentUrl, filename, caption, 
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
@@ -255,14 +257,15 @@ export async function listTemplates({ businessAccountId, accessToken }) {
 /**
  * Mark a message as read
  */
-export async function markMessageAsRead({ messageId, phoneNumberId }) {
+export async function markMessageAsRead({ messageId, phoneNumberId, accessToken }) {
   const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
 
   await fetch(`${WHATSAPP_API_URL}/${phoneId}/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
       messaging_product: "whatsapp",

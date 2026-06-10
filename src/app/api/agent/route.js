@@ -5,6 +5,8 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createCopilotTools } from "@/lib/ai/copilot-tools";
+import { getPlanLimits } from "@/lib/plan-limits";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * Sellora Agent API endpoint (alternative route).
@@ -12,6 +14,19 @@ import { createCopilotTools } from "@/lib/ai/copilot-tools";
  * response using available AI providers and the full agent tool set.
  * This mirrors /api/chat but is available as /api/agent for flexibility.
  */
+
+// Lazy-init Supabase admin client to avoid build-time errors
+let _adminClient = null;
+function getAdminClient() {
+  if (!_adminClient) {
+    _adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return _adminClient;
+}
+
 export async function POST(req) {
   try {
     const cookieStore = await cookies();
@@ -32,17 +47,42 @@ export async function POST(req) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch account info for personalization
-    const { createClient } = await import("@supabase/supabase-js");
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-    const { data: account } = await adminClient
+    // ─── Plan-based rate limiting (same as /api/chat) ───
+    const { data: account } = await getAdminClient()
       .from("accounts")
-      .select("business_name, currency")
+      .select("plan, business_name, country, currency")
       .eq("id", user.id)
       .single();
+
+    const planLimits = getPlanLimits(account?.plan || "starter");
+    const maxMsgs = planLimits.copilot_msgs_per_day;
+
+    if (maxMsgs === 0) {
+      return Response.json({ error: "Sellora Agent is not available on your current plan. Please upgrade." }, { status: 403 });
+    }
+
+    // Rate limit check (skip in development)
+    if (maxMsgs !== -1 && process.env.NODE_ENV === "production") {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { count } = await getAdminClient()
+        .from("rate_limits")
+        .select("*", { count: "exact", head: true })
+        .eq("email", user.email)
+        .eq("action", "copilot_msg")
+        .gte("created_at", oneDayAgo);
+
+      if (count >= maxMsgs) {
+        return Response.json({ error: "Daily Agent limit reached. Upgrade for more." }, { status: 429 });
+      }
+    }
+
+    // Log rate limit in production
+    if (process.env.NODE_ENV === "production") {
+      await getAdminClient().from("rate_limits").insert({
+        email: user.email,
+        action: "copilot_msg",
+      });
+    }
 
     const businessName = account?.business_name || "this store";
     const currency = account?.currency || "EGP";

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendMessage, sendProductCard } from "@/lib/channels/meta";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { createClient as createSupabaseClient } from "@supabase/ssr";
 
 const META_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -30,7 +31,7 @@ function getSupabase() {
  */
 export async function POST(request) {
   try {
-    const { conversationId, content, type = "text", product = null, channel: channelOverride } = await request.json();
+    const { conversationId, content, type = "text", product = null, channel: channelOverride, accountId: bodyAccountId } = await request.json();
 
     if (!conversationId || !content) {
       return NextResponse.json({ error: "Missing conversationId or content" }, { status: 400 });
@@ -47,6 +48,20 @@ export async function POST(request) {
 
     if (convError || !conversation) {
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+    }
+
+    // SECURITY: Verify the requester owns this conversation's account
+    // Accept either x-account-id header or accountId in body
+    const claimedAccountId = request.headers.get("x-account-id") || bodyAccountId;
+    if (claimedAccountId && claimedAccountId !== conversation.account_id) {
+      return NextResponse.json({ error: "You do not have access to this conversation" }, { status: 403 });
+    }
+    // If no account ID provided at all, require admin key
+    if (!claimedAccountId) {
+      const adminKey = request.headers.get("x-admin-key");
+      if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+        return NextResponse.json({ error: "Authentication required. Provide x-account-id header or x-admin-key." }, { status: 401 });
+      }
     }
 
     const effectiveChannel = channelOverride || conversation.channel;

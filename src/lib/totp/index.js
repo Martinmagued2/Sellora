@@ -4,7 +4,7 @@
  * No external dependencies required.
  */
 
-const crypto = require("crypto");
+import crypto from 'crypto';
 
 /**
  * Base32 decode - converts a base32 string to a Buffer
@@ -146,7 +146,7 @@ function buildOtpauthUrl(secret, email, issuer = "Sellora") {
   return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(email)}?${params.toString()}`;
 }
 
-module.exports = {
+export {
   generateSecret,
   verifyTOTP,
   calculateTOTP,
