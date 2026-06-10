@@ -34,14 +34,18 @@ export default function OrdersPage() {
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
     let query = supabase
       .from("orders")
       .select("*, customer:customers(name, phone)")
+      .eq("account_id", user.id)
       .order("created_at", { ascending: false });
 
     if (filter !== "all") query = query.eq("status", filter);
     if (search) query = query.ilike("order_number", `%${search}%`);
-    if (currentStoreId) query = query.eq("store_id", currentStoreId);
+    if (currentStoreId) query = query.or(`store_id.eq.${currentStoreId},store_id.is.null`);
 
     const { data, error } = await query;
     if (!error) setOrders(data || []);
@@ -51,7 +55,9 @@ export default function OrdersPage() {
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   const updateStatus = async (id, newStatus) => {
-    await supabase.from("orders").update({ status: newStatus }).eq("id", id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("orders").update({ status: newStatus }).eq("id", id).eq("account_id", user.id);
     fetchOrders();
   };
 

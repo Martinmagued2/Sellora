@@ -270,10 +270,15 @@ export default function ShippingPage() {
   const fetchShipments = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      let query = supabase
         .from("shipment_trackings")
         .select("*")
         .order("created_at", { ascending: false });
+      
+      if (user) query = query.eq("account_id", user.id);
+
+      const { data, error } = await query;
 
       if (!error && data) {
         setShipments(data);
@@ -298,12 +303,15 @@ export default function ShippingPage() {
   // Fetch orders for dropdown
   const fetchOrders = useCallback(async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
       let query = supabase
         .from("orders")
         .select("id, order_number, status")
+        .eq("account_id", user.id)
         .order("created_at", { ascending: false })
         .limit(20);
-      if (currentStoreId) query = query.eq("store_id", currentStoreId);
+      if (currentStoreId) query = query.or(`store_id.eq.${currentStoreId},store_id.is.null`);
       const { data } = await query;
       setOrders(data || []);
     } catch (err) {

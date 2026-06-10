@@ -37,7 +37,10 @@ export default function CustomersPage() {
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
-    let query = supabase.from("customers").select("*").order("total_spent", { ascending: false });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
+    let query = supabase.from("customers").select("*").eq("account_id", user.id).order("total_spent", { ascending: false });
 
     if (filter === "vip") query = query.contains("tags", ["VIP"]);
     if (filter === "new") query = query.contains("tags", ["New"]);
@@ -45,7 +48,7 @@ export default function CustomersPage() {
     if (filter === "instagram") query = query.eq("channel", "instagram");
     if (filter === "facebook") query = query.eq("channel", "facebook");
     if (search) query = query.ilike("name", `%${search}%`);
-    if (currentStoreId) query = query.eq("store_id", currentStoreId);
+    if (currentStoreId) query = query.or(`store_id.eq.${currentStoreId},store_id.is.null`);
 
     const { data, error } = await query;
     if (!error) setCustomers(data || []);
@@ -86,6 +89,7 @@ export default function CustomersPage() {
 
   const handleSaveEnrichment = async () => {
     setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase
       .from("customers")
       .update({
@@ -95,7 +99,8 @@ export default function CustomersPage() {
         address: editForm.address,
         tags: editForm.tags,
       })
-      .eq("id", activeCustomer.id);
+      .eq("id", activeCustomer.id)
+      .eq("account_id", user?.id);
       
     if (!error) {
       setActiveCustomer({ ...activeCustomer, ...editForm });

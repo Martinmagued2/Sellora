@@ -84,14 +84,15 @@ export default function ProductsPage() {
       const { data: account } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
       if (account?.plan) setAccountPlan(account.plan);
     }
+    if (!user) { setLoading(false); return; }
 
-    let query = supabase.from("products").select("*").order("created_at", { ascending: false });
+    let query = supabase.from("products").select("*").eq("account_id", user.id).order("created_at", { ascending: false });
 
     if (filter === "active") query = query.eq("status", "active");
     if (filter === "draft") query = query.eq("status", "draft");
     if (filter === "low") query = query.lte("stock", 5).gt("stock", 0);
     if (search) query = query.ilike("name", `%${search}%`);
-    if (currentStoreId) query = query.eq("store_id", currentStoreId);
+    if (currentStoreId) query = query.or(`store_id.eq.${currentStoreId},store_id.is.null`);
 
     const { data, error } = await query;
     if (!error) setProducts(data || []);
@@ -414,7 +415,7 @@ export default function ProductsPage() {
 
     let error;
     if (editingProduct) {
-      const { error: updateError } = await supabase.from("products").update(payload).eq("id", editingProduct.id);
+      const { error: updateError } = await supabase.from("products").update(payload).eq("id", editingProduct.id).eq("account_id", user.id);
       error = updateError;
     } else {
       if (!imageUrl && !editingProduct) {
@@ -469,7 +470,8 @@ export default function ProductsPage() {
       }
     }
 
-    await supabase.from("products").delete().eq("id", id);
+    const { data: { user: delUser } } = await supabase.auth.getUser();
+    await supabase.from("products").delete().eq("id", id).eq("account_id", delUser?.id);
     fetchProducts();
   };
 
