@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
 import { useConfirm } from "../components/ConfirmProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
+import { PageSkeleton } from "@/components/SkeletonLoader";
 
 const CHANNEL_ICON = {
   instagram: <Camera size={12} />,
@@ -374,7 +375,7 @@ export default function CampaignsPage() {
       </div>
 
       {loading ? (
-        <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>Loading campaigns...</div>
+        <PageSkeleton showStats={false} showTable={false} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
           {campaigns.map((campaign) => (

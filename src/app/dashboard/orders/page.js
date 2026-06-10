@@ -5,6 +5,7 @@ import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, 
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
 import { useToast } from "../components/ToastProvider";
+import { PageSkeleton } from "@/components/SkeletonLoader";
 
 const statusColors = {
   pending: "pending", confirmed: "confirmed", shipped: "active",
@@ -109,7 +110,7 @@ export default function OrdersPage() {
       <div className="dashboard-panel">
         <div className="dashboard-panel-body" style={{ padding: 0 }}>
           {loading ? (
-            <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>Loading orders...</div>
+            <PageSkeleton showStats={false} showTable={false} />
           ) : (
           <div className="table-scroll-wrapper">
             <table className="data-table">

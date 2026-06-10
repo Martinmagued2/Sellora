@@ -22,6 +22,7 @@ import { getPlanLimits } from "@/lib/plan-limits";
 import { useCurrentStore } from "@/lib/store-context";
 import { useToast } from "../components/ToastProvider";
 import { useConfirm } from "../components/ConfirmProvider";
+import { PageSkeleton } from "@/components/SkeletonLoader";
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -569,7 +570,7 @@ export default function ProductsPage() {
       </div>
 
       {loading ? (
-        <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>Loading products...</div>
+        <PageSkeleton showStats={false} showTable={false} />
       ) : (
         <div className="products-grid">
           {products.map((product) => (

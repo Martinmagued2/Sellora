@@ -10,6 +10,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
 import { getPlanLimits, isLimitExceeded } from "@/lib/plan-limits";
+import { PageSkeleton } from "@/components/SkeletonLoader";
 
 const TYPE_CONFIG = {
   percentage: { label: "Percentage", icon: <Percent size={14} />, color: "var(--accent-primary-light)", bg: "rgba(108, 92, 231, 0.12)" },
@@ -347,7 +348,7 @@ export default function CouponsPage() {
 
       {/* Coupon list */}
       {loading ? (
-        <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>Loading coupons...</div>
+        <PageSkeleton showStats={false} showTable={false} />
       ) : filteredCoupons.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><Tag size={32} /></div>

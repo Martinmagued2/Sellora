@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import InventoryAlerts from "@/app/dashboard/components/InventoryAlerts";
+import { DashboardSkeleton } from "@/components/SkeletonLoader";
 
 export default function DashboardHome() {
   const [stats, setStats] = useState(null);
@@ -107,7 +108,7 @@ export default function DashboardHome() {
   }, []);
 
   if (loading || !stats) {
-    return <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>Loading dashboard...</div>;
+    return <DashboardSkeleton />;
   }
 
   const formatResponseTime = (seconds) => {

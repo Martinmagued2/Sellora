@@ -7,6 +7,7 @@ import {
   ArrowRight, AlertCircle, RefreshCw, Filter,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { PageSkeleton } from "@/components/SkeletonLoader";
 
 const statusConfig = {
   abandoned: { color: "var(--accent-orange)", bg: "rgba(255, 145, 0, 0.1)", label: "Abandoned" },
@@ -336,10 +337,7 @@ export default function AbandonedCartsPage() {
       <div className="dashboard-panel">
         <div className="dashboard-panel-body" style={{ padding: 0 }}>
           {loading ? (
-            <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>
-              <Loader2 size={32} className="spin" style={{ color: "var(--accent-primary)", marginBottom: 12 }} />
-              <div>Loading abandoned carts...</div>
-            </div>
+            <PageSkeleton showStats={false} showTable={false} />
           ) : filteredCarts.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">

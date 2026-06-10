@@ -4,3 +4,4 @@ export { default as FilterBar } from "./FilterBar";
 export { default as EmptyState } from "./EmptyState";
 export { default as LoadingSpinner } from "./LoadingSpinner";
 export { default as ConfirmDialog } from "./ConfirmDialog";
+export { Skeleton, StatCardSkeleton, PanelSkeleton, TableSkeleton, DashboardSkeleton, PageSkeleton } from "./SkeletonLoader";

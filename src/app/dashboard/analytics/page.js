@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
+import { PageSkeleton } from "@/components/SkeletonLoader";
 
 function TrendArrow({ value }) {
   if (value == null || value === 0) return null;
@@ -167,7 +168,7 @@ export default function AnalyticsPage() {
   };
 
   if (loading || !stats) {
-    return <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>Loading analytics...</div>;
+    return <PageSkeleton showStats={true} showTable={false} />;
   }
 
   const intentColors = {

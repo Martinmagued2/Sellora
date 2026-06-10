@@ -1669,6 +1669,35 @@ select.form-input {
   background: var(--bg-glass-hover);
 }
 
+/* ---------- Skeleton Loading ---------- */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-block {
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 25%,
+    rgba(108, 92, 231, 0.06) 37%,
+    var(--bg-card) 63%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Make sure skeleton cards match existing card styles */
+.stat-card .skeleton-block {
+  background: linear-gradient(
+    90deg,
+    var(--bg-glass) 25%,
+    rgba(108, 92, 231, 0.08) 37%,
+    var(--bg-glass) 63%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
 /* ---------- Responsive: Tablet (1024px) ---------- */
 @media (max-width: 1024px) {
   .stats-grid {

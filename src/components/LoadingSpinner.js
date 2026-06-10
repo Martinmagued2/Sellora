@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Loading spinner component
+ * Loading spinner component (legacy — prefer SkeletonLoader for new pages)
  * Props: size (sm/md/lg), text
  */
 export default function LoadingSpinner({ size = "md", text }) {
