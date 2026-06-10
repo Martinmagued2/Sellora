@@ -122,11 +122,42 @@ export async function POST(request) {
         let reminderMessage = message;
         if (!reminderMessage) {
           if (is_second_reminder) {
-            // Second reminder with discount
+            // Second reminder with discount — create a REAL coupon in the database
             const couponCode = `SAVE${discountPct}${Date.now().toString(36).toUpperCase()}`;
-            reminderMessage = `Hey ${customerName}! We noticed you still haven't completed your order 🛒 ${itemsList}. Here's a special discount just for you: use code ${couponCode} for ${discountPct}% off! Don't miss out!`;
 
-            // Save coupon to cart
+            // Calculate cart total for min_order_value
+            const cartTotal = Array.isArray(cart.items)
+              ? cart.items.reduce((sum, i) => sum + (i.price || 0) * (i.qty || 1), 0)
+              : 0;
+
+            // Create the coupon in the database so it actually validates
+            const { data: newCoupon, error: couponError } = await supabase
+              .from("coupons")
+              .insert({
+                account_id: cart.account_id,
+                code: couponCode,
+                type: "percentage",
+                value: discountPct,
+                min_order_value: Math.max(0, cartTotal * 0.5), // Min 50% of cart value
+                max_uses: 1, // Single-use coupon
+                used_count: 0,
+                starts_at: new Date().toISOString(),
+                expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Expires in 7 days
+                applies_to: "all",
+                is_active: true,
+              })
+              .select()
+              .single();
+
+            if (!couponError && newCoupon) {
+              reminderMessage = `Hey ${customerName}! We noticed you still haven't completed your order 🛒 ${itemsList}. Here's a special discount just for you: use code ${couponCode} for ${discountPct}% off! Valid for 7 days. Don't miss out!`;
+            } else {
+              // Fallback if coupon creation fails — still mention the discount
+              console.error("[SEND-REMINDER] Failed to create coupon:", couponError);
+              reminderMessage = `Hey ${customerName}! We noticed you still haven't completed your order 🛒 ${itemsList}. We'd love to help you checkout! Reply to get a special discount.`;
+            }
+
+            // Save coupon code to cart (for tracking)
             await supabase
               .from("abandoned_carts")
               .update({ coupon_code: couponCode })
@@ -135,8 +166,34 @@ export async function POST(request) {
             reminderMessage = `Hey ${customerName}! You left some items in your cart 🛒 ${itemsList}. Want to complete your order? We'd love to help you checkout!`;
 
             if (include_discount) {
+              // Create a real coupon for first-reminder discounts too
               const couponCode = `SAVE${discountPct}${Date.now().toString(36).toUpperCase()}`;
-              reminderMessage += ` Here's a special discount: ${couponCode} for ${discountPct}% off!`;
+
+              const cartTotal = Array.isArray(cart.items)
+                ? cart.items.reduce((sum, i) => sum + (i.price || 0) * (i.qty || 1), 0)
+                : 0;
+
+              const { data: newCoupon, error: couponError } = await supabase
+                .from("coupons")
+                .insert({
+                  account_id: cart.account_id,
+                  code: couponCode,
+                  type: "percentage",
+                  value: discountPct,
+                  min_order_value: Math.max(0, cartTotal * 0.5),
+                  max_uses: 1,
+                  used_count: 0,
+                  starts_at: new Date().toISOString(),
+                  expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                  applies_to: "all",
+                  is_active: true,
+                })
+                .select()
+                .single();
+
+              if (!couponError && newCoupon) {
+                reminderMessage += ` Here's a special discount: ${couponCode} for ${discountPct}% off! Valid for 7 days.`;
+              }
 
               await supabase
                 .from("abandoned_carts")

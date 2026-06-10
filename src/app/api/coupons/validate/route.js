@@ -130,6 +130,35 @@ export async function POST(req) {
       }
     }
 
+    // 6. Enforce applies_to / product_ids / categories if items provided
+    const { items } = body;
+    if (items && Array.isArray(items) && coupon.applies_to !== "all") {
+      const itemProductIds = items.map(i => i.product_id).filter(Boolean);
+      const itemCategories = [...new Set(items.map(i => i.category).filter(Boolean))];
+
+      if (coupon.applies_to === "specific_products" && coupon.product_ids?.length > 0) {
+        const hasMatchingProduct = itemProductIds.some(pid => coupon.product_ids.includes(pid));
+        if (!hasMatchingProduct) {
+          return NextResponse.json({
+            valid: false,
+            error: "This coupon does not apply to any products in your order",
+            coupon: { code: coupon.code, type: coupon.type, applies_to: coupon.applies_to },
+          });
+        }
+      }
+
+      if (coupon.applies_to === "specific_categories" && coupon.categories?.length > 0) {
+        const hasMatchingCategory = itemCategories.some(cat => coupon.categories.includes(cat));
+        if (!hasMatchingCategory) {
+          return NextResponse.json({
+            valid: false,
+            error: "This coupon does not apply to any categories in your order",
+            coupon: { code: coupon.code, type: coupon.type, applies_to: coupon.applies_to },
+          });
+        }
+      }
+    }
+
     // Coupon is valid! Calculate discount
     let discountAmount = 0;
     const orderTotal = order_total ? parseFloat(order_total) : 0;

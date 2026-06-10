@@ -18,14 +18,14 @@ function getSupabaseAdmin() {
  * POST /api/paymob/order-checkout
  *
  * Generates a Paymob payment link for a customer order.
- * The link can be sent to the customer via chat or accessed from the orders page.
+ * Supports coupon discounts — the payment amount is adjusted after discount.
  *
- * Body: { orderId }
- * Response: { checkoutUrl, paymentLink }
+ * Body: { orderId, coupon_code?, discount_amount? }
+ * Response: { checkoutUrl, paymentLink, adjusted_total? }
  */
 export async function POST(request) {
   try {
-    const { orderId } = await request.json();
+    const { orderId, coupon_code, discount_amount } = await request.json();
 
     if (!orderId) {
       return NextResponse.json({ error: "Missing orderId" }, { status: 400 });
@@ -54,8 +54,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "Order is already paid", checkoutUrl: order.payment_link }, { status: 400 });
     }
 
-    // 2. If payment link already exists, return it
-    if (order.payment_link) {
+    // 2. If payment link already exists AND no coupon is being applied, return existing link
+    if (order.payment_link && !coupon_code) {
       return NextResponse.json({
         checkoutUrl: order.payment_link,
         paymentLink: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/${order.id}`,
@@ -63,8 +63,46 @@ export async function POST(request) {
       });
     }
 
-    // 3. Create Paymob checkout session
-    const amountCents = Math.round(order.total * 100); // Convert EGP to cents
+    // 3. Calculate the adjusted total if a coupon is applied
+    let finalTotal = parseFloat(order.total);
+    let discountAmount = 0;
+
+    if (coupon_code) {
+      // If discount_amount is explicitly provided, use it
+      if (discount_amount !== undefined && discount_amount !== null) {
+        discountAmount = parseFloat(discount_amount);
+      } else {
+        // Otherwise, validate the coupon to get the discount
+        const validateRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/coupons/validate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: coupon_code,
+            order_total: order.total,
+            account_id: order.account_id,
+            items: order.items,
+          }),
+        });
+        const validateData = await validateRes.json();
+
+        if (validateData.valid) {
+          discountAmount = parseFloat(validateData.discount_amount || 0);
+        }
+      }
+
+      finalTotal = Math.max(0, finalTotal - discountAmount);
+
+      // Update the order with coupon info and adjusted total
+      await supabase.from("orders").update({
+        coupon_code: coupon_code,
+        discount_amount: discountAmount,
+        subtotal: parseFloat(order.total),
+        total: finalTotal,
+      }).eq("id", orderId);
+    }
+
+    // 4. Create Paymob checkout session with the (possibly discounted) amount
+    const amountCents = Math.round(finalTotal * 100); // Convert to cents
     const merchantOrderId = `ord_${order.order_number}_${Date.now()}`;
 
     const customerName = order.customer?.name || "Customer";
@@ -84,7 +122,7 @@ export async function POST(request) {
       },
     });
 
-    // 4. Save payment link and Paymob order ID to the order
+    // 5. Save payment link and Paymob order ID to the order
     const paymentLink = `${process.env.NEXT_PUBLIC_APP_URL}/checkout/${order.id}`;
 
     await supabase.from("orders").update({
@@ -97,7 +135,7 @@ export async function POST(request) {
       account_id: order.account_id,
       merchant_order_id: merchantOrderId,
       paymob_order_id: checkoutResult.paymobOrderId.toString(),
-      amount: order.total,
+      amount: finalTotal,
       currency: order.currency || "EGP",
       status: "pending",
       plan_purchased: null,
@@ -107,13 +145,22 @@ export async function POST(request) {
       console.error("[PAYMOB-ORDER] Failed to insert payment record:", paymentInsertError);
     }
 
-    console.log(`[PAYMOB-ORDER] Checkout created for order ${order.order_number}, Paymob order ID: ${checkoutResult.paymobOrderId}`);
+    console.log(`[PAYMOB-ORDER] Checkout created for order ${order.order_number}, Paymob order ID: ${checkoutResult.paymobOrderId}, Amount: ${finalTotal} (discount: ${discountAmount})`);
 
-    return NextResponse.json({
+    const response = {
       checkoutUrl: checkoutResult.checkoutUrl,
       paymentLink,
       paymobOrderId: checkoutResult.paymobOrderId,
-    });
+    };
+
+    // Include adjusted total if coupon was applied
+    if (coupon_code) {
+      response.adjusted_total = finalTotal;
+      response.discount_amount = discountAmount;
+      response.original_total = parseFloat(order.total);
+    }
+
+    return NextResponse.json(response);
 
   } catch (err) {
     console.error("[PAYMOB-ORDER] Error:", err);

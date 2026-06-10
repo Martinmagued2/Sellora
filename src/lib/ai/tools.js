@@ -529,8 +529,9 @@ export const createSalesTools = (accountId, customerId) => {
         shipping_address: z.string().optional().describe("Alternative shipping address parameter"),
         paymentMethod: z.enum(["cod", "vodafone_cash", "instapay"]).optional().describe("Payment method"),
         payment_method: z.enum(["cod", "vodafone_cash", "instapay"]).optional().describe("Alternative payment method parameter"),
+        coupon_code: z.string().optional().describe("Coupon code to apply to this order (optional)"),
       }),
-      execute: async ({ items, shippingAddress, shipping_address, paymentMethod, payment_method }) => {
+      execute: async ({ items, shippingAddress, shipping_address, paymentMethod, payment_method, coupon_code }) => {
         const finalShippingAddress = shippingAddress || shipping_address || "Address needed";
         const finalPaymentMethod = paymentMethod || payment_method || "cod";
 
@@ -544,7 +545,7 @@ export const createSalesTools = (accountId, customerId) => {
 
           const { data } = await getSupabase()
             .from("products")
-            .select("id, name, price, stock, variants")
+            .select("id, name, price, stock, variants, category")
             .eq("id", finalId)
             .eq("account_id", accountId)
             .single();
@@ -555,7 +556,8 @@ export const createSalesTools = (accountId, customerId) => {
               product_id: data.id,
               name: data.name,
               price: data.price,
-              qty: item.quantity
+              qty: item.quantity,
+              category: data.category,
             });
           } else if (data) {
              return { success: false, error: `Insufficient stock for ${data.name}. Only ${data.stock} available.` };
@@ -566,15 +568,61 @@ export const createSalesTools = (accountId, customerId) => {
            return { success: false, error: "No valid items to order." };
         }
 
-        // 2. Insert Order
+        // 2. Apply coupon if provided
+        let discountAmount = 0;
+        let couponId = null;
+        const subtotal = total;
+        const currency = await getAccountCurrency(accountId);
+
+        if (coupon_code) {
+          const { data: coupon, error: couponError } = await getSupabase()
+            .from("coupons")
+            .select("*")
+            .eq("account_id", accountId)
+            .eq("code", coupon_code.trim().toUpperCase())
+            .single();
+
+          if (!couponError && coupon) {
+            // Validate
+            const now = new Date();
+            if (coupon.is_active &&
+                (!coupon.starts_at || new Date(coupon.starts_at) <= now) &&
+                (!coupon.expires_at || new Date(coupon.expires_at) >= now) &&
+                (coupon.max_uses === null || coupon.used_count < coupon.max_uses) &&
+                (!coupon.min_order_value || total >= parseFloat(coupon.min_order_value))) {
+              
+              // Calculate discount
+              if (coupon.type === "percentage") {
+                discountAmount = total * (coupon.value / 100);
+                discountAmount = Math.min(discountAmount, total);
+              } else if (coupon.type === "fixed") {
+                discountAmount = Math.min(parseFloat(coupon.value), total);
+              }
+
+              total = Math.max(0, total - discountAmount);
+              couponId = coupon.id;
+
+              // Increment used_count
+              await getSupabase()
+                .from("coupons")
+                .update({ used_count: coupon.used_count + 1 })
+                .eq("id", coupon.id);
+            }
+          }
+        }
+
+        // 3. Insert Order
         const { data: order, error } = await getSupabase()
           .from("orders")
           .insert({
             account_id: accountId,
             customer_id: customerId,
             items: dbItems,
-            subtotal: total,
+            subtotal: subtotal,
             total: total,
+            coupon_id: couponId,
+            coupon_code: coupon_code ? coupon_code.trim().toUpperCase() : null,
+            discount_amount: discountAmount,
             status: "pending",
             payment_method: finalPaymentMethod,
             shipping_address: finalShippingAddress,
@@ -587,13 +635,12 @@ export const createSalesTools = (accountId, customerId) => {
           return { success: false, error: "Failed to create order" };
         }
 
-        // 3. Decrement stock for each item
+        // 4. Decrement stock for each item
         for (const item of dbItems) {
           await getSupabase().rpc('decrement_stock', {
             p_id: item.product_id,
             qty: item.qty
           }).catch(async () => {
-            // Fallback if RPC doesn't exist: manual decrement
             const { data: prod } = await getSupabase()
               .from("products")
               .select("stock")
@@ -608,12 +655,72 @@ export const createSalesTools = (accountId, customerId) => {
           });
         }
 
-        return { 
+        const result = { 
           success: true, 
           message: "Order created successfully", 
           order_number: order.order_number,
-          total
+          subtotal: subtotal,
+          total,
+          currency,
         };
+
+        if (discountAmount > 0) {
+          result.discount_amount = discountAmount;
+          result.coupon_code = coupon_code.trim().toUpperCase();
+          result.message += ` Coupon ${coupon_code.trim().toUpperCase()} applied! ${discountAmount.toFixed(2)} ${currency} discount.`;
+        }
+
+        return result;
+      },
+    }),
+
+    redeem_coupon: tool({
+      description: "Redeem (apply) a coupon code for a customer. This decrements the coupon's usage count and returns the discount amount. Use this AFTER validating the coupon with validate_coupon, when the customer confirms they want to apply the discount. This is the action that actually uses up the coupon.",
+      inputSchema: z.object({
+        code: z.string().describe("The coupon code to redeem"),
+        order_total: z.coerce.number().describe("The current order total (before discount)"),
+        order_id: z.string().optional().describe("The order ID to link the coupon to (if an order exists)"),
+      }),
+      execute: async ({ code, order_total, order_id }) => {
+        if (!code || !code.trim()) {
+          return { success: false, error: "Coupon code is required" };
+        }
+
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+          const res = await fetch(`${baseUrl}/api/coupons/redeem`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              code: code.trim(),
+              order_total,
+              account_id: accountId,
+              order_id: order_id || null,
+            }),
+          });
+
+          const data = await res.json();
+
+          if (data.redeemed) {
+            const currency = await getAccountCurrency(accountId);
+            return {
+              success: true,
+              redeemed: true,
+              discount_amount: data.discount_amount,
+              currency,
+              coupon: data.coupon,
+              message: data.coupon.type === "percentage"
+                ? `Coupon ${data.coupon.code} redeemed! ${data.coupon.value}% off = ${data.discount_amount.toFixed(2)} ${currency} discount. New total: ${(order_total - data.discount_amount).toFixed(2)} ${currency}`
+                : data.coupon.type === "fixed"
+                ? `Coupon ${data.coupon.code} redeemed! ${data.coupon.value} ${currency} off. New total: ${(order_total - data.discount_amount).toFixed(2)} ${currency}`
+                : `Coupon ${data.coupon.code} redeemed! Free shipping applied.`,
+            };
+          } else {
+            return { success: false, redeemed: false, error: data.error || "Failed to redeem coupon" };
+          }
+        } catch (err) {
+          return { success: false, error: "Failed to redeem coupon: " + err.message };
+        }
       },
     }),
   };
