@@ -5,6 +5,7 @@ import { parseWebhookMessage, markMessageAsRead } from "@/lib/whatsapp";
 import { processIncomingMessage } from "@/lib/channels/processor";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
+import crypto from 'crypto';
 
 // Service role client for webhook processing (lazy-initialized)
 let _supabase = null;
@@ -29,9 +30,17 @@ export async function GET(request) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN) {
-    console.log("[WA-WEBHOOK] Verification successful");
-    return new Response(challenge, { status: 200 });
+  // 🔒 SECURITY: Timing-safe comparison to prevent timing attacks
+  const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  if (mode === "subscribe" && token && expectedToken) {
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
+        console.log("[WA-WEBHOOK] Verification successful");
+        return new Response(challenge, { status: 200 });
+      }
+    } catch (e) {
+      // Length mismatch — fall through to failure
+    }
   }
 
   console.warn("[WA-WEBHOOK] Verification failed");

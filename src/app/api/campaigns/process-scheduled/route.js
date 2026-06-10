@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -17,9 +18,33 @@ function getSupabase() {
  * POST /api/campaigns/process-scheduled
  * Cron-ready endpoint that processes all scheduled campaigns whose scheduled_at has passed.
  * Can be called by a cron job (e.g., Vercel Cron, GitHub Actions, etc.)
+ *
+ * Authentication: Requires either:
+ *   1. x-cron-secret header matching CRON_SECRET env var, OR
+ *   2. Admin authentication via verifyAdmin
  */
 export async function POST(req) {
   try {
+    // ── Authentication: cron secret or admin ──
+    const cronSecret = req.headers.get("x-cron-secret");
+    const hasCronSecret = cronSecret && process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET;
+
+    let isAuthenticated = false;
+
+    if (hasCronSecret) {
+      isAuthenticated = true;
+    } else {
+      // Fallback to admin auth when CRON_SECRET is not set or doesn't match
+      const adminCheck = await verifyAdmin(req);
+      if (adminCheck.isAdmin) {
+        isAuthenticated = true;
+      }
+    }
+
+    if (!isAuthenticated) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const supabase = getSupabase();
 
     // Find all scheduled campaigns where scheduled_at <= now
@@ -51,8 +76,8 @@ export async function POST(req) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            // Use service role key for internal call authentication
-            "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            // Use x-internal-key header instead of Authorization Bearer
+            "x-internal-key": process.env.SUPABASE_SERVICE_ROLE_KEY || "",
           },
           body: JSON.stringify({ campaignId: campaign.id }),
         });

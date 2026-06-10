@@ -36,7 +36,7 @@ function getSupabase() {
  * - Cloud metadata endpoints (169.254.169.254)
  * - IPv6 loopback and link-local
  */
-function isWebhookUrlSafe(urlString) {
+export function isWebhookUrlSafe(urlString) {
   try {
     const url = new URL(urlString);
     // Only allow http: and https: protocols

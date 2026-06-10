@@ -130,8 +130,9 @@ export async function POST(request) {
   } catch (err) {
     console.error("[TEST-INCOMING] Error:", err.message);
     console.error("[TEST-INCOMING] Stack:", err.stack);
+    // 🔒 SECURITY: Don't leak stack trace to client
     return NextResponse.json(
-      { error: err.message, stack: err.stack },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

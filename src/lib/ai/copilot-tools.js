@@ -678,6 +678,12 @@ export const createCopilotTools = (accountId) => {
           }
 
           const { account_id, channel, customer } = conversation;
+
+          // SECURITY: Verify the conversation belongs to the current account
+          if (account_id !== accountId) {
+            return { success: false, error: "Conversation does not belong to your account" };
+          }
+
           const recipientId = customer?.platform_id;
           const customerName = customer?.name || 'Customer';
 

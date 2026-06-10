@@ -28,12 +28,9 @@ export async function GET(request) {
   const errorReason = url.searchParams.get("error_reason");
   const errorMessage = url.searchParams.get("error_message");
 
-  // Debug: Log everything we receive
-  console.log("[META-CALLBACK] Full URL:", request.url);
-  console.log("[META-CALLBACK] Code:", code ? `${code.substring(0, 10)}...` : "MISSING");
-  console.log("[META-CALLBACK] State:", state || "MISSING");
-  console.log("[META-CALLBACK] Error:", error || "none");
-  console.log("[META-CALLBACK] All params:", Object.fromEntries(url.searchParams.entries()));
+  // Debug: Log callback receipt (no sensitive data)
+  console.log("[META-CALLBACK] OAuth callback received");
+  console.log("[META-CALLBACK] Params received");
 
   // Determine the public base URL
   // On Vercel, the request.url origin is internal, so we use x-forwarded-host
@@ -70,9 +67,37 @@ export async function GET(request) {
     );
   }
 
+  // SECURITY: Verify the user is authenticated before processing the OAuth callback
+  const { createServerClient: createServerClientSSR } = await import("@supabase/ssr");
+  const { cookies: getCookies } = await import("next/headers");
+
+  let authenticatedUserId = null;
+  try {
+    const cookieStore = await getCookies();
+    const supabaseAuth = createServerClientSSR(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { cookies: { getAll() { return cookieStore.getAll(); } } }
+    );
+    const { data: { user }, error: authErr } = await supabaseAuth.auth.getUser();
+    if (!authErr && user) {
+      authenticatedUserId = user.id;
+    }
+  } catch (e) {
+    console.warn("[META-CALLBACK] Could not verify user session:", e.message);
+  }
+
   // Parse the state: "instagram_{accountId}" or "facebook_{accountId}"
   const [platform, ...accountIdParts] = state.split("_");
   const accountId = accountIdParts.join("_");
+
+  // SECURITY: Verify accountId from state matches the authenticated user
+  if (authenticatedUserId && accountId !== authenticatedUserId) {
+    console.error(`[META-CALLBACK] Account ID mismatch: state=${accountId}, auth=${authenticatedUserId}`);
+    return NextResponse.redirect(
+      redirectUrl("/dashboard/settings?tab=channels&error=auth_mismatch")
+    );
+  }
 
   if (!["instagram", "facebook"].includes(platform) || !accountId) {
     console.error(`[META-CALLBACK] Invalid OAuth state: ${state}`);
@@ -119,7 +144,7 @@ export async function GET(request) {
     }
 
     const userAccessToken = tokenData.access_token;
-    console.log("[META-CALLBACK] Full token response:", JSON.stringify(tokenData));
+    console.log("[META-CALLBACK] Token exchange successful");
 
     // Extract page IDs from granular_scopes if available
     // Facebook includes the specific page IDs the user authorized in granular_scopes
@@ -197,7 +222,7 @@ export async function GET(request) {
         { method: "GET" }
       );
       const pagesData2 = await pagesResponse2.json();
-      console.log("[META-CALLBACK] Strategy B result:", JSON.stringify(pagesData2));
+      console.log("[META-CALLBACK] Strategy B result:", pagesData2.data?.length || 0, "pages");
 
       if (pagesData2.data && pagesData2.data.length > 0) {
         const page = pagesData2.data[0];
@@ -216,7 +241,7 @@ export async function GET(request) {
         { method: "GET" }
       );
       const meData = await meResponse.json();
-      console.log("[META-CALLBACK] User info:", JSON.stringify(meData));
+      console.log("[META-CALLBACK] User ID:", meData.id);
 
       if (meData.id) {
         const userPagesResponse = await fetch(
@@ -224,7 +249,7 @@ export async function GET(request) {
           { method: "GET" }
         );
         const userPagesData = await userPagesResponse.json();
-        console.log("[META-CALLBACK] Strategy C result:", JSON.stringify(userPagesData));
+        console.log("[META-CALLBACK] Strategy C result:", userPagesData.data?.length || 0, "pages");
 
         if (userPagesData.data && userPagesData.data.length > 0) {
           const page = userPagesData.data[0];
@@ -245,7 +270,7 @@ export async function GET(request) {
           { method: "GET" }
         );
         const bizData = await bizResponse.json();
-        console.log("[META-CALLBACK] Strategy D result:", JSON.stringify(bizData));
+        console.log("[META-CALLBACK] Strategy D result:", bizData.data?.length || 0, "businesses");
 
         if (bizData.data) {
           for (const biz of bizData.data) {
@@ -286,7 +311,7 @@ export async function GET(request) {
             { method: "GET" }
           );
           const pageInfoData = await pageInfoResponse.json();
-          console.log(`[META-CALLBACK] Strategy E page ${pid}:`, JSON.stringify(pageInfoData));
+          console.log("[META-CALLBACK] Strategy E page:", pageInfoData.id, pageInfoData.name || "unnamed");
 
           if (pageInfoData.id && !pageInfoData.error) {
             pageId = pageInfoData.id;
@@ -410,7 +435,7 @@ export async function GET(request) {
       );
 
       const igAccountData = await igAccountResponse.json();
-      console.log("[META-CALLBACK] IG account lookup:", JSON.stringify(igAccountData));
+      console.log("[META-CALLBACK] IG account found:", igAccountData.instagram_business_account?.username || "yes");
 
       if (igAccountData.instagram_business_account) {
         const igAccount = igAccountData.instagram_business_account;

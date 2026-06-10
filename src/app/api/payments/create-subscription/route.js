@@ -171,6 +171,7 @@ export async function POST(req) {
 
   } catch (error) {
     console.error("Paymob Integration Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // 🔒 SECURITY: Don't leak internal error details to client
+    return NextResponse.json({ error: "Failed to create subscription. Please try again." }, { status: 500 });
   }
 }

@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 // Service role client (lazy-initialized)
@@ -23,9 +25,25 @@ export async function POST(req) {
     const body = await req.json().catch(() => ({}));
     const { account_id } = body;
 
-    if (!account_id) {
-      return NextResponse.json({ error: "account_id is required" }, { status: 400 });
+    // ── Authentication check ──
+    const cookieStore = await cookies();
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { cookies: { getAll() { return cookieStore.getAll(); } } }
+    );
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify account_id matches authenticated user
+    if (account_id && account_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden — account_id does not match authenticated user" }, { status: 403 });
+    }
+
+    // If no account_id provided, use the authenticated user's ID
+    const effectiveAccountId = account_id || user.id;
 
     const supabase = getSupabase();
 
@@ -33,7 +51,7 @@ export async function POST(req) {
     const { data: account } = await supabase
       .from("accounts")
       .select("id, business_name, auto_follow_up_enabled")
-      .eq("id", account_id)
+      .eq("id", effectiveAccountId)
       .single();
 
     if (!account?.auto_follow_up_enabled) {
@@ -46,7 +64,7 @@ export async function POST(req) {
     const { data: unpaidOrders, error: ordersError } = await supabase
       .from("orders")
       .select("id, order_number, total, items, created_at, customer_id, payment_status, payment_method")
-      .eq("account_id", account_id)
+      .eq("account_id", effectiveAccountId)
       .eq("payment_status", "unpaid")
       .in("status", ["pending", "confirmed"])
       .lt("created_at", twentyFourHoursAgo);
@@ -67,7 +85,7 @@ export async function POST(req) {
       const { data: conversation } = await supabase
         .from("conversations")
         .select("id, channel, customer_id")
-        .eq("account_id", account_id)
+        .eq("account_id", effectiveAccountId)
         .eq("customer_id", order.customer_id)
         .in("status", ["new", "open", "in_progress", "waiting_customer"])
         .order("last_message_at", { ascending: false })

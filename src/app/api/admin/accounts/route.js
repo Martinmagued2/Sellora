@@ -45,7 +45,8 @@ export async function GET(request) {
       .order("created_at", { ascending: false });
 
     if (search) {
-      query = query.or(`business_name.ilike.%${search}%,email.ilike.%${search}%,owner_name.ilike.%${search}%`);
+      const sanitizedSearch = (search || '').replace(/[%)_(,.]/g, '\\$&');
+      query = query.or(`business_name.ilike.%${sanitizedSearch}%,email.ilike.%${sanitizedSearch}%,owner_name.ilike.%${sanitizedSearch}%`);
     }
     if (plan) {
       query = query.eq("plan", plan);
@@ -57,7 +58,8 @@ export async function GET(request) {
       .select("id", { count: "exact", head: true });
 
     if (search) {
-      countQuery = countQuery.or(`business_name.ilike.%${search}%,email.ilike.%${search}%,owner_name.ilike.%${search}%`);
+      const sanitizedSearch = (search || '').replace(/[%)_(,.]/g, '\\$&');
+      countQuery = countQuery.or(`business_name.ilike.%${sanitizedSearch}%,email.ilike.%${sanitizedSearch}%,owner_name.ilike.%${sanitizedSearch}%`);
     }
     if (plan) {
       countQuery = countQuery.eq("plan", plan);

@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { isRateLimited } from "@/lib/rate-limit";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -31,6 +32,12 @@ function getSupabase() {
  */
 export async function POST(req) {
   try {
+    // Rate limiting: 10 redemptions per minute per IP
+    const ip = req.headers.get("x-forwarded-for") || "unknown";
+    if (isRateLimited(`coupon-redeem:${ip}`, 10, 60000)) {
+      return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+    }
+
     const body = await req.json();
     const { code, order_id, order_total, account_id: bodyAccountId, customer_id } = body;
 
@@ -38,35 +45,48 @@ export async function POST(req) {
       return NextResponse.json({ error: "Coupon code is required" }, { status: 400 });
     }
 
-    let accountId = bodyAccountId;
+    // Sanitize coupon code: max 50 chars, alphanumeric + dash/underscore only
+    const sanitizedCode = code.trim().substring(0, 50).toUpperCase();
+    if (!/^[A-Z0-9_-]+$/.test(sanitizedCode)) {
+      return NextResponse.json({ error: "Invalid coupon code format" }, { status: 400 });
+    }
 
-    // If no account_id provided, try to get from auth
-    if (!accountId) {
-      try {
-        const cookieStore = await cookies();
-        const supabaseAuth = createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-          {
-            cookies: {
-              getAll() {
-                return cookieStore.getAll();
-              },
+    let accountId = null;
+    let authedUserId = null;
+
+    // 🔒 SECURITY: Always authenticate first, then optionally allow account_id override
+    try {
+      const cookieStore = await cookies();
+      const supabaseAuth = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+          cookies: {
+            getAll() {
+              return cookieStore.getAll();
             },
-          }
-        );
-
-        const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-        if (!authError && user) {
-          accountId = user.id;
+          },
         }
-      } catch (e) {
-        // No auth cookies - may be called from AI agent
+      );
+
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+      if (!authError && user) {
+        accountId = user.id;
+        authedUserId = user.id;
       }
+    } catch (e) {
+      // No auth cookies
+    }
+
+    // Allow account_id override ONLY for server-to-server calls (admin key)
+    if (bodyAccountId && authedUserId) {
+      // If authenticated user provides account_id, it must match their own ID
+      // unless they're an admin (admin check is deferred to a separate endpoint)
+      accountId = bodyAccountId === authedUserId ? bodyAccountId : authedUserId;
     }
 
     if (!accountId) {
-      return NextResponse.json({ error: "Account ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     const supabase = getSupabase();
@@ -166,23 +186,20 @@ export async function POST(req) {
       discountAmount = Math.min(discountAmount, orderTotal);
     }
 
-    // ─── Step 5: Atomically increment used_count using RPC or raw SQL ───
-    // Use atomic update with a condition to prevent race conditions
-    const { data: updatedCoupon, error: updateError } = await supabase
-      .from("coupons")
-      .update({ used_count: coupon.used_count + 1 })
-      .eq("id", coupon.id)
-      // Double-check max_uses hasn't been exceeded (race condition guard)
-      .or(`max_uses.is.null,used_count.lt.${coupon.max_uses ?? Infinity}`)
-      .select()
-      .single();
+    // ─── Step 5: Atomically increment used_count via RPC ───
+    // Uses a PostgreSQL function for true atomicity (used_count = used_count + 1)
+    // This prevents race conditions where concurrent requests could lose increments
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('redeem_coupon_atomic', { p_coupon_id: coupon.id });
 
-    if (updateError || !updatedCoupon) {
+    if (rpcError || !rpcResult || rpcResult.length === 0) {
       return NextResponse.json({
         redeemed: false,
         error: "Failed to redeem coupon — it may have just reached its usage limit",
       });
     }
+
+    const updatedCoupon = rpcResult[0];
 
     // ─── Step 6: Update the order with coupon info if order_id provided ───
     if (order_id) {

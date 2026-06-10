@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { isRateLimited } from "@/lib/rate-limit";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -24,6 +25,12 @@ function getSupabase() {
  */
 export async function POST(req) {
   try {
+    // Rate limiting: 20 validations per minute per IP
+    const ip = req.headers.get("x-forwarded-for") || "unknown";
+    if (isRateLimited(`coupon-validate:${ip}`, 20, 60000)) {
+      return NextResponse.json({ valid: false, error: "Too many requests." }, { status: 429 });
+    }
+
     const body = await req.json();
     const { code, order_total, account_id: bodyAccountId } = body;
 
@@ -31,35 +38,46 @@ export async function POST(req) {
       return NextResponse.json({ valid: false, error: "Coupon code is required" }, { status: 400 });
     }
 
-    let accountId = bodyAccountId;
+    // Sanitize coupon code: max 50 chars, alphanumeric + dash/underscore only
+    const sanitizedCode = code.trim().substring(0, 50).toUpperCase();
+    if (!/^[A-Z0-9_-]+$/.test(sanitizedCode)) {
+      return NextResponse.json({ valid: false, error: "Invalid coupon code format" }, { status: 400 });
+    }
 
-    // If no account_id provided, try to get from auth
-    if (!accountId) {
-      try {
-        const cookieStore = await cookies();
-        const supabaseAuth = createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-          {
-            cookies: {
-              getAll() {
-                return cookieStore.getAll();
-              },
+    let accountId = null;
+    let authedUserId = null;
+
+    // 🔒 SECURITY: Always authenticate first, then optionally allow account_id override
+    try {
+      const cookieStore = await cookies();
+      const supabaseAuth = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+          cookies: {
+            getAll() {
+              return cookieStore.getAll();
             },
-          }
-        );
-
-        const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-        if (!authError && user) {
-          accountId = user.id;
+          },
         }
-      } catch (e) {
-        // No auth cookies - may be called from AI agent
+      );
+
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+      if (!authError && user) {
+        accountId = user.id;
+        authedUserId = user.id;
       }
+    } catch (e) {
+      // No auth cookies
+    }
+
+    // Allow account_id override ONLY if it matches the authenticated user
+    if (bodyAccountId && authedUserId) {
+      accountId = bodyAccountId === authedUserId ? bodyAccountId : authedUserId;
     }
 
     if (!accountId) {
-      return NextResponse.json({ valid: false, error: "Account ID is required" }, { status: 400 });
+      return NextResponse.json({ valid: false, error: "Authentication required" }, { status: 401 });
     }
 
     const supabase = getSupabase();
@@ -69,7 +87,7 @@ export async function POST(req) {
       .from("coupons")
       .select("*")
       .eq("account_id", accountId)
-      .eq("code", code.trim().toUpperCase())
+      .eq("code", sanitizedCode)
       .single();
 
     if (error || !coupon) {

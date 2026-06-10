@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyTOTP, generateBackupCodes, decryptSecret } from "@/lib/totp";
+import crypto from "crypto";
 
 // Lazy Supabase admin client (server-side only)
 let _supabase = null;
@@ -81,7 +82,10 @@ export async function POST(request) {
     // Check if it's a backup code (8-char format: XXXX-XXXX)
     if (code.includes("-") && code.length === 9) {
       const backupCodes = account.totp_backup_codes || [];
-      if (backupCodes.includes(code)) {
+      const found = backupCodes.some(bc =>
+        bc.length === code.length && crypto.timingSafeEqual(Buffer.from(bc), Buffer.from(code))
+      );
+      if (found) {
         // Remove the used backup code
         const updatedCodes = backupCodes.filter(c => c !== code);
         await supabase

@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 // Service role client (lazy-initialized)
@@ -20,11 +22,29 @@ function getSupabase() {
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { account_id, order_id, status, message } = body;
+    const { account_id, order_id, status } = body;
+    // NOTE: `message` is intentionally ignored — only status-based templates are used
+    // to prevent arbitrary message injection.
 
-    if (!account_id) {
-      return NextResponse.json({ error: "account_id is required" }, { status: 400 });
+    // ── Authentication check ──
+    const cookieStore = await cookies();
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { cookies: { getAll() { return cookieStore.getAll(); } } }
+    );
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify account_id matches authenticated user
+    if (account_id && account_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden — account_id does not match authenticated user" }, { status: 403 });
+    }
+
+    // If no account_id provided, use the authenticated user's ID
+    const effectiveAccountId = account_id || user.id;
 
     if (!order_id) {
       return NextResponse.json({ error: "order_id is required" }, { status: 400 });
@@ -37,7 +57,7 @@ export async function POST(req) {
       .from("orders")
       .select("id, order_number, total, items, status, customer_id, payment_status, tracking_number")
       .eq("id", order_id)
-      .eq("account_id", account_id)
+      .eq("account_id", effectiveAccountId)
       .single();
 
     if (orderError || !order) {
@@ -48,7 +68,7 @@ export async function POST(req) {
     const { data: conversation } = await supabase
       .from("conversations")
       .select("id, channel")
-      .eq("account_id", account_id)
+      .eq("account_id", effectiveAccountId)
       .eq("customer_id", order.customer_id)
       .in("status", ["new", "open", "in_progress", "waiting_customer", "closed"])
       .order("last_message_at", { ascending: false })
@@ -68,7 +88,8 @@ export async function POST(req) {
       cancelled: "❌ Your order has been cancelled. If you have questions, feel free to ask.",
     };
 
-    const updateMessage = message || statusMessages[newStatus] || `📋 Your order #${order.order_number} status has been updated to: ${newStatus}`;
+    // Only use status-based template messages (raw `message` from body is ignored)
+    const updateMessage = statusMessages[newStatus] || `📋 Your order #${order.order_number} status has been updated to: ${newStatus}`;
 
     // Store the status update message
     const { error: insertError } = await supabase.from("messages").insert({

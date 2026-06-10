@@ -25,6 +25,7 @@ import { processIncomingMessage } from "@/lib/channels/processor";
 import { createClient } from "@supabase/supabase-js";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
+import crypto from 'crypto';
 
 let _supabase = null;
 function getSupabase() {
@@ -48,11 +49,7 @@ export async function GET(request) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  console.log("[WEBHOOK] GET verification request:", {
-    mode,
-    token: token?.substring(0, 4) + "***",
-    challenge: challenge?.substring(0, 10) + "...",
-  });
+  console.log("[WEBHOOK] GET verification request received");
 
   const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
 
@@ -67,14 +64,19 @@ export async function GET(request) {
     );
   }
 
-  if (mode === "subscribe" && token === verifyToken) {
-    console.log("[WEBHOOK] Verification successful!");
-    return new Response(challenge, { status: 200 });
+  // 🔒 SECURITY: Timing-safe comparison to prevent timing attacks
+  if (mode === "subscribe" && token && verifyToken) {
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(verifyToken))) {
+        console.log("[WEBHOOK] Verification successful!");
+        return new Response(challenge, { status: 200 });
+      }
+    } catch (e) {
+      // Length mismatch — fall through to failure
+    }
   }
 
-  console.warn(
-    `[WEBHOOK] Verification FAILED. Expected: ${verifyToken?.substring(0, 4)}***, Got: ${token?.substring(0, 4)}***`
-  );
+  console.warn("[WEBHOOK] Verification FAILED");
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
@@ -99,8 +101,6 @@ export async function POST(request) {
       "[WEBHOOK] CRITICAL: META_APP_SECRET is not set! " +
         "Cannot verify webhook signatures. Add it to Vercel environment variables."
     );
-    // In production, we MUST reject. But log the payload for debugging.
-    console.log("[WEBHOOK] Raw body (first 500 chars):", rawBody.substring(0, 500));
     return NextResponse.json(
       { error: "App secret not configured" },
       { status: 500 }
@@ -112,8 +112,7 @@ export async function POST(request) {
     console.error("  1. META_APP_SECRET env var doesn't match the Meta App");
     console.error("  2. Request is not from Meta (possible attack)");
     console.error("  3. Body was modified by a proxy/middleware");
-    console.log("[WEBHOOK] Signature header:", signature);
-    console.log("[WEBHOOK] Raw body (first 200 chars):", rawBody.substring(0, 200));
+    // 🔒 SECURITY: Don't log signature header or raw body — could contain sensitive data
 
     await logSecurityEvent({
       eventType: "invalid_hmac",

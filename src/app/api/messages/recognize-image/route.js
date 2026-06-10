@@ -272,6 +272,7 @@ export async function POST(req) {
           .from("conversations")
           .select("id, customer_id")
           .eq("id", conversation_id)
+          .eq("account_id", user.id)  // SECURITY: Ownership check prevents IDOR
           .single();
 
         if (conversation?.customer_id) {

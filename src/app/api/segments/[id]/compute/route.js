@@ -51,10 +51,20 @@ export async function POST(req, { params }) {
     // Build query for matching customers
     let query = supabase.from("customers").select("id").eq("account_id", user.id);
 
+    const ALLOWED_SEGMENT_FIELDS = [
+      "total_spent", "total_orders", "tags", "created_at", "first_seen_at",
+      "channel", "is_returning", "last_order_at", "name", "email", "phone"
+    ];
+
     if (rules.conditions && rules.conditions.length > 0) {
       for (const condition of rules.conditions) {
         const { field, operator: condOp, value } = condition;
         if (!field || !condOp || value === undefined || value === "") continue;
+
+        // SECURITY: Skip invalid field names
+        if (!ALLOWED_SEGMENT_FIELDS.includes(field)) {
+          continue;
+        }
 
         switch (condOp) {
           case "greater_than":

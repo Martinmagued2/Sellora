@@ -51,14 +51,15 @@ export async function GET(request) {
       .from("accounts")
       .select(`
         id, email, business_name, role, plan, plan_status,
-        facebook_page_id, facebook_access_token, facebook_connected,
-        instagram_page_id, instagram_access_token, instagram_connected,
-        whatsapp_connected, whatsapp_phone_number_id, whatsapp_access_token,
+        facebook_page_id, facebook_connected,
+        instagram_page_id, instagram_connected,
+        whatsapp_connected, whatsapp_phone_number_id,
         created_at, updated_at
       `);
 
     if (emailFilter) {
-      query = query.ilike("email", `%${emailFilter}%`);
+      const sanitizedEmail = emailFilter.replace(/[%)_(,.]/g, '\\$&');
+      query = query.ilike("email", `%${sanitizedEmail}%`);
     }
 
     const { data: accounts, error: acctErr } = await query;
@@ -101,7 +102,7 @@ export async function GET(request) {
         fbPageMap[acct.facebook_page_id].push({
           id: acct.id,
           email: acct.email,
-          has_token: !!acct.facebook_access_token,
+          has_token: !!acct.facebook_page_id,
           connected: acct.facebook_connected,
         });
       }
@@ -110,7 +111,7 @@ export async function GET(request) {
         igPageMap[acct.instagram_page_id].push({
           id: acct.id,
           email: acct.email,
-          has_token: !!acct.instagram_access_token,
+          has_token: !!acct.instagram_page_id,
           connected: acct.instagram_connected,
         });
       }
@@ -144,19 +145,19 @@ export async function GET(request) {
     for (const acct of accounts || []) {
       const issues = [];
 
-      if (acct.facebook_connected && (!acct.facebook_page_id || !acct.facebook_access_token)) {
+      if (acct.facebook_connected && !acct.facebook_page_id) {
         issues.push({
           field: "facebook_connected",
           value: acct.facebook_connected,
-          reason: `facebook_connected is true but ${!acct.facebook_page_id ? "facebook_page_id is null" : "facebook_access_token is null"}`,
+          reason: `facebook_connected is true but facebook_page_id is null`,
         });
       }
 
-      if (acct.instagram_connected && (!acct.instagram_page_id || !acct.instagram_access_token)) {
+      if (acct.instagram_connected && !acct.instagram_page_id) {
         issues.push({
           field: "instagram_connected",
           value: acct.instagram_connected,
-          reason: `instagram_connected is true but ${!acct.instagram_page_id ? "instagram_page_id is null" : "instagram_access_token is null"}`,
+          reason: `instagram_connected is true but instagram_page_id is null`,
         });
       }
 
@@ -294,7 +295,7 @@ export async function GET(request) {
     return NextResponse.json(results);
   } catch (error) {
     console.error("[ADMIN-DEBUG] Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -395,6 +396,6 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error("[ADMIN-DEBUG] POST Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

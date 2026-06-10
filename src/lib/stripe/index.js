@@ -40,10 +40,16 @@ export const PLANS = {
 };
 
 export async function createCheckoutSession({ userId, email, plan, interval }) {
+  if (!stripe) throw new Error("Stripe is not configured. Set STRIPE_SECRET_KEY.");
+
   const planConfig = PLANS[plan];
   if (!planConfig) throw new Error(`Invalid plan: ${plan}`);
 
-  const priceId = interval === "annual" ? planConfig.annual : planConfig.monthly;
+  // 🔒 SECURITY: Validate interval against allowed values
+  const validInterval = ["monthly", "annual"].includes(interval) ? interval : "monthly";
+  const priceId = validInterval === "annual" ? planConfig.annual : planConfig.monthly;
+
+  if (!priceId) throw new Error(`No price ID configured for plan ${plan} (${validInterval})`);
 
   const session = await stripe.checkout.sessions.create({
     customer_email: email,
@@ -63,6 +69,8 @@ export async function createCheckoutSession({ userId, email, plan, interval }) {
 }
 
 export async function createBillingPortalSession({ customerId }) {
+  if (!stripe) throw new Error("Stripe is not configured. Set STRIPE_SECRET_KEY.");
+
   const session = await stripe.billingPortal.sessions.create({
     customer: customerId,
     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,

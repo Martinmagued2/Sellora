@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { dispatchWebhook } from "@/lib/webhooks";
+import { dispatchWebhook, isWebhookUrlSafe } from "@/lib/webhooks";
 
 // Service role client
 let _supabase = null;
@@ -113,6 +113,14 @@ export async function POST(req) {
     const results = await Promise.allSettled(
       webhooks
         .filter((wh) => !webhookId || wh.events?.includes(event))
+        .filter((wh) => {
+          // 🔒 SECURITY: SSRF protection — block internal/private URLs
+          if (!isWebhookUrlSafe(wh.url)) {
+            console.warn(`[Webhook-Test] Blocked unsafe URL: ${wh.url} (SSRF protection)`);
+            return false;
+          }
+          return true;
+        })
         .map(async (wh) => {
           const body = JSON.stringify({
             event,
@@ -240,6 +248,7 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error("Webhook test error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    // 🔒 SECURITY: Don't leak internal error details
+    return NextResponse.json({ error: "Webhook test failed" }, { status: 500 });
   }
 }

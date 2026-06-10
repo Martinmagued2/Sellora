@@ -5,6 +5,7 @@ import { processIncomingMessage } from "@/lib/channels/processor";
 import { createClient } from "@supabase/supabase-js";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
+import crypto from 'crypto';
 
 let _supabase = null;
 function getSupabase() {
@@ -35,12 +36,19 @@ export async function GET(request) {
     return NextResponse.json({ error: "Webhook verify token not configured on server" }, { status: 500 });
   }
 
-  if (mode === "subscribe" && token === verifyToken) {
-    console.log("[IG-WEBHOOK] Webhook verified successfully");
-    return new Response(challenge, { status: 200 });
+  // 🔒 SECURITY: Timing-safe comparison to prevent timing attacks
+  if (mode === "subscribe" && token && verifyToken) {
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(verifyToken))) {
+        console.log("[IG-WEBHOOK] Webhook verified successfully");
+        return new Response(challenge, { status: 200 });
+      }
+    } catch (e) {
+      // Length mismatch — fall through to failure
+    }
   }
 
-  console.warn(`[IG-WEBHOOK] Verification failed. Expected: ${verifyToken?.substring(0, 4)}***, Got: ${token?.substring(0, 4)}***`);
+  console.warn("[IG-WEBHOOK] Verification failed");
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 

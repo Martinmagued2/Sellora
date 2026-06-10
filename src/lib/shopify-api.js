@@ -1,4 +1,12 @@
+function validateShopifyDomain(shopDomain) {
+  if (!/^[a-z0-9][a-z0-9\-]*\.myshopify\.com$/i.test(shopDomain)) {
+    throw new Error('Invalid Shopify domain format');
+  }
+}
+
 export async function fetchShopifyProducts(shopDomain, accessToken) {
+  validateShopifyDomain(shopDomain);
+
   const res = await fetch(`https://${shopDomain}/admin/api/2024-04/products.json`, {
     headers: {
       'X-Shopify-Access-Token': accessToken,
@@ -7,7 +15,9 @@ export async function fetchShopifyProducts(shopDomain, accessToken) {
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch Shopify products: ${await res.text()}`);
+    const errBody = await res.text();
+    console.error('[Shopify] Products fetch failed:', res.status, errBody.substring(0, 200));
+    throw new Error(`Failed to fetch Shopify products (status ${res.status})`);
   }
 
   const data = await res.json();
@@ -15,6 +25,8 @@ export async function fetchShopifyProducts(shopDomain, accessToken) {
 }
 
 export async function fetchShopifyOrders(shopDomain, accessToken) {
+  validateShopifyDomain(shopDomain);
+
   const res = await fetch(`https://${shopDomain}/admin/api/2024-04/orders.json?status=any`, {
     headers: {
       'X-Shopify-Access-Token': accessToken,
@@ -23,7 +35,9 @@ export async function fetchShopifyOrders(shopDomain, accessToken) {
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch Shopify orders: ${await res.text()}`);
+    const errBody = await res.text();
+    console.error('[Shopify] Orders fetch failed:', res.status, errBody.substring(0, 200));
+    throw new Error(`Failed to fetch Shopify orders (status ${res.status})`);
   }
 
   const data = await res.json();
@@ -31,6 +45,8 @@ export async function fetchShopifyOrders(shopDomain, accessToken) {
 }
 
 export async function registerShopifyWebhooks(shopDomain, accessToken, appUrl) {
+  validateShopifyDomain(shopDomain);
+
   const webhooks = [
     { topic: 'products/create', address: `${appUrl}/api/integrations/shopify/webhooks` },
     { topic: 'products/update', address: `${appUrl}/api/integrations/shopify/webhooks` },
@@ -41,7 +57,7 @@ export async function registerShopifyWebhooks(shopDomain, accessToken, appUrl) {
   ];
 
   for (const webhook of webhooks) {
-    await fetch(`https://${shopDomain}/admin/api/2024-04/webhooks.json`, {
+    const regRes = await fetch(`https://${shopDomain}/admin/api/2024-04/webhooks.json`, {
       method: 'POST',
       headers: {
         'X-Shopify-Access-Token': accessToken,
@@ -49,5 +65,8 @@ export async function registerShopifyWebhooks(shopDomain, accessToken, appUrl) {
       },
       body: JSON.stringify({ webhook })
     });
+    if (!regRes.ok) {
+      console.error(`[Shopify] Failed to register webhook ${webhook.topic}:`, regRes.status);
+    }
   }
 }

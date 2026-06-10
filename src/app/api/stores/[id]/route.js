@@ -111,11 +111,37 @@ export async function PATCH(req, { params }) {
     }
 
     const updateFields = {};
-    const allowedFields = ["name", "slug", "description", "logo_url", "industry", "currency", "country", "is_active", "settings"];
+    const allowedFields = ["name", "slug", "description", "logo_url", "industry", "currency", "country", "is_active"];
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         updateFields[field] = body[field];
       }
+    }
+    // Handle 'settings' separately with validation
+    if (body.settings !== undefined) {
+      if (typeof body.settings !== 'object' || Array.isArray(body.settings)) {
+        return NextResponse.json({ error: "Settings must be a valid object" }, { status: 400 });
+      }
+      // Limit settings size
+      const settingsStr = JSON.stringify(body.settings);
+      if (settingsStr.length > 5000) {
+        return NextResponse.json({ error: "Settings object too large (max 5KB)" }, { status: 400 });
+      }
+      // Only allow known setting keys
+      const ALLOWED_SETTING_KEYS = [
+        "primary_color", "secondary_color", "font_family", "logo_position",
+        "show_prices", "show_stock", "currency_format", "language",
+        "enable_search", "enable_filters", "enable_cart", "enable_checkout",
+        "shipping_enabled", "shipping_fee", "free_shipping_threshold",
+        "tax_enabled", "tax_rate", "whatsapp_number", "social_links"
+      ];
+      const filteredSettings = {};
+      for (const [key, value] of Object.entries(body.settings)) {
+        if (ALLOWED_SETTING_KEYS.includes(key)) {
+          filteredSettings[key] = value;
+        }
+      }
+      updateFields.settings = filteredSettings;
     }
     updateFields.updated_at = new Date().toISOString();
 

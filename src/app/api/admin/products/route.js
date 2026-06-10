@@ -47,7 +47,8 @@ export async function GET(request) {
     if (status) query = query.eq("status", status);
     if (accountId) query = query.eq("account_id", accountId);
     if (search) {
-      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,category.ilike.%${search}%`);
+      const sanitizedSearch = (search || '').replace(/[%)_(,.]/g, '\\$&');
+      query = query.or(`name.ilike.%${sanitizedSearch}%,description.ilike.%${sanitizedSearch}%,category.ilike.%${sanitizedSearch}%`);
     }
 
     // Get total count
@@ -58,7 +59,8 @@ export async function GET(request) {
     if (status) countQuery = countQuery.eq("status", status);
     if (accountId) countQuery = countQuery.eq("account_id", accountId);
     if (search) {
-      countQuery = countQuery.or(`name.ilike.%${search}%,description.ilike.%${search}%,category.ilike.%${search}%`);
+      const sanitizedSearch = (search || '').replace(/[%)_(,.]/g, '\\$&');
+      countQuery = countQuery.or(`name.ilike.%${sanitizedSearch}%,description.ilike.%${sanitizedSearch}%,category.ilike.%${sanitizedSearch}%`);
     }
 
     const { count: totalCount } = await countQuery;

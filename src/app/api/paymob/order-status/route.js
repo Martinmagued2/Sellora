@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 let _supabaseAdmin = null;
 function getSupabaseAdmin() {
@@ -15,11 +17,38 @@ function getSupabaseAdmin() {
 /**
  * GET /api/paymob/order-status?orderId=xxx
  *
- * Public endpoint to check order status (used by checkout page).
+ * Returns order payment status. Requires authentication.
  * Only returns limited order info for security.
  */
 export async function GET(request) {
   try {
+    // 🔒 SECURITY: Require authentication to prevent order enumeration
+    let authedUserId = null;
+    try {
+      const cookieStore = await cookies();
+      const supabaseAuth = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+          cookies: {
+            getAll() {
+              return cookieStore.getAll();
+            },
+          },
+        }
+      );
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+      if (!authError && user) {
+        authedUserId = user.id;
+      }
+    } catch (e) {
+      // No auth cookies
+    }
+
+    if (!authedUserId) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get("orderId");
 
@@ -29,17 +58,22 @@ export async function GET(request) {
 
     const supabase = getSupabaseAdmin();
 
+    // 🔒 SECURITY: Only return orders belonging to the authenticated user's account
     const { data: order, error } = await supabase
       .from("orders")
-      .select("id, order_number, items, total, currency, payment_status, payment_method")
+      .select("id, order_number, items, total, currency, payment_status, payment_method, account_id")
       .eq("id", orderId)
+      .eq("account_id", authedUserId)
       .single();
 
     if (error || !order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ order });
+    // Remove account_id from response
+    const { account_id, ...orderData } = order;
+
+    return NextResponse.json({ order: orderData });
 
   } catch (err) {
     console.error("[ORDER-STATUS] Error:", err);

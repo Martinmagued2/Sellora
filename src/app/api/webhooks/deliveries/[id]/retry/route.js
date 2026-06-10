@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isWebhookUrlSafe } from "@/lib/webhooks";
 
 export async function POST(request, { params }) {
   try {
@@ -35,6 +36,11 @@ export async function POST(request, { params }) {
 
     if (whError || !webhook) {
       return Response.json({ error: "Webhook not found" }, { status: 404 });
+    }
+
+    // 🔒 SECURITY: SSRF protection — block internal/private URLs
+    if (!isWebhookUrlSafe(webhook.url)) {
+      return Response.json({ error: "Webhook URL is not safe (blocked by SSRF protection)" }, { status: 400 });
     }
 
     // Re-send the original payload

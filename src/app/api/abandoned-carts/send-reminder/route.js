@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { checkRateLimit, createRateLimitKey, rateLimitResponse } from "@/lib/rate-limit";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -31,6 +34,13 @@ function getSupabase() {
  */
 export async function POST(request) {
   try {
+    // ── Rate limiting ──
+    const rlKey = createRateLimitKey(request);
+    const rlResult = checkRateLimit(rlKey, 10, 60 * 1000); // 10 requests per 60 seconds
+    if (rlResult.limited) {
+      return rateLimitResponse(rlResult.resetAt);
+    }
+
     const body = await request.json();
     const {
       account_id,
@@ -42,9 +52,25 @@ export async function POST(request) {
       is_second_reminder = false,
     } = body;
 
-    if (!account_id) {
-      return NextResponse.json({ error: "account_id is required" }, { status: 400 });
+    // ── Authentication check ──
+    const cookieStore = await cookies();
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      { cookies: { getAll() { return cookieStore.getAll(); } } }
+    );
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify account_id matches authenticated user
+    if (account_id && account_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden — account_id does not match authenticated user" }, { status: 403 });
+    }
+
+    // If no account_id provided, use the authenticated user's ID
+    const effectiveAccountId = account_id || user.id;
 
     const supabase = getSupabase();
 
@@ -52,7 +78,7 @@ export async function POST(request) {
     const { data: account } = await supabase
       .from("accounts")
       .select("id, business_name, abandoned_cart_discount_percent")
-      .eq("id", account_id)
+      .eq("id", effectiveAccountId)
       .single();
 
     const discountPct = discount_percent || account?.abandoned_cart_discount_percent || 10;
@@ -70,7 +96,7 @@ export async function POST(request) {
           conversation:conversations(id, channel, status, account_id)
         `)
         .eq("id", cart_id)
-        .eq("account_id", account_id)
+        .eq("account_id", effectiveAccountId)
         .single();
 
       if (error || !cart) {
@@ -87,7 +113,7 @@ export async function POST(request) {
           customer:customers(id, name, email, phone, channel, platform_id),
           conversation:conversations(id, channel, status, account_id)
         `)
-        .eq("account_id", account_id)
+        .eq("account_id", effectiveAccountId)
         .eq("status", statusFilter);
 
       if (error) {
@@ -254,6 +280,6 @@ export async function POST(request) {
     });
   } catch (err) {
     console.error("[SEND-REMINDER] Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -134,28 +134,46 @@ export async function POST(req) {
       return NextResponse.json({ message: "Already processed successfully" }, { status: 200 });
     }
 
+    // 🔒 SECURITY: Verify amount matches expected payment (prevents amount manipulation)
+    const webhookAmountCents = parseInt(transaction.amount_cents, 10);
+    const expectedAmountCents = Math.round(parseFloat(paymentRecord.amount) * 100);
+    if (!isNaN(webhookAmountCents) && !isNaN(expectedAmountCents) && webhookAmountCents !== expectedAmountCents) {
+      console.error(`[PAYMOB_WEBHOOK] AMOUNT MISMATCH for ${merchantOrderId}: expected ${expectedAmountCents} cents, got ${webhookAmountCents} cents`);
+      return NextResponse.json({ error: "Amount verification failed" }, { status: 400 });
+    }
+
     // 4. Handle Failure
     if (!isSuccess) {
       console.log(`[PAYMOB_WEBHOOK] Payment marked as FAILED for ${merchantOrderId}`);
-      await getSupabaseAdmin().from("payments").update({
+      // 🔒 SECURITY: Only update if still pending (prevents race conditions)
+      const { data: failUpdate } = await getSupabaseAdmin().from("payments").update({
         status: "failed",
         paymob_transaction_id: transactionId,
         payment_method: paymentMethod,
         updated_at: new Date().toISOString()
-      }).eq("id", paymentRecord.id);
+      }).eq("id", paymentRecord.id).eq("status", "pending").select();
+      if (!failUpdate || failUpdate.length === 0) {
+        console.log(`[PAYMOB_WEBHOOK] Payment ${merchantOrderId} already processed by concurrent webhook`);
+        return NextResponse.json({ message: "Already processed" }, { status: 200 });
+      }
       return NextResponse.json({ message: "Payment failed logged" });
     }
 
     // 5. Handle Success
     console.log(`[PAYMOB_WEBHOOK] Payment SUCCESS mapped for ${merchantOrderId}. Type: ${paymentRecord.plan_purchased ? 'subscription' : 'order'}`);
     
-    // Update Payments table
-    await getSupabaseAdmin().from("payments").update({
+    // Update Payments table — 🔒 SECURITY: Only update if still pending (atomic idempotency)
+    const { data: payUpdate } = await getSupabaseAdmin().from("payments").update({
       status: "success",
       paymob_transaction_id: transactionId,
       payment_method: paymentMethod,
       updated_at: new Date().toISOString()
-    }).eq("id", paymentRecord.id);
+    }).eq("id", paymentRecord.id).eq("status", "pending").select();
+
+    if (!payUpdate || payUpdate.length === 0) {
+      console.log(`[PAYMOB_WEBHOOK] Payment ${merchantOrderId} already processed by concurrent webhook`);
+      return NextResponse.json({ message: "Already processed" }, { status: 200 });
+    }
 
     // ─── ORDER PAYMENT (not a subscription) ───
     if (!paymentRecord.plan_purchased) {
@@ -217,36 +235,76 @@ export async function POST(req) {
     }
 
     // ─── SUBSCRIPTION PAYMENT ───
-    // Get current account parameters
-    const { data: account } = await getSupabaseAdmin()
-      .from("accounts")
-      .select("subscription_ends_at")
-      .eq("id", paymentRecord.account_id)
-      .single();
+    // 🔒 SECURITY: Use atomic RPC for subscription extension to prevent race conditions
+    const addedDays = PLAN_DURATIONS[paymentRecord.plan_purchased] || 30;
 
-    if (!account) return NextResponse.json({ error: "Account missing" }, { status: 500 });
+    try {
+      const { data: extResult, error: extError } = await getSupabaseAdmin().rpc('extend_subscription', {
+        p_account_id: paymentRecord.account_id,
+        p_plan: paymentRecord.plan_purchased,
+        p_days: addedDays,
+        p_paymob_order_id: paymobOrderId,
+        p_payment_id: paymentRecord.id,
+      });
 
-    // Subscription logic: extend GREATEST(NOW, ends_at) + plan duration
-    const now = new Date();
-    const currentEnd = account.subscription_ends_at ? new Date(account.subscription_ends_at) : now;
-    const baseDate = currentEnd > now ? currentEnd : now;
-    
-    const addedDays = PLAN_DURATIONS[paymentRecord.plan_purchased] || 30; // Default 30 if unrecognized
-    const nextEnd = new Date(baseDate);
-    nextEnd.setDate(nextEnd.getDate() + addedDays);
+      if (extError || !extResult || extResult.length === 0 || !extResult[0].success) {
+        console.error(`[PAYMOB_WEBHOOK] Subscription extension failed for account ${paymentRecord.account_id}:`, extError?.message);
+        // Fallback to non-atomic update if RPC is not yet deployed
+        const { data: account } = await getSupabaseAdmin()
+          .from("accounts")
+          .select("subscription_ends_at")
+          .eq("id", paymentRecord.account_id)
+          .single();
 
-    // Update Accounts table safely
-    await getSupabaseAdmin().from("accounts").update({
-      plan: paymentRecord.plan_purchased,
-      plan_status: "active",
-      subscription_started_at: now.toISOString(),
-      subscription_ends_at: nextEnd.toISOString(),
-      paymob_order_id: paymobOrderId,
-      last_payment_at: now.toISOString(),
-      updated_at: now.toISOString()
-    }).eq("id", paymentRecord.account_id);
+        if (!account) return NextResponse.json({ error: "Account missing" }, { status: 500 });
 
-    console.log(`[PAYMOB_WEBHOOK_COMPLETE] Subscription fully extended by ${addedDays} days for account ${paymentRecord.account_id}`);
+        const now = new Date();
+        const currentEnd = account.subscription_ends_at ? new Date(account.subscription_ends_at) : now;
+        const baseDate = currentEnd > now ? currentEnd : now;
+        const nextEnd = new Date(baseDate);
+        nextEnd.setDate(nextEnd.getDate() + addedDays);
+
+        await getSupabaseAdmin().from("accounts").update({
+          plan: paymentRecord.plan_purchased,
+          plan_status: "active",
+          subscription_started_at: now.toISOString(),
+          subscription_ends_at: nextEnd.toISOString(),
+          paymob_order_id: paymobOrderId,
+          last_payment_at: now.toISOString(),
+          updated_at: now.toISOString()
+        }).eq("id", paymentRecord.account_id);
+      } else {
+        console.log(`[PAYMOB_WEBHOOK] Atomic subscription extension succeeded. New ends_at: ${extResult[0].new_ends_at}`);
+      }
+    } catch (rpcErr) {
+      console.warn(`[PAYMOB_WEBHOOK] RPC not available, falling back to non-atomic update:`, rpcErr.message);
+      // Fallback to original non-atomic approach
+      const { data: account } = await getSupabaseAdmin()
+        .from("accounts")
+        .select("subscription_ends_at")
+        .eq("id", paymentRecord.account_id)
+        .single();
+
+      if (!account) return NextResponse.json({ error: "Account missing" }, { status: 500 });
+
+      const now = new Date();
+      const currentEnd = account.subscription_ends_at ? new Date(account.subscription_ends_at) : now;
+      const baseDate = currentEnd > now ? currentEnd : now;
+      const nextEnd = new Date(baseDate);
+      nextEnd.setDate(nextEnd.getDate() + addedDays);
+
+      await getSupabaseAdmin().from("accounts").update({
+        plan: paymentRecord.plan_purchased,
+        plan_status: "active",
+        subscription_started_at: now.toISOString(),
+        subscription_ends_at: nextEnd.toISOString(),
+        paymob_order_id: paymobOrderId,
+        last_payment_at: now.toISOString(),
+        updated_at: now.toISOString()
+      }).eq("id", paymentRecord.account_id);
+    }
+
+    console.log(`[PAYMOB_WEBHOOK_COMPLETE] Subscription extended by ${addedDays} days for account ${paymentRecord.account_id}`);
     return NextResponse.json({ message: "Webhook processed completely" });
 
   } catch (error) {

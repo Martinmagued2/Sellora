@@ -26,3 +26,8 @@ Stage Summary:
   11. Added GET API rate limiting (new api_read tier)
   12. Removed token previews from debug endpoints
   13. Fixed internal error message leakage in paymob/order-status
+  14. Added user session auth to /api/automation/follow-up (was fully unauthenticated; now validates account_id matches authenticated user)
+  15. Added user session auth to /api/automation/order-status-update + removed raw `message` body param (message injection prevention — only status-based templates used)
+  16. Added user session auth + IP rate limiting (10/60s) + fixed err.message leak to /api/abandoned-carts/send-reminder
+  17. Added cron secret (x-cron-secret) or admin auth to /api/campaigns/process-scheduled; replaced Authorization Bearer with x-internal-key header for internal fetch
+  18. Added user session or admin auth + 24h per-account rate limit to /api/email/weekly-summary (checks weekly_summary_sent_at timestamp)

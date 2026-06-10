@@ -165,6 +165,7 @@ export async function POST(request) {
 
   } catch (err) {
     console.error("[PAYMOB-ORDER] Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    // 🔒 SECURITY: Don't leak internal error details to client
+    return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 });
   }
 }
