@@ -38,10 +38,13 @@ export async function middleware(request) {
       rateLimitTier = "email";
     }
 
-    // Rate limit POST/PUT/DELETE/PATCH on API routes
-    if (pathname.startsWith("/api/") && method !== "GET") {
+    // Rate limit ALL API routes (GET and mutation)
+    if (pathname.startsWith("/api/")) {
+      // 🔒 SECURITY: Also rate-limit GET API endpoints (was only POST/PUT/DELETE/PATCH)
+      // Use a more lenient tier for GET requests
+      const getRlTier = method === "GET" ? "api_read" : rateLimitTier;
       const rlKey = createRateLimitKey(request);
-      const rlResult = checkRateLimit(rlKey, rateLimitTier);
+      const rlResult = checkRateLimit(rlKey, getRlTier);
 
       if (rlResult.limited) {
         return rateLimitResponse(rlResult.resetAt);
@@ -63,7 +66,14 @@ export async function middleware(request) {
   }
 
   // Skip auth if Supabase is not configured
+  // 🔒 SECURITY: Do NOT silently bypass auth — log a warning instead
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.error("[MIDDLEWARE] CRITICAL: Supabase env vars not set. Denying access to protected routes.");
+    // For unprotected pages, let them through. For protected/admin routes, block.
+    const protectedPaths = ["/dashboard", "/onboarding", "/admin"];
+    if (protectedPaths.some((path) => pathname.startsWith(path))) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
     return supabaseResponse;
   }
 

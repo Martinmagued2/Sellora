@@ -86,6 +86,12 @@ export async function POST(req) {
       return NextResponse.json({ error: "Invalid body schema" }, { status: 400 });
     }
 
+    // 🔒 SECURITY: Verify HMAC secret is configured before verification
+    if (!process.env.PAYMOB_HMAC_SECRET) {
+      console.error("[PAYMOB_HMAC] CRITICAL: PAYMOB_HMAC_SECRET is not set — cannot verify webhook authenticity");
+      return NextResponse.json({ error: "Webhook verification not configured" }, { status: 500 });
+    }
+
     const calculatedHmac = calculateMac(body.obj, process.env.PAYMOB_HMAC_SECRET);
     try {
       const isValid = crypto.timingSafeEqual(

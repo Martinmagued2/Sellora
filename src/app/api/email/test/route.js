@@ -8,6 +8,19 @@
 
 import { sendCustomEmail, isEmailConfigured } from "@/lib/email";
 import { verifyAdmin } from "@/lib/admin-auth";
+import crypto from "crypto";
+
+// 🔒 SECURITY: Timing-safe admin key comparison
+function timingSafeKeyCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA); // Constant-time dummy
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 export async function POST(req) {
   try {
@@ -16,7 +29,7 @@ export async function POST(req) {
     const body = await req.json();
     const bodyKey = body.adminKey;
 
-    if (!isAdmin && bodyKey !== process.env.ADMIN_SECRET_KEY) {
+    if (!isAdmin && !timingSafeKeyCompare(bodyKey || "", process.env.ADMIN_SECRET_KEY || "")) {
       return Response.json({ error: "Forbidden — admin access required. Pass adminKey in body or x-admin-key header." }, { status: 403 });
     }
 

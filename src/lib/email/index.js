@@ -11,6 +11,19 @@
 import { Resend } from "resend";
 
 // ────────────────────────────────────────────────────────
+//  HTML sanitization — prevents XSS in email templates
+// ────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  if (typeof str !== 'string') return String(str || '');
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ────────────────────────────────────────────────────────
 //  Resend client singleton (lazy-initialised)
 // ────────────────────────────────────────────────────────
 let _resend = null;
@@ -142,9 +155,9 @@ export async function sendEscalationEmail({ to, customerName, channel, reason, c
         <div class="alert-text">Your AI assistant couldn't fully handle a customer conversation and is requesting human intervention.</div>
       </div>
       <table>
-        <tr><td class="label">Customer</td><td class="value">${customerName || "Unknown"}</td></tr>
-        <tr><td class="label">Channel</td><td class="value">${channelLabel}</td></tr>
-        <tr><td class="label">Reason</td><td class="value" style="color:#DC2626;">${reason}</td></tr>
+        <tr><td class="label">Customer</td><td class="value">${escapeHtml(customerName) || "Unknown"}</td></tr>
+        <tr><td class="label">Channel</td><td class="value">${escapeHtml(channelLabel)}</td></tr>
+        <tr><td class="label">Reason</td><td class="value" style="color:#DC2626;">${escapeHtml(reason)}</td></tr>
       </table>
       <p style="margin-top:20px;">
         <a href="${convoLink}" class="btn">View Conversation</a>
@@ -167,7 +180,7 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink }) {
   const html = layout({
     preheader: `You've been invited to join ${businessName || "a team"} on Sellora`,
     bodyContent: `
-      <p>You have been invited to join <strong>${businessName || "a team"}</strong> on Sellora to help manage customer conversations.</p>
+      <p>You have been invited to join <strong>${escapeHtml(businessName) || "a team"}</strong> on Sellora to help manage customer conversations.</p>
       <p>Click the button below to accept the invitation and set up your account:</p>
       <p><a href="${inviteLink}" class="btn">Accept Invitation</a></p>
       <div class="info-box">
@@ -192,8 +205,8 @@ export async function sendWelcomeEmail({ to, fullName, businessName }) {
   const html = layout({
     preheader: `Welcome to Sellora, ${fullName}!`,
     bodyContent: `
-      <p>Hey <strong>${fullName}</strong>, welcome to Sellora!</p>
-      <p>Your store <strong>${businessName || "your business"}</strong> is all set up. Here's what you can do next:</p>
+      <p>Hey <strong>${escapeHtml(fullName)}</strong>, welcome to Sellora!</p>
+      <p>Your store <strong>${escapeHtml(businessName) || "your business"}</strong> is all set up. Here's what you can do next:</p>
       <div class="info-box">
         <div class="info-label">Quick Start</div>
         <div class="info-text">
@@ -262,8 +275,8 @@ export async function sendOrderConfirmationEmail({ to, orderNumber, customerName
         <div class="success-text">You just received a new order from ${customerName}!</div>
       </div>
       <table>
-        <tr><td class="label">Order #</td><td class="value">${orderNumber}</td></tr>
-        <tr><td class="label">Customer</td><td class="value">${customerName}</td></tr>
+        <tr><td class="label">Order #</td><td class="value">${escapeHtml(orderNumber)}</td></tr>
+        <tr><td class="label">Customer</td><td class="value">${escapeHtml(customerName)}</td></tr>
       </table>
       <h3 style="margin-top:24px;font-size:15px;color:#374151;">Order Details</h3>
       <table style="margin-top:8px;">
@@ -306,7 +319,7 @@ export async function sendPlanUpgradeEmail({ to, planName, amount, currency = "U
     bodyContent: `
       <div class="success-box">
         <div class="success-label">Plan Upgraded</div>
-        <div class="success-text">Your account has been upgraded to the <strong>${planName}</strong> plan.</div>
+        <div class="success-text">Your account has been upgraded to the <strong>${escapeHtml(planName)}</strong> plan.</div>
       </div>
       <table>
         <tr><td class="label">Plan</td><td class="value">${planName}</td></tr>
@@ -347,7 +360,7 @@ export async function sendWeeklySummaryEmail({ to, businessName, stats }) {
   const html = layout({
     preheader: `Your weekly summary — ${businessName}`,
     bodyContent: `
-      <p>Here's how <strong>${businessName}</strong> performed this week:</p>
+      <p>Here's how <strong>${escapeHtml(businessName)}</strong> performed this week:</p>
       <table style="margin-top:12px;">
         <tr><td class="label">Conversations</td><td class="value">${totalConversations}</td></tr>
         <tr><td class="label">AI Replies</td><td class="value">${aiReplies}</td></tr>

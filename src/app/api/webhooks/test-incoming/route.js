@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { processIncomingMessage } from "@/lib/channels/processor";
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 let _supabase = null;
 function getSupabase() {
@@ -29,6 +30,12 @@ function getSupabase() {
 }
 
 export async function POST(request) {
+  // 🔒 CRITICAL: Require admin auth — anyone could inject fake messages
+  const { isAdmin } = await verifyAdmin(request);
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { channel = "instagram", senderId, text, pageId } = body;

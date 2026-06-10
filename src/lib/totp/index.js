@@ -12,14 +12,19 @@
 import crypto from 'crypto';
 
 // Encryption key for TOTP secrets at rest (derived from env var)
-const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+// 🔒 SECURITY: Use dedicated TOTP_ENCRYPTION_KEY — never reuse SUPABASE_SERVICE_ROLE_KEY
+const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY;
 
 /**
  * Encrypt a TOTP secret for storage
  * Uses AES-256-GCM with a derived key
  */
 export function encryptSecret(plaintext) {
-  if (!TOTP_ENCRYPTION_KEY) return plaintext; // Fallback: no encryption if key not set
+  // 🔒 SECURITY: Fail securely if encryption key is not set — never store plaintext
+  if (!TOTP_ENCRYPTION_KEY) {
+    console.error("[TOTP] CRITICAL: TOTP_ENCRYPTION_KEY is not set. Cannot encrypt secret. Refusing to store plaintext.");
+    throw new Error("TOTP_ENCRYPTION_KEY is not configured — cannot safely store TOTP secret");
+  }
   try {
     const key = crypto.createHash('sha256').update(TOTP_ENCRYPTION_KEY).digest();
     const iv = crypto.randomBytes(16);
@@ -28,8 +33,10 @@ export function encryptSecret(plaintext) {
     encrypted += cipher.final('base64');
     const authTag = cipher.getAuthTag().toString('base64');
     return `enc:v1:${iv.toString('base64')}:${authTag}:${encrypted}`;
-  } catch {
-    return plaintext; // Fallback to plaintext on error
+  } catch (err) {
+    // 🔒 SECURITY: Fail securely — never fall back to plaintext
+    console.error("[TOTP] Encryption failed:", err.message);
+    throw new Error("Failed to encrypt TOTP secret: " + err.message);
   }
 }
 
@@ -37,11 +44,15 @@ export function encryptSecret(plaintext) {
  * Decrypt a TOTP secret from storage
  */
 export function decryptSecret(encrypted) {
-  if (!encrypted || !encrypted.startsWith('enc:v1:')) return encrypted; // Not encrypted
-  if (!TOTP_ENCRYPTION_KEY) return encrypted; // Can't decrypt without key
+  if (!encrypted || !encrypted.startsWith('enc:v1:')) return encrypted; // Not encrypted (legacy plaintext)
+  // 🔒 SECURITY: Fail if encryption key is not set
+  if (!TOTP_ENCRYPTION_KEY) {
+    console.error("[TOTP] CRITICAL: TOTP_ENCRYPTION_KEY is not set. Cannot decrypt secret.");
+    throw new Error("TOTP_ENCRYPTION_KEY is not configured — cannot decrypt TOTP secret");
+  }
   try {
     const parts = encrypted.split(':');
-    if (parts.length !== 5) return encrypted;
+    if (parts.length !== 5) throw new Error('Invalid encrypted format');
     const [, , ivB64, authTagB64, data] = parts;
     const key = crypto.createHash('sha256').update(TOTP_ENCRYPTION_KEY).digest();
     const iv = Buffer.from(ivB64, 'base64');
@@ -51,8 +62,10 @@ export function decryptSecret(encrypted) {
     let decrypted = decipher.update(data, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
-  } catch {
-    return encrypted; // Fallback
+  } catch (err) {
+    // 🔒 SECURITY: Fail securely — don't silently return the encrypted blob
+    console.error("[TOTP] Decryption failed:", err.message);
+    throw new Error("Failed to decrypt TOTP secret: " + err.message);
   }
 }
 
@@ -172,7 +185,9 @@ function verifyTOTP(secret, code, window = 1, lastUsedTimeStep = null) {
     }
 
     const testCode = calculateTOTP(decryptedSecret, testStep);
-    if (testCode === code) {
+    // 🔒 SECURITY: Constant-time comparison to prevent timing attacks
+    if (testCode.length === code.length &&
+        crypto.timingSafeEqual(Buffer.from(testCode, 'utf8'), Buffer.from(code, 'utf8'))) {
       return { valid: true, timeStep: testStep };
     }
   }

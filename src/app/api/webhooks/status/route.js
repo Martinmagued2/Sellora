@@ -14,6 +14,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 let _supabase = null;
 function getSupabase() {
@@ -26,7 +27,13 @@ function getSupabase() {
   return _supabase;
 }
 
-export async function GET() {
+export async function GET(request) {
+  // 🔒 CRITICAL: Require admin auth — endpoint leaks account data, tokens, messages
+  const { isAdmin } = await verifyAdmin(request);
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   const diagnostics = {
     timestamp: new Date().toISOString(),
     env_vars: {},

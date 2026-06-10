@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 // Lazy-init admin client
 let _supabaseAdmin = null;
@@ -31,7 +32,13 @@ async function tryExecSql(admin, sql, successMsg, manualMsg) {
  * Called automatically by the app when needed.
  * Uses Supabase's rpc or direct SQL via the management API.
  */
-export async function POST() {
+export async function POST(request) {
+  // 🔒 CRITICAL: Require admin authentication for database migrations
+  const { isAdmin } = await verifyAdmin(request);
+  if (!isAdmin) {
+    return Response.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   try {
     const admin = getSupabaseAdmin();
     const results = [];

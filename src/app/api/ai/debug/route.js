@@ -10,6 +10,7 @@ import { cookies } from "next/headers";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 function getAdminClient() {
   return createClient(
@@ -19,6 +20,12 @@ function getAdminClient() {
 }
 
 export async function GET(req) {
+  // 🔒 CRITICAL: Require admin auth — GET with accountId leaks tokens & config
+  const { isAdmin } = await verifyAdmin(req);
+  if (!isAdmin) {
+    return Response.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   const results = {
     timestamp: new Date().toISOString(),
     env_check: {
@@ -286,13 +293,13 @@ async function runFullDiagnostic(accountId) {
           connected: accountTokens.instagram_connected,
           has_page_id: !!accountTokens.instagram_page_id,
           has_token: !!accountTokens.instagram_access_token,
-          token_preview: accountTokens.instagram_access_token ? accountTokens.instagram_access_token.substring(0, 15) + "..." : "NONE",
+          // 🔒 SECURITY: Do NOT expose token previews
         },
         facebook: {
           connected: accountTokens.facebook_connected,
           has_page_id: !!accountTokens.facebook_page_id,
           has_token: !!accountTokens.facebook_access_token,
-          token_preview: accountTokens.facebook_access_token ? accountTokens.facebook_access_token.substring(0, 15) + "..." : "NONE",
+          // 🔒 SECURITY: Do NOT expose token previews
         },
       };
 

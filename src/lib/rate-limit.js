@@ -18,11 +18,12 @@ const rateLimits = new Map();
 //  Preset configurations
 // ────────────────────────────────────────────────────────
 export const RATE_LIMITS = {
-  auth:    { limit: 5,  windowMs: 15 * 60 * 1000 },  // 5 / 15 min
-  api:     { limit: 30, windowMs: 60 * 1000 },        // 30 / 1 min
-  webhook: { limit: 60, windowMs: 60 * 1000 },        // 60 / 1 min
-  admin:   { limit: 10, windowMs: 5 * 60 * 1000 },    // 10 / 5 min
-  email:   { limit: 5,  windowMs: 5 * 60 * 1000 },    // 5 / 5 min
+  auth:     { limit: 5,  windowMs: 15 * 60 * 1000 },  // 5 / 15 min
+  api:      { limit: 30, windowMs: 60 * 1000 },        // 30 / 1 min
+  api_read: { limit: 60, windowMs: 60 * 1000 },        // 60 / 1 min (GET endpoints — more lenient)
+  webhook:  { limit: 60, windowMs: 60 * 1000 },        // 60 / 1 min
+  admin:    { limit: 10, windowMs: 5 * 60 * 1000 },    // 10 / 5 min
+  email:    { limit: 5,  windowMs: 5 * 60 * 1000 },    // 5 / 5 min
 };
 
 /**

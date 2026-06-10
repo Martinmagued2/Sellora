@@ -25,7 +25,7 @@ function getSupabaseAdmin() {
  */
 export async function POST(request) {
   try {
-    const { orderId, coupon_code, discount_amount } = await request.json();
+    const { orderId, coupon_code } = await request.json();
 
     if (!orderId) {
       return NextResponse.json({ error: "Missing orderId" }, { status: 400 });
@@ -68,29 +68,30 @@ export async function POST(request) {
     let discountAmount = 0;
 
     if (coupon_code) {
-      // If discount_amount is explicitly provided, use it
-      if (discount_amount !== undefined && discount_amount !== null) {
-        discountAmount = parseFloat(discount_amount);
-      } else {
-        // Otherwise, validate the coupon to get the discount
-        const validateRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/coupons/validate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code: coupon_code,
-            order_total: order.total,
-            account_id: order.account_id,
-            items: order.items,
-          }),
-        });
-        const validateData = await validateRes.json();
+      // 🔒 SECURITY: NEVER trust discount_amount from the client — always validate server-side
+      // Validate the coupon to get the discount amount
+      const validateRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/coupons/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: coupon_code,
+          order_total: order.total,
+          account_id: order.account_id,
+          items: order.items,
+        }),
+      });
+      const validateData = await validateRes.json();
 
-        if (validateData.valid) {
-          discountAmount = parseFloat(validateData.discount_amount || 0);
-        }
+      if (validateData.valid) {
+        discountAmount = parseFloat(validateData.discount_amount || 0);
       }
 
       finalTotal = Math.max(0, finalTotal - discountAmount);
+
+      // Validate final total is reasonable
+      if (finalTotal <= 0) {
+        return NextResponse.json({ error: "Invalid total after discount" }, { status: 400 });
+      }
 
       // Update the order with coupon info and adjusted total
       await supabase.from("orders").update({

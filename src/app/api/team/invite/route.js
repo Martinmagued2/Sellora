@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendTeamInviteEmail, isEmailConfigured } from "@/lib/email";
 import { NextResponse } from "next/server";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 let _supabaseAdmin = null;
 function getSupabaseAdmin() {
@@ -14,6 +15,12 @@ function getSupabaseAdmin() {
 }
 
 export async function POST(req) {
+  // 🔒 CRITICAL: Require admin auth — anyone could send team invites
+  const { isAdmin } = await verifyAdmin(req);
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   try {
     const { email, accountId, businessName } = await req.json();
 

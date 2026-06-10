@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 // Lazy-init to avoid build-time errors
 let _supabaseAdmin = null;
@@ -19,7 +20,13 @@ function getSupabaseAdmin() {
  * This is called automatically by the app on first upload attempt,
  * but can also be called manually.
  */
-export async function POST() {
+export async function POST(request) {
+  // 🔒 CRITICAL: Require admin auth — can create buckets & set RLS policies
+  const { isAdmin } = await verifyAdmin(request);
+  if (!isAdmin) {
+    return Response.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   try {
     const admin = getSupabaseAdmin();
 
@@ -210,7 +217,13 @@ export async function POST() {
  *
  * Check the current state of storage buckets (doesn't create anything).
  */
-export async function GET() {
+export async function GET(request) {
+  // 🔒 Require admin auth for bucket listing too
+  const { isAdmin } = await verifyAdmin(request);
+  if (!isAdmin) {
+    return Response.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   try {
     const admin = getSupabaseAdmin();
     const { data: buckets, error } = await admin.storage.listBuckets();

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 // Lazy-init admin client (bypasses RLS)
 let _supabaseAdmin = null;
@@ -30,6 +31,12 @@ function getSupabaseAdmin() {
  * Returns per-table counts of migrated records.
  */
 export async function POST(request) {
+  // 🔒 CRITICAL: Require admin authentication for account data migration
+  const { isAdmin } = await verifyAdmin(request);
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { fromAccountId, toAccountId } = body;

@@ -8,6 +8,19 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import crypto from "crypto";
+
+// 🔒 SECURITY: Timing-safe admin key comparison
+function timingSafeKeyCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, bufA); // Constant-time dummy
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function getAdminClient() {
   return createClient(
@@ -20,8 +33,8 @@ export async function POST(req) {
   try {
     const { adminKey } = await req.json();
     
-    // Admin key check — uses env var, no hardcoded secrets
-    if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+    // 🔒 SECURITY: Use timing-safe comparison instead of !==
+    if (!timingSafeKeyCompare(adminKey, process.env.ADMIN_SECRET_KEY || "")) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 

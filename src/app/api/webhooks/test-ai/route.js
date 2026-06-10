@@ -9,6 +9,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateAIReply, analyzeIntent } from "@/lib/ai";
 import { getPlanLimits } from "@/lib/plan-limits";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 function getAdminClient() {
   return createClient(
@@ -18,6 +19,12 @@ function getAdminClient() {
 }
 
 export async function GET(req) {
+  // 🔒 CRITICAL: Require admin auth — endpoint leaks tokens & account data
+  const { isAdmin } = await verifyAdmin(req);
+  if (!isAdmin) {
+    return Response.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const accountId = searchParams.get("accountId");
   const testMessage = searchParams.get("message") || "Hi, what products do you sell?";
@@ -137,7 +144,7 @@ export async function GET(req) {
       results.steps.push({ step: "meta_delivery_check", status: "ready", data: {
         has_fb_token: true,
         has_page_id: true,
-        token_preview: account.facebook_access_token.substring(0, 15) + "...",
+        // 🔒 SECURITY: Do NOT expose token previews
         note: "Token exists, AI reply WOULD be delivered to Facebook",
       }});
     } else if (aiResult?.reply) {

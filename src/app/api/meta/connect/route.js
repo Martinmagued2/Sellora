@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 // Server-side admin client (bypasses RLS)
 let _supabase = null;
@@ -22,6 +23,12 @@ function getSupabase() {
  * Body: { accountId, platform, pageId, accessToken }
  */
 export async function POST(request) {
+  // 🔒 SECURITY: Require admin auth — anyone could connect pages to any account
+  const { isAdmin } = await verifyAdmin(request);
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  }
+
   try {
     const { accountId, platform, pageId, accessToken } = await request.json();
 

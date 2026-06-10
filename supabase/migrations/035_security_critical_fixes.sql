@@ -11,6 +11,10 @@ CREATE POLICY "Service role full access" ON public.notifications
   FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 
 -- Allow users to read their own notifications
+-- 🔒 FIX: Must drop existing policy first (created in migration 017a) to avoid duplicate name error
+-- that would roll back the entire migration transaction
+DROP POLICY IF EXISTS "Users can read own notifications" ON public.notifications;
+
 CREATE POLICY "Users can read own notifications" ON public.notifications
   FOR SELECT USING (account_id = auth.uid());
 

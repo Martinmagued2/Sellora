@@ -43,6 +43,7 @@ export async function GET(request) {
 
   } catch (err) {
     console.error("[ORDER-STATUS] Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    // 🔒 SECURITY: Don't leak internal error messages
+    return NextResponse.json({ error: "Failed to retrieve order status" }, { status: 500 });
   }
 }
