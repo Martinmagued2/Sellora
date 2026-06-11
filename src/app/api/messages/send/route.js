@@ -146,7 +146,7 @@ export async function POST(request) {
         accessToken: account.whatsapp_access_token,
       });
 
-      // Save the outgoing message
+      // Save the outgoing message with delivery status
       const { error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         account_id,
@@ -154,6 +154,8 @@ export async function POST(request) {
         content,
         type,
         is_ai: false,
+        delivery_status: "delivered",
+        platform_message_id: sendResult?.messages?.[0]?.id || null,
       });
 
       if (insertError) {
@@ -226,7 +228,7 @@ export async function POST(request) {
 
     console.log(`[MSG-SEND] Meta API response:`, JSON.stringify(sendResult));
 
-    // Save the outgoing message to the database
+    // Save the outgoing message to the database with delivery status
     const { error: insertError } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       account_id,
@@ -234,6 +236,7 @@ export async function POST(request) {
       content,
       type,
       is_ai: false,
+      delivery_status: "delivered",
       platform_message_id: sendResult?.message_id || null,
     });
 
@@ -257,6 +260,14 @@ export async function POST(request) {
 
   } catch (err) {
     console.error("[MSG-SEND] Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    // Return a more specific error message for common failures
+    const errMsg = err.message || "Unknown error";
+    let statusCode = 500;
+    if (errMsg.includes("not connected")) statusCode = 400;
+    if (errMsg.includes("no phone number") || errMsg.includes("no platform")) statusCode = 400;
+    if (errMsg.includes("190") || errMsg.includes("access token") || errMsg.includes("expire")) {
+      return NextResponse.json({ error: "Channel connection expired. Please reconnect your channel in Settings.", needsReconnect: true }, { status: 401 });
+    }
+    return NextResponse.json({ error: errMsg }, { status: statusCode });
   }
 }

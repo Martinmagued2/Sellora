@@ -51,6 +51,7 @@ export default function ConversationsPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
 
   // Right panel
   const [customerInfo, setCustomerInfo] = useState(null);
@@ -310,10 +311,11 @@ export default function ConversationsPage() {
     e?.preventDefault();
     if (!newMsg.trim() || !activeConv || sending) return;
     setSending(true);
+    setSendError("");
 
     try {
-      // Send via Meta API (Facebook/Instagram) or WhatsApp if the conversation is on a real channel
-      if (activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+      if (activeConv.channel === "whatsapp" || activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+        // Send via the API route — it handles both channel delivery AND DB save
         const res = await fetch("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -325,41 +327,12 @@ export default function ConversationsPage() {
 
         const data = await res.json();
         if (!res.ok) {
-          console.error("Failed to send message to Meta:", data.error);
-          // Still save locally even if Meta delivery fails
-          await supabase.from("messages").insert({
-            conversation_id: activeConv.id,
-            account_id: activeConv.account_id,
-            direction: "outgoing",
-            content: newMsg.trim(),
-            type: "text",
-            is_ai: false,
-          });
-        }
-      } else if (activeConv.channel === "whatsapp") {
-        // Send via WhatsApp API
-        const res = await fetch("/api/messages/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversationId: activeConv.id,
-            content: newMsg.trim(),
-            channel: "whatsapp",
-          }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          console.error("Failed to send message to WhatsApp:", data.error);
-          // Still save locally even if WhatsApp delivery fails
-          await supabase.from("messages").insert({
-            conversation_id: activeConv.id,
-            account_id: activeConv.account_id,
-            direction: "outgoing",
-            content: newMsg.trim(),
-            type: "text",
-            is_ai: false,
-          });
+          console.error("Failed to send message:", data.error);
+          setSendError(data.error || "Failed to send message");
+          // The API route did NOT save the message if it returned an error,
+          // so we show the error but don't insert a duplicate
+          setSending(false);
+          return;
         }
       } else {
         // For other channels (or no channel), just save locally
@@ -373,15 +346,20 @@ export default function ConversationsPage() {
         });
       }
 
-      await supabase.from("conversations")
-        .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
-        .eq("id", activeConv.id);
+      // Note: /api/messages/send already updates the conversation, but we also
+      // refresh here for the non-API channel path
+      if (activeConv.channel !== "whatsapp" && activeConv.channel !== "instagram" && activeConv.channel !== "facebook") {
+        await supabase.from("conversations")
+          .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
+          .eq("id", activeConv.id);
+      }
 
       setNewMsg("");
       await fetchMessages();
       await fetchConversations();
     } catch (err) {
       console.error("Send error:", err);
+      setSendError("Network error — please try again");
     }
     setSending(false);
   };
@@ -1046,6 +1024,12 @@ export default function ConversationsPage() {
             </div>
 
             {/* Input area */}
+            {sendError && (
+              <div style={{ padding: "6px 12px", background: "rgba(231,76,60,0.1)", color: "#e74c3c", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>⚠ {sendError}</span>
+                <button type="button" onClick={() => setSendError("")} style={{ background: "none", border: "none", color: "#e74c3c", cursor: "pointer", fontSize: 14, padding: "0 4px" }}>✕</button>
+              </div>
+            )}
             <form className="mobile-chat-input-area" onSubmit={handleSend}>
               <div className="mobile-chat-input-wrapper">
                 <input
@@ -1055,6 +1039,7 @@ export default function ConversationsPage() {
                   onChange={(e) => {
                     const val = e.target.value;
                     setNewMsg(val);
+                    if (sendError) setSendError("");
                     if (val.startsWith("/")) {
                       const query = val.slice(1).toLowerCase();
                       const matches = quickReplies.filter(qr =>
@@ -1982,6 +1967,12 @@ export default function ConversationsPage() {
             </div>
 
             {/* ── Input ── */}
+            {sendError && (
+              <div style={{ padding: "6px 12px", background: "rgba(231,76,60,0.1)", color: "#e74c3c", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>⚠ {sendError}</span>
+                <button type="button" onClick={() => setSendError("")} style={{ background: "none", border: "none", color: "#e74c3c", cursor: "pointer", fontSize: 14, padding: "0 4px" }}>✕</button>
+              </div>
+            )}
             <form id="chat-send-form" className="chat-input-area" onSubmit={handleSend}>
               <div style={{ position: "relative", display: "flex", alignItems: "center", flex: 1, gap: 4 }}>
                 {/* Slash command menu */}
@@ -2030,6 +2021,7 @@ export default function ConversationsPage() {
                   onChange={(e) => {
                     const val = e.target.value;
                     setNewMsg(val);
+                    if (sendError) setSendError("");
                     // Slash command detection
                     if (val.startsWith("/")) {
                       const query = val.slice(1).toLowerCase();
