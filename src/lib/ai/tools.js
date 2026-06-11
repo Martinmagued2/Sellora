@@ -518,6 +518,67 @@ export const createSalesTools = (accountId, customerId) => {
       },
     }),
 
+    list_active_coupons: tool({
+      description: "List all currently active and valid coupon codes for the store. Use this when a customer asks 'do you have any discounts?', 'are there any coupons?', or 'is there a sale?'. Returns available coupon codes with their discount type and value.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const now = new Date().toISOString();
+
+        const { data: coupons, error } = await getSupabase()
+          .from("coupons")
+          .select("id, code, type, value, min_order_value, applies_to, categories, starts_at, expires_at, max_uses, used_count")
+          .eq("account_id", accountId)
+          .eq("is_active", true)
+          .lte("starts_at", now)
+          .or(`expires_at.is.null,expires_at.gte.${now}`);
+
+        if (error) {
+          return { success: false, error: "Failed to fetch coupons" };
+        }
+
+        if (!coupons || coupons.length === 0) {
+          return { success: true, coupons: [], message: "No active coupons available at the moment." };
+        }
+
+        // Filter out exhausted coupons
+        const available = coupons.filter(c => c.max_uses === null || c.used_count < c.max_uses);
+
+        if (available.length === 0) {
+          return { success: true, coupons: [], message: "No coupons currently available — all have been used up." };
+        }
+
+        const currency = await getAccountCurrency(accountId);
+
+        const formatted = available.map(c => {
+          let desc = "";
+          if (c.type === "percentage") desc = `${c.value}% off`;
+          else if (c.type === "fixed") desc = `${c.value} ${currency} off`;
+          else if (c.type === "free_shipping") desc = "Free shipping";
+
+          let conditions = [];
+          if (c.min_order_value > 0) conditions.push(`min order ${c.min_order_value} ${currency}`);
+          if (c.applies_to === "specific_products") conditions.push("select products only");
+          if (c.applies_to === "specific_categories") conditions.push("select categories only");
+          if (c.max_uses !== null) conditions.push(`limited uses: ${c.max_uses - c.used_count} left`);
+
+          return {
+            code: c.code,
+            discount: desc,
+            type: c.type,
+            value: c.value,
+            conditions: conditions.length > 0 ? conditions.join(", ") : "no restrictions",
+          };
+        });
+
+        return {
+          success: true,
+          coupons: formatted,
+          currency,
+          message: `Found ${formatted.length} active coupon${formatted.length > 1 ? 's' : ''} available!`,
+        };
+      },
+    }),
+
     create_order: tool({
       description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price.",
       inputSchema: z.object({
