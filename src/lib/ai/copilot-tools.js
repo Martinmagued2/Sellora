@@ -1411,5 +1411,190 @@ export const createCopilotTools = (accountId) => {
         }
       },
     }),
+
+    // ─── COUPON TOOLS ───
+
+    create_coupon: tool({
+      description: "Create a new coupon/discount code for the store. Use when the seller asks to create a coupon, discount code, promo code, or voucher. You need at least the coupon code, type (percentage, fixed, or free_shipping), and value. If the seller says '20% off' use type 'percentage' with value '20'. If they say '50 EGP off' use type 'fixed' with value '50'. If they say 'free shipping' use type 'free_shipping' with value '0'.",
+      inputSchema: z.object({
+        code: z.string().describe("The coupon code (e.g. 'MAR20', 'SUMMER50'). Will be auto-uppercased."),
+        type: z.string().describe("Discount type: 'percentage' for % off, 'fixed' for flat amount off, or 'free_shipping'"),
+        value: z.string().describe("Discount value: percentage number (e.g. '20' for 20%), fixed amount (e.g. '50'), or '0' for free_shipping"),
+        min_order_value: z.string().optional().describe("Minimum order value to use this coupon (default 0, no minimum)"),
+        max_uses: z.string().optional().describe("Maximum number of times this coupon can be used (default unlimited)"),
+        expires_at: z.string().optional().describe("Expiration date in ISO format (e.g. '2026-12-31T23:59:59Z'). Default: never expires."),
+        applies_to: z.string().optional().describe("What the coupon applies to: 'all' (default), 'specific_products', or 'specific_categories'"),
+      }),
+      execute: async ({ code, type, value, min_order_value, max_uses, expires_at, applies_to }) => {
+        try {
+          if (!code || !code.trim()) {
+            return { success: false, error: "Coupon code is required" };
+          }
+
+          const validTypes = ["percentage", "fixed", "free_shipping"];
+          const normalizedType = validTypes.find(t => t === type?.toLowerCase()?.trim());
+          if (!normalizedType) {
+            return { success: false, error: "Type must be 'percentage', 'fixed', or 'free_shipping'" };
+          }
+
+          const numericValue = parseFloat(value);
+          if (isNaN(numericValue) || numericValue < 0) {
+            return { success: false, error: "Value must be a non-negative number" };
+          }
+          if (normalizedType === "percentage" && (numericValue > 100 || numericValue < 0)) {
+            return { success: false, error: "Percentage value must be between 0 and 100" };
+          }
+
+          // Check for duplicate code
+          const { data: existing } = await supabase
+            .from("coupons")
+            .select("id")
+            .eq("account_id", accountId)
+            .eq("code", code.trim().toUpperCase())
+            .maybeSingle();
+
+          if (existing) {
+            return { success: false, error: `A coupon with code "${code.trim().toUpperCase()}" already exists` };
+          }
+
+          // Check plan limits
+          const { data: account } = await supabase
+            .from("accounts")
+            .select("plan")
+            .eq("id", accountId)
+            .single();
+
+          const { getPlanLimits, isLimitExceeded } = await import("@/lib/plan-limits");
+          const limits = getPlanLimits(account?.plan || "starter");
+          const couponLimit = limits.coupons !== undefined ? limits.coupons : 3;
+
+          if (couponLimit !== -1) {
+            const { count } = await supabase
+              .from("coupons")
+              .select("*", { count: "exact", head: true })
+              .eq("account_id", accountId);
+
+            if (isLimitExceeded(count || 0, couponLimit)) {
+              return {
+                success: false,
+                error: `Coupon limit reached. Your ${account?.plan || "starter"} plan allows ${couponLimit} coupons. Please upgrade to add more.`,
+              };
+            }
+          }
+
+          const insertData = {
+            account_id: accountId,
+            code: code.trim().toUpperCase(),
+            type: normalizedType,
+            value: numericValue,
+            min_order_value: min_order_value ? parseFloat(min_order_value) : 0,
+            max_uses: max_uses ? parseInt(max_uses) : null,
+            starts_at: new Date().toISOString(),
+            expires_at: expires_at || null,
+            applies_to: applies_to || "all",
+            product_ids: [],
+            categories: [],
+            is_active: true,
+            used_count: 0,
+          };
+
+          const { data, error } = await supabase
+            .from("coupons")
+            .insert(insertData)
+            .select()
+            .single();
+
+          if (error) {
+            return { success: false, error: `Failed to create coupon: ${error.message}` };
+          }
+
+          // Build human-readable description
+          let discountDesc;
+          if (normalizedType === "percentage") discountDesc = `${numericValue}% off`;
+          else if (normalizedType === "fixed") discountDesc = `${numericValue} off`;
+          else discountDesc = "Free shipping";
+
+          let conditions = [];
+          if (data.min_order_value > 0) conditions.push(`min order ${data.min_order_value}`);
+          if (data.max_uses !== null) conditions.push(`limited to ${data.max_uses} uses`);
+          if (data.expires_at) conditions.push(`expires ${new Date(data.expires_at).toLocaleDateString()}`);
+          if (data.applies_to !== "all") conditions.push(`applies to ${data.applies_to}`);
+
+          const conditionText = conditions.length > 0 ? ` Conditions: ${conditions.join(", ")}.` : "";
+
+          return {
+            success: true,
+            message: `Coupon "${data.code}" created successfully! ${discountDesc}.${conditionText}`,
+            coupon: data,
+            _action: { type: "navigate", path: "/dashboard/coupons", label: "View Coupons" },
+          };
+        } catch (err) {
+          console.error("[create_coupon] Error:", err);
+          return { success: false, error: `Failed to create coupon: ${err.message}` };
+        }
+      },
+    }),
+
+    list_coupons: tool({
+      description: "List all coupons for the store. Use when the seller asks about their coupons, discount codes, or wants to see what promotions are active.",
+      inputSchema: z.object({
+        status: z.string().optional().describe("Filter by status: 'active', 'expired', or 'all' (default 'all')"),
+      }),
+      execute: async ({ status }) => {
+        const statusFilter = status?.toLowerCase()?.trim() || "all";
+        let query = supabase
+          .from("coupons")
+          .select("*")
+          .eq("account_id", accountId)
+          .order("created_at", { ascending: false });
+
+        if (statusFilter === "active") {
+          query = query.eq("is_active", true);
+        }
+
+        const { data, error } = await query;
+
+        if (error) return { success: false, error: "Failed to fetch coupons" };
+
+        let coupons = data || [];
+
+        if (statusFilter === "expired") {
+          coupons = coupons.filter(c => c.expires_at && new Date(c.expires_at) < new Date());
+        }
+
+        const { data: accountData } = await supabase
+          .from("accounts")
+          .select("currency")
+          .eq("id", accountId)
+          .single();
+        const currency = accountData?.currency || "EGP";
+
+        const formatted = coupons.map(c => {
+          let desc;
+          if (c.type === "percentage") desc = `${c.value}% off`;
+          else if (c.type === "fixed") desc = `${c.value} ${currency} off`;
+          else desc = "Free shipping";
+
+          return {
+            code: c.code,
+            discount: desc,
+            type: c.type,
+            value: c.value,
+            is_active: c.is_active,
+            used_count: c.used_count,
+            max_uses: c.max_uses,
+            expires_at: c.expires_at,
+            applies_to: c.applies_to,
+          };
+        });
+
+        return {
+          success: true,
+          coupons: formatted,
+          total: formatted.length,
+          _action: { type: "navigate", path: "/dashboard/coupons", label: "View Coupons" },
+        };
+      },
+    }),
   };
 };
