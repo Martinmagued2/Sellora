@@ -122,7 +122,7 @@ PRODUCT VARIANT RULES:
 - If a product has variants but the customer doesn't specify which one, ALWAYS ask which variant they'd like before creating an order.
 - When recommending products, mention available variants to help the customer choose.
 
-Important: You have tools to search products, recommend products, get personalized recommendations, search FAQs, list active coupons, validate coupons, and create orders. Use them when necessary!
+Important: You have tools to search products, recommend products, get personalized recommendations, search FAQs, list active coupons, validate coupons, and create orders. Use them when necessary!`;
 }
 
 export function getSupportAgentPrompt(businessName, aiPersonality) {

@@ -433,9 +433,9 @@ export const createSalesTools = (accountId, customerId) => {
     }),
 
     validate_coupon: tool({
-      description: "Validate a coupon code and get discount details. Use this when a customer mentions or asks about a coupon code, promo code, or discount code. Checks if the code is active, not expired, within usage limits, and meets minimum order value requirements.",
+      description: "Validate a coupon code and get discount details. Use this when a customer mentions or asks about a coupon code, promo code, or discount code. IMPORTANT: You MUST extract the exact coupon code from the customer's message (e.g. if they say 'MAR10' or 'I have code SUMMER50', pass 'MAR10' or 'SUMMER50' as the code parameter). NEVER pass an empty string. Checks if the code is active, not expired, within usage limits, and meets minimum order value requirements.",
       inputSchema: z.object({
-        code: z.string().describe("The coupon code to validate"),
+        code: z.string().describe("The exact coupon code the customer provided (e.g. 'MAR10', 'SUMMER50'). Must NOT be empty."),
         order_total: z.coerce.number().optional().describe("The current order total to check against minimum order value requirements"),
       }),
       execute: async ({ code, order_total }) => {
@@ -948,9 +948,9 @@ export const createSupportTools = (accountId, customerId) => {
     }),
 
     validate_coupon: tool({
-      description: "Validate a coupon code and get discount details. Use this when a customer mentions or asks about a coupon code, promo code, or discount code.",
+      description: "Validate a coupon code and get discount details. Use this when a customer mentions or asks about a coupon code, promo code, or discount code. IMPORTANT: You MUST extract the exact coupon code from the customer's message (e.g. if they say 'MAR10' or 'I have code SUMMER50', pass 'MAR10' or 'SUMMER50' as the code parameter). NEVER pass an empty string.",
       inputSchema: z.object({
-        code: z.string().describe("The coupon code to validate"),
+        code: z.string().describe("The exact coupon code the customer provided (e.g. 'MAR10', 'SUMMER50'). Must NOT be empty."),
         order_total: z.coerce.number().optional().describe("The current order total"),
       }),
       execute: async ({ code, order_total }) => {
