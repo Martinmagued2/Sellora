@@ -1588,8 +1588,22 @@ export const createCopilotTools = (accountId) => {
           };
         });
 
+        const activeCount = formatted.filter(c => c.is_active).length;
+        const expiredCount = formatted.length - activeCount;
+        let message = `Found ${formatted.length} coupon(s)`;
+        if (statusFilter === 'all') {
+          message += ` (${activeCount} active, ${expiredCount} inactive)`;
+        }
+        if (formatted.length > 0) {
+          message += ': ' + formatted.map(c => {
+            const status = c.is_active ? '✅' : '❌';
+            return `${status} ${c.code} (${c.discount})`;
+          }).join(', ');
+        }
+
         return {
           success: true,
+          message,
           coupons: formatted,
           total: formatted.length,
           _action: { type: "navigate", path: "/dashboard/coupons", label: "View Coupons" },

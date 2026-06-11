@@ -53,3 +53,30 @@ Stage Summary:
 - Build error fixed: Missing backtick in `getSalesAgentPrompt` template literal (agents.js line 125)
 - Coupon validation bug fixed: Root cause was broken template literal preventing agent prompts from loading; enhanced tool descriptions as extra safeguard
 - Both `createSalesTools` and `createSupportTools` `validate_coupon` tools now have explicit instructions for code extraction
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix missing output when listing coupons in Sellora Agent chat
+
+Work Log:
+- User reported that typing "list all coupons" in the Sellora Agent chat only showed a generic "list_coupons done" badge with no actual coupon data
+- Analyzed the screenshot showing the chat interface with the issue
+- Identified three root causes:
+  1. `list_coupons` and `create_coupon` were missing from `TOOL_LABELS` in CopilotPanel.js — showed generic "🔧 tool_name done" instead of friendly labels
+  2. `list_coupons` and `create_coupon` were missing from `getFallbackTextFromTools()` in CopilotPanel.js — when the AI stream doesn't include text, the fallback renderer had no handler for coupon tools, so it showed nothing
+  3. `list_coupons` in copilot-tools.js returned no `message` field — the default fallback handler checks for `output.message` which didn't exist for list_coupons
+- Applied fixes:
+  1. Added `create_coupon` and `list_coupons` to `TOOL_LABELS` with friendly labels ("🎟️ Creating coupon..." / "🎟️ Loading coupons...")
+  2. Added `create_coupon` handler to `getFallbackTextFromTools()` showing code, discount, conditions
+  3. Added `list_coupons` handler to `getFallbackTextFromTools()` showing each coupon with status, code, discount, usage, expiry
+  4. Added `message` field to `list_coupons` return value in copilot-tools.js as a safety net
+  5. Added "List all my coupons" suggestion button to the CopilotPanel suggestions
+- Verified build succeeds after all changes
+
+Stage Summary:
+- Coupon tools now show friendly badge labels instead of generic "🔧 tool_name done"
+- `list_coupons` now properly displays coupon data (code, discount, status, usage, expiry) even in fallback scenarios
+- `create_coupon` now shows created coupon details in fallback scenarios
+- `list_coupons` tool now returns a `message` field for additional robustness
+- Added coupon suggestion to the chat panel

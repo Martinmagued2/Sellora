@@ -129,6 +129,32 @@ function getFallbackTextFromTools(toolInvs) {
           lines.push(output.message || 'No unpaid orders to follow up on');
         }
         break;
+      case 'create_coupon':
+        lines.push(`✅ **Coupon Created:** ${output.coupon?.code || output.message || 'Success'}`);
+        if (output.coupon) {
+          let discountDesc;
+          if (output.coupon.type === 'percentage') discountDesc = `${output.coupon.value}% off`;
+          else if (output.coupon.type === 'fixed') discountDesc = `${output.coupon.value} off`;
+          else discountDesc = 'Free shipping';
+          lines.push(`  Discount: ${discountDesc}`);
+          if (output.coupon.min_order_value > 0) lines.push(`  Min order: ${output.coupon.min_order_value}`);
+          if (output.coupon.max_uses !== null) lines.push(`  Max uses: ${output.coupon.max_uses}`);
+          if (output.coupon.expires_at) lines.push(`  Expires: ${new Date(output.coupon.expires_at).toLocaleDateString()}`);
+        }
+        break;
+      case 'list_coupons':
+        if (output.coupons && output.coupons.length > 0) {
+          lines.push(`**Coupons (${output.total}):**`);
+          output.coupons.forEach(c => {
+            const status = c.is_active ? '✅' : '❌';
+            const uses = c.max_uses ? `${c.used_count}/${c.max_uses} used` : `${c.used_count} used`;
+            const expires = c.expires_at ? ` | Exp: ${new Date(c.expires_at).toLocaleDateString()}` : '';
+            lines.push(`  ${status} **${c.code}** — ${c.discount} (${uses}${expires})`);
+          });
+        } else {
+          lines.push(`No coupons found. You can create one by saying "Create a coupon".`);
+        }
+        break;
       default:
         if (output.message) lines.push(output.message);
         break;
@@ -200,6 +226,8 @@ const TOOL_LABELS = {
   send_message_to_customer: { label: "Sending message to customer...", doneLabel: "Message sent to customer", icon: "💬" },
   send_follow_up: { label: "Sending follow-up messages...", doneLabel: "Follow-ups sent", icon: "📧" },
   recommend_products: { label: "Finding recommendations...", doneLabel: "Recommendations ready", icon: "💡" },
+  create_coupon: { label: "Creating coupon...", doneLabel: "Coupon created", icon: "🎟️" },
+  list_coupons: { label: "Loading coupons...", doneLabel: "Coupons loaded", icon: "🎟️" },
 };
 
 // Convert raw API errors into user-friendly messages
@@ -322,6 +350,7 @@ export default function CopilotPanel() {
     { icon: TrendingUp, text: "What are my latest sales?", color: "#00d2ff" },
     { icon: AlertTriangle, text: "Show me inventory alerts", color: "#e17055" },
     { icon: Users, text: "Give me customer insights", color: "#a29bfe" },
+    { icon: FileText, text: "List all my coupons", color: "#fd79a8" },
   ];
 
   return (
