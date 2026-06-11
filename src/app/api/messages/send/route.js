@@ -82,7 +82,7 @@ export async function POST(request) {
         }
       );
 
-      const { data: { user }, error: sessionError } = await supabaseAuth.getUser();
+      const { data: { user }, error: sessionError } = await supabaseAuth.auth.getUser();
       if (sessionError || !user) {
         console.error("[MSG-SEND] Auth failed:", sessionError?.message || "No user in session");
         return NextResponse.json({ error: "Authentication required. Log in to send messages." }, { status: 401 });

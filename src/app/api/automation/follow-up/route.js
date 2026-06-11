@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { sendMessage } from "@/lib/channels/meta";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -81,10 +83,10 @@ export async function POST(req) {
     const results = [];
 
     for (const order of unpaidOrders) {
-      // Find the customer's active conversation
+      // Find the customer's active conversation with channel + customer info
       const { data: conversation } = await supabase
         .from("conversations")
-        .select("id, channel, customer_id")
+        .select("id, channel, customer_id, account_id, customer:customers(id, platform_id, phone)")
         .eq("account_id", effectiveAccountId)
         .eq("customer_id", order.customer_id)
         .in("status", ["new", "open", "in_progress", "waiting_customer"])
@@ -99,16 +101,72 @@ export async function POST(req) {
 
       // Build follow-up message
       const itemsSummary = (order.items || []).map(i => `${i.qty}x ${i.name}`).join(", ");
-      const followUpMessage = `👋 Hi! Just a friendly reminder — your order #${order.order_number} (${itemsSummary}) for ${order.total} EGP is still pending payment. Would you like to complete your order?`;
+      const followUpMessage = `Hi! Just a friendly reminder — your order #${order.order_number} (${itemsSummary}) for ${order.total} EGP is still pending payment. Would you like to complete your order?`;
 
-      // Store the follow-up message
+      let deliveredViaChannel = false;
+
+      // ─── Actually deliver the message via the channel API ───
+      try {
+        const channel = conversation.channel;
+        const customer = conversation.customer;
+
+        if (channel === "whatsapp" && customer?.phone) {
+          // Get WhatsApp credentials for this account
+          const { data: waAccount } = await supabase
+            .from("accounts")
+            .select("whatsapp_access_token, whatsapp_phone_number_id, whatsapp_connected")
+            .eq("id", effectiveAccountId)
+            .single();
+
+          if (waAccount?.whatsapp_connected && waAccount?.whatsapp_access_token) {
+            const phoneNumber = customer.phone || customer.platform_id;
+            await sendWhatsAppMessage({
+              to: phoneNumber,
+              message: followUpMessage,
+              phoneNumberId: waAccount.whatsapp_phone_number_id,
+              accessToken: waAccount.whatsapp_access_token,
+            });
+            deliveredViaChannel = true;
+          }
+        } else if ((channel === "instagram" || channel === "facebook") && customer?.platform_id) {
+          // Get Meta credentials for this account
+          const tokenColumn = channel === "instagram" ? "instagram_access_token" : "facebook_access_token";
+          const pageIdColumn = channel === "instagram" ? "instagram_page_id" : "facebook_page_id";
+
+          const { data: metaAccount } = await supabase
+            .from("accounts")
+            .select(`${tokenColumn}, ${pageIdColumn}`)
+            .eq("id", effectiveAccountId)
+            .single();
+
+          const accessToken = metaAccount?.[tokenColumn];
+          const pageId = metaAccount?.[pageIdColumn];
+
+          if (accessToken && pageId) {
+            await sendMessage({
+              recipientId: customer.platform_id,
+              message: followUpMessage,
+              pageId,
+              accessToken,
+            });
+            deliveredViaChannel = true;
+          }
+        }
+      } catch (deliveryErr) {
+        console.error("[FOLLOW-UP] Channel delivery failed for order", order.id, deliveryErr.message);
+        // Continue — still save the message to DB even if delivery fails
+      }
+
+      // Store the follow-up message in the database
       const { error: insertError } = await supabase.from("messages").insert({
         conversation_id: conversation.id,
+        account_id: effectiveAccountId,
         direction: "outgoing",
         content: followUpMessage,
         type: "text",
         is_ai: true,
         agent_type: "follow_up",
+        delivery_status: deliveredViaChannel ? "delivered" : "saved_only",
       });
 
       if (insertError) {
@@ -126,7 +184,12 @@ export async function POST(req) {
         .eq("id", conversation.id);
 
       sent++;
-      results.push({ order_id: order.id, order_number: order.order_number, status: "sent" });
+      results.push({
+        order_id: order.id,
+        order_number: order.order_number,
+        status: deliveredViaChannel ? "delivered" : "saved_only",
+        channel: conversation.channel,
+      });
     }
 
     return NextResponse.json({
