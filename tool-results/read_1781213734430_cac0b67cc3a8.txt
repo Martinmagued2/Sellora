@@ -1,0 +1,903 @@
+     1→/**
+     2→ * Shared Channel Message Processor
+     3→ * 
+     4→ * This is the core pipeline that ALL channels (IG, FB, WhatsApp) use.
+     5→ * It handles: Customer upsert → Conversation upsert → Message storage → AI reply
+     6→ * 
+     7→ * By centralizing this, we guarantee consistent behavior across channels.
+     8→ */
+     9→
+    10→import { createClient } from "@supabase/supabase-js";
+    11→import { generateAIReply, generateAIReplyWithVision, analyzeIntent } from "@/lib/ai";
+    12→import { sendMessage } from "@/lib/channels/meta";
+    13→import { sendWhatsAppMessage } from "@/lib/whatsapp";
+    14→import { getPlanLimits } from "@/lib/plan-limits";
+    15→import { dispatchWebhook } from "@/lib/webhooks";
+    16→
+    17→// Service role client for server-side processing (lazy-initialized)
+    18→let _supabase = null;
+    19→function getSupabase() {
+    20→  if (!_supabase) {
+    21→    _supabase = createClient(
+    22→      process.env.NEXT_PUBLIC_SUPABASE_URL,
+    23→      process.env.SUPABASE_SERVICE_ROLE_KEY
+    24→    );
+    25→  }
+    26→  return _supabase;
+    27→}
+    28→
+    29→/**
+    30→ * Resolve the access token for a channel when it wasn't passed by the webhook handler.
+    31→ * This is crucial for delivering AI replies — without a valid token, replies are stored
+    32→ * but never delivered to the customer's Instagram/Facebook/WhatsApp inbox.
+    33→ *
+    34→ * @param {string} accountId - The account ID to look up
+    35→ * @param {string} channel - 'instagram' | 'facebook' | 'whatsapp'
+    36→ * @returns {Promise<{accessToken: string|null, pageId: string|null}>}
+    37→ */
+    38→async function resolveChannelToken(accountId, channel) {
+    39→  if (channel === "whatsapp") {
+    40→    const { data } = await getSupabase()
+    41→      .from("accounts")
+    42→      .select("whatsapp_access_token, whatsapp_phone_number_id, whatsapp_connected")
+    43→      .eq("id", accountId)
+    44→      .single();
+    45→    if (data?.whatsapp_connected && data?.whatsapp_access_token) {
+    46→      return { accessToken: data.whatsapp_access_token, pageId: data.whatsapp_phone_number_id };
+    47→    }
+    48→    return { accessToken: null, pageId: null };
+    49→  }
+    50→  const tokenColumn = channel === "instagram" ? "instagram_access_token" : "facebook_access_token";
+    51→  const pageIdColumn = channel === "instagram" ? "instagram_page_id" : "facebook_page_id";
+    52→  const { data } = await getSupabase()
+    53→    .from("accounts")
+    54→    .select(`${tokenColumn}, ${pageIdColumn}`)
+    55→    .eq("id", accountId)
+    56→    .single();
+    57→  return {
+    58→    accessToken: data?.[tokenColumn] || null,
+    59→    pageId: data?.[pageIdColumn] || null,
+    60→  };
+    61→}
+    62→
+    63→/**
+    64→ * Process an incoming message from any channel
+    65→ * 
+    66→ * @param {Object} params
+    67→ * @param {string} params.senderId - Platform user ID (IGSID, PSID)
+    68→ * @param {string} params.senderName - Display name (if available from profile)
+    69→ * @param {string} params.senderProfilePic - Profile picture URL
+    70→ * @param {string} params.text - Message text content
+    71→ * @param {string[]} params.mediaUrls - Attachment URLs
+    72→ * @param {string} params.channel - 'instagram' | 'facebook' | 'whatsapp'
+    73→ * @param {string} params.pageId - The business's page ID that received the message
+    74→ * @param {string} params.platformMessageId - Original message ID from the platform
+    75→ * @param {string} params.accessToken - Page access token for replies
+    76→ */
+    77→export async function processIncomingMessage({
+    78→  senderId,
+    79→  senderName,
+    80→  senderProfilePic,
+    81→  text,
+    82→  mediaUrls = [],
+    83→  channel,
+    84→  pageId,
+    85→  platformMessageId,
+    86→  accessToken,
+    87→  accountId: providedAccountId, // Optional: passed by webhook handler to resolve duplicate page_ids
+    88→}) {
+    89→  try {
+    90→    // ─── 1. Find the account that owns this page ───
+    91→    const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : "facebook_page_id";
+    92→
+    93→    // Step 1a: Fetch core columns that MUST exist
+    94→    // If accountId was provided (from webhook handler that already resolved duplicates), use it directly
+    95→    let account;
+    96→    if (providedAccountId) {
+    97→      const { data: directAccount, error: directError } = await getSupabase()
+    98→        .from("accounts")
+    99→        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
+   100→        .eq("id", providedAccountId)
+   101→        .single();
+   102→
+   103→      if (directError || !directAccount) {
+   104→        console.error(`[PROCESSOR] Account lookup by ID failed for ${providedAccountId}:`, directError?.message);
+   105→        return;
+   106→      }
+   107→      account = directAccount;
+   108→    } else {
+   109→      // No accountId provided — look up by page ID (handle duplicates gracefully)
+   110→      const { data: accounts, error: accountError } = await getSupabase()
+   111→        .from("accounts")
+   112→        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
+   113→        .eq(pageColumn, pageId);
+   114→
+   115→      if (accountError || !accounts || accounts.length === 0) {
+   116→        console.error(`[PROCESSOR] No account found for ${channel} page ${pageId}. Error: ${accountError?.message || "null result"}`);
+   117→        console.error(`[PROCESSOR] HINT: Check that ${pageColumn}="${pageId}" exists in the accounts table`);
+   118→        return;
+   119→      }
+   120→
+   121→      if (accounts.length > 1) {
+   122→        console.warn(`[PROCESSOR] Multiple accounts (${accounts.length}) share ${pageColumn}=${pageId}. Picking the one with a valid access token.`);
+   123→      }
+   124→
+   125→      // Prefer the account that has a valid access token for this channel
+   126→      account = (() => {
+   127→        if (channel === 'whatsapp') return accounts.find(a => a.whatsapp_access_token) || accounts[0];
+   128→        // For instagram/facebook, the token comes from the webhook handler, not from account lookup
+   129→        // So just pick the first one (they should all have the same page_id)
+   130→        return accounts[0];
+   131→      })();
+   132→    }
+   133→
+   134→    // Step 1b: Try to fetch optional columns (greeting features may not be migrated yet)
+   135→    // These are optional and should not break the pipeline if missing
+   136→    try {
+   137→      const { data: optionalData } = await getSupabase()
+   138→        .from("accounts")
+   139→        .select("auto_greeting, auto_greeting_message, greeting_per_channel, greeting_delay_seconds, instagram_greeting, facebook_greeting, whatsapp_greeting")
+   140→        .eq("id", account.id)
+   141→        .single();
+   142→      if (optionalData) {
+   143→        Object.assign(account, optionalData);
+   144→      }
+   145→    } catch (optErr) {
+   146→      // Optional columns don't exist yet — use defaults
+   147→      console.log(`[PROCESSOR] Greeting columns not yet migrated, using defaults`);
+   148→      account.auto_greeting = false;
+   149→      account.auto_greeting_message = null;
+   150→      account.greeting_per_channel = false;
+   151→      account.greeting_delay_seconds = 0;
+   152→      account.instagram_greeting = null;
+   153→      account.facebook_greeting = null;
+   154→      account.whatsapp_greeting = null;
+   155→    }
+   156→
+   157→    // ─── 2. Find or create customer ───
+   158→    let { data: customer } = await getSupabase()
+   159→      .from("customers")
+   160→      .select("*")
+   161→      .eq("account_id", account.id)
+   162→      .eq("platform_id", senderId)
+   163→      .single();
+   164→
+   165→    const isNewCustomer = !customer;
+   166→
+   167→    if (!customer) {
+   168→      const { data: newCustomer } = await getSupabase()
+   169→        .from("customers")
+   170→        .insert({
+   171→          account_id: account.id,
+   172→          name: senderName || "Unknown",
+   173→          platform_id: senderId,
+   174→          platform: channel,
+   175→          channel: channel,
+   176→          phone: channel === "whatsapp" ? senderId : null,
+   177→          profile_pic_url: senderProfilePic || null,
+   178→          first_seen_at: new Date().toISOString(),
+   179→          is_returning: false,
+   180→        })
+   181→        .select()
+   182→        .single();
+   183→
+   184→      customer = newCustomer;
+   185→    } else {
+   186→      // Update profile pic and name if we have newer data
+   187→      const updates = {};
+   188→      if (senderName && senderName !== "Unknown" && customer.name === "Unknown") {
+   189→        updates.name = senderName;
+   190→      }
+   191→      if (senderProfilePic && !customer.profile_pic_url) {
+   192→        updates.profile_pic_url = senderProfilePic;
+   193→      }
+   194→      if (Object.keys(updates).length > 0) {
+   195→        updates.last_active_at = new Date().toISOString();
+   196→        await getSupabase().from("customers").update(updates).eq("id", customer.id);
+   197→      }
+   198→    }
+   199→
+   200→    // ─── 3. Find or create conversation ───
+   201→    let { data: conversation } = await getSupabase()
+   202→      .from("conversations")
+   203→      .select("*")
+   204→      .eq("account_id", account.id)
+   205→      .eq("customer_id", customer.id)
+   206→      .eq("channel", channel)
+   207→      .in("status", ["new", "open", "in_progress", "waiting_customer"])
+   208→      .order("created_at", { ascending: false })
+   209→      .limit(1)
+   210→      .single();
+   211→
+   212→    if (!conversation) {
+   213→      const { data: newConv } = await getSupabase()
+   214→        .from("conversations")
+   215→        .insert({
+   216→          account_id: account.id,
+   217→          customer_id: customer.id,
+   218→          channel: channel,
+   219→          status: "new",
+   220→          platform_thread_id: senderId, // Thread is per-user on IG/FB
+   221→        })
+   222→        .select()
+   223→        .single();
+   224→
+   225→      conversation = newConv;
+   226→    }
+   227→
+   228→    // ─── 4. Detect intent and sentiment ───
+   229→    let intent = null;
+   230→    let sentiment = null;
+   231→    if (text) {
+   232→      try {
+   233→        const intentResult = await analyzeIntent(text);
+   234→        intent = intentResult?.intent || null;
+   235→        sentiment = intentResult?.sentiment || null;
+   236→      } catch (e) {
+   237→        console.warn("Intent detection failed:", e.message);
+   238→      }
+   239→    }
+   240→
+   241→    // ─── 5. Store the incoming message ───
+   242→    const messageType = mediaUrls.length > 0 ? "image" : "text";
+   243→    const { error: insertError } = await getSupabase().from("messages").insert({
+   244→      conversation_id: conversation.id,
+   245→      account_id: account.id,
+   246→      direction: "incoming",
+   247→      content: text,
+   248→      type: messageType,
+   249→      media_urls: mediaUrls.length > 0 ? mediaUrls : null,
+   250→      platform_message_id: platformMessageId,
+   251→      intent: intent,
+   252→      sentiment: sentiment,
+   253→      is_ai: false,
+   254→    });
+   255→
+   256→    if (insertError) {
+   257→      if (insertError.code === "23505") {
+   258→        console.log(`[PROCESSOR] Replay detected for message ${platformMessageId}. Ignoring.`);
+   259→        return; // Return early to prevent AI processing
+   260→      }
+   261→      console.error("Failed to insert incoming message:", insertError);
+   262→      throw insertError;
+   263→    }
+   264→
+   265→    // ─── 5.5 Dispatch Webhook (Plan check happens inside webhooks.js, but we do a quick check here too) ───
+   266→    const limits = getPlanLimits(account.plan || "starter");
+   267→    if (limits.webhooks) {
+   268→      // Don't await the webhook to avoid blocking the main thread response
+   269→      dispatchWebhook(account.id, "message.received", {
+   270→        conversationId: conversation.id,
+   271→        direction: "incoming",
+   272→        content: text,
+   273→        type: messageType,
+   274→        mediaUrls,
+   275→        platformMessageId,
+   276→        intent,
+   277→        channel
+   278→      }).catch(err => console.error("Webhook dispatch failed:", err));
+   279→    }
+   280→
+   281→    // ─── 6. Update conversation metadata ───
+   282→    const convUpdates = {
+   283→      last_message_at: new Date().toISOString(),
+   284→      unread_count: (conversation.unread_count || 0) + 1,
+   285→    };
+   286→    
+   287→    // If status is "waiting_customer", move back to "in_progress"
+   288→    if (conversation.status === "waiting_customer") {
+   289→      convUpdates.status = "in_progress";
+   290→    }
+   291→
+   292→    await getSupabase()
+   293→      .from("conversations")
+   294→      .update(convUpdates)
+   295→      .eq("id", conversation.id);
+   296→
+   297→    // ─── 7. Auto-tag conversation based on intent and sentiment ───
+   298→    if (intent && intent !== "general") {
+   299→      const currentTags = conversation.tags || [];
+   300→      const intentTag = `intent:${intent}`;
+   301→      if (!currentTags.includes(intentTag)) {
+   302→        await getSupabase()
+   303→          .from("conversations")
+   304→          .update({ tags: [...currentTags, intentTag] })
+   305→          .eq("id", conversation.id);
+   306→      }
+   307→    }
+   308→
+   309→    // Auto-tag and escalate conversations with negative/urgent sentiment
+   310→    if (sentiment && (sentiment === "negative" || sentiment === "urgent")) {
+   311→      const currentTags = conversation.tags || [];
+   312→      const sentimentTag = `sentiment:${sentiment}`;
+   313→      const updateData = {};
+   314→      if (!currentTags.includes(sentimentTag)) {
+   315→        updateData.tags = [...currentTags, sentimentTag];
+   316→      }
+   317→      // Auto-escalate urgent conversations to in_progress if they're new
+   318→      if (sentiment === "urgent" && (conversation.status === "new" || conversation.status === "waiting_customer")) {
+   319→        updateData.status = "in_progress";
+   320→      }
+   321→      if (Object.keys(updateData).length > 0) {
+   322→        await getSupabase()
+   323→          .from("conversations")
+   324→          .update(updateData)
+   325→          .eq("id", conversation.id);
+   326→      }
+   327→    }
+   328→
+   329→    // ─── 8. Auto-Greeting for new customers (BEFORE FAQ/keyword/AI) ───
+   330→    if (account.auto_greeting && isNewCustomer && text) {
+   331→      try {
+   332→        // Determine greeting message based on channel
+   333→        let greetingMessage;
+   334→        if (account.greeting_per_channel) {
+   335→          // Use channel-specific greeting
+   336→          const channelGreetings = {
+   337→            instagram: account.instagram_greeting,
+   338→            facebook: account.facebook_greeting,
+   339→            whatsapp: account.whatsapp_greeting,
+   340→          };
+   341→          greetingMessage = channelGreetings[channel] || account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?";
+   342→        } else {
+   343→          greetingMessage = account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?";
+   344→        }
+   345→
+   346→        greetingMessage = greetingMessage
+   347→          .replace(/\{business_name\}/g, account.business_name || "our store")
+   348→          .replace(/\{name\}/g, customer.name || "there");
+   349→
+   350→        // Apply greeting delay if configured
+   351→        const delaySeconds = account.greeting_delay_seconds || 0;
+   352→        if (delaySeconds > 0) {
+   353→          await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+   354→        }
+   355→
+   356→        // Send greeting via the appropriate channel (best-effort)
+   357→        let greetingDelivered = false;
+   358→        try {
+   359→          if (channel === "whatsapp") {
+   360→            const waAccessToken = account.whatsapp_access_token || null;
+   361→            await sendWhatsAppMessage({
+   362→              to: senderId,
+   363→              message: greetingMessage,
+   364→              phoneNumberId: account.whatsapp_phone_number_id,
+   365→              accessToken: waAccessToken,
+   366→            });
+   367→            greetingDelivered = true;
+   368→          } else {
+   369→            // For IG/FB: try provided token, then look up from accounts table
+   370→            let greetToken = accessToken;
+   371→            let greetPageId = pageId;
+   372→            if (!greetToken) {
+   373→              const resolved = await resolveChannelToken(account.id, channel);
+   374→              greetToken = resolved.accessToken;
+   375→              greetPageId = resolved.pageId || pageId;
+   376→            }
+   377→            if (greetToken && greetPageId) {
+   378→              await sendMessage({
+   379→                recipientId: senderId,
+   380→                message: greetingMessage,
+   381→                pageId: greetPageId,
+   382→                accessToken: greetToken,
+   383→              });
+   384→              greetingDelivered = true;
+   385→            } else {
+   386→              console.warn(`[PROCESSOR] No ${channel} token for greeting delivery — greeting stored but NOT sent`);
+   387→            }
+   388→          }
+   389→        } catch (deliveryErr) {
+   390→          console.warn(`[PROCESSOR] Greeting delivery failed for ${channel}:`, deliveryErr.message);
+   391→          // Continue to store the greeting in DB even if delivery failed
+   392→        }
+   393→
+   394→        // Store the greeting message (always, even if delivery failed)
+   395→        try {
+   396→          await getSupabase().from("messages").insert({
+   397→            conversation_id: conversation.id,
+   398→            account_id: account.id,
+   399→            direction: "outgoing",
+   400→            content: greetingMessage,
+   401→            type: "text",
+   402→            is_ai: false,
+   403→            delivery_status: greetingDelivered ? "delivered" : "failed",
+   404→          });
+   405→        } catch (dbErr) {
+   406→          console.warn(`[PROCESSOR] Failed to store greeting in database:`, dbErr.message);
+   407→        }
+   408→
+   409→        // Track first response time
+   410→        if (!conversation.first_response_at) {
+   411→          await getSupabase()
+   412→            .from("conversations")
+   413→            .update({ first_response_at: new Date().toISOString() })
+   414→            .eq("id", conversation.id);
+   415→        }
+   416→      } catch (greetingErr) {
+   417→        // Greeting failure should not block the pipeline
+   418→        console.warn("Auto-greeting failed:", greetingErr.message);
+   419→      }
+   420→    }
+   421→
+   422→    // ─── 9. Check FAQ auto-replies first, then keyword auto-replies ───
+   423→    if (text) {
+   424→      // ─── 9a. Check FAQ knowledge base ───
+   425→      try {
+   426→        const { data: faqs } = await getSupabase()
+   427→          .from("faqs")
+   428→          .select("id, question, answer, category")
+   429→          .eq("account_id", account.id)
+   430→          .eq("is_active", true);
+   431→
+   432→        if (faqs && faqs.length > 0) {
+   433→          const lowerText = text.toLowerCase();
+   434→          const searchTerms = lowerText.split(/\s+/).filter(Boolean);
+   435→
+   436→          const scored = faqs.map((faq) => {
+   437→            let score = 0;
+   438→            const qLower = (faq.question || "").toLowerCase();
+   439→            const aLower = (faq.answer || "").toLowerCase();
+   440→            const cLower = (faq.category || "").toLowerCase();
+   441→            const allText = `${qLower} ${aLower} ${cLower}`;
+   442→
+   443→            for (const term of searchTerms) {
+   444→              if (qLower.includes(term)) score += 10;
+   445→              if (cLower.includes(term)) score += 8;
+   446→              if (aLower.includes(term)) score += 5;
+   447→              if (allText.includes(term)) score += 2;
+   448→            }
+   449→
+   450→            return { ...faq, score };
+   451→          });
+   452→
+   453→          const bestMatch = scored
+   454→            .filter((f) => f.score > 0)
+   455→            .sort((a, b) => b.score - a.score)[0];
+   456→
+   457→          // Only use FAQ auto-reply if the match score is high enough
+   458→          if (bestMatch && bestMatch.score >= 10) {
+   459→            // Send the FAQ answer via the appropriate channel (best-effort)
+   460→            let faqDelivered = false;
+   461→            try {
+   462→              if (channel === "whatsapp") {
+   463→                const waAccessToken = account.whatsapp_access_token || null;
+   464→                await sendWhatsAppMessage({
+   465→                  to: senderId,
+   466→                  message: bestMatch.answer,
+   467→                  phoneNumberId: account.whatsapp_phone_number_id,
+   468→                  accessToken: waAccessToken,
+   469→                });
+   470→                faqDelivered = true;
+   471→              } else {
+   472→                let faqToken = accessToken;
+   473→                let faqPageId = pageId;
+   474→                if (!faqToken) {
+   475→                  const resolved = await resolveChannelToken(account.id, channel);
+   476→                  faqToken = resolved.accessToken;
+   477→                  faqPageId = resolved.pageId || pageId;
+   478→                }
+   479→                if (faqToken && faqPageId) {
+   480→                  await sendMessage({
+   481→                    recipientId: senderId,
+   482→                    message: bestMatch.answer,
+   483→                    pageId: faqPageId,
+   484→                    accessToken: faqToken,
+   485→                  });
+   486→                  faqDelivered = true;
+   487→                } else {
+   488→                  console.warn(`[PROCESSOR] No ${channel} token for FAQ reply delivery — reply stored but NOT sent`);
+   489→                }
+   490→              }
+   491→            } catch (deliveryErr) {
+   492→              console.warn(`[PROCESSOR] FAQ reply delivery failed for ${channel}:`, deliveryErr.message);
+   493→            }
+   494→
+   495→            // Store it (always, even if delivery failed)
+   496→            try {
+   497→              await getSupabase().from("messages").insert({
+   498→                conversation_id: conversation.id,
+   499→                account_id: account.id,
+   500→                direction: "outgoing",
+   501→                content: bestMatch.answer,
+   502→                type: "text",
+   503→                is_ai: true,
+   504→                delivery_status: faqDelivered ? "delivered" : "failed",
+   505→              });
+   506→            } catch (dbErr) {
+   507→              console.warn(`[PROCESSOR] Failed to store FAQ reply:`, dbErr.message);
+   508→            }
+   509→
+   510→            // Track first response time
+   511→            if (!conversation.first_response_at) {
+   512→              await getSupabase()
+   513→                .from("conversations")
+   514→                .update({ first_response_at: new Date().toISOString() })
+   515→                .eq("id", conversation.id);
+   516→            }
+   517→
+   518→            // FAQ reply handled, skip keyword and AI
+   519→            return;
+   520→          }
+   521→        }
+   522→      } catch (faqErr) {
+   523→        // FAQ check failure should not block the pipeline
+   524→        console.warn("FAQ auto-reply check failed:", faqErr.message);
+   525→      }
+   526→
+   527→      // ─── 9b. Check keyword auto-replies ───
+   528→      const { data: autoReplies } = await getSupabase()
+   529→        .from("auto_replies")
+   530→        .select("*")
+   531→        .eq("account_id", account.id)
+   532→        .eq("is_active", true);
+   533→
+   534→      if (autoReplies && autoReplies.length > 0) {
+   535→        const lowerText = text.toLowerCase();
+   536→        const matchedReply = autoReplies.find((ar) => {
+   537→          const keyword = ar.trigger_keyword.toLowerCase();
+   538→          if (ar.match_type === "exact") return lowerText === keyword;
+   539→          if (ar.match_type === "starts_with") return lowerText.startsWith(keyword);
+   540→          return lowerText.includes(keyword); // contains
+   541→        });
+   542→
+   543→        if (matchedReply) {
+   544→          // Send the auto-reply via the appropriate channel (best-effort)
+   545→          let keywordDelivered = false;
+   546→          try {
+   547→            if (channel === "whatsapp") {
+   548→              const waAccessToken = account.whatsapp_access_token || null;
+   549→              await sendWhatsAppMessage({
+   550→                to: senderId,
+   551→                message: matchedReply.response,
+   552→                phoneNumberId: account.whatsapp_phone_number_id,
+   553→                accessToken: waAccessToken,
+   554→              });
+   555→              keywordDelivered = true;
+   556→            } else {
+   557→              let kwToken = accessToken;
+   558→              let kwPageId = pageId;
+   559→              if (!kwToken) {
+   560→                const resolved = await resolveChannelToken(account.id, channel);
+   561→                kwToken = resolved.accessToken;
+   562→                kwPageId = resolved.pageId || pageId;
+   563→              }
+   564→              if (kwToken && kwPageId) {
+   565→                await sendMessage({
+   566→                  recipientId: senderId,
+   567→                  message: matchedReply.response,
+   568→                  pageId: kwPageId,
+   569→                  accessToken: kwToken,
+   570→                });
+   571→                keywordDelivered = true;
+   572→              } else {
+   573→                console.warn(`[PROCESSOR] No ${channel} token for keyword reply delivery — reply stored but NOT sent`);
+   574→              }
+   575→            }
+   576→          } catch (deliveryErr) {
+   577→            console.warn(`[PROCESSOR] Keyword reply delivery failed for ${channel}:`, deliveryErr.message);
+   578→          }
+   579→
+   580→          // Store it (always, even if delivery failed)
+   581→          try {
+   582→            await getSupabase().from("messages").insert({
+   583→              conversation_id: conversation.id,
+   584→              account_id: account.id,
+   585→              direction: "outgoing",
+   586→              content: matchedReply.response,
+   587→              type: "text",
+   588→              is_ai: true,
+   589→              delivery_status: keywordDelivered ? "delivered" : "failed",
+   590→            });
+   591→          } catch (dbErr) {
+   592→            console.warn(`[PROCESSOR] Failed to store keyword reply:`, dbErr.message);
+   593→          }
+   594→
+   595→          // Track first response time
+   596→          if (!conversation.first_response_at) {
+   597→            await getSupabase()
+   598→              .from("conversations")
+   599→              .update({ first_response_at: new Date().toISOString() })
+   600→              .eq("id", conversation.id);
+   601→          }
+   602→
+   603→          return; // Keyword reply handled, skip AI
+   604→        }
+   605→      }
+   606→    }
+   607→
+   608→    // ─── 10. AI Auto-Reply (with rate limiting + error handling) ───
+   609→    console.log(`[PROCESSOR] AI check: ai_enabled=${account.ai_enabled}, hasText=${!!text}, hasMedia=${mediaUrls.length > 0}, channel=${channel}, hasAccessToken=${!!accessToken}, accountId=${account.id}`);
+   610→    // AI triggers if: text exists OR images were sent (vision AI can analyze images)
+   611→    if (account.ai_enabled && (text || mediaUrls.length > 0)) {
+   612→      try {
+   613→        // Check daily AI rate limit per account (plan-aware)
+   614→        const planLimits = getPlanLimits(account.plan || "starter");
+   615→        const MAX_AI_PER_ACCOUNT_PER_DAY = planLimits.ai_replies_per_day;
+   616→        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+   617→
+   618→        // Skip rate check if plan is unlimited (-1)
+   619→        let aiCount = 0;
+   620→        if (MAX_AI_PER_ACCOUNT_PER_DAY !== -1) {
+   621→          const { count } = await getSupabase()
+   622→            .from("rate_limits")
+   623→            .select("*", { count: "exact", head: true })
+   624→            .eq("email", account.id)
+   625→            .eq("action", "ai_auto_reply")
+   626→            .gte("created_at", oneDayAgo);
+   627→          aiCount = count || 0;
+   628→        }
+   629→
+   630→        console.log(`[PROCESSOR] AI rate limit: ${aiCount}/${MAX_AI_PER_ACCOUNT_PER_DAY} (plan: ${account.plan})`);
+   631→
+   632→        if (MAX_AI_PER_ACCOUNT_PER_DAY !== -1 && aiCount >= MAX_AI_PER_ACCOUNT_PER_DAY) {
+   633→          console.warn(`Account ${account.id} exceeded daily AI limit (${MAX_AI_PER_ACCOUNT_PER_DAY})`);
+   634→          // Skip AI reply silently — message is still stored
+   635→        } else {
+   636→          // Log the AI request
+   637→          await getSupabase().from("rate_limits").insert({
+   638→            email: account.id, // Using email column to store account_id for this action type
+   639→            action: "ai_auto_reply",
+   640→          });
+   641→
+   642→          console.log(`[PROCESSOR] Generating AI reply for account ${account.id}, conversation ${conversation.id}, message: "${text?.substring(0, 50)}..."`);
+   643→
+   644→          // Fetch products for AI context (including variants like sizes/colors)
+   645→          const { data: products } = await getSupabase()
+   646→            .from("products")
+   647→            .select("name, price, description, category, stock, variants")
+   648→            .eq("account_id", account.id)
+   649→            .eq("status", "active")
+   650→            .limit(50);
+   651→
+   652→          // Fetch recent conversation history for context
+   653→          const { data: recentMessages } = await getSupabase()
+   654→            .from("messages")
+   655→            .select("content, direction")
+   656→            .eq("conversation_id", conversation.id)
+   657→            .order("created_at", { ascending: false })
+   658→            .limit(8);
+   659→
+   660→          const history = (recentMessages || []).reverse();
+   661→
+   662→          // Use vision AI if customer sent images, otherwise standard AI reply
+   663→          const aiResult = mediaUrls.length > 0
+   664→            ? await generateAIReplyWithVision({
+   665→                accountId: account.id,
+   666→                customerId: customer.id,
+   667→                customerMessage: text || "",
+   668→                customerName: customer.name,
+   669→                personality: account.ai_personality,
+   670→                country: account.country,
+   671→                businessName: account.business_name,
+   672→                conversationHistory: history,
+   673→                plan: account.plan,
+   674→                mediaUrls,
+   675→              })
+   676→            : await generateAIReply({
+   677→                accountId: account.id,
+   678→                customerId: customer.id,
+   679→                customerMessage: text,
+   680→                customerName: customer.name,
+   681→                personality: account.ai_personality,
+   682→                country: account.country,
+   683→                businessName: account.business_name,
+   684→                conversationHistory: history,
+   685→                plan: account.plan,
+   686→              });
+   687→
+   688→          console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
+   689→
+   690→          if (aiResult && aiResult.reply) {
+   691→            const aiReply = aiResult.reply;
+   692→            console.log(`[PROCESSOR] AI reply generated (${aiReply.length} chars): "${aiReply.substring(0, 80)}..."`);
+   693→
+   694→            // ─── Step 10a: Send AI reply via Meta/WhatsApp (best-effort) ───
+   695→            // This is wrapped in its own try/catch because Meta delivery failure
+   696→            // should NOT prevent the AI reply from being stored in the database.
+   697→            // The business owner can still see the AI reply in the conversations page.
+   698→            let deliverySuccess = false;
+   699→            try {
+   700→              if (channel === "whatsapp") {
+   701→                // Use the account's WhatsApp token if available, otherwise fall back to env var
+   702→                const waAccessToken = account.whatsapp_access_token || null;
+   703→                await sendWhatsAppMessage({
+   704→                  to: senderId,
+   705→                  message: aiReply,
+   706→                  phoneNumberId: account.whatsapp_phone_number_id,
+   707→                  accessToken: waAccessToken,
+   708→                });
+   709→                deliverySuccess = true;
+   710→              } else {
+   711→                // For Instagram/Facebook: try the provided accessToken first.
+   712→                // If not provided (webhook handler couldn't find it), look it up
+   713→                // from the accounts table directly — the token may have been stored
+   714→                // but the webhook handler didn't have it in its initial query.
+   715→                let effectiveAccessToken = accessToken;
+   716→                let effectivePageId = pageId;
+   717→
+   718→                if (!effectiveAccessToken) {
+   719→                  console.log(`[PROCESSOR] No accessToken passed for ${channel}, looking up from accounts table...`);
+   720→                  const tokenColumn = channel === "instagram" ? "instagram_access_token" : "facebook_access_token";
+   721→                  const pageIdColumn = channel === "instagram" ? "instagram_page_id" : "facebook_page_id";
+   722→                  const { data: tokenData } = await getSupabase()
+   723→                    .from("accounts")
+   724→                    .select(`${tokenColumn}, ${pageIdColumn}`)
+   725→                    .eq("id", account.id)
+   726→                    .single();
+   727→                  if (tokenData?.[tokenColumn]) {
+   728→                    effectiveAccessToken = tokenData[tokenColumn];
+   729→                    effectivePageId = tokenData[pageIdColumn] || pageId;
+   730→                    console.log(`[PROCESSOR] Found ${channel} access token in accounts table, will attempt delivery`);
+   731→                  } else {
+   732→                    console.warn(`[PROCESSOR] No ${channel} access token found in accounts table for account ${account.id}`);
+   733→                  }
+   734→                }
+   735→
+   736→                if (effectiveAccessToken && effectivePageId) {
+   737→                  await sendMessage({
+   738→                    recipientId: senderId,
+   739→                    message: aiReply,
+   740→                    pageId: effectivePageId,
+   741→                    accessToken: effectiveAccessToken,
+   742→                  });
+   743→                  deliverySuccess = true;
+   744→                } else {
+   745→                  console.warn(`[PROCESSOR] No access token available for ${channel} — AI reply stored but NOT delivered to customer`);
+   746→                  console.warn(`[PROCESSOR] HINT: Re-connect ${channel} in Settings to refresh the access token`);
+   747→                }
+   748→              }
+   749→            } catch (deliveryErr) {
+   750→              console.error(`[PROCESSOR] AI reply delivery failed for ${channel}:`, deliveryErr.message);
+   751→              console.error(`[PROCESSOR] AI reply is still saved to database but customer did NOT receive it on ${channel}`);
+   752→              // Continue to store the AI reply in DB even if delivery failed
+   753→            }
+   754→
+   755→            // ─── Step 10b: ALWAYS store AI reply in database ───
+   756→            // This must happen regardless of whether Meta delivery succeeded.
+   757→            // Otherwise, AI replies are lost when delivery fails.
+   758→            const responseTime = Math.round((Date.now() - (conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : Date.now())) / 1000);
+   759→
+   760→            try {
+   761→              await getSupabase().from("messages").insert({
+   762→                conversation_id: conversation.id,
+   763→                account_id: account.id,
+   764→                direction: "outgoing",
+   765→                content: aiReply,
+   766→                type: "text",
+   767→                is_ai: true,
+   768→                response_time_seconds: responseTime,
+   769→                sentiment: aiResult.sentiment || null,
+   770→                tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
+   771→                delivery_status: deliverySuccess ? "delivered" : "failed",
+   772→              });
+   773→            } catch (dbErr) {
+   774→              console.error(`[PROCESSOR] Failed to store AI reply in database:`, dbErr.message);
+   775→            }
+   776→
+   777→            if (aiResult.toolCalls && aiResult.toolCalls.length > 0) {
+   778→              try {
+   779→                for (const toolCall of aiResult.toolCalls) {
+   780→                    await getSupabase().from("agent_actions").insert({
+   781→                        account_id: account.id,
+   782→                        conversation_id: conversation.id,
+   783→                        agent_type: aiResult.intent,
+   784→                        tool_name: toolCall.toolName,
+   785→                        tool_input: toolCall.args,
+   786→                        success: true,
+   787→                    });
+   788→                }
+   789→              } catch (actionErr) {
+   790→                console.error(`[PROCESSOR] Failed to log agent action:`, actionErr.message);
+   791→              }
+   792→            }
+   793→
+   794→            // Track first response time
+   795→            if (!conversation.first_response_at) {
+   796→              await getSupabase()
+   797→                .from("conversations")
+   798→                .update({ first_response_at: new Date().toISOString() })
+   799→                .eq("id", conversation.id);
+   800→            }
+   801→
+   802→            console.log(`[PROCESSOR] AI auto-reply generated and ${deliverySuccess ? 'delivered' : 'saved (delivery failed)'} for conversation ${conversation.id}`);
+   803→
+   804→            // ─── Step 10c: Handle AI Escalation (notify owner) ───
+   805→            if (aiResult.needsHumanAttention && aiResult.escalationReason) {
+   806→              try {
+   807→                console.log(`[PROCESSOR] AI ESCALATION detected for conversation ${conversation.id}: ${aiResult.escalationReason}`);
+   808→
+   809→                // 1. Update conversation status to "needs_attention" and add escalation tag
+   810→                const currentTags = conversation.tags || [];
+   811→                const escalationTag = "escalated:ai";
+   812→                const reasonTag = `escalation:${aiResult.escalationReason.substring(0, 50)}`;
+   813→                const newTags = [...new Set([...currentTags, escalationTag, reasonTag])];
+   814→
+   815→                await getSupabase()
+   816→                  .from("conversations")
+   817→                  .update({
+   818→                    status: "needs_attention",
+   819→                    tags: newTags,
+   820→                  })
+   821→                  .eq("id", conversation.id);
+   822→
+   823→                // 2. Store escalation notification for the owner (resilient to missing table)
+   824→                try {
+   825→                  await getSupabase().from("notifications").insert({
+   826→                    account_id: account.id,
+   827→                    type: "ai_escalation",
+   828→                    title: "AI Needs Your Help",
+   829→                    message: `Customer "${customer.name || 'Unknown'}" in a ${channel} conversation needs human attention: ${aiResult.escalationReason}`,
+   830→                    data: {
+   831→                      conversation_id: conversation.id,
+   832→                      customer_id: customer.id,
+   833→                      customer_name: customer.name,
+   834→                      channel: channel,
+   835→                      escalation_reason: aiResult.escalationReason,
+   836→                      original_message: text?.substring(0, 200),
+   837→                      ai_reply_preview: aiReply?.substring(0, 200),
+   838→                      intent: aiResult.intent,
+   839→                      sentiment: aiResult.sentiment,
+   840→                    },
+   841→                    read: false,
+   842→                  });
+   843→                } catch (notifErr) {
+   844→                  console.warn(`[PROCESSOR] Failed to store notification (table may not exist yet):`, notifErr.message);
+   845→                  console.warn(`[PROCESSOR] Run migration: /api/admin/setup-db?adminKey=<YOUR_ADMIN_KEY>`);
+   846→                }
+   847→
+   848→                // 3. Send email notification to the owner (best-effort)
+   849→                try {
+   850→                  const { data: accountEmail } = await getSupabase()
+   851→                    .from("accounts")
+   852→                    .select("email, notify_escalations")
+   853→                    .eq("id", account.id)
+   854→                    .single();
+   855→
+   856→                  if (accountEmail?.notify_escalations !== false) {
+   857→                    // Fire and forget — don't block the pipeline
+   858→                    fetch(`${process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''}/api/notifications/email`, {
+   859→                      method: "POST",
+   860→                      headers: { "Content-Type": "application/json" },
+   861→                      body: JSON.stringify({
+   862→                        accountId: account.id,
+   863→                        type: "ai_escalation",
+   864→                        to: accountEmail?.email,
+   865→                        customerName: customer.name || "A customer",
+   866→                        channel,
+   867→                        reason: aiResult.escalationReason,
+   868→                        conversationId: conversation.id,
+   869→                      }),
+   870→                    }).catch(() => {}); // Silently ignore email failures
+   871→                  }
+   872→                } catch (emailErr) {
+   873→                  // Email notification failure should not block anything
+   874→                  console.warn(`[PROCESSOR] Escalation email failed:`, emailErr.message);
+   875→                }
+   876→
+   877→                console.log(`[PROCESSOR] Escalation notification stored for account ${account.id}, conversation ${conversation.id}`);
+   878→              } catch (escalationErr) {
+   879→                console.error(`[PROCESSOR] Failed to process AI escalation:`, escalationErr.message);
+   880→              }
+   881→            }
+   882→          } // end if aiResult.reply
+   883→        } // end else (not rate limited)
+   884→      } catch (aiErr) {
+   885→        // AI failure should never break message processing
+   886→        console.error(`[PROCESSOR] AI auto-reply FAILED for account ${account?.id}:`, aiErr.message);
+   887→        console.error(`[PROCESSOR] AI error stack:`, aiErr.stack?.substring(0, 500));
+   888→      }
+   889→    } else {
+   890→      if (!account.ai_enabled) {
+   891→        console.log(`[PROCESSOR] AI skipped: ai_enabled is false for account ${account.id}`);
+   892→      }
+   893→      if (!text && mediaUrls.length === 0) {
+   894→        console.log(`[PROCESSOR] AI skipped: no text content or images in message`);
+   895→      }
+   896→    }
+   897→
+   898→  } catch (err) {
+   899→    console.error(`Error processing ${channel} message:`, err);
+   900→    throw err;
+   901→  }
+   902→}
+   903→
