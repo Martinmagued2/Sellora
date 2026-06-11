@@ -69,37 +69,25 @@ export async function POST(request) {
 
     // If not an admin call, verify Supabase session
     if (!isAdminCall) {
-      try {
-        const cookieStore = await cookies();
-        const supabaseAuth = createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-          {
-            cookies: {
-              getAll() {
-                return cookieStore.getAll();
-              },
-              setAll(cookiesToSet) {
-                try {
-                  cookiesToSet.forEach(({ name, value, options }) =>
-                    cookieStore.set(name, value, options)
-                  );
-                } catch {
-                  // Server Component context — ignore
-                }
-              },
+      const cookieStore = await cookies();
+      const supabaseAuth = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+          cookies: {
+            getAll() {
+              return cookieStore.getAll();
             },
-          }
-        );
-
-        const { data: { user }, error: sessionError } = await supabaseAuth.getUser();
-        if (sessionError || !user) {
-          return NextResponse.json({ error: "Authentication required. Log in to send messages." }, { status: 401 });
+          },
         }
-        authenticatedUserId = user.id;
-      } catch (e) {
+      );
+
+      const { data: { user }, error: sessionError } = await supabaseAuth.getUser();
+      if (sessionError || !user) {
+        console.error("[MSG-SEND] Auth failed:", sessionError?.message || "No user in session");
         return NextResponse.json({ error: "Authentication required. Log in to send messages." }, { status: 401 });
       }
+      authenticatedUserId = user.id;
 
       // Verify the authenticated user owns this conversation
       if (authenticatedUserId !== conversation.account_id) {
