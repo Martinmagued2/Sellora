@@ -406,9 +406,10 @@ export const createCopilotTools = (accountId) => {
     }),
 
     update_product: tool({
-      description: "Update an existing product's details. You need the product ID and at least one field to update. Only pass the fields you want to change — omit any field to leave it unchanged. Supports updating variants (sizes, colors, etc.) — when variants are provided, the product's base price is set to the lowest variant price, and total stock is the sum of all variant stocks. Pass an empty variants array [] to remove all variants from a product.",
+      description: "Update an existing product's details. Provide EITHER product_id (UUID) OR product_name to identify the product. If product_name is given instead of a UUID, the tool will search for the product by name automatically. Only pass the fields you want to change — omit any field to leave it unchanged. Supports updating variants (sizes, colors, etc.) — when variants are provided, the product's base price is set to the lowest variant price, and total stock is the sum of all variant stocks. Pass an empty variants array [] to remove all variants from a product.",
       inputSchema: z.object({
-        product_id: z.string().describe("The ID of the product to update"),
+        product_id: z.string().optional().describe("The UUID of the product to update. If you don't have the UUID, use product_name instead."),
+        product_name: z.string().optional().describe("The name of the product to update (use this if you don't have the product UUID). The tool will search for the product by name."),
         name: z.string().optional().describe("New product name (omit to keep current)"),
         price: z.string().optional().describe("New product price (omit to keep current; ignored if variants are provided)"),
         stock: z.string().optional().describe("New stock quantity (omit to keep current; ignored if variants are provided)"),
@@ -421,7 +422,42 @@ export const createCopilotTools = (accountId) => {
           stock: z.string().describe("Variant stock quantity"),
         })).optional().describe("Replace ALL variants for this product. Each variant has its own absolute price and stock. Pass [] to remove all variants. Omit this field to keep existing variants unchanged."),
       }),
-      execute: async ({ product_id, name, price, stock, category, description, variants }) => {
+      execute: async ({ product_id, product_name, name, price, stock, category, description, variants }) => {
+        // Resolve the product ID: if product_id looks like a UUID, use it directly;
+        // otherwise search by product_name
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        let resolvedId = product_id;
+        let resolvedByName = false;
+
+        if (!resolvedId || !UUID_REGEX.test(resolvedId)) {
+          // Not a valid UUID — try to find by name
+          const searchName = product_name || resolvedId; // use product_name, or fall back to whatever was passed as product_id
+          if (!searchName || !searchName.trim()) {
+            return { success: false, error: "Please provide either a valid product_id (UUID) or a product_name to identify the product." };
+          }
+
+          const { data: found, error: findError } = await supabase
+            .from("products")
+            .select("id, name, stock, price, variants")
+            .eq("account_id", accountId)
+            .ilike("name", `%${searchName.trim()}%`)
+            .limit(5);
+
+          if (findError) return { success: false, error: `Failed to search for product: ${findError.message}` };
+          if (!found || found.length === 0) return { success: false, error: `No product found matching "${searchName}". Try searching with search_products first.` };
+          if (found.length > 1) {
+            return {
+              success: false,
+              error: `Multiple products match "${searchName}": ${found.map(p => `"${p.name}" (ID: ${p.id})`).join(', ')}. Please use the specific product ID.`,
+              matches: found.map(p => ({ id: p.id, name: p.name })),
+            };
+          }
+
+          resolvedId = found[0].id;
+          resolvedByName = true;
+          console.log(`[update_product] Resolved "${searchName}" to product ID ${resolvedId}`);
+        }
+
         const updates = {};
         if (name && name.trim()) updates.name = name.trim();
         if (category && category.trim()) updates.category = category.trim();
@@ -466,7 +502,7 @@ export const createCopilotTools = (accountId) => {
         const { data, error } = await supabase
           .from("products")
           .update(updates)
-          .eq("id", product_id)
+          .eq("id", resolvedId)
           .eq("account_id", accountId)
           .select("id, name, price, stock, category, variants")
           .single();
