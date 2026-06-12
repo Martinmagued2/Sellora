@@ -406,14 +406,14 @@ export const createCopilotTools = (accountId) => {
     }),
 
     update_product: tool({
-      description: "Update an existing product's details. You need the product ID and at least one field to update. Supports updating variants (sizes, colors, etc.) — when variants are provided, the product's base price is set to the lowest variant price, and total stock is the sum of all variant stocks. Pass an empty variants array [] to remove all variants from a product.",
+      description: "Update an existing product's details. You need the product ID and at least one field to update. Only pass the fields you want to change — omit any field to leave it unchanged. Supports updating variants (sizes, colors, etc.) — when variants are provided, the product's base price is set to the lowest variant price, and total stock is the sum of all variant stocks. Pass an empty variants array [] to remove all variants from a product.",
       inputSchema: z.object({
         product_id: z.string().describe("The ID of the product to update"),
-        name: z.string().describe("New product name (pass empty string to skip)"),
-        price: z.string().describe("New product price (pass empty string to skip; ignored if variants are provided)"),
-        stock: z.string().describe("New stock quantity (pass empty string to skip; ignored if variants are provided)"),
-        category: z.string().describe("New product category (pass empty string to skip)"),
-        description: z.string().describe("New product description (pass empty string to skip)"),
+        name: z.string().optional().describe("New product name (omit to keep current)"),
+        price: z.string().optional().describe("New product price (omit to keep current; ignored if variants are provided)"),
+        stock: z.string().optional().describe("New stock quantity (omit to keep current; ignored if variants are provided)"),
+        category: z.string().optional().describe("New product category (omit to keep current)"),
+        description: z.string().optional().describe("New product description (omit to keep current)"),
         variants: z.array(z.object({
           name: z.string().describe("Variant name e.g. 'Red / Large' or 'Size M'"),
           sku: z.string().describe("SKU code (pass empty string if none)"),
