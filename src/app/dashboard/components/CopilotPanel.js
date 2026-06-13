@@ -200,6 +200,7 @@ const TOOL_LABELS = {
   send_message_to_customer: { label: "Sending message to customer...", doneLabel: "Message sent to customer", icon: "💬" },
   send_follow_up: { label: "Sending follow-up messages...", doneLabel: "Follow-ups sent", icon: "📧" },
   recommend_products: { label: "Finding recommendations...", doneLabel: "Recommendations ready", icon: "💡" },
+  navigate_to: { label: "Opening page...", doneLabel: "Ready to navigate", icon: "🔗" },
 };
 
 // Convert raw API errors into user-friendly messages
