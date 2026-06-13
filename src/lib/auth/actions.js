@@ -102,7 +102,7 @@ export async function signup(formData) {
       owner_name: fullName,
       plan: "starter",
       plan_status: "trialing",
-      // Add onboarding flag
+      ai_enabled: true, // Explicitly enable AI auto-reply for new accounts
     });
 
     if (accountError) {

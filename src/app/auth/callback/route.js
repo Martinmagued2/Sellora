@@ -82,6 +82,7 @@ export async function GET(request) {
           owner_name: data.user.user_metadata?.full_name || "",
           plan: "starter",
           plan_status: "trialing",
+          ai_enabled: true, // Explicitly enable AI auto-reply for new accounts
         });
 
         // Send welcome email (fire-and-forget, don't block redirect)

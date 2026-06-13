@@ -420,6 +420,7 @@ export async function processIncomingMessage({
     }
 
     // ─── 9. Check FAQ auto-replies first, then keyword auto-replies ───
+    let faqMatchedAndReplied = false; // Track if FAQ already replied so AI doesn't duplicate
     if (text) {
       // ─── 9a. Check FAQ knowledge base ───
       try {
@@ -441,11 +442,19 @@ export async function processIncomingMessage({
             const allText = `${qLower} ${aLower} ${cLower}`;
 
             for (const term of searchTerms) {
+              // Ignore very common short words that cause false FAQ matches
+              // Words like "hi", "how", "the", "a", "is", "do", "I", etc. should NOT
+              // score highly because they match almost any FAQ question
+              if (term.length <= 2) continue;
               if (qLower.includes(term)) score += 10;
               if (cLower.includes(term)) score += 8;
               if (aLower.includes(term)) score += 5;
               if (allText.includes(term)) score += 2;
             }
+
+            // Bonus: exact question match or near-exact match gets a big boost
+            if (qLower === lowerText) score += 50;
+            if (qLower.includes(lowerText) || lowerText.includes(qLower)) score += 20;
 
             return { ...faq, score };
           });
@@ -454,8 +463,10 @@ export async function processIncomingMessage({
             .filter((f) => f.score > 0)
             .sort((a, b) => b.score - a.score)[0];
 
-          // Only use FAQ auto-reply if the match score is high enough
-          if (bestMatch && bestMatch.score >= 10) {
+          // Use FAQ auto-reply ONLY for high-confidence matches (score >= 20).
+          // Low scores (10-19) are often false positives from common words matching
+          // FAQ content — in those cases, let AI handle it instead.
+          if (bestMatch && bestMatch.score >= 20) {
             // Send the FAQ answer via the appropriate channel (best-effort)
             let faqDelivered = false;
             try {
@@ -516,6 +527,7 @@ export async function processIncomingMessage({
             }
 
             // FAQ reply handled, skip keyword and AI
+            faqMatchedAndReplied = true;
             return;
           }
         }
@@ -606,9 +618,10 @@ export async function processIncomingMessage({
     }
 
     // ─── 10. AI Auto-Reply (with rate limiting + error handling) ───
-    console.log(`[PROCESSOR] AI check: ai_enabled=${account.ai_enabled}, hasText=${!!text}, hasMedia=${mediaUrls.length > 0}, channel=${channel}, hasAccessToken=${!!accessToken}, accountId=${account.id}`);
+    console.log(`[PROCESSOR] AI check: ai_enabled=${account.ai_enabled}, hasText=${!!text}, hasMedia=${mediaUrls.length > 0}, channel=${channel}, hasAccessToken=${!!accessToken}, accountId=${account.id}, faqMatched=${faqMatchedAndReplied}`);
     // AI triggers if: text exists OR images were sent (vision AI can analyze images)
-    if (account.ai_enabled && (text || mediaUrls.length > 0)) {
+    // AND FAQ hasn't already handled this message with a high-confidence match
+    if (account.ai_enabled && (text || mediaUrls.length > 0) && !faqMatchedAndReplied) {
       try {
         // Check daily AI rate limit per account (plan-aware)
         const planLimits = getPlanLimits(account.plan || "starter");
@@ -892,6 +905,9 @@ export async function processIncomingMessage({
       }
       if (!text && mediaUrls.length === 0) {
         console.log(`[PROCESSOR] AI skipped: no text content or images in message`);
+      }
+      if (faqMatchedAndReplied) {
+        console.log(`[PROCESSOR] AI skipped: FAQ auto-reply already handled this message`);
       }
     }
 

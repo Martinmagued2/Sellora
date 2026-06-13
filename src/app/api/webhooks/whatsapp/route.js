@@ -108,6 +108,27 @@ export async function POST(request) {
       await markMessageAsRead({ messageId: message.messageId }).catch(() => {});
     }
 
+    // Look up the account that owns this WhatsApp phone number
+    // This is critical so the processor doesn't fail to find the account
+    let accountId = null;
+    let waAccessToken = null;
+    try {
+      const { data: waAccount } = await getSupabase()
+        .from("accounts")
+        .select("id, whatsapp_access_token")
+        .eq("whatsapp_phone_number_id", message.phoneNumberId)
+        .limit(1)
+        .single();
+      if (waAccount) {
+        accountId = waAccount.id;
+        waAccessToken = waAccount.whatsapp_access_token;
+      } else {
+        console.warn(`[WA-WEBHOOK] No account found for whatsapp_phone_number_id: ${message.phoneNumberId}`);
+      }
+    } catch (acctErr) {
+      console.warn(`[WA-WEBHOOK] Account lookup failed:`, acctErr.message);
+    }
+
     // Process through the shared pipeline — handles EVERYTHING:
     // account lookup, customer upsert, conversation, message storage,
     // auto-greeting, FAQ, keyword auto-reply, and AI auto-reply
@@ -120,7 +141,8 @@ export async function POST(request) {
       channel: "whatsapp",
       pageId: message.phoneNumberId,
       platformMessageId: message.messageId,
-      accessToken: null, // processor will look up the account's WhatsApp token
+      accessToken: waAccessToken,
+      accountId: accountId, // Pass accountId to avoid duplicate lookup in processor
     });
 
     console.log(`[WA-WEBHOOK] Successfully processed message from ${message.from}`);

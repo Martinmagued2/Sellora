@@ -546,7 +546,21 @@ export async function generateAIReply({
       }
     }
 
-    return { reply: text || null, intent, sentiment, toolCalls, needsHumanAttention, escalationReason, abTestVariant: abTestVariant?.name || null, abTestId };
+    // If all providers failed, generate a polite fallback reply
+    // instead of returning null (which means the customer gets NO response)
+    if (!text || !text.trim()) {
+      console.error("[generateAIReply] All providers failed. Last error:", lastError?.message);
+      const fallbackReplies = {
+        sales: `Thank you for your interest! I'm currently experiencing high demand. A team member will follow up with you shortly to help you with your request.`,
+        support: `I appreciate your patience! I'm having trouble connecting right now. Our support team has been notified and will get back to you shortly.`,
+        order_tracking: `I'm having trouble accessing order information right now. Our team has been notified and will update you on your order status shortly.`,
+        general: `Thanks for reaching out! I'm experiencing some connectivity issues right now, but our team has been notified and will respond to you shortly.`,
+      };
+      text = fallbackReplies[intent] || fallbackReplies.general;
+      console.log(`[generateAIReply] Using fallback reply for intent: ${intent}`);
+    }
+
+    return { reply: text, intent, sentiment, toolCalls, needsHumanAttention, escalationReason, abTestVariant: abTestVariant?.name || null, abTestId };
   } catch (err) {
     console.error("Error generating AI reply:", err);
     return { reply: null, intent: "general", sentiment: "neutral", toolCalls: null, needsHumanAttention: false, escalationReason: null };
