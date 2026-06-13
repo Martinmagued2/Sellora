@@ -44,7 +44,7 @@ import { StoreProvider } from "@/lib/store-context";
 import { useDevice } from "@/lib/use-device";
 import PageTransition from "@/components/PageTransition";
 import DashboardAnimations from "@/components/DashboardAnimations";
-import SmoothScrollProvider from "@/components/SmoothScrollProvider";
+
 import CopilotPanel from "./components/CopilotPanel";
 import NotificationBell from "./components/NotificationBell";
 import ToastProvider, { useToast } from "./components/ToastProvider";
@@ -257,7 +257,6 @@ export default function DashboardLayout({ children }) {
     <ToastProvider>
     <ConfirmProvider>
     <ServiceWorkerRegistration />
-    <SmoothScrollProvider>
     <DashboardAnimations />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
       {/* Sidebar — only on desktop / tablet */}
@@ -570,7 +569,6 @@ export default function DashboardLayout({ children }) {
       {/* Mobile Bottom Navigation */}
       {isMobile && <BottomNav sidebarBadges={sidebarBadges} />}
     </div>
-    </SmoothScrollProvider>
     </ConfirmProvider>
     </ToastProvider>
     </StoreProvider>

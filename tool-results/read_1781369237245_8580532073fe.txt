@@ -1,0 +1,2002 @@
+     1→/* ============================================
+     2→   ChatCommerce Dashboard Styles
+     3→   ============================================ */
+     4→
+     5→/* ---------- Dashboard Layout ---------- */
+     6→.dashboard-layout {
+     7→  display: flex;
+     8→  min-height: 100vh;
+     9→  background: var(--bg-primary);
+    10→}
+    11→
+    12→/* ---------- Sidebar ---------- */
+    13→.sidebar {
+    14→  width: 260px;
+    15→  background: var(--bg-secondary);
+    16→  border-right: 1px solid var(--border-subtle);
+    17→  display: flex;
+    18→  flex-direction: column;
+    19→  position: fixed;
+    20→  top: 0;
+    21→  left: 0;
+    22→  bottom: 0;
+    23→  z-index: 100;
+    24→  transition: transform var(--transition-slow);
+    25→}
+    26→
+    27→.sidebar-header {
+    28→  padding: var(--space-lg) var(--space-xl);
+    29→  border-bottom: 1px solid var(--border-subtle);
+    30→  display: flex;
+    31→  align-items: center;
+    32→  justify-content: space-between;
+    33→}
+    34→
+    35→.sidebar-logo {
+    36→  display: flex;
+    37→  align-items: center;
+    38→  gap: var(--space-sm);
+    39→  font-size: var(--font-size-lg);
+    40→  font-weight: 800;
+    41→  color: var(--text-primary);
+    42→  text-decoration: none;
+    43→}
+    44→
+    45→.sidebar-logo-icon {
+    46→  width: 32px;
+    47→  height: 32px;
+    48→  background: var(--accent-gradient);
+    49→  border-radius: var(--radius-sm);
+    50→  display: flex;
+    51→  align-items: center;
+    52→  justify-content: center;
+    53→  color: white;
+    54→}
+    55→
+    56→.sidebar-close {
+    57→  display: none;
+    58→  background: none;
+    59→  color: var(--text-tertiary);
+    60→  padding: var(--space-xs);
+    61→  border-radius: var(--radius-sm);
+    62→}
+    63→
+    64→.sidebar-close:hover {
+    65→  color: var(--text-primary);
+    66→  background: var(--bg-glass-hover);
+    67→}
+    68→
+    69→.sidebar-nav {
+    70→  flex: 1;
+    71→  padding: var(--space-md) var(--space-md);
+    72→  overflow-y: auto;
+    73→}
+    74→
+    75→.sidebar-section {
+    76→  margin-bottom: var(--space-lg);
+    77→}
+    78→
+    79→.sidebar-section-title {
+    80→  font-size: var(--font-size-xs);
+    81→  font-weight: 600;
+    82→  color: var(--text-tertiary);
+    83→  text-transform: uppercase;
+    84→  letter-spacing: 1.5px;
+    85→  padding: var(--space-sm) var(--space-md);
+    86→  margin-bottom: var(--space-xs);
+    87→}
+    88→
+    89→.sidebar-link {
+    90→  display: flex;
+    91→  align-items: center;
+    92→  gap: var(--space-md);
+    93→  padding: 10px var(--space-md);
+    94→  border-radius: var(--radius-md);
+    95→  font-size: var(--font-size-sm);
+    96→  font-weight: 500;
+    97→  color: var(--text-secondary);
+    98→  transition: all var(--transition-fast);
+    99→  text-decoration: none;
+   100→  cursor: pointer;
+   101→  position: relative;
+   102→}
+   103→
+   104→.sidebar-link:hover {
+   105→  color: var(--text-primary);
+   106→  background: var(--bg-glass-hover);
+   107→}
+   108→
+   109→.sidebar-link.active {
+   110→  color: var(--text-primary);
+   111→  background: rgba(108, 92, 231, 0.1);
+   112→}
+   113→
+   114→.sidebar-link.active::before {
+   115→  content: '';
+   116→  position: absolute;
+   117→  left: 0;
+   118→  top: 6px;
+   119→  bottom: 6px;
+   120→  width: 3px;
+   121→  background: var(--accent-gradient);
+   122→  border-radius: 2px;
+   123→}
+   124→
+   125→.sidebar-link-icon {
+   126→  width: 20px;
+   127→  height: 20px;
+   128→  display: flex;
+   129→  align-items: center;
+   130→  justify-content: center;
+   131→  flex-shrink: 0;
+   132→}
+   133→
+   134→.sidebar-link-badge {
+   135→  margin-left: auto;
+   136→  background: var(--accent-primary);
+   137→  color: white;
+   138→  font-size: 10px;
+   139→  font-weight: 700;
+   140→  padding: 2px 7px;
+   141→  border-radius: var(--radius-full);
+   142→  min-width: 20px;
+   143→  text-align: center;
+   144→}
+   145→
+   146→.sidebar-footer {
+   147→  padding: var(--space-md) var(--space-xl);
+   148→  border-top: 1px solid var(--border-subtle);
+   149→}
+   150→
+   151→.sidebar-user {
+   152→  display: flex;
+   153→  align-items: center;
+   154→  gap: var(--space-md);
+   155→  padding: var(--space-sm) 0;
+   156→}
+   157→
+   158→.sidebar-user-avatar {
+   159→  width: 36px;
+   160→  height: 36px;
+   161→  border-radius: 50%;
+   162→  background: var(--accent-gradient);
+   163→  display: flex;
+   164→  align-items: center;
+   165→  justify-content: center;
+   166→  font-weight: 700;
+   167→  font-size: var(--font-size-sm);
+   168→  flex-shrink: 0;
+   169→}
+   170→
+   171→.sidebar-user-info {
+   172→  flex: 1;
+   173→  min-width: 0;
+   174→}
+   175→
+   176→.sidebar-user-name {
+   177→  font-size: var(--font-size-sm);
+   178→  font-weight: 600;
+   179→  color: var(--text-primary);
+   180→  white-space: nowrap;
+   181→  overflow: hidden;
+   182→  text-overflow: ellipsis;
+   183→}
+   184→
+   185→.sidebar-user-plan {
+   186→  font-size: var(--font-size-xs);
+   187→  color: var(--text-tertiary);
+   188→}
+   189→
+   190→/* ---------- Main Content ---------- */
+   191→.dashboard-main {
+   192→  flex: 1;
+   193→  margin-left: 260px;
+   194→  display: flex;
+   195→  flex-direction: column;
+   196→  min-height: 100vh;
+   197→}
+   198→
+   199→/* ---------- Topbar ---------- */
+   200→.topbar {
+   201→  height: 64px;
+   202→  background: rgba(6, 6, 15, 0.8);
+   203→  backdrop-filter: blur(20px);
+   204→  border-bottom: 1px solid var(--border-subtle);
+   205→  display: flex;
+   206→  align-items: center;
+   207→  justify-content: space-between;
+   208→  padding: 0 var(--space-xl);
+   209→  position: sticky;
+   210→  top: 0;
+   211→  z-index: 50;
+   212→}
+   213→
+   214→.topbar-left {
+   215→  display: flex;
+   216→  align-items: center;
+   217→  gap: var(--space-md);
+   218→}
+   219→
+   220→.topbar-mobile-toggle {
+   221→  display: none;
+   222→  background: none;
+   223→  color: var(--text-secondary);
+   224→  padding: var(--space-sm);
+   225→  border-radius: var(--radius-sm);
+   226→}
+   227→
+   228→.topbar-mobile-toggle:hover {
+   229→  color: var(--text-primary);
+   230→  background: var(--bg-glass-hover);
+   231→}
+   232→
+   233→.topbar-title {
+   234→  font-size: var(--font-size-lg);
+   235→  font-weight: 700;
+   236→}
+   237→
+   238→.topbar-search {
+   239→  position: relative;
+   240→  width: 320px;
+   241→}
+   242→
+   243→.topbar-search-input {
+   244→  width: 100%;
+   245→  padding: 8px 16px 8px 38px;
+   246→  background: var(--bg-glass);
+   247→  border: 1px solid var(--border-subtle);
+   248→  border-radius: var(--radius-full);
+   249→  color: var(--text-primary);
+   250→  font-size: var(--font-size-sm);
+   251→  font-family: var(--font-family);
+   252→  outline: none;
+   253→  transition: all var(--transition-base);
+   254→}
+   255→
+   256→.topbar-search-input::placeholder {
+   257→  color: var(--text-tertiary);
+   258→}
+   259→
+   260→.topbar-search-input:focus {
+   261→  border-color: var(--accent-primary);
+   262→  background: var(--bg-card);
+   263→  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+   264→}
+   265→
+   266→.topbar-search-icon {
+   267→  position: absolute;
+   268→  left: 12px;
+   269→  top: 50%;
+   270→  transform: translateY(-50%);
+   271→  color: var(--text-tertiary);
+   272→  pointer-events: none;
+   273→}
+   274→
+   275→.topbar-right {
+   276→  display: flex;
+   277→  align-items: center;
+   278→  gap: var(--space-sm);
+   279→}
+   280→
+   281→.topbar-btn {
+   282→  width: 38px;
+   283→  height: 38px;
+   284→  border-radius: var(--radius-md);
+   285→  background: none;
+   286→  color: var(--text-secondary);
+   287→  display: flex;
+   288→  align-items: center;
+   289→  justify-content: center;
+   290→  transition: all var(--transition-fast);
+   291→  position: relative;
+   292→}
+   293→
+   294→.topbar-btn:hover {
+   295→  color: var(--text-primary);
+   296→  background: var(--bg-glass-hover);
+   297→}
+   298→
+   299→.topbar-btn-dot {
+   300→  position: absolute;
+   301→  top: 8px;
+   302→  right: 8px;
+   303→  width: 8px;
+   304→  height: 8px;
+   305→  border-radius: 50%;
+   306→  background: var(--accent-red);
+   307→  border: 2px solid var(--bg-primary);
+   308→}
+   309→
+   310→/* ---------- Page Content ---------- */
+   311→.page-content {
+   312→  flex: 1;
+   313→  padding: var(--space-xl);
+   314→}
+   315→
+   316→.page-header {
+   317→  display: flex;
+   318→  align-items: center;
+   319→  justify-content: space-between;
+   320→  margin-bottom: var(--space-xl);
+   321→}
+   322→
+   323→.page-header h1 {
+   324→  font-size: var(--font-size-2xl);
+   325→  font-weight: 800;
+   326→}
+   327→
+   328→.page-header-actions {
+   329→  display: flex;
+   330→  align-items: center;
+   331→  gap: var(--space-md);
+   332→}
+   333→
+   334→/* ---------- Stats Grid ---------- */
+   335→.stats-grid {
+   336→  display: grid;
+   337→  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+   338→  gap: var(--space-lg);
+   339→  margin-bottom: var(--space-xl);
+   340→}
+   341→
+   342→.stat-card {
+   343→  background: var(--bg-card);
+   344→  border: 1px solid var(--border-subtle);
+   345→  border-radius: 24px;
+   346→  padding: var(--space-lg);
+   347→  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+   348→  box-shadow: var(--shadow-sm);
+   349→}
+   350→
+   351→.stat-card:hover {
+   352→  border-color: var(--border-accent);
+   353→  box-shadow: var(--shadow-md);
+   354→  transform: translateY(-4px) scale(1.02);
+   355→}
+   356→
+   357→.stat-card-header {
+   358→  display: flex;
+   359→  align-items: center;
+   360→  justify-content: space-between;
+   361→  margin-bottom: var(--space-md);
+   362→}
+   363→
+   364→.stat-card-icon {
+   365→  width: 42px;
+   366→  height: 42px;
+   367→  border-radius: var(--radius-md);
+   368→  display: flex;
+   369→  align-items: center;
+   370→  justify-content: center;
+   371→}
+   372→
+   373→.stat-card-icon.purple { background: rgba(108, 92, 231, 0.12); color: var(--accent-primary-light); }
+   374→.stat-card-icon.blue { background: rgba(0, 210, 255, 0.12); color: var(--accent-secondary); }
+   375→.stat-card-icon.green { background: rgba(0, 230, 118, 0.12); color: var(--accent-green); }
+   376→.stat-card-icon.orange { background: rgba(255, 145, 0, 0.12); color: var(--accent-orange); }
+   377→
+   378→.stat-card-trend {
+   379→  font-size: var(--font-size-xs);
+   380→  font-weight: 600;
+   381→  padding: 3px 8px;
+   382→  border-radius: var(--radius-full);
+   383→  display: flex;
+   384→  align-items: center;
+   385→  gap: 3px;
+   386→}
+   387→
+   388→.stat-card-trend.up {
+   389→  background: rgba(0, 230, 118, 0.1);
+   390→  color: var(--accent-green);
+   391→}
+   392→
+   393→.stat-card-trend.down {
+   394→  background: rgba(255, 82, 82, 0.1);
+   395→  color: var(--accent-red);
+   396→}
+   397→
+   398→.stat-card-value {
+   399→  font-size: var(--font-size-3xl);
+   400→  font-weight: 800;
+   401→  margin-bottom: var(--space-xs);
+   402→  line-height: 1.2;
+   403→}
+   404→
+   405→.stat-card-label {
+   406→  font-size: var(--font-size-sm);
+   407→  color: var(--text-tertiary);
+   408→}
+   409→
+   410→/* ---------- Dashboard Grid ---------- */
+   411→.dashboard-grid {
+   412→  display: grid;
+   413→  grid-template-columns: 1fr 1fr;
+   414→  gap: var(--space-lg);
+   415→  margin-bottom: var(--space-xl);
+   416→}
+   417→
+   418→.dashboard-panel {
+   419→  background: var(--bg-card);
+   420→  border: 1px solid var(--border-subtle);
+   421→  border-radius: 24px;
+   422→  overflow: hidden;
+   423→  box-shadow: var(--shadow-sm);
+   424→  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+   425→}
+   426→
+   427→.dashboard-panel:hover {
+   428→  transform: translateY(-4px) scale(1.01);
+   429→  box-shadow: var(--shadow-lg);
+   430→  border-color: var(--border-medium);
+   431→}
+   432→
+   433→.dashboard-panel-header {
+   434→  display: flex;
+   435→  align-items: center;
+   436→  justify-content: space-between;
+   437→  padding: var(--space-lg) var(--space-xl);
+   438→  border-bottom: 1px solid var(--border-subtle);
+   439→}
+   440→
+   441→.dashboard-panel-header h3 {
+   442→  font-size: var(--font-size-base);
+   443→  font-weight: 700;
+   444→}
+   445→
+   446→.dashboard-panel-link {
+   447→  font-size: var(--font-size-xs);
+   448→  color: var(--accent-primary-light);
+   449→  font-weight: 500;
+   450→  text-decoration: none;
+   451→  display: flex;
+   452→  align-items: center;
+   453→  gap: 4px;
+   454→  transition: color var(--transition-fast);
+   455→}
+   456→
+   457→.dashboard-panel-link:hover {
+   458→  color: var(--accent-secondary);
+   459→}
+   460→
+   461→.dashboard-panel-body {
+   462→  padding: var(--space-md);
+   463→}
+   464→
+   465→/* ---------- Chart Placeholder ---------- */
+   466→.chart-placeholder {
+   467→  height: 240px;
+   468→  display: flex;
+   469→  flex-direction: column;
+   470→  justify-content: flex-end;
+   471→  padding: var(--space-md);
+   472→  gap: 4px;
+   473→}
+   474→
+   475→.chart-bars {
+   476→  display: flex;
+   477→  align-items: flex-end;
+   478→  gap: 6px;
+   479→  height: 100%;
+   480→}
+   481→
+   482→.chart-bar {
+   483→  flex: 1;
+   484→  background: var(--accent-gradient);
+   485→  border-radius: 4px 4px 0 0;
+   486→  min-height: 10px;
+   487→  opacity: 0.7;
+   488→  transition: opacity var(--transition-fast);
+   489→  position: relative;
+   490→}
+   491→
+   492→.chart-bar:hover {
+   493→  opacity: 1;
+   494→}
+   495→
+   496→.chart-bar::after {
+   497→  content: attr(data-label);
+   498→  position: absolute;
+   499→  bottom: -22px;
+   500→  left: 50%;
+   501→  transform: translateX(-50%);
+   502→  font-size: 10px;
+   503→  color: var(--text-tertiary);
+   504→  white-space: nowrap;
+   505→}
+   506→
+   507→/* ---------- Table Styles ---------- */
+   508→.data-table {
+   509→  width: 100%;
+   510→  border-collapse: collapse;
+   511→}
+   512→
+   513→.data-table th {
+   514→  text-align: left;
+   515→  font-size: 11px;
+   516→  font-weight: 600;
+   517→  color: var(--text-tertiary);
+   518→  text-transform: uppercase;
+   519→  letter-spacing: 0.05em;
+   520→  padding: var(--space-md) var(--space-lg);
+   521→  border-bottom: 1px solid var(--border-subtle);
+   522→}
+   523→
+   524→.data-table td {
+   525→  padding: var(--space-md) var(--space-lg);
+   526→  font-size: var(--font-size-sm);
+   527→  border-bottom: 1px solid var(--border-subtle);
+   528→  vertical-align: middle;
+   529→}
+   530→
+   531→.data-table tbody tr {
+   532→  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+   533→}
+   534→
+   535→.data-table tbody tr:hover {
+   536→  background: var(--bg-glass-hover);
+   537→  transform: scale(1.005);
+   538→}
+   539→
+   540→.data-table tbody tr:last-child td {
+   541→  border-bottom: none;
+   542→}
+   543→
+   544→/* ---------- Status Badges ---------- */
+   545→.status-badge {
+   546→  display: inline-flex;
+   547→  align-items: center;
+   548→  gap: 6px;
+   549→  padding: 4px 12px;
+   550→  font-size: var(--font-size-xs);
+   551→  font-weight: 600;
+   552→  border-radius: var(--radius-full);
+   553→}
+   554→
+   555→.status-badge::before {
+   556→  content: '';
+   557→  width: 6px;
+   558→  height: 6px;
+   559→  border-radius: 50%;
+   560→}
+   561→
+   562→.status-badge.pending {
+   563→  background: rgba(255, 145, 0, 0.1);
+   564→  color: var(--accent-orange);
+   565→}
+   566→.status-badge.pending::before { background: var(--accent-orange); }
+   567→
+   568→.status-badge.confirmed {
+   569→  background: rgba(0, 210, 255, 0.1);
+   570→  color: var(--accent-secondary);
+   571→}
+   572→.status-badge.confirmed::before { background: var(--accent-secondary); }
+   573→
+   574→.status-badge.shipped {
+   575→  background: rgba(108, 92, 231, 0.1);
+   576→  color: var(--accent-primary-light);
+   577→}
+   578→.status-badge.shipped::before { background: var(--accent-primary-light); }
+   579→
+   580→.status-badge.delivered {
+   581→  background: rgba(0, 230, 118, 0.1);
+   582→  color: var(--accent-green);
+   583→}
+   584→.status-badge.delivered::before { background: var(--accent-green); }
+   585→
+   586→.status-badge.cancelled {
+   587→  background: rgba(255, 82, 82, 0.1);
+   588→  color: var(--accent-red);
+   589→}
+   590→.status-badge.cancelled::before { background: var(--accent-red); }
+   591→
+   592→.status-badge.active {
+   593→  background: rgba(0, 230, 118, 0.1);
+   594→  color: var(--accent-green);
+   595→}
+   596→.status-badge.active::before { background: var(--accent-green); }
+   597→
+   598→.status-badge.draft {
+   599→  background: rgba(255, 255, 255, 0.05);
+   600→  color: var(--text-tertiary);
+   601→}
+   602→.status-badge.draft::before { background: var(--text-tertiary); }
+   603→
+   604→/* ---------- Product Cards Grid ---------- */
+   605→.products-grid {
+   606→  display: grid;
+   607→  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+   608→  gap: var(--space-lg);
+   609→}
+   610→
+   611→.product-card {
+   612→  background: var(--bg-card);
+   613→  border: 1px solid var(--border-subtle);
+   614→  border-radius: var(--radius-lg);
+   615→  overflow: hidden;
+   616→  transition: all var(--transition-base);
+   617→}
+   618→
+   619→.product-card:hover {
+   620→  border-color: var(--border-medium);
+   621→  transform: translateY(-2px);
+   622→  box-shadow: var(--shadow-md);
+   623→}
+   624→
+   625→.product-card-image {
+   626→  height: 180px;
+   627→  background: var(--bg-tertiary);
+   628→  display: flex;
+   629→  align-items: center;
+   630→  justify-content: center;
+   631→  color: var(--text-tertiary);
+   632→  font-size: 40px;
+   633→  position: relative;
+   634→}
+   635→
+   636→.product-card-status {
+   637→  position: absolute;
+   638→  top: var(--space-sm);
+   639→  right: var(--space-sm);
+   640→}
+   641→
+   642→.product-card-body {
+   643→  padding: var(--space-lg);
+   644→}
+   645→
+   646→.product-card-name {
+   647→  font-size: var(--font-size-base);
+   648→  font-weight: 600;
+   649→  margin-bottom: var(--space-xs);
+   650→}
+   651→
+   652→.product-card-category {
+   653→  font-size: var(--font-size-xs);
+   654→  color: var(--text-tertiary);
+   655→  margin-bottom: var(--space-md);
+   656→}
+   657→
+   658→.product-card-footer {
+   659→  display: flex;
+   660→  align-items: center;
+   661→  justify-content: space-between;
+   662→}
+   663→
+   664→.product-card-price {
+   665→  font-size: var(--font-size-lg);
+   666→  font-weight: 800;
+   667→  color: var(--accent-primary-light);
+   668→}
+   669→
+   670→/* Discount pricing layout */
+   671→.product-card-pricing {
+   672→  display: flex;
+   673→  flex-direction: column;
+   674→  gap: 2px;
+   675→}
+   676→
+   677→.product-card-price-row {
+   678→  display: flex;
+   679→  align-items: center;
+   680→  gap: 6px;
+   681→}
+   682→
+   683→.product-card-price-old {
+   684→  font-size: var(--font-size-xs);
+   685→  color: var(--text-tertiary);
+   686→  text-decoration: line-through;
+   687→  text-decoration-color: var(--accent-red);
+   688→}
+   689→
+   690→.product-card-price-new {
+   691→  font-size: var(--font-size-lg);
+   692→  font-weight: 800;
+   693→  color: var(--accent-primary-light);
+   694→}
+   695→
+   696→.product-card-discount-badge {
+   697→  font-size: 9px;
+   698→  padding: 1px 6px;
+   699→  border-radius: 10px;
+   700→  background: rgba(255, 82, 82, 0.12);
+   701→  color: var(--accent-red);
+   702→  font-weight: 700;
+   703→  letter-spacing: 0.02em;
+   704→  white-space: nowrap;
+   705→  line-height: 1.4;
+   706→}
+   707→
+   708→.product-card-stock {
+   709→  font-size: var(--font-size-xs);
+   710→  color: var(--text-tertiary);
+   711→}
+   712→
+   713→/* ---------- Conversations ---------- */
+   714→.conversations-layout {
+   715→  display: grid;
+   716→  grid-template-columns: 340px 1fr;
+   717→  height: calc(100vh - 64px);
+   718→  margin: calc(var(--space-xl) * -1);
+   719→}
+   720→
+   721→.conv-list {
+   722→  border-right: 1px solid var(--border-subtle);
+   723→  display: flex;
+   724→  flex-direction: column;
+   725→  overflow: hidden;
+   726→}
+   727→
+   728→.conv-list-header {
+   729→  padding: var(--space-lg);
+   730→  border-bottom: 1px solid var(--border-subtle);
+   731→}
+   732→
+   733→.conv-list-header h2 {
+   734→  font-size: var(--font-size-lg);
+   735→  font-weight: 700;
+   736→  margin-bottom: var(--space-md);
+   737→}
+   738→
+   739→.conv-search {
+   740→  width: 100%;
+   741→  padding: 8px 14px;
+   742→  background: var(--bg-glass);
+   743→  border: 1px solid var(--border-subtle);
+   744→  border-radius: var(--radius-md);
+   745→  color: var(--text-primary);
+   746→  font-size: var(--font-size-sm);
+   747→  font-family: var(--font-family);
+   748→  outline: none;
+   749→  transition: border-color var(--transition-base);
+   750→}
+   751→
+   752→.conv-search:focus {
+   753→  border-color: var(--accent-primary);
+   754→}
+   755→
+   756→.conv-search::placeholder {
+   757→  color: var(--text-tertiary);
+   758→}
+   759→
+   760→.conv-items {
+   761→  flex: 1;
+   762→  overflow-y: auto;
+   763→}
+   764→
+   765→.conv-item {
+   766→  display: flex;
+   767→  align-items: flex-start;
+   768→  gap: var(--space-md);
+   769→  padding: var(--space-md) var(--space-lg);
+   770→  border-bottom: 1px solid var(--border-subtle);
+   771→  cursor: pointer;
+   772→  transition: background var(--transition-fast);
+   773→}
+   774→
+   775→.conv-item:hover {
+   776→  background: var(--bg-glass-hover);
+   777→}
+   778→
+   779→.conv-item.active {
+   780→  background: rgba(108, 92, 231, 0.08);
+   781→  border-left: 3px solid var(--accent-primary);
+   782→}
+   783→
+   784→.conv-avatar {
+   785→  width: 44px;
+   786→  height: 44px;
+   787→  border-radius: 50%;
+   788→  background: var(--accent-gradient);
+   789→  display: flex;
+   790→  align-items: center;
+   791→  justify-content: center;
+   792→  font-weight: 700;
+   793→  font-size: var(--font-size-sm);
+   794→  flex-shrink: 0;
+   795→}
+   796→
+   797→.conv-info {
+   798→  flex: 1;
+   799→  min-width: 0;
+   800→}
+   801→
+   802→.conv-info-top {
+   803→  display: flex;
+   804→  align-items: center;
+   805→  justify-content: space-between;
+   806→  margin-bottom: 3px;
+   807→}
+   808→
+   809→.conv-name {
+   810→  font-size: var(--font-size-sm);
+   811→  font-weight: 600;
+   812→}
+   813→
+   814→.conv-time {
+   815→  font-size: var(--font-size-xs);
+   816→  color: var(--text-tertiary);
+   817→}
+   818→
+   819→.conv-preview {
+   820→  font-size: var(--font-size-xs);
+   821→  color: var(--text-tertiary);
+   822→  white-space: nowrap;
+   823→  overflow: hidden;
+   824→  text-overflow: ellipsis;
+   825→}
+   826→
+   827→.conv-unread {
+   828→  width: 18px;
+   829→  height: 18px;
+   830→  border-radius: 50%;
+   831→  background: var(--accent-primary);
+   832→  color: white;
+   833→  font-size: 10px;
+   834→  font-weight: 700;
+   835→  display: flex;
+   836→  align-items: center;
+   837→  justify-content: center;
+   838→  flex-shrink: 0;
+   839→  margin-top: 4px;
+   840→}
+   841→
+   842→/* Chat area */
+   843→.chat-area {
+   844→  display: flex;
+   845→  flex-direction: column;
+   846→  height: 100%;
+   847→  overflow: hidden;
+   848→}
+   849→
+   850→.chat-header {
+   851→  display: flex;
+   852→  align-items: center;
+   853→  justify-content: space-between;
+   854→  padding: var(--space-md) var(--space-xl);
+   855→  border-bottom: 1px solid var(--border-subtle);
+   856→  background: var(--bg-secondary);
+   857→  flex-shrink: 0;
+   858→}
+   859→
+   860→.chat-header-info {
+   861→  display: flex;
+   862→  align-items: center;
+   863→  gap: var(--space-md);
+   864→}
+   865→
+   866→.chat-header-name {
+   867→  font-weight: 600;
+   868→}
+   869→
+   870→.chat-header-status {
+   871→  font-size: var(--font-size-xs);
+   872→  color: var(--accent-green);
+   873→  display: flex;
+   874→  align-items: center;
+   875→  gap: 4px;
+   876→}
+   877→
+   878→.chat-header-status::before {
+   879→  content: '';
+   880→  width: 6px;
+   881→  height: 6px;
+   882→  border-radius: 50%;
+   883→  background: var(--accent-green);
+   884→}
+   885→
+   886→.chat-header-actions {
+   887→  display: flex;
+   888→  gap: var(--space-sm);
+   889→}
+   890→
+   891→.chat-messages {
+   892→  flex: 1;
+   893→  min-height: 0;
+   894→  overflow-y: auto;
+   895→  padding: var(--space-xl);
+   896→  display: flex;
+   897→  flex-direction: column;
+   898→  gap: var(--space-md);
+   899→}
+   900→
+   901→.chat-msg {
+   902→  max-width: 65%;
+   903→  padding: var(--space-md) var(--space-lg);
+   904→  border-radius: var(--radius-lg);
+   905→  font-size: var(--font-size-sm);
+   906→  line-height: 1.5;
+   907→  animation: fade-in-up 0.3s ease;
+   908→}
+   909→
+   910→.chat-msg.incoming {
+   911→  align-self: flex-start;
+   912→  background: var(--bg-card);
+   913→  border: 1px solid var(--border-subtle);
+   914→  border-bottom-left-radius: 4px;
+   915→}
+   916→
+   917→.chat-msg.outgoing {
+   918→  align-self: flex-end;
+   919→  background: rgba(108, 92, 231, 0.15);
+   920→  border: 1px solid rgba(108, 92, 231, 0.2);
+   921→  border-bottom-right-radius: 4px;
+   922→}
+   923→
+   924→.chat-msg.ai-reply {
+   925→  align-self: flex-end;
+   926→  background: rgba(0, 210, 255, 0.1);
+   927→  border: 1px solid rgba(0, 210, 255, 0.15);
+   928→  border-bottom-right-radius: 4px;
+   929→}
+   930→
+   931→.chat-msg .msg-time {
+   932→  display: block;
+   933→  font-size: 10px;
+   934→  color: var(--text-tertiary);
+   935→  margin-top: 4px;
+   936→  text-align: right;
+   937→}
+   938→
+   939→.chat-msg .ai-label {
+   940→  display: inline-flex;
+   941→  align-items: center;
+   942→  gap: 4px;
+   943→  font-size: 10px;
+   944→  color: var(--accent-secondary);
+   945→  font-weight: 600;
+   946→  margin-bottom: 4px;
+   947→}
+   948→
+   949→/* Message bubble wrapper */
+   950→.msg-bubble {
+   951→  display: inline-block;
+   952→  word-break: break-word;
+   953→  line-height: 1.5;
+   954→}
+   955→
+   956→/* Image thumbnail in chat */
+   957→.chat-image-thumbnail {
+   958→  position: relative;
+   959→  cursor: pointer;
+   960→  border-radius: var(--radius-md);
+   961→  overflow: hidden;
+   962→  display: inline-block;
+   963→}
+   964→
+   965→.chat-image-thumbnail:hover .chat-image-recognize-hint {
+   966→  opacity: 1;
+   967→}
+   968→
+   969→.chat-image-thumb {
+   970→  max-width: 240px;
+   971→  max-height: 200px;
+   972→  border-radius: var(--radius-sm);
+   973→  object-fit: cover;
+   974→  display: block;
+   975→}
+   976→
+   977→.chat-image-recognize-hint {
+   978→  position: absolute;
+   979→  bottom: 0;
+   980→  left: 0;
+   981→  right: 0;
+   982→  padding: 6px 8px;
+   983→  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+   984→  color: var(--text-primary);
+   985→  font-size: 10px;
+   986→  font-weight: 600;
+   987→  display: flex;
+   988→  align-items: center;
+   989→  gap: 4px;
+   990→  opacity: 0;
+   991→  transition: opacity var(--transition-fast);
+   992→}
+   993→
+   994→/* Image recognition results */
+   995→.chat-image-recognition-results {
+   996→  margin-top: var(--space-sm);
+   997→  padding: var(--space-sm);
+   998→  background: rgba(0, 210, 255, 0.05);
+   999→  border: 1px solid rgba(0, 210, 255, 0.15);
+  1000→  border-radius: var(--radius-sm);
+  1001→}
+  1002→
+  1003→.chat-recognition-product {
+  1004→  display: flex;
+  1005→  align-items: center;
+  1006→  gap: var(--space-xs);
+  1007→  padding: 4px 6px;
+  1008→  border-radius: var(--radius-sm);
+  1009→  cursor: pointer;
+  1010→  transition: background var(--transition-fast);
+  1011→  margin-top: 2px;
+  1012→}
+  1013→
+  1014→.chat-recognition-product:hover {
+  1015→  background: var(--bg-glass-hover);
+  1016→}
+  1017→
+  1018→/* Desktop chat input wrapper */
+  1019→.chat-input-wrapper {
+  1020→  display: flex;
+  1021→  align-items: center;
+  1022→  gap: var(--space-sm);
+  1023→  width: 100%;
+  1024→}
+  1025→
+  1026→.chat-input-area {
+  1027→  padding: var(--space-md) var(--space-xl);
+  1028→  border-top: 1px solid var(--border-subtle);
+  1029→  background: var(--bg-secondary);
+  1030→  display: flex;
+  1031→  align-items: center;
+  1032→  gap: var(--space-md);
+  1033→  flex-shrink: 0;
+  1034→}
+  1035→
+  1036→.chat-input {
+  1037→  flex: 1;
+  1038→  padding: 12px 16px;
+  1039→  background: var(--bg-glass);
+  1040→  border: 1px solid var(--border-subtle);
+  1041→  border-radius: var(--radius-lg);
+  1042→  color: var(--text-primary);
+  1043→  font-size: var(--font-size-sm);
+  1044→  font-family: var(--font-family);
+  1045→  outline: none;
+  1046→  transition: border-color var(--transition-base);
+  1047→}
+  1048→
+  1049→.chat-input:focus {
+  1050→  border-color: var(--accent-primary);
+  1051→}
+  1052→
+  1053→.chat-input::placeholder {
+  1054→  color: var(--text-tertiary);
+  1055→}
+  1056→
+  1057→.chat-send-btn {
+  1058→  width: 42px;
+  1059→  height: 42px;
+  1060→  border-radius: var(--radius-md);
+  1061→  background: var(--accent-gradient);
+  1062→  color: white;
+  1063→  display: flex;
+  1064→  align-items: center;
+  1065→  justify-content: center;
+  1066→  transition: all var(--transition-base);
+  1067→  flex-shrink: 0;
+  1068→}
+  1069→
+  1070→.chat-send-btn:hover {
+  1071→  transform: scale(1.05);
+  1072→  box-shadow: 0 4px 20px rgba(108, 92, 231, 0.3);
+  1073→}
+  1074→
+  1075→/* ---------- Customers Table ---------- */
+  1076→.customer-name-cell {
+  1077→  display: flex;
+  1078→  align-items: center;
+  1079→  gap: var(--space-md);
+  1080→}
+  1081→
+  1082→.customer-tags {
+  1083→  display: flex;
+  1084→  gap: var(--space-xs);
+  1085→}
+  1086→
+  1087→.customer-tag {
+  1088→  font-size: 10px;
+  1089→  padding: 2px 8px;
+  1090→  border-radius: var(--radius-full);
+  1091→  font-weight: 600;
+  1092→}
+  1093→
+  1094→.customer-tag.vip {
+  1095→  background: rgba(255, 145, 0, 0.1);
+  1096→  color: var(--accent-orange);
+  1097→}
+  1098→
+  1099→.customer-tag.new {
+  1100→  background: rgba(0, 210, 255, 0.1);
+  1101→  color: var(--accent-secondary);
+  1102→}
+  1103→
+  1104→.customer-tag.repeat {
+  1105→  background: rgba(0, 230, 118, 0.1);
+  1106→  color: var(--accent-green);
+  1107→}
+  1108→
+  1109→/* ---------- Empty State ---------- */
+  1110→.empty-state {
+  1111→  text-align: center;
+  1112→  padding: var(--space-4xl) var(--space-xl);
+  1113→}
+  1114→
+  1115→.empty-state-icon {
+  1116→  width: 80px;
+  1117→  height: 80px;
+  1118→  border-radius: 50%;
+  1119→  background: var(--bg-card);
+  1120→  border: 1px solid var(--border-subtle);
+  1121→  display: flex;
+  1122→  align-items: center;
+  1123→  justify-content: center;
+  1124→  margin: 0 auto var(--space-xl);
+  1125→  color: var(--text-tertiary);
+  1126→}
+  1127→
+  1128→.empty-state h3 {
+  1129→  font-size: var(--font-size-xl);
+  1130→  font-weight: 700;
+  1131→  margin-bottom: var(--space-sm);
+  1132→}
+  1133→
+  1134→.empty-state p {
+  1135→  font-size: var(--font-size-sm);
+  1136→  color: var(--text-tertiary);
+  1137→  margin-bottom: var(--space-xl);
+  1138→  max-width: 400px;
+  1139→  margin-left: auto;
+  1140→  margin-right: auto;
+  1141→}
+  1142→
+  1143→/* ---------- Filter Bar ---------- */
+  1144→.filter-bar {
+  1145→  display: flex;
+  1146→  align-items: center;
+  1147→  gap: var(--space-md);
+  1148→  margin-bottom: var(--space-xl);
+  1149→  flex-wrap: wrap;
+  1150→}
+  1151→
+  1152→.filter-tabs {
+  1153→  display: flex;
+  1154→  background: var(--bg-card);
+  1155→  border: 1px solid var(--border-subtle);
+  1156→  border-radius: var(--radius-md);
+  1157→  overflow: hidden;
+  1158→}
+  1159→
+  1160→.filter-tab {
+  1161→  padding: 8px 16px;
+  1162→  font-size: var(--font-size-sm);
+  1163→  font-weight: 500;
+  1164→  color: var(--text-secondary);
+  1165→  background: none;
+  1166→  border: none;
+  1167→  transition: all var(--transition-fast);
+  1168→  cursor: pointer;
+  1169→}
+  1170→
+  1171→.filter-tab:hover {
+  1172→  color: var(--text-primary);
+  1173→}
+  1174→
+  1175→.filter-tab.active {
+  1176→  background: rgba(108, 92, 231, 0.15);
+  1177→  color: var(--accent-primary-light);
+  1178→}
+  1179→
+  1180→.filter-search {
+  1181→  margin-left: auto;
+  1182→  display: flex;
+  1183→  align-items: center;
+  1184→  gap: var(--space-sm);
+  1185→  padding: 8px 14px;
+  1186→  background: var(--bg-glass);
+  1187→  border: 1px solid var(--border-subtle);
+  1188→  border-radius: var(--radius-md);
+  1189→  color: var(--text-tertiary);
+  1190→  transition: border-color var(--transition-base);
+  1191→}
+  1192→
+  1193→.filter-search:focus-within {
+  1194→  border-color: var(--accent-primary);
+  1195→}
+  1196→
+  1197→.filter-search input {
+  1198→  background: none;
+  1199→  border: none;
+  1200→  outline: none;
+  1201→  color: var(--text-primary);
+  1202→  font-size: var(--font-size-sm);
+  1203→  font-family: var(--font-family);
+  1204→  width: 180px;
+  1205→}
+  1206→
+  1207→.filter-search input::placeholder {
+  1208→  color: var(--text-tertiary);
+  1209→}
+  1210→
+  1211→/* ---------- Channel Badges ---------- */
+  1212→.channel-badge {
+  1213→  display: inline-flex;
+  1214→  align-items: center;
+  1215→  gap: 4px;
+  1216→  padding: 3px 10px;
+  1217→  font-size: var(--font-size-xs);
+  1218→  font-weight: 600;
+  1219→  border-radius: var(--radius-full);
+  1220→}
+  1221→
+  1222→.channel-badge.whatsapp {
+  1223→  background: rgba(37, 211, 102, 0.1);
+  1224→  color: #25D366;
+  1225→}
+  1226→
+  1227→.channel-badge.instagram {
+  1228→  background: rgba(225, 48, 108, 0.1);
+  1229→  color: #E1306C;
+  1230→}
+  1231→
+  1232→.channel-badge.facebook {
+  1233→  background: rgba(24, 119, 242, 0.1);
+  1234→  color: #1877F2;
+  1235→}
+  1236→
+  1237→/* ---------- AI Insights Bar ---------- */
+  1238→.ai-insights-bar {
+  1239→  display: flex;
+  1240→  align-items: center;
+  1241→  gap: var(--space-md);
+  1242→  padding: var(--space-md) var(--space-xl);
+  1243→  background: rgba(0, 210, 255, 0.05);
+  1244→  border: 1px solid rgba(0, 210, 255, 0.15);
+  1245→  border-radius: var(--radius-lg);
+  1246→  margin-bottom: var(--space-xl);
+  1247→}
+  1248→
+  1249→.ai-insights-icon {
+  1250→  width: 36px;
+  1251→  height: 36px;
+  1252→  border-radius: var(--radius-md);
+  1253→  background: rgba(0, 210, 255, 0.12);
+  1254→  color: var(--accent-secondary);
+  1255→  display: flex;
+  1256→  align-items: center;
+  1257→  justify-content: center;
+  1258→  flex-shrink: 0;
+  1259→}
+  1260→
+  1261→.ai-insights-text {
+  1262→  font-size: var(--font-size-sm);
+  1263→  color: var(--text-secondary);
+  1264→}
+  1265→
+  1266→.ai-insights-text strong {
+  1267→  color: var(--text-primary);
+  1268→}
+  1269→
+  1270→/* ---------- Stat Card Change ---------- */
+  1271→.stat-card-change {
+  1272→  display: flex;
+  1273→  align-items: center;
+  1274→  gap: 4px;
+  1275→  margin-top: var(--space-sm);
+  1276→  font-size: var(--font-size-xs);
+  1277→}
+  1278→
+  1279→.stat-card-change .up { color: var(--accent-green); font-weight: 600; }
+  1280→.stat-card-change .down { color: var(--accent-red); font-weight: 600; }
+  1281→.stat-card-period { color: var(--text-tertiary); margin-left: 4px; }
+  1282→
+  1283→/* ---------- Status Dot ---------- */
+  1284→.status-dot {
+  1285→  display: inline-block;
+  1286→  width: 6px;
+  1287→  height: 6px;
+  1288→  border-radius: 50%;
+  1289→  margin-right: 4px;
+  1290→}
+  1291→
+  1292→.product-card-status.active .status-dot { background: var(--accent-green); }
+  1293→.product-card-status.draft .status-dot { background: var(--text-tertiary); }
+  1294→
+  1295→/* ---------- Product Stock Colors ---------- */
+  1296→.product-card-stock.out {
+  1297→  color: var(--accent-red);
+  1298→  font-weight: 600;
+  1299→}
+  1300→
+  1301→.product-card-stock.low {
+  1302→  color: var(--accent-orange);
+  1303→  font-weight: 600;
+  1304→}
+  1305→
+  1306→/* ---------- Modal / Dialog ---------- */
+  1307→.modal-overlay {
+  1308→  position: fixed;
+  1309→  inset: 0;
+  1310→  background: rgba(0, 0, 0, 0.6);
+  1311→  backdrop-filter: blur(8px);
+  1312→  display: flex;
+  1313→  align-items: center;
+  1314→  justify-content: center;
+  1315→  z-index: 200;
+  1316→  animation: fade-in 0.2s ease;
+  1317→}
+  1318→
+  1319→.modal {
+  1320→  background: var(--bg-secondary);
+  1321→  border: 1px solid var(--border-subtle);
+  1322→  border-radius: var(--radius-xl);
+  1323→  width: 90%;
+  1324→  max-width: 540px;
+  1325→  max-height: 90vh;
+  1326→  overflow-y: auto;
+  1327→  animation: scale-in 0.3s ease;
+  1328→}
+  1329→
+  1330→.modal-header {
+  1331→  display: flex;
+  1332→  align-items: center;
+  1333→  justify-content: space-between;
+  1334→  padding: var(--space-xl);
+  1335→  border-bottom: 1px solid var(--border-subtle);
+  1336→}
+  1337→
+  1338→.modal-header h3 {
+  1339→  font-size: var(--font-size-lg);
+  1340→  font-weight: 700;
+  1341→}
+  1342→
+  1343→.modal-close {
+  1344→  background: none;
+  1345→  color: var(--text-tertiary);
+  1346→  padding: var(--space-xs);
+  1347→  border-radius: var(--radius-sm);
+  1348→  transition: all var(--transition-fast);
+  1349→}
+  1350→
+  1351→.modal-close:hover {
+  1352→  color: var(--text-primary);
+  1353→  background: var(--bg-glass-hover);
+  1354→}
+  1355→
+  1356→.modal-body {
+  1357→  padding: var(--space-xl);
+  1358→}
+  1359→
+  1360→.modal-footer {
+  1361→  padding: var(--space-lg) var(--space-xl);
+  1362→  border-top: 1px solid var(--border-subtle);
+  1363→  display: flex;
+  1364→  justify-content: flex-end;
+  1365→  gap: var(--space-md);
+  1366→}
+  1367→
+  1368→/* ---------- Image Upload ---------- */
+  1369→.image-upload-area {
+  1370→  border: 2px dashed var(--border-medium);
+  1371→  border-radius: var(--radius-md);
+  1372→  padding: var(--space-xl);
+  1373→  text-align: center;
+  1374→  cursor: pointer;
+  1375→  transition: all var(--transition-base);
+  1376→  background: var(--bg-glass);
+  1377→  min-height: 160px;
+  1378→  display: flex;
+  1379→  align-items: center;
+  1380→  justify-content: center;
+  1381→}
+  1382→
+  1383→.image-upload-area:hover {
+  1384→  border-color: var(--accent-primary);
+  1385→  background: rgba(108, 92, 231, 0.05);
+  1386→}
+  1387→
+  1388→.image-upload-area.drag-over {
+  1389→  border-color: var(--accent-primary);
+  1390→  background: rgba(108, 92, 231, 0.1);
+  1391→  transform: scale(1.01);
+  1392→}
+  1393→
+  1394→.image-upload-area.has-image {
+  1395→  padding: 0;
+  1396→  border-style: solid;
+  1397→  border-color: var(--border-subtle);
+  1398→}
+  1399→
+  1400→.image-upload-placeholder {
+  1401→  display: flex;
+  1402→  flex-direction: column;
+  1403→  align-items: center;
+  1404→  gap: var(--space-sm);
+  1405→}
+  1406→
+  1407→.image-upload-icon {
+  1408→  width: 48px;
+  1409→  height: 48px;
+  1410→  border-radius: var(--radius-full);
+  1411→  background: rgba(108, 92, 231, 0.1);
+  1412→  display: flex;
+  1413→  align-items: center;
+  1414→  justify-content: center;
+  1415→  color: var(--accent-primary);
+  1416→  margin-bottom: var(--space-xs);
+  1417→}
+  1418→
+  1419→.image-upload-text {
+  1420→  font-size: var(--font-size-sm);
+  1421→  color: var(--text-secondary);
+  1422→}
+  1423→
+  1424→.image-upload-text span {
+  1425→  color: var(--accent-primary);
+  1426→  font-weight: 600;
+  1427→  text-decoration: underline;
+  1428→}
+  1429→
+  1430→.image-upload-hint {
+  1431→  font-size: var(--font-size-xs);
+  1432→  color: var(--text-tertiary);
+  1433→}
+  1434→
+  1435→.image-preview-wrapper {
+  1436→  position: relative;
+  1437→  width: 100%;
+  1438→  height: 200px;
+  1439→  border-radius: var(--radius-md);
+  1440→  overflow: hidden;
+  1441→}
+  1442→
+  1443→.image-preview {
+  1444→  width: 100%;
+  1445→  height: 100%;
+  1446→  object-fit: cover;
+  1447→}
+  1448→
+  1449→.image-remove-btn {
+  1450→  position: absolute;
+  1451→  top: 8px;
+  1452→  right: 8px;
+  1453→  width: 28px;
+  1454→  height: 28px;
+  1455→  border-radius: var(--radius-full);
+  1456→  background: rgba(0, 0, 0, 0.6);
+  1457→  border: none;
+  1458→  color: white;
+  1459→  cursor: pointer;
+  1460→  display: flex;
+  1461→  align-items: center;
+  1462→  justify-content: center;
+  1463→  transition: all var(--transition-fast);
+  1464→  backdrop-filter: blur(4px);
+  1465→}
+  1466→
+  1467→.image-remove-btn:hover {
+  1468→  background: rgba(255, 82, 82, 0.9);
+  1469→  transform: scale(1.1);
+  1470→}
+  1471→
+  1472→/* ---------- AI Image Generator ---------- */
+  1473→.ai-image-generator {
+  1474→  margin-top: var(--space-md);
+  1475→}
+  1476→
+  1477→.ai-image-divider {
+  1478→  display: flex;
+  1479→  align-items: center;
+  1480→  gap: var(--space-md);
+  1481→  margin-bottom: var(--space-md);
+  1482→  color: var(--text-tertiary);
+  1483→  font-size: var(--font-size-xs);
+  1484→  text-transform: uppercase;
+  1485→  letter-spacing: 0.05em;
+  1486→}
+  1487→
+  1488→.ai-image-divider::before,
+  1489→.ai-image-divider::after {
+  1490→  content: '';
+  1491→  flex: 1;
+  1492→  height: 1px;
+  1493→  background: var(--border-medium);
+  1494→}
+  1495→
+  1496→.ai-image-controls {
+  1497→  display: flex;
+  1498→  gap: var(--space-sm);
+  1499→}
+  1500→
+  1501→.ai-style-select {
+  1502→  flex: 1;
+  1503→  padding: var(--space-sm) var(--space-md);
+  1504→  border-radius: var(--radius-md);
+  1505→  border: 1px solid var(--border-medium);
+  1506→  background: var(--bg-primary);
+  1507→  color: var(--text-primary);
+  1508→  font-size: var(--font-size-sm);
+  1509→  cursor: pointer;
+  1510→  outline: none;
+  1511→  transition: border-color 0.2s;
+  1512→  appearance: auto;
+  1513→}
+  1514→
+  1515→.ai-style-select:focus {
+  1516→  border-color: var(--accent-primary);
+  1517→}
+  1518→
+  1519→.ai-style-select:disabled {
+  1520→  opacity: 0.5;
+  1521→  cursor: not-allowed;
+  1522→}
+  1523→
+  1524→.btn-ai-generate {
+  1525→  display: inline-flex;
+  1526→  align-items: center;
+  1527→  gap: var(--space-xs);
+  1528→  padding: var(--space-sm) var(--space-md);
+  1529→  border-radius: var(--radius-md);
+  1530→  border: none;
+  1531→  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  1532→  color: #fff;
+  1533→  font-size: var(--font-size-sm);
+  1534→  font-weight: 600;
+  1535→  cursor: pointer;
+  1536→  white-space: nowrap;
+  1537→  transition: all 0.2s;
+  1538→  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.25);
+  1539→}
+  1540→
+  1541→.btn-ai-generate:hover:not(:disabled) {
+  1542→  background: linear-gradient(135deg, #5a4bd1, #8f7ff0);
+  1543→  transform: translateY(-1px);
+  1544→  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.35);
+  1545→}
+  1546→
+  1547→.btn-ai-generate:active:not(:disabled) {
+  1548→  transform: translateY(0);
+  1549→}
+  1550→
+  1551→.btn-ai-generate:disabled {
+  1552→  opacity: 0.6;
+  1553→  cursor: not-allowed;
+  1554→  transform: none;
+  1555→}
+  1556→
+  1557→/* ---------- Form Elements ---------- */
+  1558→.form-group {
+  1559→  margin-bottom: var(--space-lg);
+  1560→}
+  1561→
+  1562→.form-label {
+  1563→  display: block;
+  1564→  font-size: var(--font-size-sm);
+  1565→  font-weight: 600;
+  1566→  color: var(--text-secondary);
+  1567→  margin-bottom: var(--space-sm);
+  1568→}
+  1569→
+  1570→.form-input {
+  1571→  width: 100%;
+  1572→  padding: 10px 14px;
+  1573→  background: var(--bg-glass);
+  1574→  border: 1px solid var(--border-subtle);
+  1575→  border-radius: var(--radius-md);
+  1576→  color: var(--text-primary);
+  1577→  font-size: var(--font-size-sm);
+  1578→  font-family: var(--font-family);
+  1579→  outline: none;
+  1580→  transition: border-color var(--transition-base);
+  1581→}
+  1582→
+  1583→.form-input:focus {
+  1584→  border-color: var(--accent-primary);
+  1585→  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1);
+  1586→}
+  1587→
+  1588→.form-input::placeholder {
+  1589→  color: var(--text-tertiary);
+  1590→}
+  1591→
+  1592→.form-textarea {
+  1593→  min-height: 100px;
+  1594→  resize: vertical;
+  1595→}
+  1596→
+  1597→/* ---------- Form Select ---------- */
+  1598→select.form-input {
+  1599→  appearance: none;
+  1600→  cursor: pointer;
+  1601→}
+  1602→
+  1603→/* ---------- Scale-in Animation ---------- */
+  1604→@keyframes scale-in {
+  1605→  from { opacity: 0; transform: scale(0.95); }
+  1606→  to { opacity: 1; transform: scale(1); }
+  1607→}
+  1608→
+  1609→@keyframes fade-in {
+  1610→  from { opacity: 0; }
+  1611→  to { opacity: 1; }
+  1612→}
+  1613→
+  1614→
+  1615→/* ---------- Table Scroll Wrapper ---------- */
+  1616→.table-scroll-wrapper {
+  1617→  overflow-x: auto;
+  1618→  -webkit-overflow-scrolling: touch;
+  1619→}
+  1620→
+  1621→/* ---------- Sidebar Overlay ---------- */
+  1622→.sidebar-overlay {
+  1623→  position: fixed;
+  1624→  inset: 0;
+  1625→  background: rgba(0, 0, 0, 0);
+  1626→  z-index: 99;
+  1627→  pointer-events: none;
+  1628→  transition: background var(--transition-base);
+  1629→}
+  1630→
+  1631→.sidebar-overlay.visible {
+  1632→  background: rgba(0, 0, 0, 0.5);
+  1633→  pointer-events: auto;
+  1634→}
+  1635→
+  1636→/* ---------- Topbar Search Toggle (Mobile) ---------- */
+  1637→.topbar-search-toggle {
+  1638→  display: none;
+  1639→}
+  1640→
+  1641→/* ---------- Topbar Search Mobile Overlay ---------- */
+  1642→.topbar-search-mobile {
+  1643→  position: fixed;
+  1644→  inset: 0;
+  1645→  background: var(--bg-secondary);
+  1646→  z-index: 200;
+  1647→  display: none;
+  1648→  flex-direction: column;
+  1649→  animation: fade-in 0.2s ease;
+  1650→}
+  1651→
+  1652→.topbar-search-mobile.open {
+  1653→  display: flex;
+  1654→}
+  1655→
+  1656→/* ---------- Chat Back Button (Mobile) ---------- */
+  1657→.chat-back-btn {
+  1658→  display: none;
+  1659→  background: none;
+  1660→  color: var(--text-secondary);
+  1661→  padding: var(--space-xs);
+  1662→  border-radius: var(--radius-sm);
+  1663→  cursor: pointer;
+  1664→  margin-right: var(--space-xs);
+  1665→}
+  1666→
+  1667→.chat-back-btn:hover {
+  1668→  color: var(--text-primary);
+  1669→  background: var(--bg-glass-hover);
+  1670→}
+  1671→
+  1672→/* ---------- Skeleton Loading ---------- */
+  1673→@keyframes skeleton-shimmer {
+  1674→  0% { background-position: -200% 0; }
+  1675→  100% { background-position: 200% 0; }
+  1676→}
+  1677→
+  1678→.skeleton-block {
+  1679→  background: linear-gradient(
+  1680→    90deg,
+  1681→    var(--bg-card) 25%,
+  1682→    rgba(108, 92, 231, 0.06) 37%,
+  1683→    var(--bg-card) 63%
+  1684→  );
+  1685→  background-size: 200% 100%;
+  1686→  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+  1687→}
+  1688→
+  1689→/* Make sure skeleton cards match existing card styles */
+  1690→.stat-card .skeleton-block {
+  1691→  background: linear-gradient(
+  1692→    90deg,
+  1693→    var(--bg-glass) 25%,
+  1694→    rgba(108, 92, 231, 0.08) 37%,
+  1695→    var(--bg-glass) 63%
+  1696→  );
+  1697→  background-size: 200% 100%;
+  1698→  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+  1699→}
+  1700→
+  1701→/* ---------- Responsive: Tablet (1024px) ---------- */
+  1702→@media (max-width: 1024px) {
+  1703→  .stats-grid {
+  1704→    grid-template-columns: repeat(2, 1fr);
+  1705→  }
+  1706→
+  1707→  .dashboard-grid {
+  1708→    grid-template-columns: 1fr;
+  1709→  }
+  1710→
+  1711→  .dashboard-panel-header {
+  1712→    padding: var(--space-md) var(--space-lg);
+  1713→  }
+  1714→
+  1715→  .conversations-layout {
+  1716→    grid-template-columns: 280px 1fr;
+  1717→  }
+  1718→
+  1719→  .topbar-search {
+  1720→    width: 200px;
+  1721→  }
+  1722→
+  1723→  .filter-bar {
+  1724→    flex-wrap: wrap;
+  1725→  }
+  1726→
+  1727→  .filter-search {
+  1728→    margin-left: 0;
+  1729→    width: 100%;
+  1730→    order: 10;
+  1731→  }
+  1732→
+  1733→  .filter-search input {
+  1734→    width: 100%;
+  1735→  }
+  1736→
+  1737→  .products-grid {
+  1738→    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  1739→  }
+  1740→}
+  1741→
+  1742→/* ---------- Responsive: Mobile (768px) ---------- */
+  1743→@media (max-width: 768px) {
+  1744→  /* Sidebar - slide-in drawer */
+  1745→  .sidebar {
+  1746→    transform: translateX(-100%);
+  1747→    width: 280px;
+  1748→    box-shadow: none;
+  1749→    z-index: 200;
+  1750→  }
+  1751→
+  1752→  .sidebar.open {
+  1753→    transform: translateX(0);
+  1754→    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  1755→  }
+  1756→
+  1757→  .sidebar-close {
+  1758→    display: flex;
+  1759→    min-width: 44px;
+  1760→    min-height: 44px;
+  1761→    align-items: center;
+  1762→    justify-content: center;
+  1763→  }
+  1764→
+  1765→  .sidebar-link {
+  1766→    min-height: 44px;
+  1767→    padding: 12px var(--space-md);
+  1768→  }
+  1769→
+  1770→  /* Main - full width */
+  1771→  .dashboard-main {
+  1772→    margin-left: 0;
+  1773→  }
+  1774→
+  1775→  /* Topbar */
+  1776→  .topbar {
+  1777→    height: 56px;
+  1778→    padding: 0 var(--space-md);
+  1779→    gap: var(--space-xs);
+  1780→  }
+  1781→
+  1782→  .topbar-left {
+  1783→    flex-shrink: 1;
+  1784→    min-width: 0;
+  1785→  }
+  1786→
+  1787→  .topbar-mobile-toggle {
+  1788→    display: flex;
+  1789→    min-width: 44px;
+  1790→    min-height: 44px;
+  1791→    align-items: center;
+  1792→    justify-content: center;
+  1793→    flex-shrink: 0;
+  1794→  }
+  1795→
+  1796→  .topbar-search {
+  1797→    display: none;
+  1798→  }
+  1799→
+  1800→  .topbar-search-toggle {
+  1801→    display: flex;
+  1802→    min-width: 38px;
+  1803→    min-height: 38px;
+  1804→    align-items: center;
+  1805→    justify-content: center;
+  1806→  }
+  1807→
+  1808→  .topbar-help-btn {
+  1809→    display: none;
+  1810→  }
+  1811→
+  1812→  .topbar-btn {
+  1813→    min-width: 38px;
+  1814→    min-height: 38px;
+  1815→  }
+  1816→
+  1817→  .topbar-title {
+  1818→    font-size: var(--font-size-base);
+  1819→    white-space: nowrap;
+  1820→    overflow: hidden;
+  1821→    text-overflow: ellipsis;
+  1822→  }
+  1823→
+  1824→  .topbar-right {
+  1825→    gap: 2px;
+  1826→    flex-shrink: 0;
+  1827→  }
+  1828→
+  1829→  /* Page Content */
+  1830→  .page-content {
+  1831→    padding: var(--space-md);
+  1832→  }
+  1833→
+  1834→  .page-header {
+  1835→    flex-direction: column;
+  1836→    align-items: flex-start;
+  1837→    gap: var(--space-sm);
+  1838→  }
+  1839→
+  1840→  .page-header h1 {
+  1841→    font-size: var(--font-size-xl);
+  1842→  }
+  1843→
+  1844→  .page-header-actions {
+  1845→    flex-wrap: wrap;
+  1846→    width: 100%;
+  1847→  }
+  1848→
+  1849→  /* Stats Grid */
+  1850→  .stats-grid {
+  1851→    grid-template-columns: 1fr 1fr;
+  1852→    gap: var(--space-sm);
+  1853→  }
+  1854→
+  1855→  .stat-card {
+  1856→    padding: var(--space-md);
+  1857→    border-radius: var(--radius-md);
+  1858→  }
+  1859→
+  1860→  .stat-card-value {
+  1861→    font-size: var(--font-size-xl);
+  1862→  }
+  1863→
+  1864→  .stat-card:hover {
+  1865→    transform: none;
+  1866→  }
+  1867→
+  1868→  /* Dashboard Grid */
+  1869→  .dashboard-grid {
+  1870→    grid-template-columns: 1fr;
+  1871→    gap: var(--space-md);
+  1872→  }
+  1873→
+  1874→  .dashboard-panel {
+  1875→    border-radius: var(--radius-md);
+  1876→  }
+  1877→
+  1878→  .dashboard-panel:hover {
+  1879→    transform: none;
+  1880→  }
+  1881→
+  1882→  .dashboard-panel-header {
+  1883→    padding: var(--space-md);
+  1884→  }
+  1885→
+  1886→  .dashboard-panel-body {
+  1887→    padding: var(--space-sm);
+  1888→  }
+  1889→
+  1890→  /* Conversations - Mobile list-OR-chat pattern */
+  1891→  .conversations-layout {
+  1892→    grid-template-columns: 1fr;
+  1893→    height: calc(100vh - 56px);
+  1894→  }
+  1895→
+  1896→  .conv-list.mobile-hidden {
+  1897→    display: none;
+  1898→  }
+  1899→
+  1900→  .chat-area.mobile-visible {
+  1901→    display: flex;
+  1902→    position: fixed;
+  1903→    inset: 0;
+  1904→    z-index: 80;
+  1905→    background: var(--bg-primary);
+  1906→  }
+  1907→
+  1908→  .chat-back-btn {
+  1909→    display: flex;
+  1910→    min-width: 44px;
+  1911→    min-height: 44px;
+  1912→    align-items: center;
+  1913→    justify-content: center;
+  1914→  }
+  1915→
+  1916→  .chat-msg {
+  1917→    max-width: 85%;
+  1918→  }
+  1919→
+  1920→  .chat-header {
+  1921→    padding: var(--space-sm) var(--space-md);
+  1922→  }
+  1923→
+  1924→  .chat-messages {
+  1925→    padding: var(--space-md);
+  1926→  }
+  1927→
+  1928→  .chat-input-area {
+  1929→    padding: var(--space-sm) var(--space-md);
+  1930→    padding-bottom: calc(var(--space-sm) + env(safe-area-inset-bottom, 0px));
+  1931→  }
+  1932→
+  1933→  .chat-input {
+  1934→    font-size: 16px; /* Prevents iOS zoom */
+  1935→  }
+  1936→
+  1937→  /* Tables */
+  1938→  .data-table th,
+  1939→  .data-table td {
+  1940→    padding: var(--space-sm) var(--space-md);
+  1941→    font-size: var(--font-size-xs);
+  1942→  }
+  1943→
+  1944→  .data-table tbody tr:hover {
+  1945→    transform: none;
+  1946→  }
+  1947→
+  1948→  .table-scroll-wrapper {
+  1949→    margin: calc(var(--space-md) * -1);
+  1950→    padding: var(--space-md);
+  1951→  }
+  1952→
+  1953→  /* Filter Bar */
+  1954→  .filter-bar {
+  1955→    flex-direction: column;
+  1956→    align-items: stretch;
+  1957→    gap: var(--space-sm);
+  1958→  }
+  1959→
+  1960→  .filter-tabs {
+  1961→    overflow-x: auto;
+  1962→    -webkit-overflow-scrolling: touch;
+  1963→    flex-wrap: nowrap;
+  1964→  }
+  1965→
+  1966→  .filter-search {
+  1967→    margin-left: 0;
+  1968→  }
+  1969→
+  1970→  .filter-search input {
+  1971→    width: 100%;
+  1972→    font-size: 16px; /* Prevents iOS zoom */
+  1973→  }
+  1974→
+  1975→  /* Products Grid */
+  1976→  .products-grid {
+  1977→    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  1978→    gap: var(--space-sm);
+  1979→  }
+  1980→
+  1981→  .product-card-image {
+  1982→    height: 140px;
+  1983→  }
+  1984→
+  1985→  .product-card-body {
+  1986→    padding: var(--space-md);
+  1987→  }
+  1988→
+  1989→  /* Modal */
+  1990→  .modal {
+  1991→    width: 95%;
+  1992→    max-height: 85vh;
+  1993→    border-radius: var(--radius-lg);
+  1994→  }
+  1995→
+  1996→  .modal-header,
+  1997→  .modal-body {
+  1998→    padding: var(--space-md);
+  1999→  }
+  2000→
+
+[showing lines 1-2000 of 6660; use offset=2001 with limit to continue reading]
