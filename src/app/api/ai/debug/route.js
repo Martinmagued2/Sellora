@@ -11,6 +11,7 @@ import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { verifyAdmin } from "@/lib/admin-auth";
+import { collectKeys, getProviderChainSummary, buildFullProviderChain } from "@/lib/ai/provider-chain";
 
 function getAdminClient() {
   return createClient(
@@ -30,10 +31,20 @@ export async function GET(req) {
     timestamp: new Date().toISOString(),
     env_check: {
       GROQ_API_KEY: !!process.env.GROQ_API_KEY,
+      GROQ_API_KEY_2: !!process.env.GROQ_API_KEY_2,
+      GROQ_API_KEY_3: !!process.env.GROQ_API_KEY_3,
+      GROQ_API_KEYS: !!process.env.GROQ_API_KEYS,
+      NVIDIA_API_KEY: !!process.env.NVIDIA_API_KEY,
+      NVIDIA_API_KEY_2: !!process.env.NVIDIA_API_KEY_2,
+      NVIDIA_API_KEYS: !!process.env.NVIDIA_API_KEYS,
       GOOGLE_GENERATIVE_AI_API_KEY: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      GOOGLE_API_KEYS: !!process.env.GOOGLE_API_KEYS,
       OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+      OPENAI_API_KEYS: !!process.env.OPENAI_API_KEYS,
       VECTORENGINE_API_KEY: !!process.env.VECTORENGINE_API_KEY,
     },
+    multi_key_summary: getProviderChainSummary(),
+    provider_chain: buildFullProviderChain().map(p => ({ name: p.name, provider: p._provider, keyIndex: p._keyIndex })),
     providers_available: [
       process.env.GROQ_API_KEY && "groq",
       process.env.GOOGLE_GENERATIVE_AI_API_KEY && "google",
