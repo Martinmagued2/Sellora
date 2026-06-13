@@ -1,0 +1,2002 @@
+     1→/* ============================================
+     2→   ChatCommerce — Design System
+     3→   Premium Dark Theme with Glassmorphism
+     4→   ============================================ */
+     5→
+     6→/* ---------- Google Fonts ---------- */
+     7→@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+     8→
+     9→/* ---------- CSS Reset ---------- */
+    10→*,
+    11→*::before,
+    12→*::after {
+    13→  box-sizing: border-box;
+    14→  margin: 0;
+    15→  padding: 0;
+    16→}
+    17→
+    18→/* ---------- Custom Properties ---------- */
+    19→:root {
+    20→  /* Background */
+    21→  --bg-primary: #191A23;
+    22→  --bg-secondary: #21222C;
+    23→  --bg-tertiary: #282A36;
+    24→  --bg-card: rgba(33, 34, 44, 0.7);
+    25→  --bg-card-hover: rgba(40, 42, 54, 0.9);
+    26→  --bg-glass: rgba(255, 255, 255, 0.04);
+    27→  --bg-glass-hover: rgba(255, 255, 255, 0.08);
+    28→
+    29→  /* Accent Colors */
+    30→  --accent-primary: #5865F2;
+    31→  --accent-primary-light: #7E88F5;
+    32→  --accent-secondary: #00D2FF;
+    33→  --accent-secondary-violet: #5865F2;
+    34→  --accent-gradient: linear-gradient(135deg, #5865F2 0%, #00D2FF 100%);
+    35→  --accent-gradient-hover: linear-gradient(135deg, #7E88F5 0%, #20e2ff 100%);
+    36→  --accent-gradient-text: linear-gradient(135deg, #7E88F5 0%, #00D2FF 50%, #5865F2 100%);
+    37→  --accent-green: #3BA55C;
+    38→  --accent-green-dark: #2D7D46;
+    39→  --accent-orange: #F8A532;
+    40→  --accent-pink: #EB459E;
+    41→  --accent-red: #ED4245;
+    42→
+    43→  /* Text */
+    44→  --text-primary: #FFFFFF;
+    45→  --text-secondary: #B9BBBE;
+    46→  --text-tertiary: #8E9297;
+    47→  --text-on-accent: #FFFFFF;
+    48→
+    49→  /* Borders */
+    50→  --border-subtle: rgba(255, 255, 255, 0.05);
+    51→  --border-medium: rgba(255, 255, 255, 0.1);
+    52→  --border-accent: rgba(88, 101, 242, 0.4);
+    53→
+    54→  /* Shadows */
+    55→  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
+    56→  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.15);
+    57→  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.2);
+    58→  --shadow-glow: 0 8px 24px rgba(88, 101, 242, 0.2);
+    59→  --shadow-glow-strong: 0 12px 32px rgba(88, 101, 242, 0.4);
+    60→  --shadow-glow-blue: 0 8px 24px rgba(0, 210, 255, 0.2);
+    61→
+    62→  /* Spacing */
+    63→  --space-xs: 4px;
+    64→  --space-sm: 8px;
+    65→  --space-md: 16px;
+    66→  --space-lg: 24px;
+    67→  --space-xl: 32px;
+    68→  --space-2xl: 48px;
+    69→  --space-3xl: 64px;
+    70→  --space-4xl: 96px;
+    71→  --space-5xl: 128px;
+    72→
+    73→  /* Typography */
+    74→  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    75→  --font-family-ar: 'Cairo', 'Inter', sans-serif;
+    76→  --font-size-xs: 0.75rem;
+    77→  --font-size-sm: 0.875rem;
+    78→  --font-size-base: 1rem;
+    79→  --font-size-lg: 1.125rem;
+    80→  --font-size-xl: 1.25rem;
+    81→  --font-size-2xl: 1.5rem;
+    82→  --font-size-3xl: 2rem;
+    83→  --font-size-4xl: 2.5rem;
+    84→  --font-size-5xl: 3.5rem;
+    85→  --font-size-6xl: 4.5rem;
+    86→
+    87→  /* Border Radius */
+    88→  --radius-sm: 6px;
+    89→  --radius-md: 10px;
+    90→  --radius-lg: 16px;
+    91→  --radius-xl: 24px;
+    92→  --radius-full: 9999px;
+    93→
+    94→  /* Transitions */
+    95→  --transition-fast: 150ms ease;
+    96→  --transition-base: 250ms ease;
+    97→  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+    98→
+    99→  /* Layout */
+   100→  --max-width: 1200px;
+   101→  --nav-height: 72px;
+   102→}
+   103→
+   104→/* ---------- Light Theme ---------- */
+   105→html[data-theme="light"] {
+   106→  --bg-primary: #f5f7fb;
+   107→  --bg-secondary: #edf0f7;
+   108→  --bg-tertiary: #e4e8f1;
+   109→  --bg-card: rgba(255, 255, 255, 0.85);
+   110→  --bg-card-hover: rgba(255, 255, 255, 0.95);
+   111→  --bg-glass: rgba(0, 0, 0, 0.03);
+   112→  --bg-glass-hover: rgba(0, 0, 0, 0.06);
+   113→
+   114→  --text-primary: #1a1a2e;
+   115→  --text-secondary: rgba(26, 26, 46, 0.7);
+   116→  --text-tertiary: rgba(26, 26, 46, 0.45);
+   117→
+   118→  --border-subtle: rgba(0, 0, 0, 0.06);
+   119→  --border-medium: rgba(0, 0, 0, 0.1);
+   120→  --border-accent: rgba(108, 92, 231, 0.2);
+   121→
+   122→  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+   123→  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
+   124→  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.1);
+   125→  --shadow-glow: 0 0 40px rgba(108, 92, 231, 0.08);
+   126→  --shadow-glow-strong: 0 0 60px rgba(108, 92, 231, 0.12);
+   127→  --shadow-glow-blue: 0 0 40px rgba(0, 210, 255, 0.08);
+   128→}
+   129→
+   130→html[data-theme="light"] .glass-card,
+   131→html[data-theme="light"] .dashboard-panel {
+   132→  background: rgba(255, 255, 255, 0.7);
+   133→  border-color: rgba(0, 0, 0, 0.08);
+   134→  backdrop-filter: blur(20px);
+   135→}
+   136→
+   137→html[data-theme="light"] .navbar {
+   138→  background: rgba(245, 247, 251, 0.85);
+   139→  border-bottom-color: rgba(0, 0, 0, 0.06);
+   140→}
+   141→
+   142→html[data-theme="light"] .sidebar {
+   143→  background: rgba(255, 255, 255, 0.95);
+   144→  border-right-color: rgba(0, 0, 0, 0.08);
+   145→}
+   146→
+   147→html[data-theme="light"] .topbar {
+   148→  background: rgba(245, 247, 251, 0.85);
+   149→  border-bottom-color: rgba(0, 0, 0, 0.06);
+   150→}
+   151→
+   152→html[data-theme="light"] .btn-secondary {
+   153→  background: rgba(0, 0, 0, 0.05);
+   154→  border-color: rgba(0, 0, 0, 0.1);
+   155→  color: var(--text-primary);
+   156→}
+   157→
+   158→html[data-theme="light"] .form-input,
+   159→html[data-theme="light"] .auth-input {
+   160→  background: rgba(0, 0, 0, 0.03);
+   161→  border-color: rgba(0, 0, 0, 0.1);
+   162→  color: var(--text-primary);
+   163→}
+   164→
+   165→html[data-theme="light"] .data-table th {
+   166→  background: rgba(0, 0, 0, 0.03);
+   167→}
+   168→
+   169→html[data-theme="light"] .data-table tr:hover {
+   170→  background: rgba(0, 0, 0, 0.02);
+   171→}
+   172→
+   173→/* ---------- RTL Support ---------- */
+   174→html[dir="rtl"] {
+   175→  direction: rtl;
+   176→}
+   177→
+   178→html[dir="rtl"] .navbar-inner {
+   179→  flex-direction: row-reverse;
+   180→}
+   181→
+   182→html[dir="rtl"] .sidebar {
+   183→  left: auto;
+   184→  right: 0;
+   185→  border-right: none;
+   186→  border-left: 1px solid var(--border-subtle);
+   187→}
+   188→
+   189→html[dir="rtl"] .dashboard-main {
+   190→  margin-left: 0;
+   191→  margin-right: 260px;
+   192→}
+   193→
+   194→html[dir="rtl"] .footer-top {
+   195→  text-align: right;
+   196→}
+   197→
+   198→/* ---------- Base Styles ---------- */
+   199→html {
+   200→  scroll-behavior: smooth;
+   201→  -webkit-font-smoothing: antialiased;
+   202→  -moz-osx-font-smoothing: grayscale;
+   203→}
+   204→
+   205→body {
+   206→  font-family: var(--font-family);
+   207→  background-color: var(--bg-primary);
+   208→  color: var(--text-primary);
+   209→  line-height: 1.6;
+   210→  overflow-x: hidden;
+   211→}
+   212→
+   213→a {
+   214→  color: inherit;
+   215→  text-decoration: none;
+   216→}
+   217→
+   218→button {
+   219→  font-family: var(--font-family);
+   220→  cursor: pointer;
+   221→  border: none;
+   222→  outline: none;
+   223→}
+   224→
+   225→ul, ol {
+   226→  list-style: none;
+   227→}
+   228→
+   229→img {
+   230→  max-width: 100%;
+   231→  display: block;
+   232→}
+   233→
+   234→/* ---------- Typography ---------- */
+   235→.text-gradient {
+   236→  background: var(--accent-gradient-text);
+   237→  background-size: 200% auto;
+   238→  -webkit-background-clip: text;
+   239→  -webkit-text-fill-color: transparent;
+   240→  background-clip: text;
+   241→  animation: shimmer 3s linear infinite;
+   242→}
+   243→
+   244→.text-gradient-static {
+   245→  background: var(--accent-gradient);
+   246→  -webkit-background-clip: text;
+   247→  -webkit-text-fill-color: transparent;
+   248→  background-clip: text;
+   249→}
+   250→
+   251→/* ---------- Buttons ---------- */
+   252→.btn {
+   253→  display: inline-flex;
+   254→  align-items: center;
+   255→  justify-content: center;
+   256→  gap: var(--space-sm);
+   257→  font-weight: 600;
+   258→  font-size: var(--font-size-sm);
+   259→  padding: 12px 28px;
+   260→  border-radius: var(--radius-full);
+   261→  transition: all var(--transition-base);
+   262→  position: relative;
+   263→  overflow: hidden;
+   264→  white-space: nowrap;
+   265→}
+   266→
+   267→.btn-primary {
+   268→  background: var(--accent-gradient);
+   269→  color: var(--text-primary);
+   270→  border-radius: var(--radius-full);
+   271→  box-shadow: 0 4px 14px rgba(88, 101, 242, 0.4);
+   272→  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+   273→}
+   274→
+   275→.btn-primary:hover {
+   276→  background: var(--accent-gradient-hover);
+   277→  transform: translateY(-2px) scale(1.02);
+   278→  box-shadow: 0 6px 20px rgba(88, 101, 242, 0.6);
+   279→}
+   280→
+   281→.btn-primary:active {
+   282→  transform: translateY(1px) scale(0.96);
+   283→  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
+   284→}
+   285→
+   286→.btn-secondary {
+   287→  background: var(--bg-glass);
+   288→  color: var(--text-primary);
+   289→  border: 1px solid var(--border-medium);
+   290→  backdrop-filter: blur(10px);
+   291→}
+   292→
+   293→.btn-secondary:hover {
+   294→  background: var(--bg-glass-hover);
+   295→  border-color: var(--accent-primary);
+   296→  transform: translateY(-2px);
+   297→}
+   298→
+   299→.btn-lg {
+   300→  padding: 16px 36px;
+   301→  font-size: var(--font-size-base);
+   302→}
+   303→
+   304→.btn-sm {
+   305→  padding: 8px 20px;
+   306→  font-size: var(--font-size-xs);
+   307→}
+   308→
+   309→/* ---------- Cards ---------- */
+   310→.glass-card {
+   311→  background: var(--bg-card);
+   312→  border: 1px solid var(--border-subtle);
+   313→  border-radius: 20px;
+   314→  backdrop-filter: blur(16px);
+   315→  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+   316→}
+   317→
+   318→.glass-card:hover {
+   319→  background: var(--bg-card-hover);
+   320→  border-color: var(--border-accent);
+   321→  box-shadow: 0 16px 32px rgba(0,0,0,0.2), var(--shadow-glow);
+   322→  transform: translateY(-4px) scale(1.01);
+   323→}
+   324→
+   325→/* ---------- Badges ---------- */
+   326→.badge {
+   327→  display: inline-flex;
+   328→  align-items: center;
+   329→  gap: 6px;
+   330→  padding: 6px 14px;
+   331→  font-size: var(--font-size-xs);
+   332→  font-weight: 600;
+   333→  border-radius: var(--radius-full);
+   334→  letter-spacing: 0.5px;
+   335→  text-transform: uppercase;
+   336→}
+   337→
+   338→.badge-primary {
+   339→  background: rgba(108, 92, 231, 0.15);
+   340→  color: var(--accent-primary-light);
+   341→  border: 1px solid rgba(108, 92, 231, 0.25);
+   342→}
+   343→
+   344→.badge-green {
+   345→  background: rgba(0, 230, 118, 0.1);
+   346→  color: var(--accent-green);
+   347→  border: 1px solid rgba(0, 230, 118, 0.2);
+   348→}
+   349→
+   350→/* ---------- Section Layout ---------- */
+   351→.section {
+   352→  padding: var(--space-5xl) var(--space-lg);
+   353→  position: relative;
+   354→}
+   355→
+   356→.section-inner {
+   357→  max-width: var(--max-width);
+   358→  margin: 0 auto;
+   359→}
+   360→
+   361→.section-header {
+   362→  text-align: center;
+   363→  margin-bottom: var(--space-3xl);
+   364→}
+   365→
+   366→.section-header h2 {
+   367→  font-size: var(--font-size-4xl);
+   368→  font-weight: 800;
+   369→  margin-bottom: var(--space-md);
+   370→  line-height: 1.2;
+   371→}
+   372→
+   373→.section-header p {
+   374→  font-size: var(--font-size-lg);
+   375→  color: var(--text-secondary);
+   376→  max-width: 600px;
+   377→  margin: 0 auto;
+   378→}
+   379→
+   380→/* ---------- Animations ---------- */
+   381→@keyframes shimmer {
+   382→  0% { background-position: 0% center; }
+   383→  50% { background-position: 200% center; }
+   384→  100% { background-position: 0% center; }
+   385→}
+   386→
+   387→@keyframes float {
+   388→  0%, 100% { transform: translateY(0px); }
+   389→  50% { transform: translateY(-20px); }
+   390→}
+   391→
+   392→@keyframes float-slow {
+   393→  0%, 100% { transform: translateY(0px) rotate(0deg); }
+   394→  50% { transform: translateY(-15px) rotate(2deg); }
+   395→}
+   396→
+   397→@keyframes pulse-glow {
+   398→  0%, 100% { box-shadow: 0 0 20px rgba(108, 92, 231, 0.2); }
+   399→  50% { box-shadow: 0 0 40px rgba(108, 92, 231, 0.4); }
+   400→}
+   401→
+   402→@keyframes fade-in-up {
+   403→  from {
+   404→    opacity: 0;
+   405→    transform: translateY(30px);
+   406→  }
+   407→  to {
+   408→    opacity: 1;
+   409→    transform: translateY(0);
+   410→  }
+   411→}
+   412→
+   413→@keyframes fade-in {
+   414→  from { opacity: 0; }
+   415→  to { opacity: 1; }
+   416→}
+   417→
+   418→@keyframes scale-in {
+   419→  from {
+   420→    opacity: 0;
+   421→    transform: scale(0.9);
+   422→  }
+   423→  to {
+   424→    opacity: 1;
+   425→    transform: scale(1);
+   426→  }
+   427→}
+   428→
+   429→@keyframes slide-in-left {
+   430→  from {
+   431→    opacity: 0;
+   432→    transform: translateX(-40px);
+   433→  }
+   434→  to {
+   435→    opacity: 1;
+   436→    transform: translateX(0);
+   437→  }
+   438→}
+   439→
+   440→@keyframes slide-in-right {
+   441→  from {
+   442→    opacity: 0;
+   443→    transform: translateX(40px);
+   444→  }
+   445→  to {
+   446→    opacity: 1;
+   447→    transform: translateX(0);
+   448→  }
+   449→}
+   450→
+   451→@keyframes rotate-slow {
+   452→  from { transform: rotate(0deg); }
+   453→  to { transform: rotate(360deg); }
+   454→}
+   455→
+   456→@keyframes gradient-shift {
+   457→  0% { background-position: 0% 50%; }
+   458→  50% { background-position: 100% 50%; }
+   459→  100% { background-position: 0% 50%; }
+   460→}
+   461→
+   462→@keyframes counter {
+   463→  from { --num: 0; }
+   464→}
+   465→
+   466→/* Animate on scroll utility */
+   467→.animate-on-scroll {
+   468→  opacity: 0;
+   469→  transform: translateY(30px);
+   470→  transition: opacity 0.6s ease, transform 0.6s ease;
+   471→}
+   472→
+   473→.animate-on-scroll.visible {
+   474→  opacity: 1;
+   475→  transform: translateY(0);
+   476→}
+   477→
+   478→/* ---------- Background Effects ---------- */
+   479→.bg-glow {
+   480→  position: absolute;
+   481→  border-radius: 50%;
+   482→  filter: blur(120px);
+   483→  pointer-events: none;
+   484→  z-index: 0;
+   485→}
+   486→
+   487→.bg-grid {
+   488→  position: absolute;
+   489→  inset: 0;
+   490→  background-image:
+   491→    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+   492→    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+   493→  background-size: 60px 60px;
+   494→  pointer-events: none;
+   495→  z-index: 0;
+   496→  mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+   497→}
+   498→
+   499→/* ============================================
+   500→   NAVBAR
+   501→   ============================================ */
+   502→.navbar {
+   503→  position: fixed;
+   504→  top: 0;
+   505→  left: 0;
+   506→  right: 0;
+   507→  height: var(--nav-height);
+   508→  display: flex;
+   509→  align-items: center;
+   510→  justify-content: center;
+   511→  z-index: 1000;
+   512→  transition: all var(--transition-base);
+   513→}
+   514→
+   515→.navbar.scrolled {
+   516→  background: rgba(6, 6, 15, 0.85);
+   517→  backdrop-filter: blur(20px);
+   518→  border-bottom: 1px solid var(--border-subtle);
+   519→}
+   520→
+   521→.navbar-inner {
+   522→  max-width: var(--max-width);
+   523→  width: 100%;
+   524→  display: flex;
+   525→  align-items: center;
+   526→  justify-content: space-between;
+   527→  padding: 0 var(--space-lg);
+   528→}
+   529→
+   530→.navbar-logo {
+   531→  display: flex;
+   532→  align-items: center;
+   533→  gap: var(--space-sm);
+   534→  font-size: var(--font-size-xl);
+   535→  font-weight: 800;
+   536→}
+   537→
+   538→.navbar-logo-icon {
+   539→  width: 36px;
+   540→  height: 36px;
+   541→  background: var(--accent-gradient);
+   542→  border-radius: var(--radius-md);
+   543→  display: flex;
+   544→  align-items: center;
+   545→  justify-content: center;
+   546→  font-size: 18px;
+   547→}
+   548→
+   549→.navbar-links {
+   550→  display: flex;
+   551→  align-items: center;
+   552→  gap: var(--space-xl);
+   553→}
+   554→
+   555→.navbar-links a {
+   556→  font-size: var(--font-size-sm);
+   557→  font-weight: 500;
+   558→  color: var(--text-secondary);
+   559→  transition: color var(--transition-fast);
+   560→  position: relative;
+   561→}
+   562→
+   563→.navbar-links a:hover {
+   564→  color: var(--text-primary);
+   565→}
+   566→
+   567→.navbar-links a::after {
+   568→  content: '';
+   569→  position: absolute;
+   570→  bottom: -4px;
+   571→  left: 0;
+   572→  width: 0;
+   573→  height: 2px;
+   574→  background: var(--accent-gradient);
+   575→  border-radius: 1px;
+   576→  transition: width var(--transition-base);
+   577→}
+   578→
+   579→.navbar-links a:hover::after {
+   580→  width: 100%;
+   581→}
+   582→
+   583→.navbar-actions {
+   584→  display: flex;
+   585→  align-items: center;
+   586→  gap: var(--space-md);
+   587→}
+   588→
+   589→.navbar-login {
+   590→  font-size: var(--font-size-sm);
+   591→  font-weight: 500;
+   592→  color: var(--text-secondary);
+   593→  background: none;
+   594→  transition: color var(--transition-fast);
+   595→}
+   596→
+   597→.navbar-login:hover {
+   598→  color: var(--text-primary);
+   599→}
+   600→
+   601→/* Navbar icon buttons (theme, lang) */
+   602→.navbar-icon-btn {
+   603→  display: flex;
+   604→  align-items: center;
+   605→  gap: 4px;
+   606→  background: none;
+   607→  border: 1px solid var(--border-subtle);
+   608→  color: var(--text-secondary);
+   609→  padding: 6px 10px;
+   610→  border-radius: var(--radius-md);
+   611→  cursor: pointer;
+   612→  transition: all var(--transition-fast);
+   613→  font-size: var(--font-size-sm);
+   614→  font-family: var(--font-family);
+   615→}
+   616→
+   617→.navbar-icon-btn:hover {
+   618→  color: var(--text-primary);
+   619→  border-color: var(--border-medium);
+   620→  background: var(--bg-glass-hover);
+   621→}
+   622→
+   623→/* Language dropdown */
+   624→.lang-dropdown {
+   625→  position: absolute;
+   626→  top: 100%;
+   627→  right: 0;
+   628→  margin-top: 8px;
+   629→  background: var(--bg-card);
+   630→  border: 1px solid var(--border-subtle);
+   631→  border-radius: var(--radius-md);
+   632→  box-shadow: var(--shadow-lg);
+   633→  backdrop-filter: blur(20px);
+   634→  z-index: 1000;
+   635→  overflow: hidden;
+   636→  min-width: 140px;
+   637→  animation: fade-in 0.15s ease;
+   638→}
+   639→
+   640→html[dir="rtl"] .lang-dropdown {
+   641→  right: auto;
+   642→  left: 0;
+   643→}
+   644→
+   645→.lang-option {
+   646→  display: block;
+   647→  width: 100%;
+   648→  padding: 10px 16px;
+   649→  background: none;
+   650→  border: none;
+   651→  color: var(--text-secondary);
+   652→  font-size: var(--font-size-sm);
+   653→  font-family: var(--font-family);
+   654→  cursor: pointer;
+   655→  text-align: left;
+   656→  transition: all var(--transition-fast);
+   657→}
+   658→
+   659→html[dir="rtl"] .lang-option {
+   660→  text-align: right;
+   661→}
+   662→
+   663→.lang-option:hover {
+   664→  background: var(--bg-glass-hover);
+   665→  color: var(--text-primary);
+   666→}
+   667→
+   668→.lang-option.active {
+   669→  color: var(--accent-primary-light);
+   670→  font-weight: 600;
+   671→}
+   672→
+   673→.navbar-mobile-toggle {
+   674→  display: none;
+   675→  background: none;
+   676→  color: var(--text-primary);
+   677→  font-size: 24px;
+   678→  padding: var(--space-sm);
+   679→}
+   680→
+   681→/* ============================================
+   682→   HERO SECTION
+   683→   ============================================ */
+   684→.hero {
+   685→  min-height: 100vh;
+   686→  display: flex;
+   687→  align-items: center;
+   688→  justify-content: center;
+   689→  text-align: center;
+   690→  padding: calc(var(--nav-height) + var(--space-3xl)) var(--space-lg) var(--space-3xl);
+   691→  position: relative;
+   692→  overflow: hidden;
+   693→}
+   694→
+   695→.hero-glow-1 {
+   696→  width: 600px;
+   697→  height: 600px;
+   698→  background: rgba(108, 92, 231, 0.12);
+   699→  top: -200px;
+   700→  right: -200px;
+   701→}
+   702→
+   703→.hero-glow-2 {
+   704→  width: 500px;
+   705→  height: 500px;
+   706→  background: rgba(0, 210, 255, 0.08);
+   707→  bottom: -150px;
+   708→  left: -150px;
+   709→}
+   710→
+   711→.hero-layout {
+   712→  display: grid;
+   713→  grid-template-columns: 1fr 1fr;
+   714→  gap: var(--space-3xl);
+   715→  align-items: center;
+   716→  max-width: var(--max-width);
+   717→  width: 100%;
+   718→  position: relative;
+   719→  z-index: 1;
+   720→}
+   721→
+   722→/* Hero layout when phone is removed — center content */
+   723→.hero-layout-centered {
+   724→  grid-template-columns: 1fr;
+   725→  justify-items: center;
+   726→}
+   727→
+   728→.hero-layout-centered .hero-content {
+   729→  text-align: center;
+   730→  max-width: 700px;
+   731→  margin: 0 auto;
+   732→}
+   733→
+   734→.hero-layout-centered .hero-subtitle {
+   735→  margin-left: auto;
+   736→  margin-right: auto;
+   737→}
+   738→
+   739→.hero-layout-centered .hero-cta {
+   740→  justify-content: center;
+   741→}
+   742→
+   743→.hero-layout-centered .hero-stats {
+   744→  justify-content: center;
+   745→}
+   746→
+   747→.hero-content {
+   748→  max-width: 600px;
+   749→  text-align: left;
+   750→  animation: fade-in-up 1s ease;
+   751→}
+   752→
+   753→.hero-phone {
+   754→  display: flex;
+   755→  justify-content: center;
+   756→  align-items: center;
+   757→  animation: fade-in-up 1.2s ease;
+   758→}
+   759→
+   760→.hero-badge {
+   761→  margin-bottom: var(--space-lg);
+   762→  animation: fade-in-up 0.8s ease;
+   763→}
+   764→
+   765→.hero h1 {
+   766→  font-size: var(--font-size-6xl);
+   767→  font-weight: 900;
+   768→  line-height: 1.1;
+   769→  margin-bottom: var(--space-lg);
+   770→  letter-spacing: -0.02em;
+   771→}
+   772→
+   773→.hero-subtitle {
+   774→  font-size: var(--font-size-xl);
+   775→  color: var(--text-secondary);
+   776→  margin-bottom: var(--space-2xl);
+   777→  line-height: 1.6;
+   778→  max-width: 520px;
+   779→}
+   780→
+   781→.hero-cta {
+   782→  display: flex;
+   783→  align-items: center;
+   784→  justify-content: flex-start;
+   785→  gap: var(--space-md);
+   786→  margin-bottom: var(--space-2xl);
+   787→}
+   788→
+   789→.hero-stats {
+   790→  display: flex;
+   791→  align-items: center;
+   792→  justify-content: flex-start;
+   793→  gap: var(--space-2xl);
+   794→  margin-top: var(--space-3xl);
+   795→}
+   796→
+   797→.hero-stat {
+   798→  text-align: center;
+   799→}
+   800→
+   801→.hero-stat-value {
+   802→  font-size: var(--font-size-3xl);
+   803→  font-weight: 800;
+   804→}
+   805→
+   806→.hero-stat-label {
+   807→  font-size: var(--font-size-sm);
+   808→  color: var(--text-tertiary);
+   809→  margin-top: var(--space-xs);
+   810→}
+   811→
+   812→/* Floating elements behind hero */
+   813→.hero-float-elements {
+   814→  position: absolute;
+   815→  inset: 0;
+   816→  pointer-events: none;
+   817→  z-index: 0;
+   818→}
+   819→
+   820→.hero-float-el {
+   821→  position: absolute;
+   822→  border-radius: var(--radius-lg);
+   823→  background: var(--bg-card);
+   824→  border: 1px solid var(--border-subtle);
+   825→  backdrop-filter: blur(10px);
+   826→  padding: var(--space-md) var(--space-lg);
+   827→  display: flex;
+   828→  align-items: center;
+   829→  gap: var(--space-sm);
+   830→  font-size: var(--font-size-sm);
+   831→  color: var(--text-secondary);
+   832→  box-shadow: var(--shadow-md);
+   833→}
+   834→
+   835→.hero-float-el:nth-child(1) {
+   836→  top: 25%;
+   837→  left: 5%;
+   838→  animation: float 6s ease-in-out infinite;
+   839→}
+   840→
+   841→.hero-float-el:nth-child(2) {
+   842→  top: 35%;
+   843→  right: 5%;
+   844→  animation: float-slow 7s ease-in-out infinite;
+   845→  animation-delay: 1s;
+   846→}
+   847→
+   848→.hero-float-el:nth-child(3) {
+   849→  bottom: 25%;
+   850→  left: 10%;
+   851→  animation: float 8s ease-in-out infinite;
+   852→  animation-delay: 2s;
+   853→}
+   854→
+   855→.hero-float-el:nth-child(4) {
+   856→  bottom: 20%;
+   857→  right: 8%;
+   858→  animation: float-slow 6s ease-in-out infinite;
+   859→  animation-delay: 0.5s;
+   860→}
+   861→
+   862→.hero-float-icon {
+   863→  width: 32px;
+   864→  height: 32px;
+   865→  border-radius: var(--radius-sm);
+   866→  display: flex;
+   867→  align-items: center;
+   868→  justify-content: center;
+   869→  flex-shrink: 0;
+   870→}
+   871→
+   872→.hero-float-icon.green { background: rgba(0, 230, 118, 0.15); color: var(--accent-green); }
+   873→.hero-float-icon.blue { background: rgba(0, 210, 255, 0.15); color: var(--accent-secondary); }
+   874→.hero-float-icon.purple { background: rgba(108, 92, 231, 0.15); color: var(--accent-primary-light); }
+   875→.hero-float-icon.orange { background: rgba(255, 145, 0, 0.15); color: var(--accent-orange); }
+   876→
+   877→/* ============================================
+   878→   SOCIAL PROOF / LOGOS
+   879→   ============================================ */
+   880→.social-proof {
+   881→  padding: var(--space-3xl) var(--space-lg);
+   882→  text-align: center;
+   883→  border-top: 1px solid var(--border-subtle);
+   884→  border-bottom: 1px solid var(--border-subtle);
+   885→  background: var(--bg-secondary);
+   886→  position: relative;
+   887→}
+   888→
+   889→.social-proof p {
+   890→  font-size: var(--font-size-sm);
+   891→  color: var(--text-tertiary);
+   892→  text-transform: uppercase;
+   893→  letter-spacing: 2px;
+   894→  font-weight: 600;
+   895→  margin-bottom: var(--space-xl);
+   896→}
+   897→
+   898→.social-proof-logos {
+   899→  display: flex;
+   900→  align-items: center;
+   901→  justify-content: center;
+   902→  gap: var(--space-3xl);
+   903→  flex-wrap: wrap;
+   904→  opacity: 0.4;
+   905→}
+   906→
+   907→.social-proof-logo {
+   908→  font-size: var(--font-size-xl);
+   909→  font-weight: 800;
+   910→  color: var(--text-primary);
+   911→  letter-spacing: 1px;
+   912→}
+   913→
+   914→/* ============================================
+   915→   PROBLEM SECTION
+   916→   ============================================ */
+   917→.problem {
+   918→  background: var(--bg-secondary);
+   919→}
+   920→
+   921→.problem-grid {
+   922→  display: grid;
+   923→  grid-template-columns: 1fr 1fr;
+   924→  gap: var(--space-3xl);
+   925→  align-items: center;
+   926→}
+   927→
+   928→.problem-content h2 {
+   929→  font-size: var(--font-size-4xl);
+   930→  font-weight: 800;
+   931→  line-height: 1.2;
+   932→  margin-bottom: var(--space-lg);
+   933→}
+   934→
+   935→.problem-content p {
+   936→  font-size: var(--font-size-lg);
+   937→  color: var(--text-secondary);
+   938→  margin-bottom: var(--space-xl);
+   939→  line-height: 1.7;
+   940→}
+   941→
+   942→.problem-list {
+   943→  display: flex;
+   944→  flex-direction: column;
+   945→  gap: var(--space-md);
+   946→}
+   947→
+   948→.problem-item {
+   949→  display: flex;
+   950→  align-items: flex-start;
+   951→  gap: var(--space-md);
+   952→  padding: var(--space-md);
+   953→  border-radius: var(--radius-md);
+   954→  transition: background var(--transition-base);
+   955→}
+   956→
+   957→.problem-item:hover {
+   958→  background: var(--bg-glass-hover);
+   959→}
+   960→
+   961→.problem-item-icon {
+   962→  width: 40px;
+   963→  height: 40px;
+   964→  border-radius: var(--radius-sm);
+   965→  background: rgba(255, 82, 82, 0.1);
+   966→  color: var(--accent-red);
+   967→  display: flex;
+   968→  align-items: center;
+   969→  justify-content: center;
+   970→  flex-shrink: 0;
+   971→}
+   972→
+   973→.problem-item-text h4 {
+   974→  font-weight: 600;
+   975→  margin-bottom: 4px;
+   976→}
+   977→
+   978→.problem-item-text p {
+   979→  font-size: var(--font-size-sm);
+   980→  color: var(--text-tertiary);
+   981→  margin-bottom: 0;
+   982→}
+   983→
+   984→.problem-visual {
+   985→  position: relative;
+   986→}
+   987→
+   988→.problem-mockup {
+   989→  background: var(--bg-card);
+   990→  border: 1px solid var(--border-subtle);
+   991→  border-radius: var(--radius-xl);
+   992→  padding: var(--space-xl);
+   993→  position: relative;
+   994→  overflow: hidden;
+   995→}
+   996→
+   997→.problem-chat {
+   998→  display: flex;
+   999→  flex-direction: column;
+  1000→  gap: var(--space-md);
+  1001→}
+  1002→
+  1003→.problem-chat-msg {
+  1004→  max-width: 80%;
+  1005→  padding: var(--space-md) var(--space-lg);
+  1006→  border-radius: var(--radius-lg);
+  1007→  font-size: var(--font-size-sm);
+  1008→  line-height: 1.5;
+  1009→  animation: fade-in-up 0.6s ease both;
+  1010→}
+  1011→
+  1012→.problem-chat-msg:nth-child(1) { animation-delay: 0.2s; }
+  1013→.problem-chat-msg:nth-child(2) { animation-delay: 0.4s; }
+  1014→.problem-chat-msg:nth-child(3) { animation-delay: 0.6s; }
+  1015→.problem-chat-msg:nth-child(4) { animation-delay: 0.8s; }
+  1016→.problem-chat-msg:nth-child(5) { animation-delay: 1s; }
+  1017→
+  1018→.problem-chat-msg.incoming {
+  1019→  align-self: flex-start;
+  1020→  background: var(--bg-glass);
+  1021→  border: 1px solid var(--border-subtle);
+  1022→  border-bottom-left-radius: 4px;
+  1023→}
+  1024→
+  1025→.problem-chat-msg.outgoing {
+  1026→  align-self: flex-end;
+  1027→  background: rgba(0, 230, 118, 0.1);
+  1028→  border: 1px solid rgba(0, 230, 118, 0.15);
+  1029→  border-bottom-right-radius: 4px;
+  1030→}
+  1031→
+  1032→.problem-chat-msg .time {
+  1033→  display: block;
+  1034→  font-size: var(--font-size-xs);
+  1035→  color: var(--text-tertiary);
+  1036→  margin-top: 4px;
+  1037→  text-align: right;
+  1038→}
+  1039→
+  1040→/* Missed sticker between unanswered messages */
+  1041→.problem-chat-missed {
+  1042→  display: flex;
+  1043→  align-items: center;
+  1044→  justify-content: center;
+  1045→  gap: var(--space-sm);
+  1046→  padding: var(--space-sm) var(--space-md);
+  1047→  margin: var(--space-xs) 0;
+  1048→  animation: fade-in-up 0.6s ease both;
+  1049→  animation-delay: 0.7s;
+  1050→}
+  1051→
+  1052→.missed-sticker {
+  1053→  display: inline-flex;
+  1054→  align-items: center;
+  1055→  gap: 4px;
+  1056→  padding: 4px 12px;
+  1057→  background: rgba(237, 66, 69, 0.15);
+  1058→  color: var(--accent-red);
+  1059→  border: 1px solid rgba(237, 66, 69, 0.3);
+  1060→  border-radius: var(--radius-full);
+  1061→  font-size: var(--font-size-xs);
+  1062→  font-weight: 700;
+  1063→  letter-spacing: 0.5px;
+  1064→  text-transform: uppercase;
+  1065→  position: relative;
+  1066→  overflow: hidden;
+  1067→}
+  1068→
+  1069→.missed-sticker::before {
+  1070→  content: '';
+  1071→  position: absolute;
+  1072→  top: 0;
+  1073→  left: -100%;
+  1074→  width: 100%;
+  1075→  height: 100%;
+  1076→  background: linear-gradient(90deg, transparent, rgba(237, 66, 69, 0.2), transparent);
+  1077→  animation: missed-shimmer 2s ease-in-out infinite;
+  1078→}
+  1079→
+  1080→@keyframes missed-shimmer {
+  1081→  0% { left: -100%; }
+  1082→  50% { left: 100%; }
+  1083→  100% { left: 100%; }
+  1084→}
+  1085→
+  1086→.missed-duration {
+  1087→  font-size: 10px;
+  1088→  color: var(--text-tertiary);
+  1089→  font-weight: 500;
+  1090→}
+  1091→
+  1092→/* ============================================
+  1093→   FEATURES SECTION
+  1094→   ============================================ */
+  1095→.features-grid {
+  1096→  display: grid;
+  1097→  grid-template-columns: repeat(3, 1fr);
+  1098→  gap: var(--space-lg);
+  1099→}
+  1100→
+  1101→.feature-card {
+  1102→  padding: var(--space-xl);
+  1103→  position: relative;
+  1104→  overflow: hidden;
+  1105→}
+  1106→
+  1107→.feature-card::before {
+  1108→  content: '';
+  1109→  position: absolute;
+  1110→  top: 0;
+  1111→  left: 0;
+  1112→  right: 0;
+  1113→  height: 3px;
+  1114→  background: var(--accent-gradient);
+  1115→  opacity: 0;
+  1116→  transition: opacity var(--transition-base);
+  1117→}
+  1118→
+  1119→.feature-card:hover::before {
+  1120→  opacity: 1;
+  1121→}
+  1122→
+  1123→.feature-icon {
+  1124→  width: 52px;
+  1125→  height: 52px;
+  1126→  border-radius: var(--radius-md);
+  1127→  display: flex;
+  1128→  align-items: center;
+  1129→  justify-content: center;
+  1130→  margin-bottom: var(--space-lg);
+  1131→  font-size: 24px;
+  1132→}
+  1133→
+  1134→.feature-icon.purple { background: rgba(108, 92, 231, 0.12); color: var(--accent-primary-light); }
+  1135→.feature-icon.blue { background: rgba(0, 210, 255, 0.12); color: var(--accent-secondary); }
+  1136→.feature-icon.green { background: rgba(0, 230, 118, 0.12); color: var(--accent-green); }
+  1137→.feature-icon.orange { background: rgba(255, 145, 0, 0.12); color: var(--accent-orange); }
+  1138→.feature-icon.pink { background: rgba(255, 107, 157, 0.12); color: var(--accent-pink); }
+  1139→.feature-icon.red { background: rgba(255, 82, 82, 0.12); color: var(--accent-red); }
+  1140→
+  1141→.feature-card h3 {
+  1142→  font-size: var(--font-size-lg);
+  1143→  font-weight: 700;
+  1144→  margin-bottom: var(--space-sm);
+  1145→}
+  1146→
+  1147→.feature-card p {
+  1148→  font-size: var(--font-size-sm);
+  1149→  color: var(--text-secondary);
+  1150→  line-height: 1.7;
+  1151→}
+  1152→
+  1153→/* ============================================
+  1154→   HOW IT WORKS
+  1155→   ============================================ */
+  1156→.how-it-works {
+  1157→  background: var(--bg-secondary);
+  1158→}
+  1159→
+  1160→.steps-container {
+  1161→  display: grid;
+  1162→  grid-template-columns: repeat(3, 1fr);
+  1163→  gap: var(--space-xl);
+  1164→  position: relative;
+  1165→}
+  1166→
+  1167→.steps-container::before {
+  1168→  content: '';
+  1169→  position: absolute;
+  1170→  top: 48px;
+  1171→  left: calc(16.66% + 24px);
+  1172→  right: calc(16.66% + 24px);
+  1173→  height: 2px;
+  1174→  background: var(--border-medium);
+  1175→}
+  1176→
+  1177→.step-card {
+  1178→  text-align: center;
+  1179→  padding: var(--space-xl);
+  1180→  position: relative;
+  1181→  z-index: 1;
+  1182→}
+  1183→
+  1184→.step-number {
+  1185→  width: 56px;
+  1186→  height: 56px;
+  1187→  border-radius: 50%;
+  1188→  background: var(--accent-gradient);
+  1189→  display: flex;
+  1190→  align-items: center;
+  1191→  justify-content: center;
+  1192→  font-size: var(--font-size-xl);
+  1193→  font-weight: 800;
+  1194→  margin: 0 auto var(--space-lg);
+  1195→  box-shadow: 0 0 30px rgba(108, 92, 231, 0.3);
+  1196→}
+  1197→
+  1198→.step-card h3 {
+  1199→  font-size: var(--font-size-xl);
+  1200→  font-weight: 700;
+  1201→  margin-bottom: var(--space-sm);
+  1202→}
+  1203→
+  1204→.step-card p {
+  1205→  font-size: var(--font-size-sm);
+  1206→  color: var(--text-secondary);
+  1207→  line-height: 1.7;
+  1208→}
+  1209→
+  1210→/* ============================================
+  1211→   PRICING SECTION
+  1212→   ============================================ */
+  1213→.pricing-toggle {
+  1214→  display: flex;
+  1215→  align-items: center;
+  1216→  justify-content: center;
+  1217→  gap: var(--space-md);
+  1218→  margin-bottom: var(--space-2xl);
+  1219→}
+  1220→
+  1221→.pricing-toggle span {
+  1222→  font-size: var(--font-size-sm);
+  1223→  color: var(--text-secondary);
+  1224→  font-weight: 500;
+  1225→}
+  1226→
+  1227→.pricing-toggle span.active {
+  1228→  color: var(--text-primary);
+  1229→}
+  1230→
+  1231→.pricing-switch {
+  1232→  width: 52px;
+  1233→  height: 28px;
+  1234→  background: var(--bg-card);
+  1235→  border: 1px solid var(--border-medium);
+  1236→  border-radius: var(--radius-full);
+  1237→  position: relative;
+  1238→  cursor: pointer;
+  1239→  transition: all var(--transition-base);
+  1240→}
+  1241→
+  1242→.pricing-switch::after {
+  1243→  content: '';
+  1244→  position: absolute;
+  1245→  top: 3px;
+  1246→  left: 3px;
+  1247→  width: 20px;
+  1248→  height: 20px;
+  1249→  background: var(--accent-gradient);
+  1250→  border-radius: 50%;
+  1251→  transition: transform var(--transition-base);
+  1252→}
+  1253→
+  1254→.pricing-switch.annual::after {
+  1255→  transform: translateX(24px);
+  1256→}
+  1257→
+  1258→.pricing-switch.annual {
+  1259→  background: rgba(108, 92, 231, 0.2);
+  1260→  border-color: var(--accent-primary);
+  1261→}
+  1262→
+  1263→.pricing-save {
+  1264→  font-size: var(--font-size-xs);
+  1265→  color: var(--accent-green);
+  1266→  font-weight: 600;
+  1267→  background: rgba(0, 230, 118, 0.1);
+  1268→  padding: 4px 10px;
+  1269→  border-radius: var(--radius-full);
+  1270→}
+  1271→
+  1272→.pricing-grid {
+  1273→  display: grid;
+  1274→  grid-template-columns: repeat(3, 1fr);
+  1275→  gap: var(--space-lg);
+  1276→  align-items: start;
+  1277→}
+  1278→
+  1279→.pricing-card {
+  1280→  padding: var(--space-xl);
+  1281→  position: relative;
+  1282→  overflow: hidden;
+  1283→}
+  1284→
+  1285→.pricing-card.featured {
+  1286→  border-color: var(--accent-primary);
+  1287→  box-shadow: var(--shadow-glow-strong);
+  1288→  transform: scale(1.03);
+  1289→}
+  1290→
+  1291→.pricing-card.featured::before {
+  1292→  content: '';
+  1293→  position: absolute;
+  1294→  top: 0;
+  1295→  left: 0;
+  1296→  right: 0;
+  1297→  height: 3px;
+  1298→  background: var(--accent-gradient);
+  1299→}
+  1300→
+  1301→.pricing-popular {
+  1302→  position: absolute;
+  1303→  top: var(--space-lg);
+  1304→  right: var(--space-lg);
+  1305→}
+  1306→
+  1307→.pricing-tier {
+  1308→  font-size: var(--font-size-sm);
+  1309→  font-weight: 600;
+  1310→  color: var(--text-tertiary);
+  1311→  text-transform: uppercase;
+  1312→  letter-spacing: 1px;
+  1313→  margin-bottom: var(--space-sm);
+  1314→}
+  1315→
+  1316→.pricing-name {
+  1317→  font-size: var(--font-size-2xl);
+  1318→  font-weight: 800;
+  1319→  margin-bottom: var(--space-sm);
+  1320→}
+  1321→
+  1322→.pricing-desc {
+  1323→  font-size: var(--font-size-sm);
+  1324→  color: var(--text-secondary);
+  1325→  margin-bottom: var(--space-lg);
+  1326→  line-height: 1.6;
+  1327→}
+  1328→
+  1329→.pricing-price {
+  1330→  display: flex;
+  1331→  align-items: baseline;
+  1332→  gap: 4px;
+  1333→  margin-bottom: var(--space-lg);
+  1334→}
+  1335→
+  1336→.pricing-currency {
+  1337→  font-size: var(--font-size-xl);
+  1338→  font-weight: 700;
+  1339→  color: var(--text-secondary);
+  1340→}
+  1341→
+  1342→.pricing-amount {
+  1343→  font-size: var(--font-size-5xl);
+  1344→  font-weight: 900;
+  1345→  line-height: 1;
+  1346→}
+  1347→
+  1348→.pricing-period {
+  1349→  font-size: var(--font-size-sm);
+  1350→  color: var(--text-tertiary);
+  1351→}
+  1352→
+  1353→.pricing-features {
+  1354→  display: flex;
+  1355→  flex-direction: column;
+  1356→  gap: var(--space-md);
+  1357→  margin-bottom: var(--space-xl);
+  1358→  padding-top: var(--space-lg);
+  1359→  border-top: 1px solid var(--border-subtle);
+  1360→}
+  1361→
+  1362→.pricing-feature {
+  1363→  display: flex;
+  1364→  align-items: center;
+  1365→  gap: var(--space-sm);
+  1366→  font-size: var(--font-size-sm);
+  1367→  color: var(--text-secondary);
+  1368→}
+  1369→
+  1370→.pricing-feature-check {
+  1371→  width: 20px;
+  1372→  height: 20px;
+  1373→  border-radius: 50%;
+  1374→  background: rgba(0, 230, 118, 0.1);
+  1375→  color: var(--accent-green);
+  1376→  display: flex;
+  1377→  align-items: center;
+  1378→  justify-content: center;
+  1379→  flex-shrink: 0;
+  1380→  font-size: 12px;
+  1381→}
+  1382→
+  1383→.pricing-card .btn {
+  1384→  width: 100%;
+  1385→}
+  1386→
+  1387→/* ============================================
+  1388→   TESTIMONIALS
+  1389→   ============================================ */
+  1390→.testimonials {
+  1391→  background: var(--bg-secondary);
+  1392→}
+  1393→
+  1394→.testimonials-grid {
+  1395→  display: grid;
+  1396→  grid-template-columns: repeat(3, 1fr);
+  1397→  gap: var(--space-lg);
+  1398→}
+  1399→
+  1400→.testimonial-card {
+  1401→  padding: var(--space-xl);
+  1402→}
+  1403→
+  1404→.testimonial-stars {
+  1405→  display: flex;
+  1406→  gap: 2px;
+  1407→  margin-bottom: var(--space-md);
+  1408→  color: var(--accent-orange);
+  1409→  font-size: var(--font-size-sm);
+  1410→}
+  1411→
+  1412→.testimonial-text {
+  1413→  font-size: var(--font-size-base);
+  1414→  color: var(--text-secondary);
+  1415→  line-height: 1.7;
+  1416→  margin-bottom: var(--space-lg);
+  1417→  font-style: italic;
+  1418→}
+  1419→
+  1420→.testimonial-author {
+  1421→  display: flex;
+  1422→  align-items: center;
+  1423→  gap: var(--space-md);
+  1424→}
+  1425→
+  1426→.testimonial-avatar {
+  1427→  width: 44px;
+  1428→  height: 44px;
+  1429→  border-radius: 50%;
+  1430→  background: var(--accent-gradient);
+  1431→  display: flex;
+  1432→  align-items: center;
+  1433→  justify-content: center;
+  1434→  font-weight: 700;
+  1435→  font-size: var(--font-size-sm);
+  1436→}
+  1437→
+  1438→.testimonial-info h4 {
+  1439→  font-size: var(--font-size-sm);
+  1440→  font-weight: 600;
+  1441→}
+  1442→
+  1443→.testimonial-info p {
+  1444→  font-size: var(--font-size-xs);
+  1445→  color: var(--text-tertiary);
+  1446→}
+  1447→
+  1448→/* ============================================
+  1449→   FAQ
+  1450→   ============================================ */
+  1451→.faq-list {
+  1452→  max-width: 720px;
+  1453→  margin: 0 auto;
+  1454→  display: flex;
+  1455→  flex-direction: column;
+  1456→  gap: var(--space-md);
+  1457→}
+  1458→
+  1459→.faq-item {
+  1460→  background: var(--bg-card);
+  1461→  border: 1px solid var(--border-subtle);
+  1462→  border-radius: var(--radius-md);
+  1463→  overflow: hidden;
+  1464→  transition: border-color var(--transition-base);
+  1465→}
+  1466→
+  1467→.faq-item:hover {
+  1468→  border-color: var(--border-medium);
+  1469→}
+  1470→
+  1471→.faq-item.open {
+  1472→  border-color: var(--border-accent);
+  1473→}
+  1474→
+  1475→.faq-question {
+  1476→  width: 100%;
+  1477→  display: flex;
+  1478→  align-items: center;
+  1479→  justify-content: space-between;
+  1480→  padding: var(--space-lg) var(--space-xl);
+  1481→  background: none;
+  1482→  color: var(--text-primary);
+  1483→  font-size: var(--font-size-base);
+  1484→  font-weight: 600;
+  1485→  text-align: left;
+  1486→  transition: color var(--transition-fast);
+  1487→}
+  1488→
+  1489→.faq-question:hover {
+  1490→  color: var(--accent-primary-light);
+  1491→}
+  1492→
+  1493→.faq-icon {
+  1494→  transition: transform var(--transition-base);
+  1495→  color: var(--text-tertiary);
+  1496→  flex-shrink: 0;
+  1497→}
+  1498→
+  1499→.faq-item.open .faq-icon {
+  1500→  transform: rotate(45deg);
+  1501→  color: var(--accent-primary-light);
+  1502→}
+  1503→
+  1504→.faq-answer {
+  1505→  max-height: 0;
+  1506→  overflow: hidden;
+  1507→  transition: max-height var(--transition-slow), padding var(--transition-slow);
+  1508→}
+  1509→
+  1510→.faq-item.open .faq-answer {
+  1511→  max-height: 300px;
+  1512→  padding: 0 var(--space-xl) var(--space-lg);
+  1513→}
+  1514→
+  1515→.faq-answer p {
+  1516→  font-size: var(--font-size-sm);
+  1517→  color: var(--text-secondary);
+  1518→  line-height: 1.7;
+  1519→}
+  1520→
+  1521→/* ============================================
+  1522→   CTA SECTION
+  1523→   ============================================ */
+  1524→.cta-section {
+  1525→  text-align: center;
+  1526→  position: relative;
+  1527→  overflow: hidden;
+  1528→}
+  1529→
+  1530→.cta-box {
+  1531→  background: var(--bg-card);
+  1532→  border: 1px solid var(--border-accent);
+  1533→  border-radius: var(--radius-xl);
+  1534→  padding: var(--space-4xl) var(--space-2xl);
+  1535→  position: relative;
+  1536→  overflow: hidden;
+  1537→}
+  1538→
+  1539→.cta-box::before {
+  1540→  content: '';
+  1541→  position: absolute;
+  1542→  top: 0;
+  1543→  left: 0;
+  1544→  right: 0;
+  1545→  height: 3px;
+  1546→  background: var(--accent-gradient);
+  1547→}
+  1548→
+  1549→.cta-box-glow {
+  1550→  position: absolute;
+  1551→  width: 400px;
+  1552→  height: 400px;
+  1553→  background: rgba(108, 92, 231, 0.08);
+  1554→  border-radius: 50%;
+  1555→  filter: blur(100px);
+  1556→  top: -200px;
+  1557→  left: 50%;
+  1558→  transform: translateX(-50%);
+  1559→  pointer-events: none;
+  1560→}
+  1561→
+  1562→.cta-box h2 {
+  1563→  font-size: var(--font-size-4xl);
+  1564→  font-weight: 800;
+  1565→  margin-bottom: var(--space-md);
+  1566→  position: relative;
+  1567→  z-index: 1;
+  1568→}
+  1569→
+  1570→.cta-box p {
+  1571→  font-size: var(--font-size-lg);
+  1572→  color: var(--text-secondary);
+  1573→  margin-bottom: var(--space-xl);
+  1574→  max-width: 500px;
+  1575→  margin-left: auto;
+  1576→  margin-right: auto;
+  1577→  position: relative;
+  1578→  z-index: 1;
+  1579→}
+  1580→
+  1581→.cta-form {
+  1582→  display: flex;
+  1583→  align-items: center;
+  1584→  justify-content: center;
+  1585→  gap: var(--space-md);
+  1586→  max-width: 460px;
+  1587→  margin: 0 auto;
+  1588→  position: relative;
+  1589→  z-index: 1;
+  1590→}
+  1591→
+  1592→.cta-input {
+  1593→  flex: 1;
+  1594→  padding: 14px 20px;
+  1595→  background: var(--bg-glass);
+  1596→  border: 1px solid var(--border-medium);
+  1597→  border-radius: var(--radius-full);
+  1598→  color: var(--text-primary);
+  1599→  font-size: var(--font-size-sm);
+  1600→  font-family: var(--font-family);
+  1601→  outline: none;
+  1602→  transition: border-color var(--transition-base);
+  1603→}
+  1604→
+  1605→.cta-input::placeholder {
+  1606→  color: var(--text-tertiary);
+  1607→}
+  1608→
+  1609→.cta-input:focus {
+  1610→  border-color: var(--accent-primary);
+  1611→  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.15);
+  1612→}
+  1613→
+  1614→/* ============================================
+  1615→   FOOTER
+  1616→   ============================================ */
+  1617→.footer {
+  1618→  padding: var(--space-3xl) var(--space-lg) var(--space-xl);
+  1619→  border-top: 1px solid var(--border-subtle);
+  1620→  background: var(--bg-primary);
+  1621→}
+  1622→
+  1623→.footer-inner {
+  1624→  max-width: var(--max-width);
+  1625→  margin: 0 auto;
+  1626→}
+  1627→
+  1628→.footer-top {
+  1629→  display: grid;
+  1630→  grid-template-columns: 2fr 1fr 1fr 1fr;
+  1631→  gap: var(--space-2xl);
+  1632→  margin-bottom: var(--space-2xl);
+  1633→}
+  1634→
+  1635→.footer-brand p {
+  1636→  font-size: var(--font-size-sm);
+  1637→  color: var(--text-tertiary);
+  1638→  margin-top: var(--space-md);
+  1639→  max-width: 300px;
+  1640→  line-height: 1.7;
+  1641→}
+  1642→
+  1643→.footer-col h4 {
+  1644→  font-size: var(--font-size-sm);
+  1645→  font-weight: 700;
+  1646→  text-transform: uppercase;
+  1647→  letter-spacing: 1px;
+  1648→  color: var(--text-secondary);
+  1649→  margin-bottom: var(--space-lg);
+  1650→}
+  1651→
+  1652→.footer-col a {
+  1653→  display: block;
+  1654→  font-size: var(--font-size-sm);
+  1655→  color: var(--text-tertiary);
+  1656→  padding: var(--space-xs) 0;
+  1657→  transition: color var(--transition-fast);
+  1658→}
+  1659→
+  1660→.footer-col a:hover {
+  1661→  color: var(--text-primary);
+  1662→}
+  1663→
+  1664→.footer-bottom {
+  1665→  display: flex;
+  1666→  align-items: center;
+  1667→  justify-content: space-between;
+  1668→  padding-top: var(--space-xl);
+  1669→  border-top: 1px solid var(--border-subtle);
+  1670→}
+  1671→
+  1672→.footer-bottom p {
+  1673→  font-size: var(--font-size-xs);
+  1674→  color: var(--text-tertiary);
+  1675→}
+  1676→
+  1677→.footer-social {
+  1678→  display: flex;
+  1679→  gap: var(--space-md);
+  1680→}
+  1681→
+  1682→.footer-social a {
+  1683→  width: 36px;
+  1684→  height: 36px;
+  1685→  border-radius: 50%;
+  1686→  background: var(--bg-glass);
+  1687→  border: 1px solid var(--border-subtle);
+  1688→  display: flex;
+  1689→  align-items: center;
+  1690→  justify-content: center;
+  1691→  color: var(--text-tertiary);
+  1692→  transition: all var(--transition-base);
+  1693→}
+  1694→
+  1695→.footer-social a:hover {
+  1696→  color: var(--text-primary);
+  1697→  border-color: var(--accent-primary);
+  1698→  background: rgba(108, 92, 231, 0.1);
+  1699→}
+  1700→
+  1701→/* ============================================
+  1702→   RESPONSIVE
+  1703→   ============================================ */
+  1704→@media (max-width: 1024px) {
+  1705→  .hero h1 {
+  1706→    font-size: var(--font-size-5xl);
+  1707→  }
+  1708→
+  1709→  .hero-layout {
+  1710→    grid-template-columns: 1fr;
+  1711→    text-align: center;
+  1712→    gap: var(--space-2xl);
+  1713→  }
+  1714→
+  1715→  .hero-content {
+  1716→    text-align: center;
+  1717→    max-width: 600px;
+  1718→    margin: 0 auto;
+  1719→  }
+  1720→
+  1721→  .hero-subtitle {
+  1722→    margin-left: auto;
+  1723→    margin-right: auto;
+  1724→  }
+  1725→
+  1726→  .hero-cta {
+  1727→    justify-content: center;
+  1728→  }
+  1729→
+  1730→  .hero-stats {
+  1731→    justify-content: center;
+  1732→  }
+  1733→
+  1734→  .features-grid,
+  1735→  .pricing-grid,
+  1736→  .testimonials-grid {
+  1737→    grid-template-columns: repeat(2, 1fr);
+  1738→  }
+  1739→
+  1740→  .steps-container {
+  1741→    grid-template-columns: repeat(3, 1fr);
+  1742→  }
+  1743→
+  1744→  .problem-grid {
+  1745→    grid-template-columns: 1fr;
+  1746→    gap: var(--space-2xl);
+  1747→  }
+  1748→
+  1749→  .pricing-card.featured {
+  1750→    transform: scale(1);
+  1751→  }
+  1752→
+  1753→  .footer-top {
+  1754→    grid-template-columns: 1fr 1fr;
+  1755→  }
+  1756→
+  1757→  .hero-float-elements {
+  1758→    display: none;
+  1759→  }
+  1760→}
+  1761→
+  1762→@media (max-width: 768px) {
+  1763→  :root {
+  1764→    --font-size-6xl: 2.75rem;
+  1765→    --font-size-5xl: 2.25rem;
+  1766→    --font-size-4xl: 1.85rem;
+  1767→    --font-size-3xl: 1.5rem;
+  1768→  }
+  1769→
+  1770→  .section {
+  1771→    padding: var(--space-3xl) var(--space-md);
+  1772→  }
+  1773→
+  1774→  .navbar-links {
+  1775→    display: none;
+  1776→  }
+  1777→
+  1778→  .navbar-mobile-toggle {
+  1779→    display: flex;
+  1780→  }
+  1781→
+  1782→  /* Mobile menu overlay */
+  1783→  .mobile-menu-overlay {
+  1784→    position: fixed;
+  1785→    inset: 0;
+  1786→    background: rgba(0, 0, 0, 0.6);
+  1787→    backdrop-filter: blur(4px);
+  1788→    z-index: 999;
+  1789→    animation: fade-in 0.15s ease;
+  1790→  }
+  1791→
+  1792→  .mobile-menu {
+  1793→    position: absolute;
+  1794→    top: var(--nav-height);
+  1795→    left: 0;
+  1796→    right: 0;
+  1797→    background: var(--bg-card);
+  1798→    border-bottom: 1px solid var(--border-subtle);
+  1799→    padding: var(--space-lg);
+  1800→    display: flex;
+  1801→    flex-direction: column;
+  1802→    gap: var(--space-sm);
+  1803→    animation: fade-in-up 0.2s ease;
+  1804→  }
+  1805→
+  1806→  .mobile-menu-link {
+  1807→    display: block;
+  1808→    padding: var(--space-md) var(--space-sm);
+  1809→    font-size: var(--font-size-base);
+  1810→    font-weight: 500;
+  1811→    color: var(--text-secondary);
+  1812→    border-bottom: 1px solid var(--border-subtle);
+  1813→    text-decoration: none;
+  1814→    transition: color 0.15s;
+  1815→  }
+  1816→
+  1817→  .mobile-menu-link:hover {
+  1818→    color: var(--text-primary);
+  1819→  }
+  1820→
+  1821→  .mobile-menu-actions {
+  1822→    display: flex;
+  1823→    flex-direction: column;
+  1824→    gap: var(--space-sm);
+  1825→    padding-top: var(--space-md);
+  1826→  }
+  1827→
+  1828→  .hero {
+  1829→    padding-top: calc(var(--nav-height) + var(--space-2xl));
+  1830→    min-height: auto;
+  1831→    padding-bottom: var(--space-3xl);
+  1832→  }
+  1833→
+  1834→  .hero-cta {
+  1835→    flex-direction: column;
+  1836→  }
+  1837→
+  1838→  .hero-cta .btn {
+  1839→    width: 100%;
+  1840→  }
+  1841→
+  1842→  .hero-stats {
+  1843→    gap: var(--space-lg);
+  1844→  }
+  1845→
+  1846→  .features-grid,
+  1847→  .pricing-grid,
+  1848→  .testimonials-grid,
+  1849→  .steps-container {
+  1850→    grid-template-columns: 1fr;
+  1851→  }
+  1852→
+  1853→  .steps-container::before {
+  1854→    display: none;
+  1855→  }
+  1856→
+  1857→  .social-proof-logos {
+  1858→    gap: var(--space-xl);
+  1859→  }
+  1860→
+  1861→  .cta-form {
+  1862→    flex-direction: column;
+  1863→  }
+  1864→
+  1865→  .cta-input,
+  1866→  .cta-form .btn {
+  1867→    width: 100%;
+  1868→  }
+  1869→
+  1870→  .footer-top {
+  1871→    grid-template-columns: 1fr;
+  1872→  }
+  1873→
+  1874→  .footer-bottom {
+  1875→    flex-direction: column;
+  1876→    gap: var(--space-md);
+  1877→    text-align: center;
+  1878→  }
+  1879→
+  1880→  .pricing-card.featured {
+  1881→    order: -1;
+  1882→  }
+  1883→}
+  1884→
+  1885→/* ---------- Utility: Spinner ---------- */
+  1886→.spin {
+  1887→  animation: spinner 1s linear infinite;
+  1888→}
+  1889→
+  1890→@keyframes spinner {
+  1891→  from { transform: rotate(0deg); }
+  1892→  to { transform: rotate(360deg); }
+  1893→}
+  1894→
+  1895→.btn:disabled {
+  1896→  opacity: 0.6;
+  1897→  cursor: not-allowed;
+  1898→  transform: none !important;
+  1899→}
+  1900→
+  1901→/* ============================================
+  1902→   FEATURE 1: ROI CALCULATOR
+  1903→   ============================================ */
+  1904→.roi-calculator-section {
+  1905→  background: var(--bg-secondary);
+  1906→}
+  1907→
+  1908→.roi-calculator-card {
+  1909→  position: relative;
+  1910→  border-radius: 24px;
+  1911→  padding: 2px;
+  1912→  background: linear-gradient(135deg, rgba(108, 92, 231, 0.5), rgba(0, 210, 255, 0.5));
+  1913→  max-width: 900px;
+  1914→  margin: 0 auto;
+  1915→}
+  1916→
+  1917→.roi-calculator-inner {
+  1918→  display: grid;
+  1919→  grid-template-columns: 1fr 1fr;
+  1920→  gap: var(--space-2xl);
+  1921→  padding: var(--space-2xl);
+  1922→  background: var(--bg-card);
+  1923→  border-radius: 22px;
+  1924→  backdrop-filter: blur(20px);
+  1925→}
+  1926→
+  1927→.roi-sliders-col {
+  1928→  display: flex;
+  1929→  flex-direction: column;
+  1930→  gap: var(--space-xl);
+  1931→}
+  1932→
+  1933→.roi-slider-group {
+  1934→  display: flex;
+  1935→  flex-direction: column;
+  1936→  gap: var(--space-sm);
+  1937→}
+  1938→
+  1939→.roi-slider-header {
+  1940→  display: flex;
+  1941→  justify-content: space-between;
+  1942→  align-items: center;
+  1943→}
+  1944→
+  1945→.roi-slider-header label {
+  1946→  font-size: var(--font-size-sm);
+  1947→  font-weight: 500;
+  1948→  color: var(--text-secondary);
+  1949→}
+  1950→
+  1951→.roi-slider-value {
+  1952→  font-size: var(--font-size-base);
+  1953→  font-weight: 700;
+  1954→  color: var(--text-primary);
+  1955→  background: rgba(108, 92, 231, 0.12);
+  1956→  padding: 4px 12px;
+  1957→  border-radius: var(--radius-full);
+  1958→}
+  1959→
+  1960→.roi-slider {
+  1961→  -webkit-appearance: none;
+  1962→  appearance: none;
+  1963→  width: 100%;
+  1964→  height: 6px;
+  1965→  border-radius: 3px;
+  1966→  background: var(--bg-glass);
+  1967→  outline: none;
+  1968→  cursor: pointer;
+  1969→}
+  1970→
+  1971→.roi-slider::-webkit-slider-thumb {
+  1972→  -webkit-appearance: none;
+  1973→  appearance: none;
+  1974→  width: 22px;
+  1975→  height: 22px;
+  1976→  border-radius: 50%;
+  1977→  background: linear-gradient(135deg, #5865F2 0%, #00D2FF 100%);
+  1978→  cursor: pointer;
+  1979→  box-shadow: 0 0 12px rgba(108, 92, 231, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  1980→  border: 3px solid var(--bg-card);
+  1981→  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  1982→}
+  1983→
+  1984→.roi-slider::-webkit-slider-thumb:hover {
+  1985→  transform: scale(1.15);
+  1986→  box-shadow: 0 0 20px rgba(108, 92, 231, 0.7), 0 2px 12px rgba(0, 0, 0, 0.4);
+  1987→}
+  1988→
+  1989→.roi-slider::-moz-range-thumb {
+  1990→  width: 22px;
+  1991→  height: 22px;
+  1992→  border-radius: 50%;
+  1993→  background: linear-gradient(135deg, #5865F2 0%, #00D2FF 100%);
+  1994→  cursor: pointer;
+  1995→  box-shadow: 0 0 12px rgba(108, 92, 231, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  1996→  border: 3px solid var(--bg-card);
+  1997→}
+  1998→
+  1999→.roi-slider::-moz-range-track {
+  2000→  height: 6px;
+
+[showing lines 1-2000 of 3997; use offset=2001 with limit to continue reading]
