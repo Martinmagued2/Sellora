@@ -346,8 +346,13 @@ export default function ProductsPage() {
           const formData = new FormData();
           formData.append("file", imageFile);
           formData.append("path", fileName);
+          formData.append("bucket", "product-images");
+          // Pass auth token for server-side verification
+          const { data: sessData } = await supabase.auth.getSession();
+          const authToken = sessData.session?.access_token || '';
           const adminRes = await fetch("/api/storage/upload", {
             method: "POST",
+            headers: { 'Authorization': `Bearer ${authToken}` },
             body: formData,
           });
           if (adminRes.ok) {

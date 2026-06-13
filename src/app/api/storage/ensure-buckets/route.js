@@ -21,10 +21,23 @@ function getSupabaseAdmin() {
  * but can also be called manually.
  */
 export async function POST(request) {
-  // 🔒 CRITICAL: Require admin auth — can create buckets & set RLS policies
-  const { isAdmin } = await verifyAdmin(request);
-  if (!isAdmin) {
-    return Response.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  // 🔒 Require authenticated user (not necessarily admin)
+  // Regular users need to call this to ensure the bucket exists before uploading
+  const authHeader = request.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "");
+  const admin = getSupabaseAdmin();
+
+  if (token) {
+    const { data: { user }, error: authError } = await admin.auth.getUser(token);
+    if (authError || !user) {
+      return Response.json({ error: "Invalid or expired token" }, { status: 401 });
+    }
+  } else {
+    // Fallback: allow admin users without Bearer token
+    const { isAdmin } = await verifyAdmin(request);
+    if (!isAdmin) {
+      return Response.json({ error: "Unauthorized — authentication required" }, { status: 401 });
+    }
   }
 
   try {
