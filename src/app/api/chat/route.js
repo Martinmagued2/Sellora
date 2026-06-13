@@ -19,7 +19,15 @@ function getAdminClient() {
 }
 
 export async function POST(req) {
+  const requestStart = Date.now();
+  console.log(`[ChatAPI] === New request ===`);
   try {
+    // ─── Check Supabase env vars first ───
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error("[ChatAPI] CRITICAL: Missing Supabase env vars");
+      return Response.json({ error: "Server configuration error: Supabase not configured. Please add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY." }, { status: 500 });
+    }
+
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -35,19 +43,27 @@ export async function POST(req) {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
+      console.warn(`[ChatAPI] Auth failed: ${authError?.message || 'no user'} (${Date.now() - requestStart}ms)`);
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
+    console.log(`[ChatAPI] Auth OK: user=${user.email} (${Date.now() - requestStart}ms)`);
 
     const body = await req.json();
 
-    const { data: account } = await getAdminClient()
+    const { data: account, error: accountError } = await getAdminClient()
       .from("accounts")
       .select("plan, business_name, country, currency")
       .eq("id", user.id)
       .single();
 
+    if (accountError) {
+      console.error(`[ChatAPI] Account lookup failed: ${accountError.message} (${Date.now() - requestStart}ms)`);
+      return Response.json({ error: "Could not load your account. Please try again." }, { status: 500 });
+    }
+
     const planLimits = getPlanLimits(account?.plan || "starter");
     const maxMsgs = planLimits.copilot_msgs_per_day;
+    console.log(`[ChatAPI] Plan: ${account?.plan}, maxMsgs: ${maxMsgs} (${Date.now() - requestStart}ms)`);
 
     if (maxMsgs === 0) {
       return Response.json({ error: "Sellora Agent is not available on your current plan. Please upgrade." }, { status: 403 });
@@ -337,9 +353,11 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
 
     // Build provider model list using unified chain (multi-key + health tracking)
     const providerModels = buildStreamingProviderChain();
+    console.log(`[ChatAPI] Provider chain: ${providerModels.length} providers available [${providerModels.map(p => p.name).join(', ')}] (${Date.now() - requestStart}ms)`);
 
     if (providerModels.length === 0) {
-      return Response.json({ error: 'AI is not configured. Please add GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file.' }, { status: 500 });
+      console.error("[ChatAPI] No AI providers available! Check env vars: GROQ_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, etc.");
+      return Response.json({ error: 'AI is not configured. Please add GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file. Visit /api/ai/status for diagnostics.' }, { status: 500 });
     }
 
     const tools = createCopilotTools(user.id);
@@ -356,8 +374,10 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
     let lastErrorType = 'unknown'; // Track error type for better messages
 
     // Attempt 1: Try each provider with tools (streaming)
+    console.log(`[ChatAPI] Starting provider failover chain...`);
     for (const providerEntry of providerModels) {
       try {
+        console.log(`[ChatAPI] Trying ${providerEntry.name}...`);
         const result = await streamText({
           model: providerEntry.model,
           maxSteps: 5,
@@ -367,14 +387,14 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
           tools,
         });
 
-        console.log(`[Agent] ${providerEntry.name} stream started successfully`);
+        console.log(`[ChatAPI] ✅ ${providerEntry.name} stream started successfully (${Date.now() - requestStart}ms)`);
         // ✅ Success — mark key as healthy
         if (providerEntry._provider !== undefined) recordKeySuccess(providerEntry._provider, providerEntry._keyIndex);
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
         lastError = providerError;
         const errMsg = providerError?.message || '';
-        console.warn(`[Agent] ${providerEntry.name} failed:`, errMsg.substring(0, 200));
+        console.warn(`[ChatAPI] ❌ ${providerEntry.name} failed: ${errMsg.substring(0, 200)} (${Date.now() - requestStart}ms)`);
         // ❌ Failure — record it for smart failover
         if (providerEntry._provider !== undefined) recordKeyFailure(providerEntry._provider, providerEntry._keyIndex, providerError);
 
@@ -392,7 +412,7 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
     }
 
     // Attempt 2: Fallback — stream WITHOUT tools
-    console.warn("[Agent] All providers with tools failed, trying without tools...");
+    console.warn(`[ChatAPI] ⚠️ All ${providerModels.length} providers with tools failed, trying without tools...`);
     for (const providerEntry of providerModels) {
       try {
         const result = await streamText({
@@ -403,16 +423,17 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
           messages: coreMessages,
         });
 
-        console.log(`[Agent] ${providerEntry.name} stream started without tools`);
+        console.log(`[ChatAPI] ✅ ${providerEntry.name} stream started without tools (${Date.now() - requestStart}ms)`);
         if (providerEntry._provider !== undefined) recordKeySuccess(providerEntry._provider, providerEntry._keyIndex);
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
-        console.warn(`[Agent] ${providerEntry.name} without tools also failed:`, providerError?.message?.substring(0, 120) || providerError);
+        console.warn(`[ChatAPI] ❌ ${providerEntry.name} without tools also failed: ${providerError?.message?.substring(0, 120)}`);
         if (providerEntry._provider !== undefined) recordKeyFailure(providerEntry._provider, providerEntry._keyIndex, providerError);
       }
     }
 
     // Return a user-friendly error message based on the error type
+    console.error(`[ChatAPI] 💀 All providers exhausted. Last error: ${lastError?.message?.substring(0, 200)}. Visit /api/ai/status for diagnostics.`);
     let userMessage;
     switch (lastErrorType) {
       case 'rate_limit':

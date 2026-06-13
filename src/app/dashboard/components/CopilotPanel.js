@@ -266,12 +266,28 @@ export default function CopilotPanel() {
   const messagesEndRef = useRef(null);
   const router = useRouter();
 
+  const [aiStatusDetail, setAiStatusDetail] = useState(null);
+  const [showStatusDetail, setShowStatusDetail] = useState(false);
+
   const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
     api: "/api/chat",
     onError: (err) => {
       console.error("[Copilot] useChat error:", err);
     },
   });
+
+  // Fetch AI status when an error occurs
+  const checkAiStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/status");
+      const data = await res.json();
+      setAiStatusDetail(data);
+      setShowStatusDetail(true);
+    } catch (e) {
+      setAiStatusDetail({ error: "Could not reach status endpoint" });
+      setShowStatusDetail(true);
+    }
+  }, []);
 
   const isLoading = status === "submitted" || status === "streaming";
 
@@ -530,7 +546,75 @@ export default function CopilotPanel() {
             )}
             {error && (
               <div className="copilot-error">
-                <span>⚠</span> {getFriendlyError(error)}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                  <span>⚠</span>
+                  <div style={{ flex: 1 }}>
+                    <div>{getFriendlyError(error)}</div>
+                    <button
+                      onClick={checkAiStatus}
+                      style={{
+                        marginTop: "6px",
+                        fontSize: "11px",
+                        background: "rgba(255,255,255,0.15)",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        color: "inherit",
+                        borderRadius: "4px",
+                        padding: "2px 8px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🔍 Check AI Status
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showStatusDetail && aiStatusDetail && (
+              <div style={{
+                background: "rgba(0,0,0,0.3)",
+                borderRadius: "8px",
+                padding: "10px",
+                fontSize: "11px",
+                fontFamily: "monospace",
+                color: "#ccc",
+                maxHeight: "200px",
+                overflowY: "auto",
+                margin: "4px 0",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                  <strong style={{ color: "#fff" }}>AI Status Check</strong>
+                  <button
+                    onClick={() => setShowStatusDetail(false)}
+                    style={{ background: "none", border: "none", color: "#999", cursor: "pointer", fontSize: "12px" }}
+                  >✕</button>
+                </div>
+                {aiStatusDetail.error ? (
+                  <div style={{ color: "#ff6b6b" }}>{aiStatusDetail.error}</div>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: "6px" }}>
+                      <strong>Environment:</strong>
+                      {Object.entries(aiStatusDetail.env_check || {}).map(([k, v]) => (
+                        <div key={k} style={{ color: v === "SET" ? "#6bcb77" : "#ff6b6b" }}>
+                          {v === "SET" ? "✓" : "✗"} {k}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginBottom: "6px" }}>
+                      <strong>Providers:</strong> {aiStatusDetail.provider_chain?.streaming?.total || 0} streaming, {aiStatusDetail.provider_chain?.full?.total || 0} full
+                    </div>
+                    {(aiStatusDetail.diagnosis || []).length > 0 && (
+                      <div>
+                        <strong>Diagnosis:</strong>
+                        {(aiStatusDetail.diagnosis || []).map((d, i) => (
+                          <div key={i} style={{ color: d.startsWith("CRITICAL") ? "#ff6b6b" : d.startsWith("WARNING") ? "#ffa94d" : "#6bcb77" }}>
+                            {d}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
             <div ref={messagesEndRef} />
