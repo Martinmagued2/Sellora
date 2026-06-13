@@ -274,6 +274,28 @@ function buildProviderChain() {
     }
   }
 
+  // ─── ZAI SDK (guaranteed fallback) ───
+  // The z-ai-web-dev-sdk is always available in this environment.
+  // If ZAI_BASE_URL + ZAI_API_KEY are configured, use them as a provider
+  // via the OpenAI-compatible API. This ensures AI always works even when
+  // no other provider keys (Groq, Google, OpenAI, NVIDIA) are set.
+  try {
+    const { getZAIConfig } = require("./z-ai-config");
+    const zaiConfig = getZAIConfig();
+    if (zaiConfig?.baseUrl && zaiConfig?.apiKey) {
+      const zaiProvider = createOpenAI({
+        apiKey: zaiConfig.apiKey,
+        baseURL: zaiConfig.baseUrl,
+        compatibility: "compatible",
+      });
+      providers.push({ name: 'zai-sdk', model: zaiProvider("default") });
+      console.log("[AI] ZAI SDK provider added to fallback chain");
+    }
+  } catch (e) {
+    // ZAI SDK not configured — this is fine, other providers may work
+    console.log("[AI] ZAI SDK not configured, skipping");
+  }
+
   return providers;
 }
 
@@ -468,7 +490,7 @@ export async function generateAIReply({
     let lastError = null;
 
     if (providerChain.length === 0) {
-      throw new Error("No AI providers configured. Set GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.");
+      console.warn("[generateAIReply] No AI providers in chain — will try ZAI SDK direct fallback");
     }
 
     for (const provider of providerChain) {
@@ -503,6 +525,36 @@ export async function generateAIReply({
       } catch (providerError) {
         lastError = providerError;
         console.warn(`[generateAIReply] ${provider.name} without tools failed: ${providerError.message}`);
+      }
+    }
+
+    // ─── ZAI SDK Direct Fallback ───
+    // If all providers in the chain failed (or chain is empty),
+    // use the z-ai-web-dev-sdk directly for chat completions.
+    // This is the guaranteed fallback that always works in this environment.
+    if (!text || !text.trim()) {
+      try {
+        console.log("[generateAIReply] All providers failed — trying ZAI SDK direct fallback");
+        const ZAI = (await import("z-ai-web-dev-sdk")).default;
+        const zai = await ZAI.create();
+        const completion = await zai.chat.completions.create({
+          messages: [
+            { role: "system", content: fullSystemPrompt },
+            ...formattedMessages,
+          ],
+          temperature: 0.7,
+          max_tokens: 500,
+        });
+        const fallbackText = completion.choices?.[0]?.message?.content;
+        if (fallbackText && fallbackText.trim()) {
+          text = fallbackText.trim();
+          console.log("[generateAIReply] ✅ ZAI SDK direct fallback succeeded");
+        } else {
+          console.warn("[generateAIReply] ZAI SDK returned empty response");
+        }
+      } catch (zaiErr) {
+        console.warn(`[generateAIReply] ZAI SDK direct fallback failed: ${zaiErr.message}`);
+        lastError = zaiErr;
       }
     }
 
