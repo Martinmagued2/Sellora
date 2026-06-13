@@ -5,6 +5,7 @@ import {
   Store, Plus, Pencil, Trash2, X, Loader2, CheckCircle,
   AlertCircle, Package, ShoppingBag, MessageCircle, Search,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { useCurrentStore } from "@/lib/store-context";
 
 const INDUSTRIES = [
@@ -332,7 +333,7 @@ export default function StoresPage() {
       )}
 
       {/* ═══ Create/Edit Store Modal ═══ */}
-      {showModal && (
+      {showModal && createPortal(
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowModal(false)}>
           <div className="modal" style={{ maxWidth: 520 }}>
             <div className="modal-header">
@@ -437,10 +438,10 @@ export default function StoresPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* ═══ Delete Confirmation ═══ */}
-      {deleteConfirm && (
+      {deleteConfirm && createPortal(
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setDeleteConfirm(null)}>
           <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-header">
@@ -480,7 +481,7 @@ export default function StoresPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }

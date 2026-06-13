@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   ShoppingCart, Search, Send, CheckCircle, Clock, X,
   ChevronRight, Loader2, Package, User, Tag, MessageSquare,
@@ -458,7 +459,7 @@ export default function AbandonedCartsPage() {
       </div>
 
       {/* ═══ Cart Detail Panel ═══ */}
-      {selectedCart && (
+      {selectedCart && createPortal(
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setSelectedCart(null)}>
           <div className="modal" style={{ maxWidth: 600 }}>
             <div className="modal-header">
@@ -670,7 +671,7 @@ export default function AbandonedCartsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }

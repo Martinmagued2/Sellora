@@ -1,0 +1,1041 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback } from "react";
+     4→import {
+     5→  Truck,
+     6→  Package,
+     7→  MapPin,
+     8→  Clock,
+     9→  CheckCircle,
+    10→  AlertCircle,
+    11→  Send,
+    12→  Settings,
+    13→  RefreshCw,
+    14→  Plus,
+    15→  Search,
+    16→  Eye,
+    17→  ExternalLink,
+    18→  Key,
+    19→  X,
+    20→  Loader2,
+    21→  ChevronDown,
+    22→  EyeOff,
+    23→  Info,
+    24→} from "lucide-react";
+    25→import { createClient } from "@/lib/supabase/client";
+    26→import { useCurrentStore } from "@/lib/store-context";
+    27→import { useToast } from "../components/ToastProvider";
+    28→import { useConfirm } from "../components/ConfirmProvider";
+    29→
+    30→const STATUS_CONFIG = {
+    31→  pending: { label: "Pending", color: "gray", icon: Clock },
+    32→  info_received: { label: "Info Received", color: "blue", icon: Package },
+    33→  in_transit: { label: "In Transit", color: "blue", icon: Truck },
+    34→  out_for_delivery: { label: "Out for Delivery", color: "amber", icon: Truck },
+    35→  delivered: { label: "Delivered", color: "green", icon: CheckCircle },
+    36→  failed_attempt: { label: "Failed Attempt", color: "amber", icon: AlertCircle },
+    37→  exception: { label: "Exception", color: "red", icon: AlertCircle },
+    38→  expired: { label: "Expired", color: "gray", icon: Clock },
+    39→};
+    40→
+    41→const FILTER_TABS = [
+    42→  { key: "all", label: "All" },
+    43→  { key: "in_transit", label: "In Transit" },
+    44→  { key: "delivered", label: "Delivered" },
+    45→  { key: "exception", label: "Exception" },
+    46→];
+    47→
+    48→// Demo shipments for demo mode
+    49→const DEMO_SHIPMENTS = [
+    50→  {
+    51→    id: "demo-1",
+    52→    tracking_number: "ARA-2026-8743210",
+    53→    carrier: "Aramex",
+    54→    carrier_code: "aramex",
+    55→    status: "in_transit",
+    56→    title: "ORD-2026-0042",
+    57→    order_id: null,
+    58→    estimated_delivery: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    59→    last_checked_at: new Date().toISOString(),
+    60→    auto_track: true,
+    61→    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    62→    checkpoints: [
+    63→      {
+    64→        location: "Cairo, Egypt",
+    65→        message: "Delivered - signed by recipient",
+    66→        tag: "delivered",
+    67→        checkpoint_time: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+    68→      },
+    69→      {
+    70→        location: "Alexandria, Egypt",
+    71→        message: "In transit - departed sorting facility",
+    72→        tag: "in_transit",
+    73→        checkpoint_time: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    74→      },
+    75→      {
+    76→        location: "Cairo, Egypt",
+    77→        message: "Package picked up by carrier",
+    78→        tag: "info_received",
+    79→        checkpoint_time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    80→      },
+    81→      {
+    82→        location: "Cairo, Egypt",
+    83→        message: "Shipment information received",
+    84→        tag: "pending",
+    85→        checkpoint_time: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    86→      },
+    87→    ],
+    88→  },
+    89→  {
+    90→    id: "demo-2",
+    91→    tracking_number: "DHL-9284-7361",
+    92→    carrier: "DHL Express",
+    93→    carrier_code: "dhl",
+    94→    status: "out_for_delivery",
+    95→    title: "ORD-2026-0055",
+    96→    order_id: null,
+    97→    estimated_delivery: new Date(Date.now() + 0.5 * 24 * 60 * 60 * 1000).toISOString(),
+    98→    last_checked_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+    99→    auto_track: true,
+   100→    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+   101→    checkpoints: [
+   102→      {
+   103→        location: "Dubai, UAE",
+   104→        message: "Out for delivery - with local courier",
+   105→        tag: "out_for_delivery",
+   106→        checkpoint_time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+   107→      },
+   108→      {
+   109→        location: "Dubai, UAE",
+   110→        message: "Arrived at delivery center",
+   111→        tag: "in_transit",
+   112→        checkpoint_time: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+   113→      },
+   114→      {
+   115→        location: "Frankfurt, Germany",
+   116→        message: "In transit - departed hub",
+   117→        tag: "in_transit",
+   118→        checkpoint_time: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+   119→      },
+   120→      {
+   121→        location: "London, UK",
+   122→        message: "Package picked up",
+   123→        tag: "info_received",
+   124→        checkpoint_time: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+   125→      },
+   126→    ],
+   127→  },
+   128→  {
+   129→    id: "demo-3",
+   130→    tracking_number: "FDX-4820-9917-3356",
+   131→    carrier: "FedEx",
+   132→    carrier_code: "fedex",
+   133→    status: "delivered",
+   134→    title: "ORD-2026-0038",
+   135→    order_id: null,
+   136→    estimated_delivery: null,
+   137→    last_checked_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+   138→    auto_track: true,
+   139→    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+   140→    checkpoints: [
+   141→      {
+   142→        location: "New York, USA",
+   143→        message: "Delivered - left at front door",
+   144→        tag: "delivered",
+   145→        checkpoint_time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+   146→      },
+   147→      {
+   148→        location: "New York, USA",
+   149→        message: "Out for delivery",
+   150→        tag: "out_for_delivery",
+   151→        checkpoint_time: new Date(Date.now() - 2.2 * 24 * 60 * 60 * 1000).toISOString(),
+   152→      },
+   153→      {
+   154→        location: "Memphis, USA",
+   155→        message: "In transit - departed hub",
+   156→        tag: "in_transit",
+   157→        checkpoint_time: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+   158→      },
+   159→      {
+   160→        location: "Singapore",
+   161→        message: "Package picked up",
+   162→        tag: "info_received",
+   163→        checkpoint_time: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+   164→      },
+   165→    ],
+   166→  },
+   167→  {
+   168→    id: "demo-4",
+   169→    tracking_number: "UPS-1Z999AA10",
+   170→    carrier: "UPS",
+   171→    carrier_code: "ups",
+   172→    status: "exception",
+   173→    title: "ORD-2026-0061",
+   174→    order_id: null,
+   175→    estimated_delivery: null,
+   176→    last_checked_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+   177→    auto_track: true,
+   178→    created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+   179→    checkpoints: [
+   180→      {
+   181→        location: "Istanbul, Turkey",
+   182→        message: "Exception - delivery attempt failed, recipient not available",
+   183→        tag: "exception",
+   184→        checkpoint_time: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+   185→      },
+   186→      {
+   187→        location: "Istanbul, Turkey",
+   188→        message: "Out for delivery",
+   189→        tag: "out_for_delivery",
+   190→        checkpoint_time: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
+   191→      },
+   192→      {
+   193→        location: "Istanbul, Turkey",
+   194→        message: "Arrived at local facility",
+   195→        tag: "in_transit",
+   196→        checkpoint_time: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+   197→      },
+   198→    ],
+   199→  },
+   200→];
+   201→
+   202→export default function ShippingPage() {
+   203→  
+   204→  const confirmAction = useConfirm();
+   205→  const [shipments, setShipments] = useState([]);
+   206→  const [carriers, setCarriers] = useState([]);
+   207→  const [config, setConfig] = useState({ api_key: "", api_key_set: false, default_carrier: "aramex", auto_track: true, connected: false });
+   208→  const [filter, setFilter] = useState("all");
+   209→  const [search, setSearch] = useState("");
+   210→  const [loading, setLoading] = useState(true);
+   211→  const [refreshing, setRefreshing] = useState(null);
+   212→  const [sendingUpdate, setSendingUpdate] = useState(null);
+   213→
+   214→  // Config panel state
+   215→  const [showApiKey, setShowApiKey] = useState(false);
+   216→  const [configForm, setConfigForm] = useState({ api_key: "", default_carrier: "aramex", auto_track: true });
+   217→  const [savingConfig, setSavingConfig] = useState(false);
+   218→
+   219→  // Add tracking modal state
+   220→  const [showAddModal, setShowAddModal] = useState(false);
+   221→  const [addForm, setAddForm] = useState({ order_id: "", tracking_number: "", carrier: "aramex", title: "" });
+   222→  const [addingTracking, setAddingTracking] = useState(false);
+   223→  const [orders, setOrders] = useState([]);
+   224→
+   225→  // Timeline panel state
+   226→  const [viewingShipment, setViewingShipment] = useState(null);
+   227→
+   228→  // Demo mode
+   229→  const [isDemo, setIsDemo] = useState(false);
+   230→
+   231→  const supabase = createClient();
+   232→  const { currentStoreId } = useCurrentStore();
+   233→  const toast = useToast();
+   234→
+   235→  // Fetch config
+   236→  const fetchConfig = useCallback(async () => {
+   237→    try {
+   238→      const res = await fetch("/api/shipping/config");
+   239→      if (res.ok) {
+   240→        const data = await res.json();
+   241→        if (data.success) {
+   242→          setConfig(data.config);
+   243→          setConfigForm({
+   244→            api_key: "",
+   245→            default_carrier: data.config.default_carrier || "aramex",
+   246→            auto_track: data.config.auto_track !== false,
+   247→          });
+   248→          setIsDemo(!data.config.connected);
+   249→        }
+   250→      }
+   251→    } catch (err) {
+   252→      console.error("Failed to fetch config:", err);
+   253→    }
+   254→  }, []);
+   255→
+   256→  // Fetch carriers
+   257→  const fetchCarriers = useCallback(async () => {
+   258→    try {
+   259→      const res = await fetch("/api/shipping/carriers");
+   260→      if (res.ok) {
+   261→        const data = await res.json();
+   262→        if (data.success) setCarriers(data.carriers || []);
+   263→      }
+   264→    } catch (err) {
+   265→      console.error("Failed to fetch carriers:", err);
+   266→    }
+   267→  }, []);
+   268→
+   269→  // Fetch shipments
+   270→  const fetchShipments = useCallback(async () => {
+   271→    setLoading(true);
+   272→    try {
+   273→      const { data: { user } } = await supabase.auth.getUser();
+   274→      let query = supabase
+   275→        .from("shipment_trackings")
+   276→        .select("*")
+   277→        .order("created_at", { ascending: false });
+   278→      
+   279→      if (user) query = query.eq("account_id", user.id);
+   280→
+   281→      const { data, error } = await query;
+   282→
+   283→      if (!error && data) {
+   284→        setShipments(data);
+   285→        // If no shipments and no API key, use demo data
+   286→        if (data.length === 0 && !config.connected) {
+   287→          setIsDemo(true);
+   288→          setShipments(DEMO_SHIPMENTS);
+   289→        }
+   290→      } else if (!config.connected) {
+   291→        setIsDemo(true);
+   292→        setShipments(DEMO_SHIPMENTS);
+   293→      }
+   294→    } catch (err) {
+   295→      if (!config.connected) {
+   296→        setIsDemo(true);
+   297→        setShipments(DEMO_SHIPMENTS);
+   298→      }
+   299→    }
+   300→    setLoading(false);
+   301→  }, [config.connected, currentStoreId]);
+   302→
+   303→  // Fetch orders for dropdown
+   304→  const fetchOrders = useCallback(async () => {
+   305→    try {
+   306→      const { data: { user } } = await supabase.auth.getUser();
+   307→      if (!user) return;
+   308→      let query = supabase
+   309→        .from("orders")
+   310→        .select("id, order_number, status")
+   311→        .eq("account_id", user.id)
+   312→        .order("created_at", { ascending: false })
+   313→        .limit(20);
+   314→      if (currentStoreId) query = query.or(`store_id.eq.${currentStoreId},store_id.is.null`);
+   315→      const { data } = await query;
+   316→      setOrders(data || []);
+   317→    } catch (err) {
+   318→      console.error("Failed to fetch orders:", err);
+   319→    }
+   320→  }, [currentStoreId]);
+   321→
+   322→  useEffect(() => { fetchConfig(); fetchCarriers(); }, []);
+   323→  useEffect(() => { fetchShipments(); }, [fetchShipments]);
+   324→  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+   325→
+   326→  // Save config
+   327→  const handleSaveConfig = async () => {
+   328→    setSavingConfig(true);
+   329→    try {
+   330→      const payload = {
+   331→        default_carrier: configForm.default_carrier,
+   332→        auto_track: configForm.auto_track,
+   333→      };
+   334→      // Only send API key if user entered one
+   335→      if (configForm.api_key.trim()) {
+   336→        payload.api_key = configForm.api_key.trim();
+   337→      }
+   338→      const res = await fetch("/api/shipping/config", {
+   339→        method: "PUT",
+   340→        headers: { "Content-Type": "application/json" },
+   341→        body: JSON.stringify(payload),
+   342→      });
+   343→      const data = await res.json();
+   344→      if (data.success) {
+   345→        await fetchConfig();
+   346→        await fetchShipments();
+   347→        setConfigForm((prev) => ({ ...prev, api_key: "" }));
+   348→      } else {
+   349→        toast.error("Failed to save config: " + (data.error || "Unknown error"));
+   350→      }
+   351→    } catch (err) {
+   352→      toast.error("Error: " + err.message);
+   353→    }
+   354→    setSavingConfig(false);
+   355→  };
+   356→
+   357→  // Add tracking
+   358→  const handleAddTracking = async () => {
+   359→    if (!addForm.tracking_number.trim()) {
+   360→      toast.warning("Tracking number is required");
+   361→      return;
+   362→    }
+   363→    setAddingTracking(true);
+   364→    try {
+   365→      const res = await fetch("/api/shipping/track", {
+   366→        method: "POST",
+   367→        headers: { "Content-Type": "application/json" },
+   368→        body: JSON.stringify(addForm),
+   369→      });
+   370→      const data = await res.json();
+   371→      if (data.success) {
+   372→        setShowAddModal(false);
+   373→        setAddForm({ order_id: "", tracking_number: "", carrier: "aramex", title: "" });
+   374→        await fetchShipments();
+   375→      } else {
+   376→        toast.error("Failed to add tracking: " + (data.error || "Unknown error"));
+   377→      }
+   378→    } catch (err) {
+   379→      toast.error("Error: " + err.message);
+   380→    }
+   381→    setAddingTracking(false);
+   382→  };
+   383→
+   384→  // Refresh tracking
+   385→  const handleRefresh = async (shipment) => {
+   386→    if (shipment.id?.startsWith("demo-")) {
+   387→      // Simulate refresh for demo
+   388→      setRefreshing(shipment.id);
+   389→      setTimeout(() => setRefreshing(null), 1000);
+   390→      return;
+   391→    }
+   392→    setRefreshing(shipment.id);
+   393→    try {
+   394→      const res = await fetch("/api/shipping/track", {
+   395→        method: "PATCH",
+   396→        headers: { "Content-Type": "application/json" },
+   397→        body: JSON.stringify({ id: shipment.id }),
+   398→      });
+   399→      const data = await res.json();
+   400→      if (data.success) {
+   401→        await fetchShipments();
+   402→        // Update viewing shipment if it's the same
+   403→        if (viewingShipment?.id === shipment.id) {
+   404→          setViewingShipment(data.tracking);
+   405→        }
+   406→      }
+   407→    } catch (err) {
+   408→      console.error("Refresh error:", err);
+   409→    }
+   410→    setRefreshing(null);
+   411→  };
+   412→
+   413→  // Send update to customer
+   414→  const handleSendUpdate = async (shipment) => {
+   415→    setSendingUpdate(shipment.id);
+   416→    try {
+   417→      const statusInfo = STATUS_CONFIG[shipment.status] || STATUS_CONFIG.pending;
+   418→      const message = `📦 Shipment Update\n\nTracking: ${shipment.tracking_number}\nCarrier: ${shipment.carrier}\nStatus: ${statusInfo.label}\n${shipment.estimated_delivery ? "Est. Delivery: " + formatDate(shipment.estimated_delivery) : ""}`;
+   419→
+   420→      // Find the order's customer conversation
+   421→      if (shipment.order_id) {
+   422→        const { data: order } = await supabase
+   423→          .from("orders")
+   424→          .select("customer_id, order_number")
+   425→          .eq("id", shipment.order_id)
+   426→          .single();
+   427→
+   428→        if (order?.customer_id) {
+   429→          const { data: conv } = await supabase
+   430→            .from("conversations")
+   431→            .select("id")
+   432→            .eq("customer_id", order.customer_id)
+   433→            .eq("account_id", (await supabase.auth.getUser()).data.user?.id)
+   434→            .limit(1)
+   435→            .single();
+   436→
+   437→          if (conv) {
+   438→            await fetch("/api/messages/send", {
+   439→              method: "POST",
+   440→              headers: { "Content-Type": "application/json" },
+   441→              body: JSON.stringify({
+   442→                conversationId: conv.id,
+   443→                content: message,
+   444→                type: "text",
+   445→              }),
+   446→            });
+   447→            toast.success("Shipping update sent to customer!");
+   448→          } else {
+   449→            toast.warning("No conversation found for this order's customer.");
+   450→          }
+   451→        } else {
+   452→          toast.warning("No customer associated with this order.");
+   453→        }
+   454→      } else {
+   455→        toast.warning("This tracking is not linked to an order with a customer.");
+   456→      }
+   457→    } catch (err) {
+   458→      toast.error("Error sending update: " + err.message);
+   459→    }
+   460→    setSendingUpdate(null);
+   461→  };
+   462→
+   463→  // Delete tracking
+   464→  const handleDelete = async (shipment) => {
+   465→    if (!(await confirmAction("Delete this tracking record?"))) return;
+   466→    if (shipment.id?.startsWith("demo-")) return;
+   467→    try {
+   468→      await fetch(`/api/shipping/track?id=${shipment.id}`, { method: "DELETE" });
+   469→      await fetchShipments();
+   470→      if (viewingShipment?.id === shipment.id) setViewingShipment(null);
+   471→    } catch (err) {
+   472→      console.error("Delete error:", err);
+   473→    }
+   474→  };
+   475→
+   476→  // Format helpers
+   477→  const formatDate = (d) => {
+   478→    if (!d) return "—";
+   479→    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+   480→  };
+   481→
+   482→  const formatDateTime = (d) => {
+   483→    if (!d) return "—";
+   484→    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+   485→  };
+   486→
+   487→  const formatTimeAgo = (d) => {
+   488→    if (!d) return "";
+   489→    const diff = Date.now() - new Date(d).getTime();
+   490→    const mins = Math.floor(diff / 60000);
+   491→    if (mins < 60) return `${mins}m ago`;
+   492→    const hours = Math.floor(mins / 60);
+   493→    if (hours < 24) return `${hours}h ago`;
+   494→    const days = Math.floor(hours / 24);
+   495→    return `${days}d ago`;
+   496→  };
+   497→
+   498→  // Filtered shipments
+   499→  const filteredShipments = shipments.filter((s) => {
+   500→    if (filter !== "all" && s.status !== filter) return false;
+   501→    if (search) {
+   502→      const q = search.toLowerCase();
+   503→      return (
+   504→        s.tracking_number?.toLowerCase().includes(q) ||
+   505→        s.title?.toLowerCase().includes(q) ||
+   506→        s.carrier?.toLowerCase().includes(q) ||
+   507→        s.order_id?.toLowerCase().includes(q)
+   508→      );
+   509→    }
+   510→    return true;
+   511→  });
+   512→
+   513→  // Stats
+   514→  const stats = {
+   515→    total: shipments.length,
+   516→    in_transit: shipments.filter((s) => s.status === "in_transit").length,
+   517→    delivered: shipments.filter((s) => s.status === "delivered").length,
+   518→    exception: shipments.filter((s) => s.status === "exception").length,
+   519→  };
+   520→
+   521→  return (
+   522→    <>
+   523→      {/* Demo Mode Banner */}
+   524→      {isDemo && (
+   525→        <div className="shipping-demo-banner">
+   526→          <div className="shipping-demo-banner-content">
+   527→            <Info size={16} />
+   528→            <span>
+   529→              Running in <strong>demo mode</strong>. Connect AfterShip for live tracking data.
+   530→            </span>
+   531→          </div>
+   532→          <button
+   533→            className="btn btn-sm"
+   534→            style={{ background: "rgba(0, 210, 255, 0.15)", color: "var(--accent-secondary)", border: "1px solid rgba(0, 210, 255, 0.3)" }}
+   535→            onClick={() => document.getElementById("shipping-config-section")?.scrollIntoView({ behavior: "smooth" })}
+   536→          >
+   537→            Connect Now
+   538→          </button>
+   539→        </div>
+   540→      )}
+   541→
+   542→      <div className="page-header">
+   543→        <h1>Shipping</h1>
+   544→        <div className="page-header-actions">
+   545→          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+   546→            <Plus size={16} />
+   547→            Add Tracking
+   548→          </button>
+   549→        </div>
+   550→      </div>
+   551→
+   552→      {/* Stats */}
+   553→      <div className="stats-grid" style={{ marginBottom: "var(--space-lg)" }}>
+   554→        <div className="stat-card">
+   555→          <div className="stat-card-header">
+   556→            <div className="stat-card-icon purple"><Truck size={20} /></div>
+   557→          </div>
+   558→          <div className="stat-card-value">{stats.total}</div>
+   559→          <div className="stat-card-label">Total Shipments</div>
+   560→        </div>
+   561→        <div className="stat-card">
+   562→          <div className="stat-card-header">
+   563→            <div className="stat-card-icon blue"><Package size={20} /></div>
+   564→          </div>
+   565→          <div className="stat-card-value">{stats.in_transit}</div>
+   566→          <div className="stat-card-label">In Transit</div>
+   567→        </div>
+   568→        <div className="stat-card">
+   569→          <div className="stat-card-header">
+   570→            <div className="stat-card-icon green"><CheckCircle size={20} /></div>
+   571→          </div>
+   572→          <div className="stat-card-value">{stats.delivered}</div>
+   573→          <div className="stat-card-label">Delivered</div>
+   574→        </div>
+   575→        <div className="stat-card">
+   576→          <div className="stat-card-header">
+   577→            <div className="stat-card-icon orange"><AlertCircle size={20} /></div>
+   578→          </div>
+   579→          <div className="stat-card-value">{stats.exception}</div>
+   580→          <div className="stat-card-label">Exceptions</div>
+   581→        </div>
+   582→      </div>
+   583→
+   584→      {/* Integration Setup */}
+   585→      <div className="dashboard-panel" id="shipping-config-section" style={{ marginBottom: "var(--space-xl)" }}>
+   586→        <div className="dashboard-panel-header">
+   587→          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   588→            <Settings size={18} />
+   589→            AfterShip Integration
+   590→          </h3>
+   591→          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   592→            <span className={`shipping-connection-badge ${config.connected ? "connected" : "disconnected"}`}>
+   593→              <span className="shipping-connection-dot"></span>
+   594→              {config.connected ? "Connected" : "Not Connected"}
+   595→            </span>
+   596→          </div>
+   597→        </div>
+   598→        <div className="dashboard-panel-body">
+   599→          <div className="shipping-config-grid">
+   600→            <div className="shipping-config-form">
+   601→              <div className="form-group">
+   602→                <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+   603→                  <Key size={14} />
+   604→                  AfterShip API Key
+   605→                </label>
+   606→                <div style={{ position: "relative" }}>
+   607→                  <input
+   608→                    type={showApiKey ? "text" : "password"}
+   609→                    className="form-input"
+   610→                    placeholder={config.api_key_set ? "•••••••••••••••• (enter new to change)" : "Enter your AfterShip API key"}
+   611→                    value={configForm.api_key}
+   612→                    onChange={(e) => setConfigForm((prev) => ({ ...prev, api_key: e.target.value }))}
+   613→                    style={{ paddingRight: 40 }}
+   614→                  />
+   615→                  <button
+   616→                    type="button"
+   617→                    onClick={() => setShowApiKey(!showApiKey)}
+   618→                    style={{
+   619→                      position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+   620→                      background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer",
+   621→                    }}
+   622→                  >
+   623→                    {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+   624→                  </button>
+   625→                </div>
+   626→              </div>
+   627→
+   628→              <div className="form-group">
+   629→                <label className="form-label">Default Carrier</label>
+   630→                <select
+   631→                  className="form-input"
+   632→                  value={configForm.default_carrier}
+   633→                  onChange={(e) => setConfigForm((prev) => ({ ...prev, default_carrier: e.target.value }))}
+   634→                >
+   635→                  {carriers.length > 0 ? (
+   636→                    carriers.map((c) => (
+   637→                      <option key={c.code} value={c.code}>{c.name}</option>
+   638→                    ))
+   639→                  ) : (
+   640→                    <option value="aramex">Aramex</option>
+   641→                  )}
+   642→                </select>
+   643→              </div>
+   644→
+   645→              <div className="form-group">
+   646→                <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   647→                  Auto-track Shipments
+   648→                  <button
+   649→                    className={`shipping-toggle ${configForm.auto_track ? "active" : ""}`}
+   650→                    onClick={() => setConfigForm((prev) => ({ ...prev, auto_track: !prev.auto_track }))}
+   651→                    type="button"
+   652→                  >
+   653→                    <span className="shipping-toggle-thumb"></span>
+   654→                  </button>
+   655→                </label>
+   656→                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+   657→                  Automatically track new shipments when orders are created
+   658→                </p>
+   659→              </div>
+   660→
+   661→              <button
+   662→                className="btn btn-primary"
+   663→                onClick={handleSaveConfig}
+   664→                disabled={savingConfig}
+   665→                style={{ marginTop: "var(--space-sm)" }}
+   666→              >
+   667→                {savingConfig ? <Loader2 size={16} className="spin" /> : <Settings size={16} />}
+   668→                Save Config
+   669→              </button>
+   670→            </div>
+   671→
+   672→            <div className="shipping-config-info">
+   673→              <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: "var(--space-md)", fontWeight: 600 }}>
+   674→                How to Get an AfterShip API Key
+   675→              </div>
+   676→              <ol style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", lineHeight: 2, paddingLeft: 20 }}>
+   677→                <li>Visit <a href="https://www.aftership.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-primary-light)", textDecoration: "underline" }}>aftership.com</a> and create a free account</li>
+   678→                <li>Navigate to Settings &rarr; API Keys</li>
+   679→                <li>Generate a new API key (Live or Test mode)</li>
+   680→                <li>Copy the key and paste it above</li>
+   681→                <li>Click &ldquo;Save Config&rdquo; to connect</li>
+   682→              </ol>
+   683→              <div style={{ marginTop: "var(--space-lg)", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+   684→                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginBottom: 4, fontWeight: 600 }}>FREE TIER</div>
+   685→                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>
+   686→                  AfterShip free plan includes 100 tracking/month. No credit card required.
+   687→                </div>
+   688→              </div>
+   689→            </div>
+   690→          </div>
+   691→        </div>
+   692→      </div>
+   693→
+   694→      {/* Active Shipments */}
+   695→      <div className="filter-bar">
+   696→        <div className="filter-tabs">
+   697→          {FILTER_TABS.map((tab) => (
+   698→            <button
+   699→              key={tab.key}
+   700→              className={`filter-tab ${filter === tab.key ? "active" : ""}`}
+   701→              onClick={() => setFilter(tab.key)}
+   702→            >
+   703→              {tab.label}
+   704→              {tab.key !== "all" && stats[tab.key] > 0 && (
+   705→                <span style={{ marginLeft: 6, fontSize: 10, background: "var(--bg-glass)", padding: "1px 6px", borderRadius: 10 }}>
+   706→                  {stats[tab.key]}
+   707→                </span>
+   708→              )}
+   709→            </button>
+   710→          ))}
+   711→        </div>
+   712→        <div className="filter-search">
+   713→          <Search size={14} />
+   714→          <input
+   715→            type="text"
+   716→            placeholder="Search tracking # or order #..."
+   717→            value={search}
+   718→            onChange={(e) => setSearch(e.target.value)}
+   719→          />
+   720→        </div>
+   721→      </div>
+   722→
+   723→      <div className="dashboard-panel">
+   724→        <div className="dashboard-panel-body" style={{ padding: 0 }}>
+   725→          {loading ? (
+   726→            <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>
+   727→              <Loader2 size={24} className="spin" style={{ marginBottom: "var(--space-sm)" }} />
+   728→              <div>Loading shipments...</div>
+   729→            </div>
+   730→          ) : (
+   731→            <div className="table-scroll-wrapper">
+   732→            <table className="data-table">
+   733→              <thead>
+   734→                <tr>
+   735→                  <th>Order #</th>
+   736→                  <th>Tracking Number</th>
+   737→                  <th>Carrier</th>
+   738→                  <th>Status</th>
+   739→                  <th>Last Update</th>
+   740→                  <th>Est. Delivery</th>
+   741→                  <th>Actions</th>
+   742→                </tr>
+   743→              </thead>
+   744→              <tbody>
+   745→                {filteredShipments.map((shipment) => {
+   746→                  const statusConf = STATUS_CONFIG[shipment.status] || STATUS_CONFIG.pending;
+   747→                  const StatusIcon = statusConf.icon;
+   748→                  return (
+   749→                    <tr key={shipment.id}>
+   750→                      <td style={{ fontWeight: 600, color: "var(--accent-primary-light)" }}>
+   751→                        {shipment.title || "—"}
+   752→                      </td>
+   753→                      <td>
+   754→                        <span style={{ fontFamily: "monospace", fontSize: "var(--font-size-xs)" }}>
+   755→                          {shipment.tracking_number}
+   756→                        </span>
+   757→                      </td>
+   758→                      <td>
+   759→                        <span className="carrier-badge">
+   760→                          <Truck size={12} />
+   761→                          {shipment.carrier}
+   762→                        </span>
+   763→                      </td>
+   764→                      <td>
+   765→                        <span className={`shipping-status-badge ${statusConf.color}`}>
+   766→                          <StatusIcon size={12} />
+   767→                          {statusConf.label}
+   768→                        </span>
+   769→                      </td>
+   770→                      <td style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
+   771→                        {formatTimeAgo(shipment.last_checked_at || shipment.updated_at)}
+   772→                      </td>
+   773→                      <td style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
+   774→                        {shipment.estimated_delivery ? formatDate(shipment.estimated_delivery) : "—"}
+   775→                      </td>
+   776→                      <td>
+   777→                        <div style={{ display: "flex", gap: 4 }}>
+   778→                          <button
+   779→                            className="topbar-btn"
+   780→                            style={{ width: 30, height: 30 }}
+   781→                            title="View Timeline"
+   782→                            onClick={() => setViewingShipment(shipment)}
+   783→                          >
+   784→                            <Eye size={14} />
+   785→                          </button>
+   786→                          <button
+   787→                            className="topbar-btn"
+   788→                            style={{ width: 30, height: 30 }}
+   789→                            title="Refresh"
+   790→                            onClick={() => handleRefresh(shipment)}
+   791→                            disabled={refreshing === shipment.id}
+   792→                          >
+   793→                            {refreshing === shipment.id ? (
+   794→                              <Loader2 size={14} className="spin" />
+   795→                            ) : (
+   796→                              <RefreshCw size={14} />
+   797→                            )}
+   798→                          </button>
+   799→                          <button
+   800→                            className="topbar-btn"
+   801→                            style={{ width: 30, height: 30 }}
+   802→                            title="Send Update to Customer"
+   803→                            onClick={() => handleSendUpdate(shipment)}
+   804→                            disabled={sendingUpdate === shipment.id}
+   805→                          >
+   806→                            {sendingUpdate === shipment.id ? (
+   807→                              <Loader2 size={14} className="spin" />
+   808→                            ) : (
+   809→                              <Send size={14} />
+   810→                            )}
+   811→                          </button>
+   812→                        </div>
+   813→                      </td>
+   814→                    </tr>
+   815→                  );
+   816→                })}
+   817→                {filteredShipments.length === 0 && (
+   818→                  <tr>
+   819→                    <td colSpan="7" style={{ textAlign: "center", padding: "var(--space-2xl)", color: "var(--text-tertiary)" }}>
+   820→                      No shipments found
+   821→                    </td>
+   822→                  </tr>
+   823→                )}
+   824→              </tbody>
+   825→            </table>
+   826→            </div>
+   827→          )}
+   828→        </div>
+   829→      </div>
+   830→
+   831→      {/* Add Tracking Modal */}
+   832→      {showAddModal && (
+   833→        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowAddModal(false)}>
+   834→          <div className="modal" style={{ maxWidth: 480 }}>
+   835→            <div className="modal-header">
+   836→              <h3>Add Tracking</h3>
+   837→              <button className="modal-close" onClick={() => setShowAddModal(false)}>
+   838→                <X size={18} />
+   839→              </button>
+   840→            </div>
+   841→            <div className="modal-body">
+   842→              <div className="form-group">
+   843→                <label className="form-label">Order (optional)</label>
+   844→                <select
+   845→                  className="form-input"
+   846→                  value={addForm.order_id}
+   847→                  onChange={(e) => {
+   848→                    const selectedOrder = orders.find((o) => o.id === e.target.value);
+   849→                    setAddForm((prev) => ({
+   850→                      ...prev,
+   851→                      order_id: e.target.value,
+   852→                      title: selectedOrder?.order_number || prev.title,
+   853→                    }));
+   854→                  }}
+   855→                >
+   856→                  <option value="">Select an order...</option>
+   857→                  {orders.map((o) => (
+   858→                    <option key={o.id} value={o.id}>
+   859→                      {o.order_number} — {o.status}
+   860→                    </option>
+   861→                  ))}
+   862→                </select>
+   863→              </div>
+   864→
+   865→              <div className="form-group">
+   866→                <label className="form-label">Tracking Number *</label>
+   867→                <input
+   868→                  type="text"
+   869→                  className="form-input"
+   870→                  placeholder="e.g. ARA-2026-8743210"
+   871→                  value={addForm.tracking_number}
+   872→                  onChange={(e) => setAddForm((prev) => ({ ...prev, tracking_number: e.target.value }))}
+   873→                />
+   874→              </div>
+   875→
+   876→              <div className="form-group">
+   877→                <label className="form-label">Carrier</label>
+   878→                <select
+   879→                  className="form-input"
+   880→                  value={addForm.carrier}
+   881→                  onChange={(e) => setAddForm((prev) => ({ ...prev, carrier: e.target.value }))}
+   882→                >
+   883→                  {carriers.length > 0 ? (
+   884→                    carriers.map((c) => (
+   885→                      <option key={c.code} value={c.code}>{c.name}</option>
+   886→                    ))
+   887→                  ) : (
+   888→                    <>
+   889→                      <option value="aramex">Aramex</option>
+   890→                      <option value="dhl">DHL Express</option>
+   891→                      <option value="fedex">FedEx</option>
+   892→                      <option value="ups">UPS</option>
+   893→                    </>
+   894→                  )}
+   895→                </select>
+   896→              </div>
+   897→
+   898→              <div className="form-group">
+   899→                <label className="form-label">Title (optional)</label>
+   900→                <input
+   901→                  type="text"
+   902→                  className="form-input"
+   903→                  placeholder="e.g. Order #ORD-2026-0042"
+   904→                  value={addForm.title}
+   905→                  onChange={(e) => setAddForm((prev) => ({ ...prev, title: e.target.value }))}
+   906→                />
+   907→              </div>
+   908→            </div>
+   909→            <div className="modal-footer">
+   910→              <button className="btn btn-secondary" onClick={() => setShowAddModal(false)}>Cancel</button>
+   911→              <button className="btn btn-primary" onClick={handleAddTracking} disabled={addingTracking || !addForm.tracking_number.trim()}>
+   912→                {addingTracking ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
+   913→                Add Tracking
+   914→              </button>
+   915→            </div>
+   916→          </div>
+   917→        </div>
+   918→      )}
+   919→
+   920→      {/* Tracking Timeline Panel */}
+   921→      {viewingShipment && (
+   922→        <div className="shipping-panel-overlay" onClick={(e) => e.target === e.currentTarget && setViewingShipment(null)}>
+   923→          <div className="shipping-panel">
+   924→            <div className="shipping-panel-header">
+   925→              <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   926→                <MapPin size={18} />
+   927→                Tracking Timeline
+   928→              </h3>
+   929→              <button className="modal-close" onClick={() => setViewingShipment(null)}>
+   930→                <X size={18} />
+   931→              </button>
+   932→            </div>
+   933→
+   934→            <div className="shipping-panel-body">
+   935→              {/* Shipment Summary */}
+   936→              <div className="shipping-summary">
+   937→                <div className="shipping-summary-row">
+   938→                  <span className="shipping-summary-label">Tracking #</span>
+   939→                  <span style={{ fontFamily: "monospace", fontWeight: 600 }}>{viewingShipment.tracking_number}</span>
+   940→                </div>
+   941→                <div className="shipping-summary-row">
+   942→                  <span className="shipping-summary-label">Carrier</span>
+   943→                  <span className="carrier-badge">
+   944→                    <Truck size={12} />
+   945→                    {viewingShipment.carrier}
+   946→                  </span>
+   947→                </div>
+   948→                <div className="shipping-summary-row">
+   949→                  <span className="shipping-summary-label">Status</span>
+   950→                  {(() => {
+   951→                    const sc = STATUS_CONFIG[viewingShipment.status] || STATUS_CONFIG.pending;
+   952→                    const ScIcon = sc.icon;
+   953→                    return (
+   954→                      <span className={`shipping-status-badge ${sc.color}`}>
+   955→                        <ScIcon size={12} />
+   956→                        {sc.label}
+   957→                      </span>
+   958→                    );
+   959→                  })()}
+   960→                </div>
+   961→                {viewingShipment.estimated_delivery && (
+   962→                  <div className="shipping-summary-row">
+   963→                    <span className="shipping-summary-label">Est. Delivery</span>
+   964→                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+   965→                      <Clock size={12} style={{ color: "var(--accent-secondary)" }} />
+   966→                      {formatDate(viewingShipment.estimated_delivery)}
+   967→                    </span>
+   968→                  </div>
+   969→                )}
+   970→                {viewingShipment.title && (
+   971→                  <div className="shipping-summary-row">
+   972→                    <span className="shipping-summary-label">Order</span>
+   973→                    <span style={{ fontWeight: 600, color: "var(--accent-primary-light)" }}>{viewingShipment.title}</span>
+   974→                  </div>
+   975→                )}
+   976→              </div>
+   977→
+   978→              {/* Checkpoints Timeline */}
+   979→              <div style={{ marginTop: "var(--space-xl)" }}>
+   980→                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: "var(--space-lg)", fontWeight: 600 }}>
+   981→                  Checkpoints
+   982→                </div>
+   983→                <div className="tracking-timeline">
+   984→                  {(viewingShipment.checkpoints || []).map((cp, idx) => {
+   985→                    const cpConf = STATUS_CONFIG[cp.tag] || STATUS_CONFIG.pending;
+   986→                    const CpIcon = cpConf.icon;
+   987→                    const isFirst = idx === 0;
+   988→                    return (
+   989→                      <div key={idx} className="tracking-checkpoint">
+   990→                        <div className={`tracking-checkpoint-dot ${cpConf.color} ${isFirst ? "latest" : ""}`}>
+   991→                          <CpIcon size={12} />
+   992→                        </div>
+   993→                        {idx < (viewingShipment.checkpoints || []).length - 1 && (
+   994→                          <div className="tracking-checkpoint-line"></div>
+   995→                        )}
+   996→                        <div className={`tracking-checkpoint-card ${isFirst ? "latest" : ""}`}>
+   997→                          <div className="tracking-checkpoint-message">{cp.message}</div>
+   998→                          <div className="tracking-checkpoint-meta">
+   999→                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+  1000→                              <MapPin size={10} />
+  1001→                              {cp.location}
+  1002→                            </span>
+  1003→                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+  1004→                              <Clock size={10} />
+  1005→                              {formatDateTime(cp.checkpoint_time)}
+  1006→                            </span>
+  1007→                          </div>
+  1008→                        </div>
+  1009→                      </div>
+  1010→                    );
+  1011→                  })}
+  1012→                </div>
+  1013→              </div>
+  1014→
+  1015→              {/* Actions */}
+  1016→              <div style={{ marginTop: "var(--space-xl)", display: "flex", gap: "var(--space-md)" }}>
+  1017→                <button
+  1018→                  className="btn btn-secondary"
+  1019→                  onClick={() => handleRefresh(viewingShipment)}
+  1020→                  disabled={refreshing === viewingShipment.id}
+  1021→                >
+  1022→                  {refreshing === viewingShipment.id ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
+  1023→                  Refresh
+  1024→                </button>
+  1025→                <button
+  1026→                  className="btn btn-primary"
+  1027→                  onClick={() => handleSendUpdate(viewingShipment)}
+  1028→                  disabled={sendingUpdate === viewingShipment.id}
+  1029→                >
+  1030→                  {sendingUpdate === viewingShipment.id ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
+  1031→                  Send Update to Customer
+  1032→                </button>
+  1033→              </div>
+  1034→            </div>
+  1035→          </div>
+  1036→        </div>
+  1037→      )}
+  1038→    </>
+  1039→  );
+  1040→}
+  1041→

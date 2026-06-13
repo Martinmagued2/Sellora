@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Plus, Send, Clock, Users, Eye, BarChart3, Pause, Trash2,
@@ -569,7 +570,7 @@ export default function CampaignsPage() {
       )}
 
       {/* Create Campaign Modal */}
-      {showCreateModal && (
+      {showCreateModal && createPortal(
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowCreateModal(false)}>
           <div className="modal" style={{ maxWidth: 600 }}>
             <div className="modal-header">
@@ -736,7 +737,7 @@ export default function CampaignsPage() {
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }

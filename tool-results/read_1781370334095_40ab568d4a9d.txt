@@ -1,0 +1,2002 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useRef, useCallback } from "react";
+     4→import {
+     5→  MessageCircle, Send, Search, Bot, Phone, MoreVertical,
+     6→  FlaskConical, Package, ShoppingBag, Tag, X, Plus, Minus,
+     7→  ChevronRight, Camera, Globe, Clock, User, Mail,
+     8→  MapPin, Hash, Star, ArrowRight, Check, Loader2,
+     9→  FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
+    10→  Megaphone, AlertTriangle, BellOff, Mic, MicOff, Image as ImageIcon,
+    11→  ArrowLeft, Filter,
+    12→} from "lucide-react";
+    13→import { createClient } from "@/lib/supabase/client";
+    14→import { getPlanLimits } from "@/lib/plan-limits";
+    15→import { useDevice } from "@/lib/use-device";
+    16→import RecommendationsCard from "../components/RecommendationsCard";
+    17→import VoiceRecorder from "../components/VoiceRecorder";
+    18→import ImageUploader from "../components/ImageUploader";
+    19→
+    20→// ─── Intent badge config ───
+    21→const INTENT_CONFIG = {
+    22→  price_inquiry: { label: "💰 Price", color: "var(--accent-orange)" },
+    23→  order: { label: "🛒 Order", color: "var(--accent-green)" },
+    24→  order_status: { label: "📦 Status", color: "var(--accent-secondary)" },
+    25→  product_info: { label: "📋 Product", color: "var(--accent-primary-light)" },
+    26→  complaint: { label: "⚠️ Complaint", color: "var(--accent-red)" },
+    27→  return: { label: "↩️ Return", color: "var(--accent-pink)" },
+    28→  general: { label: "💬 General", color: "var(--text-tertiary)" },
+    29→};
+    30→
+    31→const CHANNEL_ICON = {
+    32→  instagram: <Camera size={14} />,
+    33→  facebook: <Globe size={14} />,
+    34→  whatsapp: <MessageSquare size={14} />,
+    35→};
+    36→
+    37→const STATUS_OPTIONS = [
+    38→  { value: "new", label: "New", color: "var(--accent-secondary)" },
+    39→  { value: "in_progress", label: "In Progress", color: "var(--accent-primary-light)" },
+    40→  { value: "needs_attention", label: "Needs Attention", color: "#e74c3c" },
+    41→  { value: "waiting_customer", label: "Waiting", color: "var(--accent-orange)" },
+    42→  { value: "closed", label: "Closed", color: "var(--text-tertiary)" },
+    43→];
+    44→
+    45→export default function ConversationsPage() {
+    46→  const { isMobile } = useDevice();
+    47→  const [conversations, setConversations] = useState([]);
+    48→  const [activeConv, setActiveConv] = useState(null);
+    49→  const [messages, setMessages] = useState([]);
+    50→  const [newMsg, setNewMsg] = useState("");
+    51→  const [search, setSearch] = useState("");
+    52→  const [loading, setLoading] = useState(true);
+    53→  const [sending, setSending] = useState(false);
+    54→  const [sendError, setSendError] = useState("");
+    55→
+    56→  // Right panel
+    57→  const [customerInfo, setCustomerInfo] = useState(null);
+    58→  const [customerOrders, setCustomerOrders] = useState([]);
+    59→  const [showInfoPanel, setShowInfoPanel] = useState(true);
+    60→
+    61→  // Quick actions
+    62→  const [showProductPicker, setShowProductPicker] = useState(false);
+    63→  const [showOrderModal, setShowOrderModal] = useState(false);
+    64→  const [products, setProducts] = useState([]);
+    65→  const [productSearch, setProductSearch] = useState("");
+    66→
+    67→  // Order creation
+    68→  const [orderItems, setOrderItems] = useState([]);
+    69→  const [orderPaymentMethod, setOrderPaymentMethod] = useState("cod");
+    70→  const [orderAddress, setOrderAddress] = useState("");
+    71→  const [orderSaving, setOrderSaving] = useState(false);
+    72→  const [sendPaymentLink, setSendPaymentLink] = useState(false);
+    73→
+    74→  // Simulator
+    75→  const [simulatorMode, setSimulatorMode] = useState(false);
+    76→  const [simInput, setSimInput] = useState("");
+    77→  const [simMessages, setSimMessages] = useState([]);
+    78→  const [simLoading, setSimLoading] = useState(false);
+    79→
+    80→  // Status filter
+    81→  const [statusFilter, setStatusFilter] = useState("all");
+    82→  const [accountPlan, setAccountPlan] = useState("starter");
+    83→
+    84→  // Summarize
+    85→  const [summarizing, setSummarizing] = useState(false);
+    86→  const [conversationSummary, setConversationSummary] = useState("");
+    87→
+    88→  // Quick Replies
+    89→  const [quickReplies, setQuickReplies] = useState([]);
+    90→  const [showQuickReplies, setShowQuickReplies] = useState(false);
+    91→  const [qrSearch, setQrSearch] = useState("");
+    92→
+    93→  // Channel filter
+    94→  const [channelFilter, setChannelFilter] = useState("all");
+    95→
+    96→  // Quick Broadcast
+    97→  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+    98→  const [broadcastMessage, setBroadcastMessage] = useState("");
+    99→  const [broadcastSending, setBroadcastSending] = useState(false);
+   100→  const [broadcastResult, setBroadcastResult] = useState(null);
+   101→
+   102→  // Slash command
+   103→  const [slashResults, setSlashResults] = useState([]);
+   104→  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+   105→  const [showSlashMenu, setShowSlashMenu] = useState(false);
+   106→
+   107→  // Image recognition
+   108→  const [imageRecognitionResults, setImageRecognitionResults] = useState({});
+   109→  const [showImageUploader, setShowImageUploader] = useState(false);
+   110→
+   111→  // Mobile navigation (legacy)
+   112→  const [mobileChatOpen, setMobileChatOpen] = useState(false);
+   113→
+   114→  // ─── New Mobile View State ───
+   115→  const [mobileView, setMobileView] = useState("list"); // 'list' | 'chat' | 'profile'
+   116→  const [showMobileSearch, setShowMobileSearch] = useState(false);
+   117→  const [showMobileFilters, setShowMobileFilters] = useState(false);
+   118→  const [showMobileStatusMenu, setShowMobileStatusMenu] = useState(false);
+   119→  const [showMobileQRSheet, setShowMobileQRSheet] = useState(false);
+   120→
+   121→  const messagesEndRef = useRef(null);
+   122→  const simulatorEndRef = useRef(null);
+   123→  const activeConvRef = useRef(null);
+   124→  const supabase = createClient();
+   125→
+   126→  // Keep ref in sync with state so callbacks always see the latest value
+   127→  useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
+   128→
+   129→  // ─── Fetch Quick Replies ───
+   130→  const fetchQuickReplies = useCallback(async () => {
+   131→    try {
+   132→      const res = await fetch("/api/quick-replies");
+   133→      const data = await res.json();
+   134→      if (data.success) {
+   135→        setQuickReplies(data.quickReplies || []);
+   136→      }
+   137→    } catch (err) {
+   138→      console.error("Failed to fetch quick replies:", err);
+   139→    }
+   140→  }, []);
+   141→
+   142→  useEffect(() => { fetchQuickReplies(); }, [fetchQuickReplies]);
+   143→
+   144→  // ─── Fetch conversations ───
+   145→  const fetchConversations = useCallback(async () => {
+   146→    // Fetch account plan for data retention
+   147→    const { data: { user } } = await supabase.auth.getUser();
+   148→    if (user) {
+   149→      const { data: acct } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
+   150→      if (acct?.plan) setAccountPlan(acct.plan);
+   151→
+   152→      // Use explicit account_id filter for reliability (don't rely solely on RLS)
+   153→      const { data } = await supabase
+   154→        .from("conversations")
+   155→        .select("*, customer:customers(id, name, phone, channel, platform, platform_id, tags, total_orders, total_spent, profile_pic_url, is_returning)")
+   156→        .eq("account_id", user.id)
+   157→        .order("last_message_at", { ascending: false });
+   158→
+   159→      if (data) {
+   160→        const convsWithLastMsg = await Promise.all(
+   161→          data.map(async (conv) => {
+   162→            const { data: msgs } = await supabase
+   163→              .from("messages")
+   164→              .select("content, created_at, direction, is_ai, intent")
+   165→              .eq("conversation_id", conv.id)
+   166→              .order("created_at", { ascending: false })
+   167→              .limit(1);
+   168→            return { ...conv, lastMessage: msgs?.[0] || null };
+   169→          })
+   170→        );
+   171→        setConversations(convsWithLastMsg);
+   172→        // Use ref instead of stale closure value
+   173→        if (!activeConvRef.current && convsWithLastMsg.length > 0) {
+   174→          setActiveConv(convsWithLastMsg[0]);
+   175→        }
+   176→      }
+   177→    }
+   178→    setLoading(false);
+   179→  }, []);
+   180→
+   181→  // ─── Fetch messages (with data retention) ───
+   182→  const fetchMessages = useCallback(async () => {
+   183→    if (!activeConv) return;
+   184→
+   185→    // Apply data retention filter based on plan
+   186→    const planLimits = getPlanLimits(accountPlan);
+   187→    let query = supabase
+   188→      .from("messages")
+   189→      .select("*")
+   190→      .eq("conversation_id", activeConv.id)
+   191→      .order("created_at", { ascending: true });
+   192→
+   193→    // Apply retention limit if not unlimited
+   194→    if (planLimits.data_retention_days !== -1) {
+   195→      const cutoff = new Date(Date.now() - planLimits.data_retention_days * 24 * 60 * 60 * 1000).toISOString();
+   196→      query = query.gte("created_at", cutoff);
+   197→    }
+   198→
+   199→    const { data } = await query;
+   200→    if (data) setMessages(data);
+   201→
+   202→    if (activeConv.unread_count > 0) {
+   203→      await supabase.from("conversations").update({ unread_count: 0 }).eq("id", activeConv.id);
+   204→    }
+   205→  }, [activeConv]);
+   206→
+   207→  // ─── Fetch customer details ───
+   208→  const fetchCustomerInfo = useCallback(async () => {
+   209→    if (!activeConv?.customer?.id) return;
+   210→    const { data: customer } = await supabase
+   211→      .from("customers")
+   212→      .select("*")
+   213→      .eq("id", activeConv.customer.id)
+   214→      .single();
+   215→    setCustomerInfo(customer);
+   216→
+   217→    const { data: orders } = await supabase
+   218→      .from("orders")
+   219→      .select("*")
+   220→      .eq("customer_id", activeConv.customer.id)
+   221→      .order("created_at", { ascending: false })
+   222→      .limit(5);
+   223→    setCustomerOrders(orders || []);
+   224→  }, [activeConv]);
+   225→
+   226→  // ─── Fetch products for picker ───
+   227→  const fetchProducts = useCallback(async () => {
+   228→    let query = supabase.from("products").select("*").eq("status", "active").order("name");
+   229→    if (productSearch) query = query.ilike("name", `%${productSearch}%`);
+   230→    const { data } = await query;
+   231→    setProducts(data || []);
+   232→  }, [productSearch]);
+   233→
+   234→  useEffect(() => { fetchConversations(); }, [fetchConversations]);
+   235→  useEffect(() => { fetchMessages(); }, [fetchMessages]);
+   236→  useEffect(() => { fetchCustomerInfo(); }, [fetchCustomerInfo]);
+   237→  useEffect(() => { if (showProductPicker || showOrderModal) fetchProducts(); }, [showProductPicker, showOrderModal, fetchProducts]);
+   238→  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+   239→  useEffect(() => { simulatorEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [simMessages]);
+   240→
+   241→  // ─── Auto-refresh conversation list every 15 seconds ───
+   242→  useEffect(() => {
+   243→    const interval = setInterval(fetchConversations, 15000);
+   244→    return () => clearInterval(interval);
+   245→  }, [fetchConversations]);
+   246→
+   247→  // ─── Real-time: New message in active conversation ───
+   248→  useEffect(() => {
+   249→    if (!activeConv) return;
+   250→    const channel = supabase
+   251→      .channel(`messages:${activeConv.id}`)
+   252→      .on("postgres_changes", {
+   253→        event: "INSERT",
+   254→        schema: "public",
+   255→        table: "messages",
+   256→        filter: `conversation_id=eq.${activeConv.id}`,
+   257→      }, (payload) => {
+   258→        setMessages((prev) => {
+   259→          // Avoid duplicates (real-time + fetchMessages race)
+   260→          if (prev.some((m) => m.id === payload.new.id)) return prev;
+   261→          return [...prev, payload.new];
+   262→        });
+   263→        // Refresh conversation list to update last message preview
+   264→        fetchConversations();
+   265→      })
+   266→      .subscribe();
+   267→
+   268→    return () => { supabase.removeChannel(channel); };
+   269→  }, [activeConv, fetchConversations]);
+   270→
+   271→  // ─── Real-time: New conversation created (incoming message from new user) ───
+   272→  useEffect(() => {
+   273→    let channel;
+   274→    let userId = null;
+   275→
+   276→    const setup = async () => {
+   277→      const { data: { user } } = await supabase.auth.getUser();
+   278→      if (!user) return;
+   279→      userId = user.id;
+   280→
+   281→      channel = supabase
+   282→        .channel("conversations:global")
+   283→        .on("postgres_changes", {
+   284→          event: "INSERT",
+   285→          schema: "public",
+   286→          table: "conversations",
+   287→          filter: `account_id=eq.${userId}`,
+   288→        }, () => {
+   289→          fetchConversations();
+   290→        })
+   291→        .on("postgres_changes", {
+   292→          event: "UPDATE",
+   293→          schema: "public",
+   294→          table: "conversations",
+   295→          filter: `account_id=eq.${userId}`,
+   296→        }, () => {
+   297→          fetchConversations();
+   298→        })
+   299→        .subscribe();
+   300→    };
+   301→
+   302→    setup();
+   303→
+   304→    return () => {
+   305→      if (channel) supabase.removeChannel(channel);
+   306→    };
+   307→  }, [fetchConversations]);
+   308→
+   309→  // ─── Send message ───
+   310→  const handleSend = async (e) => {
+   311→    e?.preventDefault();
+   312→    if (!newMsg.trim() || !activeConv || sending) return;
+   313→    setSending(true);
+   314→    setSendError("");
+   315→
+   316→    try {
+   317→      if (activeConv.channel === "whatsapp" || activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+   318→        // Send via the API route — it handles channel delivery AND DB save
+   319→        const res = await fetch("/api/messages/send", {
+   320→          method: "POST",
+   321→          headers: { "Content-Type": "application/json" },
+   322→          body: JSON.stringify({
+   323→            conversationId: activeConv.id,
+   324→            content: newMsg.trim(),
+   325→          }),
+   326→        });
+   327→
+   328→        const data = await res.json();
+   329→        if (!res.ok) {
+   330→          console.error("Failed to send message:", data.error);
+   331→          setSendError(data.error || "Failed to send message");
+   332→          setSending(false);
+   333→          return;
+   334→        }
+   335→      } else {
+   336→        // For other channels (or no channel), just save locally
+   337→        await supabase.from("messages").insert({
+   338→          conversation_id: activeConv.id,
+   339→          account_id: activeConv.account_id,
+   340→          direction: "outgoing",
+   341→          content: newMsg.trim(),
+   342→          type: "text",
+   343→          is_ai: false,
+   344→        });
+   345→      }
+   346→
+   347→      // Only update conversation locally for non-API paths (API route already does it)
+   348→      if (activeConv.channel !== "whatsapp" && activeConv.channel !== "instagram" && activeConv.channel !== "facebook") {
+   349→        await supabase.from("conversations")
+   350→          .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
+   351→          .eq("id", activeConv.id);
+   352→      }
+   353→
+   354→      setNewMsg("");
+   355→      await fetchMessages();
+   356→      await fetchConversations();
+   357→    } catch (err) {
+   358→      console.error("Send error:", err);
+   359→      setSendError("Network error — please try again");
+   360→    }
+   361→    setSending(false);
+   362→  };
+   363→
+   364→  // ─── Update conversation status ───
+   365→  const updateConvStatus = async (status) => {
+   366→    if (!activeConv) return;
+   367→    const updates = { status };
+   368→    if (status === "closed") updates.resolved_at = new Date().toISOString();
+   369→    await supabase.from("conversations").update(updates).eq("id", activeConv.id);
+   370→    setActiveConv((prev) => ({ ...prev, status }));
+   371→    fetchConversations();
+   372→  };
+   373→
+   374→  // ─── Summarize conversation ───
+   375→  const handleSummarize = async () => {
+   376→    if (!activeConv || summarizing) return;
+   377→    setSummarizing(true);
+   378→    try {
+   379→      const res = await fetch("/api/ai/summarize-conversation", {
+   380→        method: "POST",
+   381→        headers: { "Content-Type": "application/json" },
+   382→        body: JSON.stringify({ conversation_id: activeConv.id }),
+   383→      });
+   384→      const data = await res.json();
+   385→      if (res.ok && data.success) {
+   386→        setConversationSummary(data.summary);
+   387→      } else {
+   388→        console.error("Summarize failed:", data.error);
+   389→      }
+   390→    } catch (err) {
+   391→      console.error("Summarize error:", err);
+   392→    }
+   393→    setSummarizing(false);
+   394→  };
+   395→
+   396→  // ─── Send product card into chat ───
+   397→  const handleSendProduct = async (product) => {
+   398→    if (!activeConv) return;
+   399→    const content = `📦 ${product.name}\n💰 ${product.price} EGP\n${product.description || ""}`;
+   400→
+   401→    try {
+   402→      // Send via Meta API for Facebook/Instagram channels, or WhatsApp API
+   403→      if (activeConv.channel === "instagram" || activeConv.channel === "facebook" || activeConv.channel === "whatsapp") {
+   404→        const res = await fetch("/api/messages/send", {
+   405→          method: "POST",
+   406→          headers: { "Content-Type": "application/json" },
+   407→          body: JSON.stringify({
+   408→            conversationId: activeConv.id,
+   409→            content,
+   410→            type: activeConv.channel === "whatsapp" ? "text" : "product_card",
+   411→            ...(activeConv.channel !== "whatsapp" && {
+   412→              product: {
+   413→                name: product.name,
+   414→                price: product.price,
+   415→                currency: "EGP",
+   416→                description: product.description || "",
+   417→                image_urls: product.image_urls || [],
+   418→                id: product.id,
+   419→              },
+   420→            }),
+   421→            ...(activeConv.channel === "whatsapp" && { channel: "whatsapp" }),
+   422→          }),
+   423→        });
+   424→
+   425→        const data = await res.json();
+   426→        if (!res.ok) {
+   427→          console.error(`Failed to send product card to ${activeConv.channel}:`, data.error);
+   428→          // Fallback: save locally even if delivery fails
+   429→          await supabase.from("messages").insert({
+   430→            conversation_id: activeConv.id,
+   431→            account_id: activeConv.account_id,
+   432→            direction: "outgoing",
+   433→            content,
+   434→            type: "product_card",
+   435→            is_ai: false,
+   436→          });
+   437→        }
+   438→      } else {
+   439→        // For other channels, just save locally
+   440→        await supabase.from("messages").insert({
+   441→          conversation_id: activeConv.id,
+   442→          account_id: activeConv.account_id,
+   443→          direction: "outgoing",
+   444→          content,
+   445→          type: "product_card",
+   446→          is_ai: false,
+   447→        });
+   448→      }
+   449→
+   450→      // Update conversation timestamp
+   451→      await supabase.from("conversations")
+   452→        .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
+   453→        .eq("id", activeConv.id);
+   454→    } catch (err) {
+   455→      console.error("Send product error:", err);
+   456→      // Fallback: save locally
+   457→      await supabase.from("messages").insert({
+   458→        conversation_id: activeConv.id,
+   459→        account_id: activeConv.account_id,
+   460→        direction: "outgoing",
+   461→        content,
+   462→        type: "product_card",
+   463→        is_ai: false,
+   464→      });
+   465→    }
+   466→
+   467→    setShowProductPicker(false);
+   468→    fetchMessages();
+   469→    fetchConversations();
+   470→  };
+   471→
+   472→  // ─── Create order from chat ───
+   473→  const handleCreateOrder = async () => {
+   474→    if (orderItems.length === 0 || !activeConv) return;
+   475→    setOrderSaving(true);
+   476→
+   477→    const { data: { user } } = await supabase.auth.getUser();
+   478→    const subtotal = orderItems.reduce((s, item) => s + item.price * item.qty, 0);
+   479→
+   480→    const { data: orderData, error } = await supabase.from("orders").insert({
+   481→      account_id: user.id,
+   482→      customer_id: activeConv.customer.id,
+   483→      conversation_id: activeConv.id,
+   484→      items: orderItems.map((i) => ({ name: i.name, qty: i.qty, price: i.price, product_id: i.id })),
+   485→      subtotal,
+   486→      total: subtotal,
+   487→      status: "pending",
+   488→      payment_method: orderPaymentMethod,
+   489→      shipping_address: orderAddress,
+   490→      channel: activeConv.channel || "instagram",
+   491→      source: "chat",
+   492→    }).select("id, order_number").single();
+   493→
+   494→    if (!error && orderData) {
+   495→      // Build confirmation message
+   496→      const itemsList = orderItems.map((i) => `${i.qty}x ${i.name}`).join(", ");
+   497→      let confirmationContent = `✅ Order created!\n\nItems: ${itemsList}\nTotal: ${subtotal} EGP\nPayment: ${orderPaymentMethod === "paymob" ? "Online Payment" : orderPaymentMethod.toUpperCase()}`;
+   498→
+   499→      // Generate Paymob payment link if requested
+   500→      let paymentUrl = null;
+   501→      if (sendPaymentLink || orderPaymentMethod === "paymob") {
+   502→        try {
+   503→          const paymobRes = await fetch("/api/paymob/order-checkout", {
+   504→            method: "POST",
+   505→            headers: { "Content-Type": "application/json" },
+   506→            body: JSON.stringify({ orderId: orderData.id }),
+   507→          });
+   508→          const paymobData = await paymobRes.json();
+   509→
+   510→          if (paymobRes.ok && paymobData.paymentLink) {
+   511→            paymentUrl = paymobData.paymentLink;
+   512→            confirmationContent += `\n\n💳 Pay now: ${paymentUrl}`;
+   513→          } else {
+   514→            console.error("Failed to generate Paymob link:", paymobData.error);
+   515→          }
+   516→        } catch (err) {
+   517→          console.error("Paymob checkout error:", err);
+   518→        }
+   519→      }
+   520→
+   521→      confirmationContent += "\n\nWe'll confirm your order shortly!";
+   522→
+   523→      // Send confirmation via Meta API for Facebook/Instagram channels or WhatsApp
+   524→      try {
+   525→        if (activeConv.channel === "instagram" || activeConv.channel === "facebook" || activeConv.channel === "whatsapp") {
+   526→          const res = await fetch("/api/messages/send", {
+   527→            method: "POST",
+   528→            headers: { "Content-Type": "application/json" },
+   529→            body: JSON.stringify({
+   530→              conversationId: activeConv.id,
+   531→              content: confirmationContent,
+   532→              type: "text",
+   533→              ...(activeConv.channel === "whatsapp" && { channel: "whatsapp" }),
+   534→            }),
+   535→          });
+   536→
+   537→          const data = await res.json();
+   538→          if (!res.ok) {
+   539→            console.error(`Failed to send order confirmation to ${activeConv.channel}:`, data.error);
+   540→            // Fallback: save locally
+   541→            await supabase.from("messages").insert({
+   542→              conversation_id: activeConv.id,
+   543→              account_id: activeConv.account_id,
+   544→              direction: "outgoing",
+   545→              content: confirmationContent,
+   546→              type: "text",
+   547→              is_ai: false,
+   548→            });
+   549→          }
+   550→        } else {
+   551→          // For other channels, just save locally
+   552→          await supabase.from("messages").insert({
+   553→            conversation_id: activeConv.id,
+   554→            account_id: activeConv.account_id,
+   555→            direction: "outgoing",
+   556→            content: confirmationContent,
+   557→            type: "text",
+   558→            is_ai: false,
+   559→          });
+   560→        }
+   561→      } catch (err) {
+   562→        console.error("Send order confirmation error:", err);
+   563→        // Fallback: save locally
+   564→        await supabase.from("messages").insert({
+   565→          conversation_id: activeConv.id,
+   566→          account_id: activeConv.account_id,
+   567→          direction: "outgoing",
+   568→          content: confirmationContent,
+   569→          type: "text",
+   570→          is_ai: false,
+   571→        });
+   572→      }
+   573→
+   574→      setShowOrderModal(false);
+   575→      setOrderItems([]);
+   576→      setOrderAddress("");
+   577→      setSendPaymentLink(false);
+   578→      fetchMessages();
+   579→      fetchCustomerInfo();
+   580→      fetchConversations();
+   581→    }
+   582→    setOrderSaving(false);
+   583→  };
+   584→
+   585→  // ─── Handle image message from ImageUploader ───
+   586→  const handleSendImageMessage = useCallback(async (aiResponse, analysis, products) => {
+   587→    if (!activeConv) return;
+   588→
+   589→    // Save the AI response about the image as a message
+   590→    const content = aiResponse || `I see the image you sent. ${analysis || "Let me analyze it and get back to you."}`;
+   591→
+   592→    try {
+   593→      await supabase.from("messages").insert({
+   594→        conversation_id: activeConv.id,
+   595→        account_id: activeConv.account_id,
+   596→        direction: "outgoing",
+   597→        content,
+   598→        type: "text",
+   599→        is_ai: true,
+   600→      });
+   601→
+   602→      await supabase.from("conversations")
+   603→        .update({ last_message_at: new Date().toISOString() })
+   604→        .eq("id", activeConv.id);
+   605→
+   606→      fetchMessages();
+   607→      fetchConversations();
+   608→    } catch (err) {
+   609→      console.error("Send image message error:", err);
+   610→    }
+   611→  }, [activeConv, supabase, fetchMessages, fetchConversations]);
+   612→
+   613→  // ─── Auto-run recognition on incoming image messages ───
+   614→  const handleAutoRecognize = useCallback(async (messageId, imageUrl) => {
+   615→    if (imageRecognitionResults[messageId]) return; // Already processed
+   616→
+   617→    try {
+   618→      const res = await fetch("/api/messages/recognize-image", {
+   619→        method: "POST",
+   620→        headers: { "Content-Type": "application/json" },
+   621→        body: JSON.stringify({ image_url: imageUrl, conversation_id: activeConv?.id }),
+   622→      });
+   623→
+   624→      const data = await res.json();
+   625→      if (data.success) {
+   626→        setImageRecognitionResults((prev) => ({
+   627→          ...prev,
+   628→          [messageId]: {
+   629→            analysis: data.analysis,
+   630→            products: data.products || [],
+   631→            ai_response: data.ai_response,
+   632→          },
+   633→        }));
+   634→      }
+   635→    } catch (err) {
+   636→      console.error("Auto-recognize error:", err);
+   637→    }
+   638→  }, [activeConv, imageRecognitionResults]);
+   639→
+   640→  // ─── Simulator ───
+   641→  const handleSimSubmit = async () => {
+   642→    if (!simInput?.trim() || simLoading) return;
+   643→    const userMsg = { id: Date.now().toString(), role: "user", content: simInput };
+   644→    setSimMessages((prev) => [...prev, userMsg]);
+   645→    setSimInput("");
+   646→    setSimLoading(true);
+   647→
+   648→    try {
+   649→      const resp = await fetch("/api/ai/simulate", {
+   650→        method: "POST",
+   651→        headers: { "Content-Type": "application/json" },
+   652→        body: JSON.stringify({ messages: [...simMessages, userMsg] }),
+   653→      });
+   654→      const data = await resp.json();
+   655→      if (!resp.ok) throw new Error(data.error || "Simulation failed");
+   656→      setSimMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: data.content }]);
+   657→    } catch (error) {
+   658→      setSimMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `⚠️ Simulator Error: ${error.message}` }]);
+   659→    } finally {
+   660→      setSimLoading(false);
+   661→    }
+   662→  };
+   663→
+   664→  // ─── Helpers ───
+   665→  const formatTime = (d) => new Date(d).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+   666→  const formatRelative = (d) => {
+   667→    const diff = Date.now() - new Date(d).getTime();
+   668→    const mins = Math.floor(diff / 60000);
+   669→    if (mins < 1) return "now";
+   670→    if (mins < 60) return `${mins}m`;
+   671→    const hours = Math.floor(mins / 60);
+   672→    if (hours < 24) return `${hours}h`;
+   673→    return `${Math.floor(hours / 24)}d`;
+   674→  };
+   675→  const formatDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+   676→
+   677→  // ─── Group quick replies by category ───
+   678→  const quickRepliesByCategory = (() => {
+   679→    const filtered = quickReplies.filter((qr) => {
+   680→      if (!qrSearch) return true;
+   681→      const s = qrSearch.toLowerCase();
+   682→      return (
+   683→        qr.title?.toLowerCase().includes(s) ||
+   684→        qr.content?.toLowerCase().includes(s) ||
+   685→        qr.category?.toLowerCase().includes(s)
+   686→      );
+   687→    });
+   688→    const grouped = {};
+   689→    for (const qr of filtered) {
+   690→      const cat = qr.category || "General";
+   691→      if (!grouped[cat]) grouped[cat] = [];
+   692→      grouped[cat].push(qr);
+   693→    }
+   694→    return grouped;
+   695→  })();
+   696→
+   697→  // ─── Filter conversations ───
+   698→  const filteredConvs = conversations.filter((c) => {
+   699→    if (search && !c.customer?.name?.toLowerCase().includes(search.toLowerCase())) return false;
+   700→    if (statusFilter !== "all" && c.status !== statusFilter) return false;
+   701→    if (channelFilter !== "all" && c.channel !== channelFilter) return false;
+   702→    return true;
+   703→  });
+   704→
+   705→  const statusColor = STATUS_OPTIONS.find((s) => s.value === activeConv?.status)?.color || "var(--text-tertiary)";
+   706→
+   707→  // ─── Shared: Render a single message ───
+   708→  const renderMessage = (msg) => (
+   709→    <div
+   710→      key={msg.id}
+   711→      className={`chat-msg ${msg.direction === "incoming" ? "incoming" : msg.is_ai ? "ai-reply" : "outgoing"}`}
+   712→    >
+   713→      {msg.is_ai && <span className="ai-label"><Bot size={10} /> AI Auto-Reply</span>}
+   714→      {msg.sentiment && (msg.sentiment === "negative" || msg.sentiment === "urgent") && msg.direction === "incoming" && (
+   715→        <span style={{
+   716→          fontSize: 10, padding: "2px 8px", borderRadius: 8, marginBottom: 4, display: "inline-block",
+   717→          background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+   718→        }}>
+   719→          🔴 {msg.sentiment}
+   720→        </span>
+   721→      )}
+   722→      {msg.intent && msg.intent !== "general" && msg.direction === "incoming" && (
+   723→        <span style={{
+   724→          fontSize: 10, padding: "2px 8px", borderRadius: 8, marginBottom: 4, display: "inline-block",
+   725→          background: INTENT_CONFIG[msg.intent]?.color + "22",
+   726→          color: INTENT_CONFIG[msg.intent]?.color,
+   727→        }}>
+   728→          {INTENT_CONFIG[msg.intent]?.label}
+   729→        </span>
+   730→      )}
+   731→      {msg.type === "product_card" ? (
+   732→        <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)" }}>
+   733→          <div style={{ whiteSpace: "pre-line" }}>{msg.content}</div>
+   734→        </div>
+   735→      ) : msg.type === "image" && msg.media_url ? (
+   736→        <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)", maxWidth: 280 }}>
+   737→          <div className="chat-image-thumbnail" onClick={() => {
+   738→            if (!imageRecognitionResults[msg.id]) {
+   739→              handleAutoRecognize(msg.id, msg.media_url);
+   740→            }
+   741→          }}>
+   742→            <img src={msg.media_url} alt="Customer sent image" className="chat-image-thumb" />
+   743→            {!imageRecognitionResults[msg.id] && (
+   744→              <div className="chat-image-recognize-hint">
+   745→                <Camera size={12} /> Click to find matching products
+   746→              </div>
+   747→            )}
+   748→          </div>
+   749→          {msg.content && <div style={{ marginTop: 6, fontSize: 12, whiteSpace: "pre-line" }}>{msg.content}</div>}
+   750→          {imageRecognitionResults[msg.id] && (
+   751→            <div className="chat-image-recognition-results">
+   752→              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-secondary)", textTransform: "uppercase", marginBottom: 4 }}>
+   753→                🔍 Product Matches
+   754→              </div>
+   755→              {(imageRecognitionResults[msg.id].products || []).slice(0, 3).map((product) => (
+   756→                <div key={product.id} className="chat-recognition-product" onClick={() => handleSendProduct(product)}>
+   757→                  <Package size={11} style={{ color: "var(--accent-primary-light)", flexShrink: 0 }} />
+   758→                  <div style={{ flex: 1, overflow: "hidden" }}>
+   759→                    <div style={{ fontWeight: 600, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{product.name}</div>
+   760→                    <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>{product.price} EGP • {product.confidence}%</div>
+   761→                  </div>
+   762→                </div>
+   763→              ))}
+   764→            </div>
+   765→          )}
+   766→        </div>
+   767→      ) : (
+   768→        <>{msg.content}</>
+   769→      )}
+   770→      <span className="msg-time">{formatTime(msg.created_at)}</span>
+   771→    </div>
+   772→  );
+   773→
+   774→  // ═══════════════════════════════════════════════════════
+   775→  //  MOBILE RENDERING
+   776→  // ═══════════════════════════════════════════════════════
+   777→  if (isMobile) {
+   778→    return (
+   779→      <div style={{ height: "calc(100vh - 56px)", overflow: "hidden", position: "relative" }}>
+   780→
+   781→        {/* ═══ MOBILE VIEW: Conversation List ═══ */}
+   782→        {mobileView === "list" && (
+   783→          <div className="mobile-conv-list">
+   784→            {/* Header */}
+   785→            <div className="mobile-conv-list-header">
+   786→              <h2>Chats</h2>
+   787→              <div className="mobile-conv-list-actions">
+   788→                <button onClick={() => setShowMobileSearch(!showMobileSearch)} title="Search">
+   789→                  <Search size={20} />
+   790→                </button>
+   791→                <button onClick={() => setShowMobileFilters(!showMobileFilters)} title="Filters">
+   792→                  <Filter size={20} />
+   793→                </button>
+   794→              </div>
+   795→            </div>
+   796→
+   797→            {/* Expandable search bar */}
+   798→            {showMobileSearch && (
+   799→              <div className="mobile-search-bar">
+   800→                <input
+   801→                  type="text"
+   802→                  placeholder="Search conversations..."
+   803→                  value={search}
+   804→                  onChange={(e) => setSearch(e.target.value)}
+   805→                  autoFocus
+   806→                />
+   807→              </div>
+   808→            )}
+   809→
+   810→            {/* Horizontally scrollable filter chips */}
+   811→            <div className="mobile-filter-chips">
+   812→              {[{ value: "all", label: "All" }, ...STATUS_OPTIONS].map((s) => (
+   813→                <button
+   814→                  key={s.value}
+   815→                  className={`mobile-filter-chip ${statusFilter === s.value ? "active" : ""}`}
+   816→                  onClick={() => setStatusFilter(s.value)}
+   817→                >
+   818→                  {s.value !== "all" && (
+   819→                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+   820→                  )}
+   821→                  {s.label}
+   822→                </button>
+   823→              ))}
+   824→              <div className="mobile-filter-chip-divider" />
+   825→              {[
+   826→                { value: "all", label: "All" },
+   827→                { value: "instagram", label: "📷 IG" },
+   828→                { value: "facebook", label: "🌐 FB" },
+   829→                { value: "whatsapp", label: "📱 WA" },
+   830→              ].map((ch) => (
+   831→                <button
+   832→                  key={ch.value}
+   833→                  className={`mobile-filter-chip ${channelFilter === ch.value ? "channel-active" : ""}`}
+   834→                  onClick={() => setChannelFilter(ch.value)}
+   835→                >
+   836→                  {ch.label}
+   837→                </button>
+   838→              ))}
+   839→            </div>
+   840→
+   841→            {/* Conversation items */}
+   842→            <div className="mobile-conv-items">
+   843→              {loading ? (
+   844→                <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)" }}>
+   845→                  <Loader2 size={24} className="spin" style={{ margin: "0 auto 8px" }} />
+   846→                  <div style={{ fontSize: "var(--font-size-sm)" }}>Loading...</div>
+   847→                </div>
+   848→              ) : filteredConvs.length === 0 ? (
+   849→                <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+   850→                  No conversations found
+   851→                </div>
+   852→              ) : filteredConvs.map((conv) => (
+   853→                <div
+   854→                  key={conv.id}
+   855→                  className="mobile-conv-item"
+   856→                  onClick={() => {
+   857→                    setActiveConv(conv);
+   858→                    setSimulatorMode(false);
+   859→                    setMobileView("chat");
+   860→                    setConversationSummary("");
+   861→                  }}
+   862→                >
+   863→                  {/* Avatar */}
+   864→                  <div className="mobile-conv-avatar" style={{ background: conv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
+   865→                    {conv.customer?.profile_pic_url ? (
+   866→                      <img src={conv.customer.profile_pic_url} alt="" />
+   867→                    ) : (
+   868→                      conv.customer?.name?.split(" ").map(n => n[0]).join("") || "?"
+   869→                    )}
+   870→                    <span className="mobile-conv-avatar-badge">
+   871→                      {CHANNEL_ICON[conv.channel] || CHANNEL_ICON.instagram}
+   872→                    </span>
+   873→                  </div>
+   874→
+   875→                  {/* Content */}
+   876→                  <div className="mobile-conv-content">
+   877→                    <div className="mobile-conv-top">
+   878→                      <span className="mobile-conv-name">
+   879→                        {conv.customer?.name || "Unknown"}
+   880→                        {conv.customer?.is_returning && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 8, background: "rgba(88,101,242,0.15)", color: "var(--accent-primary-light)" }}>↩</span>}
+   881→                      </span>
+   882→                      <span className={`mobile-conv-time ${conv.unread_count > 0 ? "unread" : ""}`}>
+   883→                        {formatRelative(conv.last_message_at)}
+   884→                      </span>
+   885→                    </div>
+   886→                    <div className="mobile-conv-preview">
+   887→                      {conv.lastMessage?.is_ai && <Bot size={11} style={{ color: "var(--accent-secondary)", flexShrink: 0 }} />}
+   888→                      {conv.lastMessage?.intent && conv.lastMessage.intent !== "general" && (
+   889→                        <span className="mobile-conv-intent" style={{ background: INTENT_CONFIG[conv.lastMessage.intent]?.color + "22", color: INTENT_CONFIG[conv.lastMessage.intent]?.color }}>
+   890→                          {INTENT_CONFIG[conv.lastMessage.intent]?.label}
+   891→                        </span>
+   892→                      )}
+   893→                      <span className="mobile-conv-preview-text">
+   894→                        {conv.lastMessage?.content?.slice(0, 50) || "No messages yet"}
+   895→                      </span>
+   896→                    </div>
+   897→                  </div>
+   898→
+   899→                  {/* Unread badge */}
+   900→                  {conv.unread_count > 0 && (
+   901→                    <span className="mobile-conv-unread">{conv.unread_count}</span>
+   902→                  )}
+   903→                </div>
+   904→              ))}
+   905→            </div>
+   906→
+   907→            {/* FAB */}
+   908→            <button className="mobile-fab" onClick={() => setShowBroadcastModal(true)} title="Quick Broadcast">
+   909→              <Megaphone size={22} />
+   910→            </button>
+   911→          </div>
+   912→        )}
+   913→
+   914→        {/* ═══ MOBILE VIEW: Chat ═══ */}
+   915→        {mobileView === "chat" && activeConv && (
+   916→          <div className="mobile-chat-view">
+   917→            {/* Chat Header */}
+   918→            <div className="mobile-chat-header" style={{ position: "relative" }}>
+   919→              <button className="mobile-chat-header-back" onClick={() => setMobileView("list")}>
+   920→                <ArrowLeft size={22} />
+   921→              </button>
+   922→
+   923→              <div className="mobile-chat-header-info" onClick={() => setMobileView("profile")}>
+   924→                <div className="mobile-chat-header-avatar" style={{ background: activeConv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
+   925→                  {activeConv.customer?.profile_pic_url ? (
+   926→                    <img src={activeConv.customer.profile_pic_url} alt="" />
+   927→                  ) : (
+   928→                    activeConv.customer?.name?.split(" ").map(n => n[0]).join("")
+   929→                  )}
+   930→                </div>
+   931→                <div className="mobile-chat-header-text">
+   932→                  <div className="mobile-chat-header-name">{activeConv.customer?.name}</div>
+   933→                  <div className="mobile-chat-header-channel">
+   934→                    {CHANNEL_ICON[activeConv.channel]}
+   935→                    {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : "WhatsApp"}
+   936→                  </div>
+   937→                </div>
+   938→              </div>
+   939→
+   940→              <div className="mobile-chat-header-actions">
+   941→                {/* Negative sentiment indicator */}
+   942→                {(activeConv.tags || []).some(t => t.startsWith("sentiment:negative") || t.startsWith("sentiment:urgent")) && (
+   943→                  <span style={{
+   944→                    display: "flex", alignItems: "center", gap: 3,
+   945→                    padding: "2px 6px", borderRadius: 10, fontSize: 9, fontWeight: 600,
+   946→                    background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+   947→                  }}>
+   948→                    🔴
+   949→                  </span>
+   950→                )}
+   951→                {/* AI Escalation indicator */}
+   952→                {(activeConv.tags || []).some(t => t.startsWith("escalated:")) && (
+   953→                  <span style={{
+   954→                    display: "flex", alignItems: "center", gap: 3,
+   955→                    padding: "2px 6px", borderRadius: 10, fontSize: 9, fontWeight: 600,
+   956→                    background: "rgba(231, 76, 60, 0.15)", color: "#e74c3c",
+   957→                  }}>
+   958→                    🤖
+   959→                  </span>
+   960→                )}
+   961→                <button onClick={handleSummarize} disabled={summarizing} title="Summarize">
+   962→                  {summarizing ? <Loader2 size={18} className="spin" /> : <FileText size={18} />}
+   963→                </button>
+   964→                <button onClick={() => setShowMobileStatusMenu(!showMobileStatusMenu)} title="Status">
+   965→                  <MoreVertical size={18} />
+   966→                </button>
+   967→              </div>
+   968→
+   969→              {/* Status dropdown menu */}
+   970→              {showMobileStatusMenu && (
+   971→                <div className="mobile-status-menu">
+   972→                  {STATUS_OPTIONS.map((s) => (
+   973→                    <button
+   974→                      key={s.value}
+   975→                      className="mobile-status-option"
+   976→                      onClick={() => { updateConvStatus(s.value); setShowMobileStatusMenu(false); }}
+   977→                      style={{ background: activeConv.status === s.value ? "rgba(108,92,231,0.08)" : "none" }}
+   978→                    >
+   979→                      <span className="mobile-status-dot" style={{ background: s.color }} />
+   980→                      {s.label}
+   981→                      {activeConv.status === s.value && <Check size={14} style={{ marginLeft: "auto", color: "var(--accent-primary)" }} />}
+   982→                    </button>
+   983→                  ))}
+   984→                </div>
+   985→              )}
+   986→            </div>
+   987→
+   988→            {/* Messages */}
+   989→            <div className="mobile-chat-messages">
+   990→              {/* AI Summary banner */}
+   991→              {conversationSummary && (
+   992→                <div className="mobile-summary-banner">
+   993→                  <FileText size={14} style={{ color: "var(--accent-primary-light)", flexShrink: 0, marginTop: 2 }} />
+   994→                  <div style={{ flex: 1 }}>
+   995→                    <div style={{ fontWeight: 600, color: "var(--accent-primary-light)", fontSize: 10, marginBottom: 2, textTransform: "uppercase" }}>AI Summary</div>
+   996→                    {conversationSummary}
+   997→                  </div>
+   998→                  <button onClick={() => setConversationSummary("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 0, marginLeft: "auto", flexShrink: 0 }}>
+   999→                    <X size={12} />
+  1000→                  </button>
+  1001→                </div>
+  1002→              )}
+  1003→              {messages.map(renderMessage)}
+  1004→              <div ref={messagesEndRef} />
+  1005→            </div>
+  1006→
+  1007→            {/* Quick actions row */}
+  1008→            <div className="mobile-quick-actions">
+  1009→              <button className="mobile-quick-action-btn" onClick={() => setShowProductPicker(true)}>
+  1010→                <Package size={13} /> Product
+  1011→              </button>
+  1012→              <button className="mobile-quick-action-btn" onClick={() => { setShowOrderModal(true); setOrderItems([]); }}>
+  1013→                <ShoppingBag size={13} /> Order
+  1014→              </button>
+  1015→              <button className={`mobile-quick-action-btn ${showMobileQRSheet ? "active" : ""}`} onClick={() => setShowMobileQRSheet(!showMobileQRSheet)}>
+  1016→                <Zap size={13} /> Quick Reply
+  1017→              </button>
+  1018→              <button className="mobile-quick-action-btn" onClick={() => updateConvStatus("closed")} style={{ marginLeft: "auto", color: "var(--text-tertiary)" }}>
+  1019→                Close
+  1020→              </button>
+  1021→            </div>
+  1022→
+  1023→            {/* Input area */}
+  1024→            {sendError && (
+  1025→              <div style={{ padding: "6px 12px", background: "rgba(231,76,60,0.1)", color: "#e74c3c", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+  1026→                <span>⚠ {sendError}</span>
+  1027→                <button type="button" onClick={() => setSendError("")} style={{ background: "none", border: "none", color: "#e74c3c", cursor: "pointer", fontSize: 14, padding: "0 4px" }}>✕</button>
+  1028→              </div>
+  1029→            )}
+  1030→            <form className="mobile-chat-input-area" onSubmit={handleSend}>
+  1031→              <div className="mobile-chat-input-wrapper">
+  1032→                <input
+  1033→                  type="text"
+  1034→                  placeholder="Type a message..."
+  1035→                  value={newMsg}
+  1036→                  onChange={(e) => {
+  1037→                    const val = e.target.value;
+  1038→                    setNewMsg(val);
+  1039→                    if (val.startsWith("/")) {
+  1040→                      const query = val.slice(1).toLowerCase();
+  1041→                      const matches = quickReplies.filter(qr =>
+  1042→                        qr.shortcut?.toLowerCase().startsWith(query) ||
+  1043→                        qr.title?.toLowerCase().includes(query) ||
+  1044→                        qr.content?.toLowerCase().includes(query)
+  1045→                      ).slice(0, 6);
+  1046→                      setSlashResults(matches);
+  1047→                      setShowSlashMenu(matches.length > 0);
+  1048→                      setSlashActiveIndex(0);
+  1049→                    } else {
+  1050→                      setShowSlashMenu(false);
+  1051→                      setSlashResults([]);
+  1052→                    }
+  1053→                  }}
+  1054→                  onKeyDown={(e) => {
+  1055→                    if (showSlashMenu && slashResults.length > 0) {
+  1056→                      if (e.key === "ArrowDown") {
+  1057→                        e.preventDefault();
+  1058→                        setSlashActiveIndex(prev => Math.min(prev + 1, slashResults.length - 1));
+  1059→                      } else if (e.key === "ArrowUp") {
+  1060→                        e.preventDefault();
+  1061→                        setSlashActiveIndex(prev => Math.max(prev - 1, 0));
+  1062→                      } else if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+  1063→                        if (slashResults[slashActiveIndex]) {
+  1064→                          e.preventDefault();
+  1065→                          const qr = slashResults[slashActiveIndex];
+  1066→                          const personalized = (qr.content || "")
+  1067→                            .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+  1068→                            .replace(/\{business_name\}/g, "our store");
+  1069→                          setNewMsg(personalized);
+  1070→                          setShowSlashMenu(false);
+  1071→                          setSlashResults([]);
+  1072→                        }
+  1073→                      } else if (e.key === "Escape") {
+  1074→                        setShowSlashMenu(false);
+  1075→                        setSlashResults([]);
+  1076→                      }
+  1077→                    }
+  1078→                  }}
+  1079→                />
+  1080→                <VoiceRecorder
+  1081→                  compact
+  1082→                  onTranscribe={(text) => { setNewMsg(text); }}
+  1083→                  disabled={sending}
+  1084→                />
+  1085→                <ImageUploader
+  1086→                  compact
+  1087→                  onProductSelect={(product) => handleSendProduct(product)}
+  1088→                  onSendImageMessage={handleSendImageMessage}
+  1089→                  disabled={sending}
+  1090→                />
+  1091→              </div>
+  1092→              <button type="submit" className="mobile-chat-send-btn" disabled={!newMsg.trim() || sending}>
+  1093→                <Send size={18} />
+  1094→              </button>
+  1095→            </form>
+  1096→          </div>
+  1097→        )}
+  1098→
+  1099→        {/* ═══ MOBILE VIEW: Simulator (full screen) ═══ */}
+  1100→        {mobileView === "chat" && simulatorMode && (
+  1101→          <div className="mobile-chat-view">
+  1102→            <div className="mobile-chat-header" style={{ background: "rgba(88, 101, 242, 0.05)" }}>
+  1103→              <button className="mobile-chat-header-back" onClick={() => { setSimulatorMode(false); setMobileView("list"); }}>
+  1104→                <ArrowLeft size={22} />
+  1105→              </button>
+  1106→              <div className="mobile-chat-header-info">
+  1107→                <div className="mobile-chat-header-avatar" style={{ background: "var(--accent-gradient)", color: "white" }}>
+  1108→                  <Bot size={18} />
+  1109→                </div>
+  1110→                <div className="mobile-chat-header-text">
+  1111→                  <div className="mobile-chat-header-name">AI Simulator</div>
+  1112→                  <div className="mobile-chat-header-channel" style={{ color: "var(--accent-primary-light)" }}>Testing your catalog</div>
+  1113→                </div>
+  1114→              </div>
+  1115→            </div>
+  1116→            <div className="mobile-chat-messages">
+  1117→              <div className="chat-msg ai-reply"><span className="ai-label"><Bot size={12} /> Sellora AI</span><div className="msg-bubble">Hi! Ask me about your inventory, prices, or try to buy something!</div></div>
+  1118→              {simMessages.map((msg) => (
+  1119→                <div key={msg.id} className={`chat-msg ${msg.role === "user" ? "outgoing" : "ai-reply"}`}>
+  1120→                  {msg.role !== "user" && <span className="ai-label"><Bot size={12} /> Sellora AI</span>}
+  1121→                  <div className="msg-bubble">{msg.content}</div>
+  1122→                </div>
+  1123→              ))}
+  1124→              {simLoading && <div className="chat-msg ai-reply"><div className="msg-bubble" style={{ opacity: 0.7 }}>•••</div></div>}
+  1125→              <div ref={simulatorEndRef} />
+  1126→            </div>
+  1127→            <div className="mobile-chat-input-area">
+  1128→              <div className="mobile-chat-input-wrapper">
+  1129→                <input
+  1130→                  type="text"
+  1131→                  placeholder="Test a customer message..."
+  1132→                  value={simInput || ""}
+  1133→                  onChange={(e) => setSimInput(e.target.value)}
+  1134→                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSimSubmit())}
+  1135→                  disabled={simLoading}
+  1136→                />
+  1137→              </div>
+  1138→              <button type="button" className="mobile-chat-send-btn" onClick={handleSimSubmit} disabled={!(simInput || "").trim() || simLoading}>
+  1139→                <Send size={18} />
+  1140→              </button>
+  1141→            </div>
+  1142→          </div>
+  1143→        )}
+  1144→
+  1145→        {/* ═══ MOBILE VIEW: Profile Sheet ═══ */}
+  1146→        {mobileView === "profile" && activeConv && (
+  1147→          <>
+  1148→            <div className="mobile-profile-overlay" onClick={() => setMobileView("chat")} />
+  1149→            <div className="mobile-profile-sheet">
+  1150→              {/* Handle */}
+  1151→              <div className="mobile-profile-handle" />
+  1152→
+  1153→              {/* Header with close */}
+  1154→              <div className="mobile-profile-header">
+  1155→                <button onClick={() => setMobileView("chat")}>
+  1156→                  <ArrowLeft size={18} />
+  1157→                </button>
+  1158→                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>Customer Info</span>
+  1159→                <button onClick={() => setMobileView("chat")}>
+  1160→                  <X size={18} />
+  1161→                </button>
+  1162→              </div>
+  1163→
+  1164→              {/* Body */}
+  1165→              <div className="mobile-profile-body">
+  1166→                {/* Avatar */}
+  1167→                <div className="mobile-profile-avatar" style={{ background: customerInfo?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
+  1168→                  {customerInfo?.profile_pic_url ? (
+  1169→                    <img src={customerInfo.profile_pic_url} alt="" />
+  1170→                  ) : (
+  1171→                    customerInfo?.name?.split(" ").map(n => n[0]).join("") || "?"
+  1172→                  )}
+  1173→                </div>
+  1174→                <div className="mobile-profile-name">{customerInfo?.name || "Unknown"}</div>
+  1175→                <div className="mobile-profile-channel">
+  1176→                  {CHANNEL_ICON[customerInfo?.platform || customerInfo?.channel]}
+  1177→                  {customerInfo?.platform || customerInfo?.channel}
+  1178→                  {customerInfo?.is_returning && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 8, background: "rgba(59,165,92,0.15)", color: "var(--accent-green)" }}>Returning</span>}
+  1179→                </div>
+  1180→
+  1181→                {/* Stats */}
+  1182→                <div className="mobile-profile-stats">
+  1183→                  <div className="mobile-profile-stat">
+  1184→                    <div className="mobile-profile-stat-value" style={{ color: "var(--accent-primary-light)" }}>{customerInfo?.total_orders || 0}</div>
+  1185→                    <div className="mobile-profile-stat-label">Orders</div>
+  1186→                  </div>
+  1187→                  <div className="mobile-profile-stat">
+  1188→                    <div className="mobile-profile-stat-value" style={{ color: "var(--accent-green)" }}>{customerInfo?.total_spent?.toLocaleString() || 0}</div>
+  1189→                    <div className="mobile-profile-stat-label">EGP Spent</div>
+  1190→                  </div>
+  1191→                </div>
+  1192→
+  1193→                {/* Details */}
+  1194→                <div className="mobile-profile-section-title">Details</div>
+  1195→                {customerInfo?.phone && (
+  1196→                  <div className="mobile-profile-detail">
+  1197→                    <Phone size={14} className="mobile-profile-detail-icon" /> {customerInfo.phone}
+  1198→                  </div>
+  1199→                )}
+  1200→                {customerInfo?.email && (
+  1201→                  <div className="mobile-profile-detail">
+  1202→                    <Mail size={14} className="mobile-profile-detail-icon" /> {customerInfo.email}
+  1203→                  </div>
+  1204→                )}
+  1205→                {customerInfo?.address && (
+  1206→                  <div className="mobile-profile-detail">
+  1207→                    <MapPin size={14} className="mobile-profile-detail-icon" /> {customerInfo.address}
+  1208→                  </div>
+  1209→                )}
+  1210→                <div className="mobile-profile-detail">
+  1211→                  <Hash size={14} className="mobile-profile-detail-icon" /> {customerInfo?.platform_id?.slice(0, 16) || "N/A"}
+  1212→                </div>
+  1213→                <div className="mobile-profile-detail" style={{ marginBottom: 16 }}>
+  1214→                  <Clock size={14} className="mobile-profile-detail-icon" /> Joined {customerInfo?.first_seen_at ? formatDate(customerInfo.first_seen_at) : formatDate(customerInfo?.created_at)}
+  1215→                </div>
+  1216→
+  1217→                {/* Tags */}
+  1218→                <div className="mobile-profile-section-title">Tags</div>
+  1219→                <div className="mobile-profile-tags">
+  1220→                  {(customerInfo?.tags || []).map((tag, i) => (
+  1221→                    <span key={i} className="mobile-profile-tag" style={tag === "VIP" ? { background: "rgba(88,101,242,0.15)", color: "var(--accent-primary-light)", borderColor: "rgba(88,101,242,0.3)" } : {}}>
+  1222→                      {tag}
+  1223→                    </span>
+  1224→                  ))}
+  1225→                  {(!customerInfo?.tags || customerInfo.tags.length === 0) && (
+  1226→                    <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>No tags</span>
+  1227→                  )}
+  1228→                </div>
+  1229→
+  1230→                {/* Recent orders */}
+  1231→                <div className="mobile-profile-section-title">Recent Orders</div>
+  1232→                {customerOrders.length === 0 ? (
+  1233→                  <p style={{ fontSize: 12, color: "var(--text-tertiary)", margin: 0 }}>No orders yet</p>
+  1234→                ) : customerOrders.map((order) => (
+  1235→                  <div key={order.id} className="mobile-profile-order">
+  1236→                    <div className="mobile-profile-order-top">
+  1237→                      <span style={{ fontWeight: 600, color: "var(--accent-primary-light)" }}>{order.order_number}</span>
+  1238→                      <span style={{ fontWeight: 700 }}>{order.total} EGP</span>
+  1239→                    </div>
+  1240→                    <div className="mobile-profile-order-bottom">
+  1241→                      {order.status} • {formatDate(order.created_at)}
+  1242→                    </div>
+  1243→                  </div>
+  1244→                ))}
+  1245→
+  1246→                {/* Recommendations */}
+  1247→                <RecommendationsCard
+  1248→                  customerId={activeConv?.customer?.id}
+  1249→                  onSendProduct={handleSendProduct}
+  1250→                />
+  1251→              </div>
+  1252→            </div>
+  1253→          </>
+  1254→        )}
+  1255→
+  1256→        {/* ═══ Mobile Quick Reply Bottom Sheet ═══ */}
+  1257→        {showMobileQRSheet && (
+  1258→          <>
+  1259→            <div className="mobile-profile-overlay" onClick={() => { setShowMobileQRSheet(false); setQrSearch(""); }} />
+  1260→            <div className="mobile-qr-sheet">
+  1261→              <div className="mobile-profile-handle" />
+  1262→              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px 12px" }}>
+  1263→                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Quick Replies</span>
+  1264→                <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Tap to fill</span>
+  1265→              </div>
+  1266→              <div style={{ padding: "0 16px 8px" }}>
+  1267→                <input
+  1268→                  className="mobile-qr-search"
+  1269→                  type="text"
+  1270→                  placeholder="Search templates..."
+  1271→                  value={qrSearch}
+  1272→                  onChange={(e) => setQrSearch(e.target.value)}
+  1273→                />
+  1274→              </div>
+  1275→              <div className="mobile-qr-items">
+  1276→                {quickReplies.length === 0 ? (
+  1277→                  <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+  1278→                    No templates yet. Add some in Settings.
+  1279→                  </div>
+  1280→                ) : Object.keys(quickRepliesByCategory).length === 0 ? (
+  1281→                  <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+  1282→                    No matches found.
+  1283→                  </div>
+  1284→                ) : Object.entries(quickRepliesByCategory).map(([category, qrs]) => (
+  1285→                  <div key={category}>
+  1286→                    <div className="mobile-qr-category">{category}</div>
+  1287→                    {qrs.map((qr) => (
+  1288→                      <div
+  1289→                        key={qr.id}
+  1290→                        className="mobile-qr-item"
+  1291→                        onClick={() => {
+  1292→                          const personalized = (qr.content || "")
+  1293→                            .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+  1294→                            .replace(/\{business_name\}/g, "our store");
+  1295→                          setNewMsg(personalized);
+  1296→                          setShowMobileQRSheet(false);
+  1297→                          setQrSearch("");
+  1298→                        }}
+  1299→                      >
+  1300→                        <div className="mobile-qr-item-title">{qr.title}</div>
+  1301→                        <div className="mobile-qr-item-preview">{qr.content}</div>
+  1302→                      </div>
+  1303→                    ))}
+  1304→                  </div>
+  1305→                ))}
+  1306→              </div>
+  1307→            </div>
+  1308→          </>
+  1309→        )}
+  1310→
+  1311→        {/* ═══ Shared Modals (used by both mobile and desktop) ═══ */}
+  1312→
+  1313→        {/* Product Picker Modal */}
+  1314→        {showProductPicker && (
+  1315→          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowProductPicker(false)}>
+  1316→            <div className="modal" style={{ maxWidth: 480 }}>
+  1317→              <div className="modal-header">
+  1318→                <h3>Send Product</h3>
+  1319→                <button className="modal-close" onClick={() => setShowProductPicker(false)}><X size={18} /></button>
+  1320→              </div>
+  1321→              <div style={{ padding: "var(--space-md)" }}>
+  1322→                <input type="text" className="form-input" placeholder="Search products..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} style={{ marginBottom: "var(--space-md)" }} />
+  1323→                <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+  1324→                  {products.map((p) => (
+  1325→                    <div key={p.id} onClick={() => handleSendProduct(p)} style={{
+  1326→                      display: "flex", alignItems: "center", gap: "var(--space-md)", padding: "var(--space-md)",
+  1327→                      background: "var(--bg-glass)", borderRadius: 12, cursor: "pointer", border: "1px solid var(--border-subtle)",
+  1328→                      transition: "all 0.2s",
+  1329→                    }}>
+  1330→                      <div style={{ width: 44, height: 44, borderRadius: 8, background: "var(--bg-tertiary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+  1331→                        {p.image_urls?.[0] ? <img src={p.image_urls[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={18} style={{ color: "var(--text-tertiary)" }} />}
+  1332→                      </div>
+  1333→                      <div style={{ flex: 1, minWidth: 0 }}>
+  1334→                        <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{p.name}</div>
+  1335→                        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{p.category} • {p.stock} in stock</div>
+  1336→                      </div>
+  1337→                      <div style={{ fontWeight: 700, color: "var(--accent-green)", fontSize: "var(--font-size-sm)" }}>{p.price} EGP</div>
+  1338→                    </div>
+  1339→                  ))}
+  1340→                  {products.length === 0 && <p style={{ textAlign: "center", color: "var(--text-tertiary)", padding: "var(--space-xl)" }}>No products found</p>}
+  1341→                </div>
+  1342→              </div>
+  1343→            </div>
+  1344→          </div>
+  1345→        )}
+  1346→
+  1347→        {/* Create Order Modal */}
+  1348→        {showOrderModal && (
+  1349→          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowOrderModal(false)}>
+  1350→            <div className="modal" style={{ maxWidth: 560 }}>
+  1351→              <div className="modal-header">
+  1352→                <h3>Create Order — {activeConv?.customer?.name}</h3>
+  1353→                <button className="modal-close" onClick={() => setShowOrderModal(false)}><X size={18} /></button>
+  1354→              </div>
+  1355→              <div className="modal-body">
+  1356→                {/* Add products */}
+  1357→                <div className="form-group">
+  1358→                  <label className="form-label">Add Products</label>
+  1359→                  <input type="text" className="form-input" placeholder="Search products to add..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
+  1360→                  {productSearch && (
+  1361→                    <div style={{ maxHeight: 150, overflowY: "auto", marginTop: 6, background: "var(--bg-glass)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+  1362→                      {products.filter(p => !orderItems.find(i => i.id === p.id)).map((p) => (
+  1363→                        <div key={p.id} onClick={() => { setOrderItems([...orderItems, { ...p, qty: 1 }]); setProductSearch(""); }} style={{
+  1364→                          display: "flex", justifyContent: "space-between", padding: "8px 12px", cursor: "pointer", fontSize: "var(--font-size-sm)",
+  1365→                          borderBottom: "1px solid var(--border-subtle)",
+  1366→                        }}>
+  1367→                          <span>{p.name}</span>
+  1368→                          <span style={{ fontWeight: 600, color: "var(--accent-green)" }}>{p.price} EGP</span>
+  1369→                        </div>
+  1370→                      ))}
+  1371→                    </div>
+  1372→                  )}
+  1373→                </div>
+  1374→
+  1375→                {/* Order items */}
+  1376→                {orderItems.length > 0 && (
+  1377→                  <div style={{ marginBottom: "var(--space-md)" }}>
+  1378→                    <label className="form-label">Items</label>
+  1379→                    {orderItems.map((item, i) => (
+  1380→                      <div key={item.id} style={{
+  1381→                        display: "flex", alignItems: "center", gap: "var(--space-sm)", padding: "8px 12px",
+  1382→                        background: "var(--bg-glass)", borderRadius: 10, marginBottom: 4, border: "1px solid var(--border-subtle)",
+  1383→                      }}>
+  1384→                        <span style={{ flex: 1, fontSize: "var(--font-size-sm)", fontWeight: 500 }}>{item.name}</span>
+  1385→                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+  1386→                          <button type="button" onClick={() => { const items = [...orderItems]; items[i].qty = Math.max(1, items[i].qty - 1); setOrderItems(items); }}
+  1387→                            style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--border-subtle)", background: "none", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+  1388→                            <Minus size={12} />
+  1389→                          </button>
+  1390→                          <span style={{ fontWeight: 700, fontSize: "var(--font-size-sm)", minWidth: 20, textAlign: "center" }}>{item.qty}</span>
+  1391→                          <button type="button" onClick={() => { const items = [...orderItems]; items[i].qty++; setOrderItems(items); }}
+  1392→                            style={{ width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--border-subtle)", background: "none", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+  1393→                            <Plus size={12} />
+  1394→                          </button>
+  1395→                        </div>
+  1396→                        <span style={{ fontWeight: 700, fontSize: "var(--font-size-sm)", minWidth: 60, textAlign: "right" }}>{item.price * item.qty} EGP</span>
+  1397→                        <button type="button" onClick={() => setOrderItems(orderItems.filter((_, j) => j !== i))}
+  1398→                          style={{ background: "none", border: "none", color: "var(--accent-red)", cursor: "pointer", padding: 2 }}>
+  1399→                          <X size={14} />
+  1400→                        </button>
+  1401→                      </div>
+  1402→                    ))}
+  1403→                    <div style={{ textAlign: "right", fontWeight: 800, fontSize: "var(--font-size-lg)", marginTop: "var(--space-sm)" }}>
+  1404→                      Total: {orderItems.reduce((s, i) => s + i.price * i.qty, 0)} EGP
+  1405→                    </div>
+  1406→                  </div>
+  1407→                )}
+  1408→
+  1409→                {/* Payment method */}
+  1410→                <div className="form-group">
+  1411→                  <label className="form-label">Payment Method</label>
+  1412→                  <select className="form-input" value={orderPaymentMethod} onChange={(e) => { setOrderPaymentMethod(e.target.value); if (e.target.value === "paymob") setSendPaymentLink(true); }}>
+  1413→                    <option value="cod">Cash on Delivery</option>
+  1414→                    <option value="paymob">💳 Paymob — Online Payment</option>
+  1415→                    <option value="vodafone_cash">Vodafone Cash</option>
+  1416→                    <option value="instapay">InstaPay</option>
+  1417→                    <option value="fawry">Fawry</option>
+  1418→                    <option value="card">Card / Online</option>
+  1419→                  </select>
+  1420→                  {orderPaymentMethod !== "cod" && orderPaymentMethod !== "paymob" && (
+  1421→                    <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}>
+  1422→                      <input type="checkbox" checked={sendPaymentLink} onChange={(e) => setSendPaymentLink(e.target.checked)} style={{ accentColor: "var(--accent-primary)" }} />
+  1423→                      Send Paymob payment link to customer
+  1424→                    </label>
+  1425→                  )}
+  1426→                  {orderPaymentMethod === "paymob" && (
+  1427→                    <div style={{ marginTop: 6, padding: "8px 12px", background: "rgba(108,92,231,0.1)", borderRadius: 8, border: "1px solid rgba(108,92,231,0.2)", fontSize: 11, color: "var(--accent-primary-light)" }}>
+  1428→                      💳 A Paymob payment link will be sent to the customer. They can pay with card, Fawry, Vodafone Cash, or InstaPay.
+  1429→                    </div>
+  1430→                  )}
+  1431→                </div>
+  1432→
+  1433→                {/* Address */}
+  1434→                <div className="form-group">
+  1435→                  <label className="form-label">Shipping Address</label>
+  1436→                  <textarea className="form-input form-textarea" value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} placeholder="Customer address..." rows={2} />
+  1437→                </div>
+  1438→              </div>
+  1439→              <div className="modal-footer">
+  1440→                <button type="button" className="btn btn-secondary" onClick={() => setShowOrderModal(false)}>Cancel</button>
+  1441→                <button type="button" className="btn btn-primary" onClick={handleCreateOrder} disabled={orderItems.length === 0 || orderSaving}>
+  1442→                  {orderSaving ? <><Loader2 size={16} className="spin" /> Creating...</> : <><Check size={16} /> Create Order</>}
+  1443→                </button>
+  1444→              </div>
+  1445→            </div>
+  1446→          </div>
+  1447→        )}
+  1448→
+  1449→        {/* Quick Broadcast Modal */}
+  1450→        {showBroadcastModal && (
+  1451→          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowBroadcastModal(false)}>
+  1452→            <div className="modal" style={{ maxWidth: 560 }}>
+  1453→              <div className="modal-header">
+  1454→                <h3><Megaphone size={18} style={{ display: "inline", verticalAlign: -3, marginRight: 8 }} />Quick Broadcast</h3>
+  1455→                <button className="modal-close" onClick={() => { setShowBroadcastModal(false); setBroadcastResult(null); }}><X size={18} /></button>
+  1456→              </div>
+  1457→              <div className="modal-body">
+  1458→                <p style={{ color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)", marginBottom: "var(--space-lg)" }}>
+  1459→                  Send a message to all open conversations at once. Each message is personalized with the customer&apos;s name.
+  1460→                </p>
+  1461→
+  1462→                {broadcastResult && (
+  1463→                  <div style={{
+  1464→                    padding: "var(--space-md)", marginBottom: "var(--space-md)", borderRadius: "var(--radius-md)",
+  1465→                    background: broadcastResult.type === "success" ? "rgba(0,200,83,0.1)" : "rgba(255,82,82,0.1)",
+  1466→                    border: `1px solid ${broadcastResult.type === "success" ? "rgba(0,200,83,0.3)" : "rgba(255,82,82,0.3)"}`,
+  1467→                    color: broadcastResult.type === "success" ? "var(--accent-green)" : "var(--accent-red)",
+  1468→                    fontSize: "var(--font-size-sm)", fontWeight: 500,
+  1469→                  }}>
+  1470→                    {broadcastResult.message}
+  1471→                  </div>
+  1472→                )}
+  1473→
+  1474→                <div className="form-group">
+  1475→                  <label className="form-label">Broadcast Message</label>
+  1476→                  <textarea
+  1477→                    className="form-input form-textarea"
+  1478→                    value={broadcastMessage}
+  1479→                    onChange={(e) => setBroadcastMessage(e.target.value)}
+  1480→                    rows={4}
+  1481→                    placeholder="Hi {name}! We have an exciting new offer at {business_name}..."
+  1482→                  />
+  1483→                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+  1484→                    Use {"{name}"} for customer name, {"{business_name}"} for your store name
+  1485→                  </p>
+  1486→                </div>
+  1487→
+  1488→                <div style={{
+  1489→                  padding: "var(--space-sm) var(--space-md)",
+  1490→                  background: "rgba(108,92,231,0.08)", borderRadius: "var(--radius-sm)",
+  1491→                  fontSize: "var(--font-size-sm)", color: "var(--accent-primary-light)",
+  1492→                  display: "flex", alignItems: "center", gap: 6,
+  1493→                }}>
+  1494→                  <MessageCircle size={14} />
+  1495→                  {conversations.filter(c => c.status !== "closed").length} open conversations will receive this message
+  1496→                </div>
+  1497→              </div>
+  1498→              <div className="modal-footer">
+  1499→                <button type="button" className="btn btn-secondary" onClick={() => { setShowBroadcastModal(false); setBroadcastResult(null); }}>Cancel</button>
+  1500→                <button
+  1501→                  type="button"
+  1502→                  className="btn btn-primary"
+  1503→                  disabled={!broadcastMessage.trim() || broadcastSending}
+  1504→                  onClick={async () => {
+  1505→                    setBroadcastSending(true);
+  1506→                    setBroadcastResult(null);
+  1507→                    try {
+  1508→                      const openConvIds = conversations
+  1509→                        .filter(c => c.status !== "closed")
+  1510→                        .map(c => c.id);
+  1511→
+  1512→                      if (openConvIds.length === 0) {
+  1513→                        setBroadcastResult({ type: "error", message: "No open conversations to broadcast to." });
+  1514→                        setBroadcastSending(false);
+  1515→                        return;
+  1516→                      }
+  1517→
+  1518→                      const res = await fetch("/api/broadcasts", {
+  1519→                        method: "POST",
+  1520→                        headers: { "Content-Type": "application/json" },
+  1521→                        body: JSON.stringify({
+  1522→                          conversationIds: openConvIds,
+  1523→                          message: broadcastMessage.trim(),
+  1524→                        }),
+  1525→                      });
+  1526→                      const data = await res.json();
+  1527→
+  1528→                      if (res.ok) {
+  1529→                        setBroadcastResult({
+  1530→                          type: "success",
+  1531→                          message: `Broadcast sent! ${data.sent} delivered, ${data.failed} failed out of ${data.total} conversations.`,
+  1532→                        });
+  1533→                        setBroadcastMessage("");
+  1534→                        fetchConversations();
+  1535→                      } else {
+  1536→                        setBroadcastResult({ type: "error", message: data.error || "Failed to send broadcast" });
+  1537→                      }
+  1538→                    } catch (err) {
+  1539→                      setBroadcastResult({ type: "error", message: "Broadcast failed: " + err.message });
+  1540→                    }
+  1541→                    setBroadcastSending(false);
+  1542→                  }}
+  1543→                >
+  1544→                  {broadcastSending ? <><Loader2 size={16} className="spin" /> Sending...</> : <><Megaphone size={16} /> Send Broadcast</>}
+  1545→                </button>
+  1546→              </div>
+  1547→            </div>
+  1548→          </div>
+  1549→        )}
+  1550→      </div>
+  1551→    );
+  1552→  }
+  1553→
+  1554→  // ═══════════════════════════════════════════════════════
+  1555→  //  DESKTOP RENDERING (UNCHANGED)
+  1556→  // ═══════════════════════════════════════════════════════
+  1557→  return (
+  1558→    <div className="conversations-layout" style={{ gridTemplateColumns: showInfoPanel && activeConv && !simulatorMode ? "300px 1fr 320px" : "300px 1fr" }}>
+  1559→
+  1560→      {/* ═══════ LEFT PANEL: Conversation List ═══════ */}
+  1561→      <div className={`conv-list${mobileChatOpen ? " mobile-hidden" : ""}`}>
+  1562→        <div className="conv-list-header">
+  1563→          <h2>Messages</h2>
+  1564→          <input type="text" className="conv-search" placeholder="Search conversations..." value={search} onChange={(e) => setSearch(e.target.value)} />
+  1565→
+  1566→          {/* Status filter tabs */}
+  1567→          <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
+  1568→            {[{ value: "all", label: "All" }, ...STATUS_OPTIONS].map((s) => (
+  1569→              <button
+  1570→                key={s.value}
+  1571→                onClick={() => setStatusFilter(s.value)}
+  1572→                style={{
+  1573→                  padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "none", cursor: "pointer",
+  1574→                  background: statusFilter === s.value ? "var(--accent-primary)" : "var(--bg-glass)",
+  1575→                  color: statusFilter === s.value ? "white" : "var(--text-secondary)",
+  1576→                }}
+  1577→              >
+  1578→                {s.label}
+  1579→              </button>
+  1580→            ))}
+  1581→          </div>
+  1582→
+  1583→          {/* Channel filter tabs */}
+  1584→          <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+  1585→            {[
+  1586→              { value: "all", label: "All Channels" },
+  1587→              { value: "instagram", label: "📷 IG" },
+  1588→              { value: "facebook", label: "🌐 FB" },
+  1589→              { value: "whatsapp", label: "📱 WA" },
+  1590→            ].map((ch) => (
+  1591→              <button
+  1592→                key={ch.value}
+  1593→                onClick={() => setChannelFilter(ch.value)}
+  1594→                style={{
+  1595→                  padding: "3px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600, border: "1px solid var(--border-subtle)", cursor: "pointer",
+  1596→                  background: channelFilter === ch.value ? "var(--accent-secondary)" : "transparent",
+  1597→                  color: channelFilter === ch.value ? "white" : "var(--text-tertiary)",
+  1598→                  transition: "all 0.15s",
+  1599→                }}
+  1600→              >
+  1601→                {ch.label}
+  1602→              </button>
+  1603→            ))}
+  1604→          </div>
+  1605→
+  1606→          {/* Simulator toggle */}
+  1607→          <button
+  1608→            className={`btn ${simulatorMode ? "btn-primary" : "btn-secondary"}`}
+  1609→            onClick={() => { setSimulatorMode(!simulatorMode); if (!simulatorMode) setActiveConv(null); }}
+  1610→            style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+  1611→          >
+  1612→            <FlaskConical size={16} /> {simulatorMode ? "Exit Simulator" : "AI Simulator"}
+  1613→          </button>
+  1614→
+  1615→          {/* Quick Broadcast button */}
+  1616→          <button
+  1617→            className="btn btn-secondary"
+  1618→            onClick={() => setShowBroadcastModal(true)}
+  1619→            style={{ width: "100%", justifyContent: "center", marginTop: 4 }}
+  1620→          >
+  1621→            <Megaphone size={16} /> Quick Broadcast
+  1622→          </button>
+  1623→        </div>
+  1624→
+  1625→        <div className="conv-items">
+  1626→          {loading ? (
+  1627→            <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>Loading...</div>
+  1628→          ) : filteredConvs.length === 0 ? (
+  1629→            <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>No conversations found</div>
+  1630→          ) : filteredConvs.map((conv) => (
+  1631→            <div
+  1632→              key={conv.id}
+  1633→              className={`conv-item ${activeConv?.id === conv.id ? "active" : ""}`}
+  1634→              onClick={() => { setActiveConv(conv); setSimulatorMode(false); setMobileChatOpen(true); }}
+  1635→            >
+  1636→              {/* Avatar */}
+  1637→              <div className="conv-avatar" style={{ background: conv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)", position: "relative" }}>
+  1638→                {conv.customer?.profile_pic_url ? (
+  1639→                  <img src={conv.customer.profile_pic_url} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+  1640→                ) : (
+  1641→                  conv.customer?.name?.split(" ").map(n => n[0]).join("") || "?"
+  1642→                )}
+  1643→                {/* Channel indicator */}
+  1644→                <span style={{
+  1645→                  position: "absolute", bottom: -2, right: -2, width: 18, height: 18,
+  1646→                  borderRadius: "50%", background: "var(--bg-secondary)", display: "flex",
+  1647→                  alignItems: "center", justifyContent: "center", fontSize: 10,
+  1648→                  border: "2px solid var(--bg-primary)",
+  1649→                }}>
+  1650→                  {CHANNEL_ICON[conv.channel] || CHANNEL_ICON.instagram}
+  1651→                </span>
+  1652→              </div>
+  1653→
+  1654→              <div className="conv-info">
+  1655→                <div className="conv-info-top">
+  1656→                  <span className="conv-name" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+  1657→                    {conv.customer?.name || "Unknown"}
+  1658→                    {conv.customer?.is_returning && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 8, background: "rgba(88,101,242,0.15)", color: "var(--accent-primary-light)" }}>↩</span>}
+  1659→                  </span>
+  1660→                  <span className="conv-time">{formatRelative(conv.last_message_at)}</span>
+  1661→                </div>
+  1662→                <div className="conv-preview" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+  1663→                  {conv.lastMessage?.is_ai && <Bot size={11} style={{ color: "var(--accent-secondary)", flexShrink: 0 }} />}
+  1664→                  {conv.lastMessage?.intent && conv.lastMessage.intent !== "general" && (
+  1665→                    <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 6, background: INTENT_CONFIG[conv.lastMessage.intent]?.color + "22", color: INTENT_CONFIG[conv.lastMessage.intent]?.color, flexShrink: 0 }}>
+  1666→                      {INTENT_CONFIG[conv.lastMessage.intent]?.label}
+  1667→                    </span>
+  1668→                  )}
+  1669→                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+  1670→                    {conv.lastMessage?.content?.slice(0, 45) || "No messages yet"}
+  1671→                  </span>
+  1672→                </div>
+  1673→                {/* Status dot */}
+  1674→                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+  1675→                  <span style={{
+  1676→                    width: 6, height: 6, borderRadius: "50%",
+  1677→                    background: STATUS_OPTIONS.find(s => s.value === conv.status)?.color || "var(--text-tertiary)",
+  1678→                  }} />
+  1679→                  <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>{STATUS_OPTIONS.find(s => s.value === conv.status)?.label || conv.status}</span>
+  1680→                  {(conv.tags || []).some(t => t.startsWith("sentiment:negative") || t.startsWith("sentiment:urgent")) && (
+  1681→                    <span style={{
+  1682→                      fontSize: 9, padding: "1px 5px", borderRadius: 6,
+  1683→                      background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+  1684→                    }}>🔴</span>
+  1685→                  )}
+  1686→                  {(conv.tags || []).some(t => t.startsWith("escalated:")) && (
+  1687→                    <span style={{
+  1688→                      fontSize: 9, padding: "1px 6px", borderRadius: 6, fontWeight: 600,
+  1689→                      background: "rgba(231, 76, 60, 0.15)", color: "#e74c3c", display: "inline-flex", alignItems: "center", gap: 2,
+  1690→                    }}>🤖<AlertTriangle size={9} /> Escalated</span>
+  1691→                  )}
+  1692→                </div>
+  1693→              </div>
+  1694→
+  1695→              {conv.unread_count > 0 && (
+  1696→                <span className="conv-unread">{conv.unread_count}</span>
+  1697→              )}
+  1698→            </div>
+  1699→          ))}
+  1700→        </div>
+  1701→      </div>
+  1702→
+  1703→      {/* ═══════ CENTER PANEL: Chat Area ═══════ */}
+  1704→      <div className={`chat-area${mobileChatOpen ? " mobile-visible" : ""}`}>
+  1705→        {simulatorMode ? (
+  1706→          <>
+  1707→            <div className="chat-header" style={{ background: "rgba(88, 101, 242, 0.05)", borderBottomColor: "var(--accent-primary)" }}>
+  1708→              <div className="chat-header-info">
+  1709→                <div className="conv-avatar" style={{ background: "var(--accent-gradient)", color: "white" }}><Bot size={20} /></div>
+  1710→                <div>
+  1711→                  <div className="chat-header-name">AI Simulator Mode</div>
+  1712→                  <div className="chat-header-status" style={{ color: "var(--accent-primary-light)" }}>Testing your product catalog</div>
+  1713→                </div>
+  1714→              </div>
+  1715→            </div>
+  1716→            <div className="chat-messages">
+  1717→              <div className="chat-msg ai-reply"><span className="ai-label"><Bot size={12} /> Sellora AI</span><div className="msg-bubble">Hi! Ask me about your inventory, prices, or try to buy something!</div></div>
+  1718→              {simMessages.map((msg) => (
+  1719→                <div key={msg.id} className={`chat-msg ${msg.role === "user" ? "outgoing" : "ai-reply"}`}>
+  1720→                  {msg.role !== "user" && <span className="ai-label"><Bot size={12} /> Sellora AI</span>}
+  1721→                  <div className="msg-bubble">{msg.content}</div>
+  1722→                </div>
+  1723→              ))}
+  1724→              {simLoading && <div className="chat-msg ai-reply"><div className="msg-bubble" style={{ opacity: 0.7 }}>•••</div></div>}
+  1725→              <div ref={simulatorEndRef} />
+  1726→            </div>
+  1727→            <div className="chat-input-area">
+  1728→              <div className="chat-input-wrapper">
+  1729→                <input type="text" placeholder="Test a customer message..." className="chat-input" value={simInput || ""} onChange={(e) => setSimInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSimSubmit())} disabled={simLoading} />
+  1730→                <button type="button" className="chat-send-btn" onClick={handleSimSubmit} disabled={!(simInput || "").trim() || simLoading}><Send size={18} /></button>
+  1731→              </div>
+  1732→            </div>
+  1733→          </>
+  1734→        ) : activeConv ? (
+  1735→          <>
+  1736→            {/* ── Chat Header ── */}
+  1737→            <div className="chat-header" style={{ flexShrink: 0 }}>
+  1738→              <button className="chat-back-btn" onClick={() => setMobileChatOpen(false)} title="Back to conversations">
+  1739→                <ArrowLeft size={20} />
+  1740→              </button>
+  1741→              <div className="chat-header-info">
+  1742→                <div className="conv-avatar" style={{ width: 38, height: 38, fontSize: 12, background: activeConv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)" }}>
+  1743→                  {activeConv.customer?.profile_pic_url ? (
+  1744→                    <img src={activeConv.customer.profile_pic_url} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+  1745→                  ) : (
+  1746→                    activeConv.customer?.name?.split(" ").map(n => n[0]).join("")
+  1747→                  )}
+  1748→                </div>
+  1749→                <div>
+  1750→                  <div className="chat-header-name">{activeConv.customer?.name}</div>
+  1751→                  <div className="chat-header-status" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+  1752→                    {CHANNEL_ICON[activeConv.channel]} {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : "WhatsApp"}
+  1753→                    <span style={{ color: "var(--text-tertiary)" }}>•</span>
+  1754→                    {activeConv.customer?.phone || activeConv.customer?.platform_id?.slice(0, 8) + "..."}
+  1755→                  </div>
+  1756→                </div>
+  1757→              </div>
+  1758→              <div className="chat-header-actions" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+  1759→                {/* Negative sentiment indicator */}
+  1760→                {(activeConv.tags || []).some(t => t.startsWith("sentiment:negative") || t.startsWith("sentiment:urgent")) && (
+  1761→                  <span style={{
+  1762→                    display: "flex", alignItems: "center", gap: 3,
+  1763→                    padding: "3px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600,
+  1764→                    background: "rgba(255, 82, 82, 0.15)", color: "var(--accent-red)",
+  1765→                    border: "1px solid rgba(255, 82, 82, 0.3)",
+  1766→                  }}>
+  1767→                    🔴 {(activeConv.tags || []).find(t => t.startsWith("sentiment:"))?.replace("sentiment:", "") || "Negative"}
+  1768→                  </span>
+  1769→                )}
+  1770→                {/* AI Escalation indicator */}
+  1771→                {(activeConv.tags || []).some(t => t.startsWith("escalated:")) && (
+  1772→                  <span style={{
+  1773→                    display: "flex", alignItems: "center", gap: 4,
+  1774→                    padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+  1775→                    background: "linear-gradient(135deg, rgba(231, 76, 60, 0.15), rgba(192, 57, 43, 0.15))",
+  1776→                    color: "#e74c3c",
+  1777→                    border: "1px solid rgba(231, 76, 60, 0.4)",
+  1778→                    animation: "pulse 2s ease-in-out infinite",
+  1779→                  }}>
+  1780→                    <AlertTriangle size={12} /> AI Escalated — Needs Human
+  1781→                  </span>
+  1782→                )}
+  1783→                {/* Summarize button */}
+  1784→                <button
+  1785→                  className="topbar-btn"
+  1786→                  title="Summarize conversation"
+  1787→                  onClick={handleSummarize}
+  1788→                  disabled={summarizing}
+  1789→                  style={{ position: "relative" }}
+  1790→                >
+  1791→                  {summarizing ? <Loader2 size={16} className="spin" /> : <FileText size={16} />}
+  1792→                </button>
+  1793→                {/* Status selector */}
+  1794→                <select
+  1795→                  value={activeConv.status || "new"}
+  1796→                  onChange={(e) => updateConvStatus(e.target.value)}
+  1797→                  style={{
+  1798→                    padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+  1799→                    border: `1px solid ${statusColor}33`, background: `${statusColor}15`,
+  1800→                    color: statusColor, cursor: "pointer", outline: "none",
+  1801→                    fontFamily: "var(--font-family)",
+  1802→                  }}
+  1803→                >
+  1804→                  {STATUS_OPTIONS.map((s) => (
+  1805→                    <option key={s.value} value={s.value} style={{ background: "var(--bg-secondary)", color: "var(--text-primary)" }}>{s.label}</option>
+  1806→                  ))}
+  1807→                </select>
+  1808→                <button className="topbar-btn" title="Toggle info panel" onClick={() => setShowInfoPanel(!showInfoPanel)}>
+  1809→                  <User size={16} />
+  1810→                </button>
+  1811→              </div>
+  1812→            </div>
+  1813→
+  1814→            {/* ── Messages ── */}
+  1815→            <div className="chat-messages">
+  1816→              {/* Conversation Summary Banner */}
+  1817→              {conversationSummary && (
+  1818→                <div style={{
+  1819→                  margin: "8px 16px", padding: "10px 14px", background: "rgba(108, 92, 231, 0.08)",
+  1820→                  border: "1px solid rgba(108, 92, 231, 0.2)", borderRadius: 12,
+  1821→                  fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5,
+  1822→                  display: "flex", alignItems: "flex-start", gap: 8,
+  1823→                }}>
+  1824→                  <FileText size={14} style={{ color: "var(--accent-primary-light)", flexShrink: 0, marginTop: 2 }} />
+  1825→                  <div>
+  1826→                    <div style={{ fontWeight: 600, color: "var(--accent-primary-light)", fontSize: 10, marginBottom: 2, textTransform: "uppercase" }}>AI Summary</div>
+  1827→                    {conversationSummary}
+  1828→                  </div>
+  1829→                  <button onClick={() => setConversationSummary("")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", padding: 0, marginLeft: "auto", flexShrink: 0 }}>
+  1830→                    <X size={12} />
+  1831→                  </button>
+  1832→                </div>
+  1833→              )}
+  1834→              {messages.map(renderMessage)}
+  1835→              <div ref={messagesEndRef} />
+  1836→            </div>
+  1837→
+  1838→            {/* ── Quick Actions Bar ── */}
+  1839→            <div style={{
+  1840→              display: "flex", alignItems: "center", gap: 6, padding: "8px 16px",
+  1841→              borderTop: "1px solid var(--border-subtle)", background: "var(--bg-secondary)",
+  1842→              flexShrink: 0,
+  1843→            }}>
+  1844→              <button onClick={() => setShowProductPicker(true)} style={{
+  1845→                padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "1px solid var(--border-subtle)",
+  1846→                background: "var(--bg-glass)", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+  1847→              }}>
+  1848→                <Package size={13} /> Send Product
+  1849→              </button>
+  1850→              <button onClick={() => { setShowOrderModal(true); setOrderItems([]); }} style={{
+  1851→                padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "1px solid var(--border-subtle)",
+  1852→                background: "var(--bg-glass)", color: "var(--text-secondary)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+  1853→              }}>
+  1854→                <ShoppingBag size={13} /> Create Order
+  1855→              </button>
+  1856→              {/* Quick Reply Button */}
+  1857→              <div style={{ position: "relative" }}>
+  1858→                <button
+  1859→                  onClick={() => setShowQuickReplies(!showQuickReplies)}
+  1860→                  style={{
+  1861→                    padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "1px solid var(--border-subtle)",
+  1862→                    background: showQuickReplies ? "var(--accent-primary)" : "var(--bg-glass)",
+  1863→                    color: showQuickReplies ? "white" : "var(--text-secondary)",
+  1864→                    cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+  1865→                  }}
+  1866→                >
+  1867→                  <Zap size={13} /> Quick Reply <ChevronDown size={10} />
+  1868→                </button>
+  1869→                {showQuickReplies && (
+  1870→                  <div style={{
+  1871→                    position: "absolute", bottom: "100%", left: 0, marginBottom: 4,
+  1872→                    background: "var(--bg-secondary)", border: "1px solid var(--border-medium)",
+  1873→                    borderRadius: "var(--radius-md)", boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+  1874→                    minWidth: 320, maxHeight: 380, display: "flex", flexDirection: "column",
+  1875→                    zIndex: 50,
+  1876→                  }}>
+  1877→                    <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: 6 }}>
+  1878→                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+  1879→                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Quick Replies</span>
+  1880→                        <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>Click to fill • Shift+Click to send</span>
+  1881→                      </div>
+  1882→                      <input
+  1883→                        type="text"
+  1884→                        placeholder="Search templates..."
+  1885→                        value={qrSearch}
+  1886→                        onChange={(e) => setQrSearch(e.target.value)}
+  1887→                        style={{
+  1888→                          width: "100%", padding: "5px 10px", borderRadius: 8, fontSize: 11,
+  1889→                          border: "1px solid var(--border-subtle)", background: "var(--bg-glass)",
+  1890→                          color: "var(--text-primary)", outline: "none",
+  1891→                          fontFamily: "var(--font-family)",
+  1892→                        }}
+  1893→                        onClick={(e) => e.stopPropagation()}
+  1894→                      />
+  1895→                    </div>
+  1896→                    <div style={{ overflowY: "auto", flex: 1 }}>
+  1897→                      {quickReplies.length === 0 ? (
+  1898→                        <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+  1899→                          No templates yet. Add some in Settings.
+  1900→                        </div>
+  1901→                      ) : Object.keys(quickRepliesByCategory).length === 0 ? (
+  1902→                        <div style={{ padding: "var(--space-lg)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+  1903→                          No matches found.
+  1904→                        </div>
+  1905→                      ) : Object.entries(quickRepliesByCategory).map(([category, qrs]) => (
+  1906→                        <div key={category}>
+  1907→                          <div style={{
+  1908→                            padding: "6px 12px", fontSize: 10, fontWeight: 700,
+  1909→                            color: "var(--accent-primary-light)", textTransform: "uppercase",
+  1910→                            background: "var(--bg-glass)", borderBottom: "1px solid var(--border-subtle)",
+  1911→                            letterSpacing: 0.5,
+  1912→                          }}>
+  1913→                            {category}
+  1914→                          </div>
+  1915→                          {qrs.map((qr) => (
+  1916→                            <div
+  1917→                              key={qr.id}
+  1918→                              onClick={(e) => {
+  1919→                                // Apply variable substitution
+  1920→                                const personalized = (qr.content || "")
+  1921→                                  .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+  1922→                                  .replace(/\{business_name\}/g, "our store");
+  1923→                                if (e.shiftKey) {
+  1924→                                  // Shift+Click: send immediately
+  1925→                                  setNewMsg(personalized);
+  1926→                                  setTimeout(() => {
+  1927→                                    const form = document.getElementById("chat-send-form");
+  1928→                                    if (form) form.requestSubmit();
+  1929→                                  }, 50);
+  1930→                                } else {
+  1931→                                  // Normal click: fill input
+  1932→                                  setNewMsg(personalized);
+  1933→                                }
+  1934→                                setShowQuickReplies(false);
+  1935→                                setQrSearch("");
+  1936→                              }}
+  1937→                              style={{
+  1938→                                padding: "8px 12px", cursor: "pointer",
+  1939→                                borderBottom: "1px solid var(--border-subtle)",
+  1940→                                transition: "background 0.15s",
+  1941→                              }}
+  1942→                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-glass)"}
+  1943→                              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+  1944→                            >
+  1945→                              <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{qr.title}</div>
+  1946→                              <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+  1947→                                {qr.content}
+  1948→                              </div>
+  1949→                            </div>
+  1950→                          ))}
+  1951→                        </div>
+  1952→                      ))}
+  1953→                    </div>
+  1954→                  </div>
+  1955→                )}
+  1956→              </div>
+  1957→              <button onClick={() => updateConvStatus("closed")} style={{
+  1958→                padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, border: "1px solid var(--border-subtle)",
+  1959→                background: "var(--bg-glass)", color: "var(--text-tertiary)", cursor: "pointer", marginLeft: "auto",
+  1960→              }}>
+  1961→                Close
+  1962→              </button>
+  1963→            </div>
+  1964→
+  1965→            {/* ── Input ── */}
+  1966→            {sendError && (
+  1967→              <div style={{ padding: "6px 12px", background: "rgba(231,76,60,0.1)", color: "#e74c3c", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+  1968→                <span>⚠ {sendError}</span>
+  1969→                <button type="button" onClick={() => setSendError("")} style={{ background: "none", border: "none", color: "#e74c3c", cursor: "pointer", fontSize: 14, padding: "0 4px" }}>✕</button>
+  1970→              </div>
+  1971→            )}
+  1972→            <form id="chat-send-form" className="chat-input-area" onSubmit={handleSend}>
+  1973→              <div style={{ position: "relative", display: "flex", alignItems: "center", flex: 1, gap: 4 }}>
+  1974→                {/* Slash command menu */}
+  1975→                {showSlashMenu && slashResults.length > 0 && (
+  1976→                  <div style={{
+  1977→                    position: "absolute", bottom: "100%", left: 0, marginBottom: 4,
+  1978→                    background: "var(--bg-secondary)", border: "1px solid var(--border-medium)",
+  1979→                    borderRadius: "var(--radius-md)", boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+  1980→                    minWidth: 300, maxHeight: 260, overflowY: "auto", zIndex: 50,
+  1981→                  }}>
+  1982→                    <div style={{ padding: "6px 12px", fontSize: 10, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase" }}>Quick Replies</div>
+  1983→                    {slashResults.map((qr, i) => (
+  1984→                      <button
+  1985→                        key={qr.id}
+  1986→                        type="button"
+  1987→                        onClick={() => {
+  1988→                          const personalized = (qr.content || "")
+  1989→                            .replace(/\{name\}/g, activeConv?.customer?.name || "Customer")
+  1990→                            .replace(/\{business_name\}/g, "our store");
+  1991→                          setNewMsg(personalized);
+  1992→                          setShowSlashMenu(false);
+  1993→                          setSlashResults([]);
+  1994→                          document.getElementById("chat-message-input")?.focus();
+  1995→                        }}
+  1996→                        style={{
+  1997→                          display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px",
+  1998→                          background: i === slashActiveIndex ? "rgba(108,92,231,0.08)" : "none",
+  1999→                          border: "none", borderBottom: "1px solid var(--border-subtle)",
+  2000→                          cursor: "pointer", color: "var(--text-primary)", textAlign: "left",
+
+[showing lines 1-2000 of 2461; use offset=2001 with limit to continue reading]

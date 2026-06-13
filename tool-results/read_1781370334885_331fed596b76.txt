@@ -1,0 +1,673 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback } from "react";
+     4→import { useRouter } from "next/navigation";
+     5→import {
+     6→  Plus, X, Loader2, Copy, Trash2, Edit, Check, Tag, Percent,
+     7→  DollarSign, Truck, Clock, Calendar, AlertCircle, RefreshCw,
+     8→  ToggleLeft, ToggleRight, Search, Gift,
+     9→} from "lucide-react";
+    10→import { createClient } from "@/lib/supabase/client";
+    11→import { useToast } from "../components/ToastProvider";
+    12→import { getPlanLimits, isLimitExceeded } from "@/lib/plan-limits";
+    13→import { PageSkeleton } from "@/components/SkeletonLoader";
+    14→
+    15→const TYPE_CONFIG = {
+    16→  percentage: { label: "Percentage", icon: <Percent size={14} />, color: "var(--accent-primary-light)", bg: "rgba(108, 92, 231, 0.12)" },
+    17→  fixed: { label: "Fixed Amount", icon: <DollarSign size={14} />, color: "var(--accent-green)", bg: "rgba(0, 230, 118, 0.12)" },
+    18→  free_shipping: { label: "Free Shipping", icon: <Truck size={14} />, color: "var(--accent-secondary)", bg: "rgba(0, 210, 255, 0.12)" },
+    19→};
+    20→
+    21→const APPLIES_TO_LABELS = {
+    22→  all: "All Products",
+    23→  specific_products: "Specific Products",
+    24→  specific_categories: "Specific Categories",
+    25→};
+    26→
+    27→function generateCouponCode() {
+    28→  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    29→  let result = "";
+    30→  for (let i = 0; i < 8; i++) {
+    31→    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    32→  }
+    33→  return result;
+    34→}
+    35→
+    36→export default function CouponsPage() {
+    37→  const toast = useToast();
+    38→  const router = useRouter();
+    39→  const [coupons, setCoupons] = useState([]);
+    40→  const [filter, setFilter] = useState("all");
+    41→  const [search, setSearch] = useState("");
+    42→  const [loading, setLoading] = useState(true);
+    43→  const [accountPlan, setAccountPlan] = useState("starter");
+    44→
+    45→  // Create/Edit modal
+    46→  const [showModal, setShowModal] = useState(false);
+    47→  const [editingCoupon, setEditingCoupon] = useState(null);
+    48→  const [saving, setSaving] = useState(false);
+    49→  const [copiedId, setCopiedId] = useState(null);
+    50→
+    51→  // Delete confirmation
+    52→  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+    53→
+    54→  // Form state
+    55→  const [form, setForm] = useState({
+    56→    code: "",
+    57→    type: "percentage",
+    58→    value: "",
+    59→    min_order_value: "",
+    60→    max_uses: "",
+    61→    starts_at: "",
+    62→    expires_at: "",
+    63→    applies_to: "all",
+    64→    is_active: true,
+    65→  });
+    66→
+    67→  const supabase = createClient();
+    68→  const planLimits = getPlanLimits(accountPlan);
+    69→  const couponLimit = planLimits.coupons !== undefined ? planLimits.coupons : 3;
+    70→  const limitReached = couponLimit !== -1 && coupons.length >= couponLimit;
+    71→
+    72→  const fetchCoupons = useCallback(async () => {
+    73→    setLoading(true);
+    74→    const { data: { user } } = await supabase.auth.getUser();
+    75→    if (user) {
+    76→      const { data: account } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
+    77→      if (account?.plan) setAccountPlan(account.plan);
+    78→    }
+    79→
+    80→    let query = supabase.from("coupons").select("*").order("created_at", { ascending: false });
+    81→
+    82→    if (search) {
+    83→      query = query.ilike("code", `%${search.toUpperCase()}%`);
+    84→    }
+    85→
+    86→    const { data, error } = await query;
+    87→    if (!error) {
+    88→      setCoupons(data || []);
+    89→    }
+    90→    setLoading(false);
+    91→  }, [search]);
+    92→
+    93→  useEffect(() => { fetchCoupons(); }, [fetchCoupons]);
+    94→
+    95→  // Filter coupons client-side
+    96→  const filteredCoupons = coupons.filter((c) => {
+    97→    if (filter === "active") return c.is_active && !isExpired(c) && !isExhausted(c);
+    98→    if (filter === "expired") return isExpired(c);
+    99→    if (filter === "exhausted") return isExhausted(c);
+   100→    if (filter === "inactive") return !c.is_active;
+   101→    return true;
+   102→  });
+   103→
+   104→  function isExpired(c) {
+   105→    return c.expires_at && new Date(c.expires_at) < new Date();
+   106→  }
+   107→
+   108→  function isExhausted(c) {
+   109→    return c.max_uses !== null && c.used_count >= c.max_uses;
+   110→  }
+   111→
+   112→  function getCouponStatus(c) {
+   113→    if (!c.is_active) return { label: "Inactive", color: "var(--text-tertiary)", bg: "var(--bg-glass)" };
+   114→    if (isExpired(c)) return { label: "Expired", color: "var(--accent-red)", bg: "rgba(255, 82, 82, 0.1)" };
+   115→    if (isExhausted(c)) return { label: "Exhausted", color: "var(--accent-orange)", bg: "rgba(255, 145, 0, 0.1)" };
+   116→    if (c.starts_at && new Date(c.starts_at) > new Date()) return { label: "Scheduled", color: "var(--accent-secondary)", bg: "rgba(0, 210, 255, 0.1)" };
+   117→    return { label: "Active", color: "var(--accent-green)", bg: "rgba(0, 230, 118, 0.1)" };
+   118→  }
+   119→
+   120→  function formatDate(d) {
+   121→    if (!d) return "—";
+   122→    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+   123→  }
+   124→
+   125→  function formatValue(c) {
+   126→    if (c.type === "percentage") return `${c.value}%`;
+   127→    if (c.type === "fixed") return `${parseFloat(c.value).toFixed(2)} EGP`;
+   128→    if (c.type === "free_shipping") return "Free";
+   129→    return c.value;
+   130→  }
+   131→
+   132→  const handleCopyCode = (code, id) => {
+   133→    navigator.clipboard.writeText(code);
+   134→    setCopiedId(id);
+   135→    setTimeout(() => setCopiedId(null), 2000);
+   136→  };
+   137→
+   138→  const openCreateModal = () => {
+   139→    setEditingCoupon(null);
+   140→    setForm({
+   141→      code: generateCouponCode(),
+   142→      type: "percentage",
+   143→      value: "",
+   144→      min_order_value: "",
+   145→      max_uses: "",
+   146→      starts_at: "",
+   147→      expires_at: "",
+   148→      applies_to: "all",
+   149→      is_active: true,
+   150→    });
+   151→    setShowModal(true);
+   152→  };
+   153→
+   154→  const openEditModal = (coupon) => {
+   155→    setEditingCoupon(coupon);
+   156→    setForm({
+   157→      code: coupon.code,
+   158→      type: coupon.type,
+   159→      value: coupon.value,
+   160→      min_order_value: coupon.min_order_value || "",
+   161→      max_uses: coupon.max_uses || "",
+   162→      starts_at: coupon.starts_at ? coupon.starts_at.slice(0, 16) : "",
+   163→      expires_at: coupon.expires_at ? coupon.expires_at.slice(0, 16) : "",
+   164→      applies_to: coupon.applies_to || "all",
+   165→      is_active: coupon.is_active,
+   166→    });
+   167→    setShowModal(true);
+   168→  };
+   169→
+   170→  const closeModal = () => {
+   171→    setShowModal(false);
+   172→    setEditingCoupon(null);
+   173→  };
+   174→
+   175→  const handleSave = async (e) => {
+   176→    e.preventDefault();
+   177→    if (!form.code.trim() || !form.value) return;
+   178→    setSaving(true);
+   179→
+   180→    try {
+   181→      if (editingCoupon) {
+   182→        // Update via API
+   183→        const res = await fetch(`/api/coupons/${editingCoupon.id}`, {
+   184→          method: "PATCH",
+   185→          headers: { "Content-Type": "application/json" },
+   186→          body: JSON.stringify({
+   187→            code: form.code,
+   188→            type: form.type,
+   189→            value: parseFloat(form.value),
+   190→            min_order_value: form.min_order_value ? parseFloat(form.min_order_value) : 0,
+   191→            max_uses: form.max_uses ? parseInt(form.max_uses) : null,
+   192→            starts_at: form.starts_at || null,
+   193→            expires_at: form.expires_at || null,
+   194→            applies_to: form.applies_to,
+   195→            is_active: form.is_active,
+   196→          }),
+   197→        });
+   198→        const data = await res.json();
+   199→        if (!res.ok) {
+   200→          toast.error(data.error || "Failed to update coupon");
+   201→          setSaving(false);
+   202→          return;
+   203→        }
+   204→      } else {
+   205→        // Create via API
+   206→        const res = await fetch("/api/coupons", {
+   207→          method: "POST",
+   208→          headers: { "Content-Type": "application/json" },
+   209→          body: JSON.stringify({
+   210→            code: form.code,
+   211→            type: form.type,
+   212→            value: parseFloat(form.value),
+   213→            min_order_value: form.min_order_value ? parseFloat(form.min_order_value) : 0,
+   214→            max_uses: form.max_uses ? parseInt(form.max_uses) : null,
+   215→            starts_at: form.starts_at || null,
+   216→            expires_at: form.expires_at || null,
+   217→            applies_to: form.applies_to,
+   218→            is_active: form.is_active,
+   219→          }),
+   220→        });
+   221→        const data = await res.json();
+   222→        if (!res.ok) {
+   223→          toast.error(data.error || "Failed to create coupon");
+   224→          setSaving(false);
+   225→          return;
+   226→        }
+   227→      }
+   228→
+   229→      closeModal();
+   230→      fetchCoupons();
+   231→    } catch (err) {
+   232→      toast.error("Failed to save coupon: " + err.message);
+   233→    }
+   234→    setSaving(false);
+   235→  };
+   236→
+   237→  const handleToggleActive = async (coupon) => {
+   238→    try {
+   239→      const res = await fetch(`/api/coupons/${coupon.id}`, {
+   240→        method: "PATCH",
+   241→        headers: { "Content-Type": "application/json" },
+   242→        body: JSON.stringify({ is_active: !coupon.is_active }),
+   243→      });
+   244→      if (res.ok) {
+   245→        fetchCoupons();
+   246→      }
+   247→    } catch (err) {
+   248→      console.error("Toggle error:", err);
+   249→    }
+   250→  };
+   251→
+   252→  const handleDelete = async (id) => {
+   253→    try {
+   254→      const res = await fetch(`/api/coupons/${id}`, { method: "DELETE" });
+   255→      if (res.ok) {
+   256→        setDeleteConfirmId(null);
+   257→        fetchCoupons();
+   258→      } else {
+   259→        const data = await res.json();
+   260→        toast.error(data.error || "Failed to delete coupon");
+   261→      }
+   262→    } catch (err) {
+   263→      toast.error("Failed to delete coupon: " + err.message);
+   264→    }
+   265→  };
+   266→
+   267→  // Stats
+   268→  const activeCount = coupons.filter((c) => c.is_active && !isExpired(c) && !isExhausted(c)).length;
+   269→  const totalUsed = coupons.reduce((s, c) => s + (c.used_count || 0), 0);
+   270→  const expiredCount = coupons.filter((c) => isExpired(c)).length;
+   271→
+   272→  return (
+   273→    <>
+   274→      <div className="page-header">
+   275→        <h1>Coupons</h1>
+   276→        <div className="page-header-actions">
+   277→          {limitReached ? (
+   278→            <button className="btn btn-primary" onClick={() => router.push('/dashboard/billing')} style={{ opacity: 0.7 }}>
+   279→              Upgrade for More Coupons
+   280→            </button>
+   281→          ) : (
+   282→            <button className="btn btn-primary" onClick={openCreateModal}>
+   283→              <Plus size={16} /> Create Coupon
+   284→            </button>
+   285→          )}
+   286→        </div>
+   287→      </div>
+   288→
+   289→      {/* Plan limit indicator */}
+   290→      {couponLimit !== -1 && (
+   291→        <div style={{
+   292→          padding: "var(--space-sm) var(--space-lg)",
+   293→          marginBottom: "var(--space-lg)",
+   294→          borderRadius: "var(--radius-md)",
+   295→          background: "rgba(108, 92, 231, 0.08)",
+   296→          border: "1px solid rgba(108, 92, 231, 0.15)",
+   297→          fontSize: "var(--font-size-sm)",
+   298→          color: "var(--accent-primary-light)",
+   299→          display: "flex",
+   300→          alignItems: "center",
+   301→          gap: "var(--space-sm)",
+   302→        }}>
+   303→          <Tag size={14} />
+   304→          {coupons.length} / {couponLimit} coupons used ({accountPlan.charAt(0).toUpperCase() + accountPlan.slice(1)} plan)
+   305→          {limitReached && (
+   306→            <button
+   307→              style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--accent-primary-light)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+   308→              onClick={() => router.push('/dashboard/billing')}
+   309→            >
+   310→              Upgrade
+   311→            </button>
+   312→          )}
+   313→        </div>
+   314→      )}
+   315→
+   316→      {/* Stats */}
+   317→      <div className="stats-grid" style={{ marginBottom: "var(--space-xl)" }}>
+   318→        {[
+   319→          { label: "Total Coupons", value: coupons.length, icon: <Tag size={18} />, color: "purple" },
+   320→          { label: "Active", value: activeCount, icon: <Check size={18} />, color: "green" },
+   321→          { label: "Total Redemptions", value: totalUsed, icon: <Gift size={18} />, color: "blue" },
+   322→          { label: "Expired", value: expiredCount, icon: <Clock size={18} />, color: "orange" },
+   323→        ].map((s, i) => (
+   324→          <div key={i} className="stat-card">
+   325→            <div className="stat-card-header">
+   326→              <div className={`stat-card-icon ${s.color}`}>{s.icon}</div>
+   327→            </div>
+   328→            <div className="stat-card-value" style={{ fontSize: "var(--font-size-2xl)" }}>{s.value}</div>
+   329→            <div className="stat-card-label">{s.label}</div>
+   330→          </div>
+   331→        ))}
+   332→      </div>
+   333→
+   334→      {/* Filters */}
+   335→      <div className="filter-bar">
+   336→        <div className="filter-tabs">
+   337→          {["all", "active", "expired", "exhausted", "inactive"].map((f) => (
+   338→            <button key={f} className={`filter-tab ${filter === f ? "active" : ""}`} onClick={() => setFilter(f)}>
+   339→              {f.charAt(0).toUpperCase() + f.slice(1)}
+   340→            </button>
+   341→          ))}
+   342→        </div>
+   343→        <div className="filter-search">
+   344→          <Search size={14} />
+   345→          <input type="text" placeholder="Search coupon code..." value={search} onChange={(e) => setSearch(e.target.value)} />
+   346→        </div>
+   347→      </div>
+   348→
+   349→      {/* Coupon list */}
+   350→      {loading ? (
+   351→        <PageSkeleton showStats={false} showTable={false} />
+   352→      ) : filteredCoupons.length === 0 ? (
+   353→        <div className="empty-state">
+   354→          <div className="empty-state-icon"><Tag size={32} /></div>
+   355→          <h3>No coupons found</h3>
+   356→          <p>{filter === "all" ? "Create your first coupon to offer discounts to your customers." : `No ${filter} coupons found.`}</p>
+   357→          {filter === "all" && !limitReached && (
+   358→            <button className="btn btn-primary" onClick={openCreateModal}>
+   359→              <Plus size={16} /> Create Coupon
+   360→            </button>
+   361→          )}
+   362→        </div>
+   363→      ) : (
+   364→        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+   365→          {filteredCoupons.map((coupon) => {
+   366→            const status = getCouponStatus(coupon);
+   367→            const typeConfig = TYPE_CONFIG[coupon.type];
+   368→
+   369→            return (
+   370→              <div key={coupon.id} className="dashboard-panel" style={{ overflow: "visible" }}>
+   371→                <div style={{ padding: "var(--space-xl)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--space-md)" }}>
+   372→                  {/* Left: Coupon info */}
+   373→                  <div style={{ flex: 1, minWidth: 200 }}>
+   374→                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)", marginBottom: "var(--space-sm)", flexWrap: "wrap" }}>
+   375→                      {/* Code (monospace, copyable) */}
+   376→                      <button
+   377→                        onClick={() => handleCopyCode(coupon.code, coupon.id)}
+   378→                        style={{
+   379→                          fontFamily: "monospace", fontSize: "var(--font-size-lg)", fontWeight: 800,
+   380→                          background: "var(--bg-glass)", border: "1px solid var(--border-subtle)",
+   381→                          borderRadius: "var(--radius-md)", padding: "4px 12px", color: "var(--text-primary)",
+   382→                          cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+   383→                          letterSpacing: "0.05em",
+   384→                        }}
+   385→                        title="Click to copy"
+   386→                      >
+   387→                        {coupon.code}
+   388→                        {copiedId === coupon.id ? <Check size={14} style={{ color: "var(--accent-green)" }} /> : <Copy size={14} style={{ color: "var(--text-tertiary)" }} />}
+   389→                      </button>
+   390→
+   391→                      {/* Type badge */}
+   392→                      <span style={{
+   393→                        display: "inline-flex", alignItems: "center", gap: 4,
+   394→                        padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+   395→                        background: typeConfig.bg, color: typeConfig.color,
+   396→                        border: `1px solid ${typeConfig.color}33`,
+   397→                      }}>
+   398→                        {typeConfig.icon} {typeConfig.label}
+   399→                      </span>
+   400→
+   401→                      {/* Status badge */}
+   402→                      <span style={{
+   403→                        padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+   404→                        background: `${status.color}15`, color: status.color,
+   405→                        border: `1px solid ${status.color}33`,
+   406→                      }}>
+   407→                        {status.label}
+   408→                      </span>
+   409→                    </div>
+   410→
+   411→                    {/* Value and details */}
+   412→                    <div style={{ display: "flex", gap: "var(--space-xl)", fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)", flexWrap: "wrap" }}>
+   413→                      <span style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: "var(--font-size-base)" }}>
+   414→                        {formatValue(coupon)} OFF
+   415→                      </span>
+   416→                      {coupon.min_order_value > 0 && (
+   417→                        <span>Min. order: {parseFloat(coupon.min_order_value).toFixed(2)} EGP</span>
+   418→                      )}
+   419→                      <span>
+   420→                        {coupon.used_count || 0}{coupon.max_uses ? ` / ${coupon.max_uses}` : ""} used
+   421→                      </span>
+   422→                      <span>{APPLIES_TO_LABELS[coupon.applies_to] || coupon.applies_to}</span>
+   423→                    </div>
+   424→
+   425→                    {/* Dates */}
+   426→                    <div style={{ display: "flex", gap: "var(--space-xl)", fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: "var(--space-xs)", flexWrap: "wrap" }}>
+   427→                      <span><Calendar size={12} style={{ display: "inline", verticalAlign: -1, marginRight: 4 }} />Starts: {formatDate(coupon.starts_at)}</span>
+   428→                      {coupon.expires_at && (
+   429→                        <span><Clock size={12} style={{ display: "inline", verticalAlign: -1, marginRight: 4 }} />Expires: {formatDate(coupon.expires_at)}</span>
+   430→                      )}
+   431→                    </div>
+   432→                  </div>
+   433→
+   434→                  {/* Right: Actions */}
+   435→                  <div style={{ display: "flex", gap: "var(--space-xs)", alignItems: "center" }}>
+   436→                    {/* Toggle active */}
+   437→                    <button
+   438→                      className="topbar-btn"
+   439→                      title={coupon.is_active ? "Deactivate" : "Activate"}
+   440→                      onClick={() => handleToggleActive(coupon)}
+   441→                      style={{ color: coupon.is_active ? "var(--accent-green)" : "var(--text-tertiary)" }}
+   442→                    >
+   443→                      {coupon.is_active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+   444→                    </button>
+   445→
+   446→                    {/* Edit */}
+   447→                    <button className="topbar-btn" title="Edit" onClick={() => openEditModal(coupon)}>
+   448→                      <Edit size={16} />
+   449→                    </button>
+   450→
+   451→                    {/* Delete */}
+   452→                    {deleteConfirmId === coupon.id ? (
+   453→                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+   454→                        <span style={{ fontSize: 11, color: "var(--accent-red)", fontWeight: 600 }}>Delete?</span>
+   455→                        <button
+   456→                          className="topbar-btn"
+   457→                          style={{ color: "var(--accent-red)" }}
+   458→                          onClick={() => handleDelete(coupon.id)}
+   459→                        >
+   460→                          <Check size={16} />
+   461→                        </button>
+   462→                        <button className="topbar-btn" onClick={() => setDeleteConfirmId(null)}>
+   463→                          <X size={16} />
+   464→                        </button>
+   465→                      </div>
+   466→                    ) : (
+   467→                      <button className="topbar-btn" title="Delete" onClick={() => setDeleteConfirmId(coupon.id)}>
+   468→                        <Trash2 size={16} />
+   469→                      </button>
+   470→                    )}
+   471→                  </div>
+   472→                </div>
+   473→              </div>
+   474→            );
+   475→          })}
+   476→        </div>
+   477→      )}
+   478→
+   479→      {/* Create/Edit Modal */}
+   480→      {showModal && (
+   481→        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
+   482→          <div className="modal" style={{ maxWidth: 600 }}>
+   483→            <div className="modal-header">
+   484→              <h3>{editingCoupon ? "Edit Coupon" : "Create Coupon"}</h3>
+   485→              <button className="modal-close" onClick={closeModal}><X size={18} /></button>
+   486→            </div>
+   487→            <form onSubmit={handleSave}>
+   488→              <div className="modal-body">
+   489→                {/* Code */}
+   490→                <div className="form-group">
+   491→                  <label className="form-label">Coupon Code</label>
+   492→                  <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+   493→                    <input
+   494→                      type="text"
+   495→                      className="form-input"
+   496→                      placeholder="e.g. SUMMER2025"
+   497→                      value={form.code}
+   498→                      onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+   499→                      style={{ fontFamily: "monospace", letterSpacing: "0.05em", flex: 1 }}
+   500→                      required
+   501→                    />
+   502→                    {!editingCoupon && (
+   503→                      <button
+   504→                        type="button"
+   505→                        className="btn btn-secondary btn-sm"
+   506→                        onClick={() => setForm({ ...form, code: generateCouponCode() })}
+   507→                        style={{ whiteSpace: "nowrap" }}
+   508→                      >
+   509→                        <RefreshCw size={12} /> Auto
+   510→                      </button>
+   511→                    )}
+   512→                  </div>
+   513→                </div>
+   514→
+   515→                {/* Type */}
+   516→                <div className="form-group">
+   517→                  <label className="form-label">Discount Type</label>
+   518→                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--space-sm)" }}>
+   519→                    {[
+   520→                      { value: "percentage", label: "Percentage", icon: <Percent size={16} /> },
+   521→                      { value: "fixed", label: "Fixed Amount", icon: <DollarSign size={16} /> },
+   522→                      { value: "free_shipping", label: "Free Shipping", icon: <Truck size={16} /> },
+   523→                    ].map((t) => (
+   524→                      <button
+   525→                        key={t.value}
+   526→                        type="button"
+   527→                        onClick={() => setForm({ ...form, type: t.value, value: t.value === "free_shipping" ? "0" : form.value })}
+   528→                        style={{
+   529→                          display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+   530→                          padding: "var(--space-md)", borderRadius: "var(--radius-md)",
+   531→                          border: `1px solid ${form.type === t.value ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+   532→                          background: form.type === t.value ? "rgba(108, 92, 231, 0.1)" : "var(--bg-glass)",
+   533→                          color: form.type === t.value ? "var(--accent-primary-light)" : "var(--text-secondary)",
+   534→                          cursor: "pointer", transition: "all 0.15s ease",
+   535→                          fontSize: "var(--font-size-sm)", fontWeight: 600,
+   536→                        }}
+   537→                      >
+   538→                        {t.icon}
+   539→                        {t.label}
+   540→                      </button>
+   541→                    ))}
+   542→                  </div>
+   543→                </div>
+   544→
+   545→                {/* Value */}
+   546→                {form.type !== "free_shipping" && (
+   547→                  <div className="form-group">
+   548→                    <label className="form-label">
+   549→                      {form.type === "percentage" ? "Discount Percentage" : "Discount Amount (EGP)"}
+   550→                    </label>
+   551→                    <input
+   552→                      type="number"
+   553→                      className="form-input"
+   554→                      placeholder={form.type === "percentage" ? "e.g. 25" : "e.g. 50.00"}
+   555→                      value={form.value}
+   556→                      onChange={(e) => setForm({ ...form, value: e.target.value })}
+   557→                      min="0"
+   558→                      max={form.type === "percentage" ? "100" : undefined}
+   559→                      step={form.type === "percentage" ? "1" : "0.01"}
+   560→                      required
+   561→                    />
+   562→                    {form.type === "percentage" && Number(form.value) > 100 && (
+   563→                      <p style={{ fontSize: "var(--font-size-xs)", color: "var(--accent-red)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+   564→                        <AlertCircle size={12} /> Percentage cannot exceed 100%
+   565→                      </p>
+   566→                    )}
+   567→                  </div>
+   568→                )}
+   569→
+   570→                {/* Min order value + Max uses */}
+   571→                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+   572→                  <div className="form-group">
+   573→                    <label className="form-label">Min. Order Value (EGP)</label>
+   574→                    <input
+   575→                      type="number"
+   576→                      className="form-input"
+   577→                      placeholder="0.00"
+   578→                      value={form.min_order_value}
+   579→                      onChange={(e) => setForm({ ...form, min_order_value: e.target.value })}
+   580→                      min="0"
+   581→                      step="0.01"
+   582→                    />
+   583→                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>Leave empty for no minimum</p>
+   584→                  </div>
+   585→                  <div className="form-group">
+   586→                    <label className="form-label">Max Uses</label>
+   587→                    <input
+   588→                      type="number"
+   589→                      className="form-input"
+   590→                      placeholder="Unlimited"
+   591→                      value={form.max_uses}
+   592→                      onChange={(e) => setForm({ ...form, max_uses: e.target.value })}
+   593→                      min="1"
+   594→                    />
+   595→                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>Leave empty for unlimited</p>
+   596→                  </div>
+   597→                </div>
+   598→
+   599→                {/* Date pickers */}
+   600→                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+   601→                  <div className="form-group">
+   602→                    <label className="form-label">Start Date</label>
+   603→                    <input
+   604→                      type="datetime-local"
+   605→                      className="form-input"
+   606→                      value={form.starts_at}
+   607→                      onChange={(e) => setForm({ ...form, starts_at: e.target.value })}
+   608→                    />
+   609→                  </div>
+   610→                  <div className="form-group">
+   611→                    <label className="form-label">Expiry Date</label>
+   612→                    <input
+   613→                      type="datetime-local"
+   614→                      className="form-input"
+   615→                      value={form.expires_at}
+   616→                      onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
+   617→                      min={form.starts_at || undefined}
+   618→                    />
+   619→                  </div>
+   620→                </div>
+   621→
+   622→                {/* Applies to */}
+   623→                <div className="form-group">
+   624→                  <label className="form-label">Applies To</label>
+   625→                  <select
+   626→                    className="form-input"
+   627→                    value={form.applies_to}
+   628→                    onChange={(e) => setForm({ ...form, applies_to: e.target.value })}
+   629→                  >
+   630→                    <option value="all">All Products</option>
+   631→                    <option value="specific_products">Specific Products</option>
+   632→                    <option value="specific_categories">Specific Categories</option>
+   633→                  </select>
+   634→                </div>
+   635→
+   636→                {/* Active toggle */}
+   637→                <div className="form-group" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+   638→                  <label className="form-label" style={{ marginBottom: 0 }}>Active</label>
+   639→                  <button
+   640→                    type="button"
+   641→                    onClick={() => setForm({ ...form, is_active: !form.is_active })}
+   642→                    style={{
+   643→                      display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
+   644→                      cursor: "pointer", color: form.is_active ? "var(--accent-green)" : "var(--text-tertiary)",
+   645→                      fontSize: "var(--font-size-sm)", fontWeight: 600,
+   646→                    }}
+   647→                  >
+   648→                    {form.is_active ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+   649→                    {form.is_active ? "Active" : "Inactive"}
+   650→                  </button>
+   651→                </div>
+   652→              </div>
+   653→
+   654→              <div className="modal-footer">
+   655→                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
+   656→                <button
+   657→                  type="submit"
+   658→                  className="btn btn-primary"
+   659→                  disabled={saving || !form.code.trim() || (form.type !== "free_shipping" && !form.value) || (form.type === "percentage" && Number(form.value) > 100)}
+   660→                >
+   661→                  {saving ? <><Loader2 size={14} className="spin" /> Saving...</> : (
+   662→                    editingCoupon ? "Save Changes" : <><Plus size={14} /> Create Coupon</>
+   663→                  )}
+   664→                </button>
+   665→              </div>
+   666→            </form>
+   667→          </div>
+   668→        </div>
+   669→      )}
+   670→    </>
+   671→  );
+   672→}
+   673→

@@ -1,0 +1,677 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback } from "react";
+     4→import {
+     5→  ShoppingCart, Search, Send, CheckCircle, Clock, X,
+     6→  ChevronRight, Loader2, Package, User, Tag, MessageSquare,
+     7→  ArrowRight, AlertCircle, RefreshCw, Filter,
+     8→} from "lucide-react";
+     9→import { createClient } from "@/lib/supabase/client";
+    10→import { PageSkeleton } from "@/components/SkeletonLoader";
+    11→
+    12→const statusConfig = {
+    13→  abandoned: { color: "var(--accent-orange)", bg: "rgba(255, 145, 0, 0.1)", label: "Abandoned" },
+    14→  reminded: { color: "var(--accent-primary-light)", bg: "rgba(108, 92, 231, 0.1)", label: "Reminded" },
+    15→  recovered: { color: "var(--accent-green)", bg: "rgba(0, 230, 118, 0.1)", label: "Recovered" },
+    16→  expired: { color: "var(--text-tertiary)", bg: "rgba(255, 255, 255, 0.05)", label: "Expired" },
+    17→};
+    18→
+    19→const channelConfig = {
+    20→  whatsapp: { emoji: "📱", label: "WhatsApp", class: "whatsapp" },
+    21→  instagram: { emoji: "📸", label: "Instagram", class: "instagram" },
+    22→  facebook: { emoji: "💬", label: "Facebook", class: "facebook" },
+    23→};
+    24→
+    25→function formatTimeAgo(dateStr) {
+    26→  if (!dateStr) return "N/A";
+    27→  const diff = Date.now() - new Date(dateStr).getTime();
+    28→  const minutes = Math.floor(diff / 60000);
+    29→  const hours = Math.floor(minutes / 60);
+    30→  const days = Math.floor(hours / 24);
+    31→
+    32→  if (days > 0) return `${days}d ago`;
+    33→  if (hours > 0) return `${hours}h ago`;
+    34→  if (minutes > 0) return `${minutes}m ago`;
+    35→  return "Just now";
+    36→}
+    37→
+    38→function formatCurrency(value) {
+    39→  return `${(parseFloat(value) || 0).toLocaleString()} EGP`;
+    40→}
+    41→
+    42→export default function AbandonedCartsPage() {
+    43→  const [carts, setCarts] = useState([]);
+    44→  const [stats, setStats] = useState({
+    45→    totalAbandonedValue: 0,
+    46→    totalRecoveredValue: 0,
+    47→    activeCarts: 0,
+    48→    recoveredCarts: 0,
+    49→    totalCarts: 0,
+    50→    recoveryRate: 0,
+    51→  });
+    52→  const [filter, setFilter] = useState("all");
+    53→  const [search, setSearch] = useState("");
+    54→  const [loading, setLoading] = useState(true);
+    55→  const [selectedCart, setSelectedCart] = useState(null);
+    56→  const [sendingReminder, setSendingReminder] = useState(null);
+    57→  const [sendingAll, setSendingAll] = useState(false);
+    58→  const [detecting, setDetecting] = useState(false);
+    59→  const [toast, setToast] = useState(null);
+    60→
+    61→  const showToast = (message, type = "success") => {
+    62→    setToast({ message, type });
+    63→    setTimeout(() => setToast(null), 4000);
+    64→  };
+    65→
+    66→  const fetchCarts = useCallback(async () => {
+    67→    setLoading(true);
+    68→    try {
+    69→      const supabase = createClient();
+    70→      if (!supabase) return;
+    71→      const { data: { user } } = await supabase.auth.getUser();
+    72→      if (!user) return;
+    73→
+    74→      const params = new URLSearchParams({
+    75→        account_id: user.id,
+    76→        status: filter !== "all" ? filter : "",
+    77→        limit: "100",
+    78→      });
+    79→
+    80→      const res = await fetch(`/api/abandoned-carts?${params}`);
+    81→      const data = await res.json();
+    82→
+    83→      if (res.ok) {
+    84→        setCarts(data.carts || []);
+    85→        setStats(data.stats || {});
+    86→      }
+    87→    } catch (err) {
+    88→      console.error("Fetch carts error:", err);
+    89→    }
+    90→    setLoading(false);
+    91→  }, [filter]);
+    92→
+    93→  useEffect(() => { fetchCarts(); }, [fetchCarts]);
+    94→
+    95→  // Filter carts by search
+    96→  const filteredCarts = carts.filter(cart => {
+    97→    if (!search) return true;
+    98→    const q = search.toLowerCase();
+    99→    const customerName = cart.customer?.name || "";
+   100→    const items = Array.isArray(cart.items) ? cart.items.map(i => i.name || i.title || "").join(" ") : "";
+   101→    return customerName.toLowerCase().includes(q) || items.toLowerCase().includes(q);
+   102→  });
+   103→
+   104→  const handleSendReminder = async (cartId) => {
+   105→    setSendingReminder(cartId);
+   106→    try {
+   107→      const supabase = createClient();
+   108→      if (!supabase) return;
+   109→      const { data: { user } } = await supabase.auth.getUser();
+   110→      if (!user) return;
+   111→
+   112→      const res = await fetch("/api/abandoned-carts/send-reminder", {
+   113→        method: "POST",
+   114→        headers: { "Content-Type": "application/json" },
+   115→        body: JSON.stringify({
+   116→          account_id: user.id,
+   117→          cart_id: cartId,
+   118→          include_discount: false,
+   119→        }),
+   120→      });
+   121→
+   122→      const data = await res.json();
+   123→      if (res.ok) {
+   124→        showToast(data.message || "Reminder sent!");
+   125→        fetchCarts();
+   126→        // Update selected cart if viewing
+   127→        if (selectedCart?.id === cartId) {
+   128→          setSelectedCart(prev => ({ ...prev, status: "reminded", first_reminder_at: new Date().toISOString() }));
+   129→        }
+   130→      } else {
+   131→        showToast(data.error || "Failed to send reminder", "error");
+   132→      }
+   133→    } catch (err) {
+   134→      showToast("Error sending reminder: " + err.message, "error");
+   135→    }
+   136→    setSendingReminder(null);
+   137→  };
+   138→
+   139→  const handleSendAllReminders = async () => {
+   140→    setSendingAll(true);
+   141→    try {
+   142→      const supabase = createClient();
+   143→      if (!supabase) return;
+   144→      const { data: { user } } = await supabase.auth.getUser();
+   145→      if (!user) return;
+   146→
+   147→      const res = await fetch("/api/abandoned-carts/send-reminder", {
+   148→        method: "POST",
+   149→        headers: { "Content-Type": "application/json" },
+   150→        body: JSON.stringify({
+   151→          account_id: user.id,
+   152→          send_all: true,
+   153→        }),
+   154→      });
+   155→
+   156→      const data = await res.json();
+   157→      if (res.ok) {
+   158→        showToast(`Sent ${data.sent} reminders! ${data.failed} failed.`, data.failed > 0 ? "warning" : "success");
+   159→        fetchCarts();
+   160→      } else {
+   161→        showToast(data.error || "Failed to send reminders", "error");
+   162→      }
+   163→    } catch (err) {
+   164→      showToast("Error: " + err.message, "error");
+   165→    }
+   166→    setSendingAll(false);
+   167→  };
+   168→
+   169→  const handleMarkRecovered = async (cartId) => {
+   170→    try {
+   171→      const supabase = createClient();
+   172→      if (!supabase) return;
+   173→      const { data: { user } } = await supabase.auth.getUser();
+   174→      if (!user) return;
+   175→
+   176→      const res = await fetch(`/api/abandoned-carts/${cartId}`, {
+   177→        method: "PATCH",
+   178→        headers: { "Content-Type": "application/json" },
+   179→        body: JSON.stringify({
+   180→          account_id: user.id,
+   181→          status: "recovered",
+   182→        }),
+   183→      });
+   184→
+   185→      const data = await res.json();
+   186→      if (res.ok) {
+   187→        showToast("Cart marked as recovered!");
+   188→        fetchCarts();
+   189→        if (selectedCart?.id === cartId) {
+   190→          setSelectedCart(prev => ({ ...prev, status: "recovered", recovered_at: new Date().toISOString() }));
+   191→        }
+   192→      } else {
+   193→        showToast(data.error || "Failed to update", "error");
+   194→      }
+   195→    } catch (err) {
+   196→      showToast("Error: " + err.message, "error");
+   197→    }
+   198→  };
+   199→
+   200→  const handleDetect = async () => {
+   201→    setDetecting(true);
+   202→    try {
+   203→      const supabase = createClient();
+   204→      if (!supabase) return;
+   205→      const { data: { user } } = await supabase.auth.getUser();
+   206→      if (!user) return;
+   207→
+   208→      const res = await fetch("/api/abandoned-carts/detect", {
+   209→        method: "POST",
+   210→        headers: { "Content-Type": "application/json" },
+   211→        body: JSON.stringify({ account_id: user.id, hours: 2 }),
+   212→      });
+   213→
+   214→      const data = await res.json();
+   215→      if (res.ok) {
+   216→        showToast(`Detected ${data.detected} new abandoned cart(s)!`, data.detected > 0 ? "success" : "info");
+   217→        fetchCarts();
+   218→      } else {
+   219→        showToast(data.error || "Detection failed", "error");
+   220→      }
+   221→    } catch (err) {
+   222→      showToast("Error: " + err.message, "error");
+   223→    }
+   224→    setDetecting(false);
+   225→  };
+   226→
+   227→  const getInitials = (name) => {
+   228→    if (!name) return "?";
+   229→    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+   230→  };
+   231→
+   232→  return (
+   233→    <>
+   234→      {/* Toast Notification */}
+   235→      {toast && (
+   236→        <div style={{
+   237→          position: "fixed", top: 80, right: 24, zIndex: 300,
+   238→          padding: "12px 20px", borderRadius: 12,
+   239→          background: toast.type === "error" ? "rgba(255, 82, 82, 0.95)" :
+   240→            toast.type === "warning" ? "rgba(255, 145, 0, 0.95)" :
+   241→            toast.type === "info" ? "rgba(0, 210, 255, 0.95)" :
+   242→            "rgba(0, 230, 118, 0.95)",
+   243→          color: "white", fontWeight: 600, fontSize: 13,
+   244→          boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+   245→          animation: "fade-in-up 0.3s ease",
+   246→          display: "flex", alignItems: "center", gap: 8,
+   247→        }}>
+   248→          {toast.type === "error" ? <AlertCircle size={16} /> :
+   249→           toast.type === "success" ? <CheckCircle size={16} /> :
+   250→           <AlertCircle size={16} />}
+   251→          {toast.message}
+   252→        </div>
+   253→      )}
+   254→
+   255→      {/* Page Header */}
+   256→      <div className="page-header">
+   257→        <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+   258→          <ShoppingCart size={28} style={{ color: "var(--accent-orange)" }} />
+   259→          Abandoned Carts
+   260→        </h1>
+   261→        <div className="page-header-actions">
+   262→          <button className="btn btn-secondary" onClick={handleDetect} disabled={detecting}>
+   263→            {detecting ? <><Loader2 size={16} className="spin" /> Detecting...</> : <><RefreshCw size={16} /> Detect Carts</>}
+   264→          </button>
+   265→          <button className="btn btn-primary" onClick={handleSendAllReminders} disabled={sendingAll || stats.activeCarts === 0}>
+   266→            {sendingAll ? <><Loader2 size={16} className="spin" /> Sending...</> : <><Send size={16} /> Send All Reminders</>}
+   267→          </button>
+   268→        </div>
+   269→      </div>
+   270→
+   271→      {/* Summary Stats */}
+   272→      <div className="stats-grid" style={{ marginBottom: "var(--space-xl)" }}>
+   273→        <div className="stat-card">
+   274→          <div className="stat-card-header">
+   275→            <div className="stat-card-icon orange">
+   276→              <ShoppingCart size={20} />
+   277→            </div>
+   278→          </div>
+   279→          <div className="stat-card-value">{formatCurrency(stats.totalAbandonedValue)}</div>
+   280→          <div className="stat-card-label">Total Abandoned Value</div>
+   281→        </div>
+   282→        <div className="stat-card">
+   283→          <div className="stat-card-header">
+   284→            <div className="stat-card-icon green">
+   285→              <CheckCircle size={20} />
+   286→            </div>
+   287→          </div>
+   288→          <div className="stat-card-value">{stats.recoveryRate}%</div>
+   289→          <div className="stat-card-label">Recovery Rate</div>
+   290→        </div>
+   291→        <div className="stat-card">
+   292→          <div className="stat-card-header">
+   293→            <div className="stat-card-icon purple">
+   294→              <Clock size={20} />
+   295→            </div>
+   296→          </div>
+   297→          <div className="stat-card-value">{stats.activeCarts}</div>
+   298→          <div className="stat-card-label">Active Carts</div>
+   299→        </div>
+   300→        <div className="stat-card">
+   301→          <div className="stat-card-header">
+   302→            <div className="stat-card-icon green">
+   303→              <Package size={20} />
+   304→            </div>
+   305→          </div>
+   306→          <div className="stat-card-value">{formatCurrency(stats.totalRecoveredValue)}</div>
+   307→          <div className="stat-card-label">Recovered Revenue</div>
+   308→        </div>
+   309→      </div>
+   310→
+   311→      {/* Filter Bar */}
+   312→      <div className="filter-bar">
+   313→        <div className="filter-tabs">
+   314→          {[
+   315→            { key: "all", label: "All" },
+   316→            { key: "abandoned", label: "Abandoned" },
+   317→            { key: "reminded", label: "Reminded" },
+   318→            { key: "recovered", label: "Recovered" },
+   319→          ].map(f => (
+   320→            <button key={f.key} className={`filter-tab ${filter === f.key ? "active" : ""}`} onClick={() => setFilter(f.key)}>
+   321→              {f.label}
+   322→            </button>
+   323→          ))}
+   324→        </div>
+   325→        <div className="filter-search">
+   326→          <Search size={14} />
+   327→          <input
+   328→            type="text"
+   329→            placeholder="Search by customer or items..."
+   330→            value={search}
+   331→            onChange={(e) => setSearch(e.target.value)}
+   332→          />
+   333→        </div>
+   334→      </div>
+   335→
+   336→      {/* Carts List */}
+   337→      <div className="dashboard-panel">
+   338→        <div className="dashboard-panel-body" style={{ padding: 0 }}>
+   339→          {loading ? (
+   340→            <PageSkeleton showStats={false} showTable={false} />
+   341→          ) : filteredCarts.length === 0 ? (
+   342→            <div className="empty-state">
+   343→              <div className="empty-state-icon">
+   344→                <ShoppingCart size={36} />
+   345→              </div>
+   346→              <h3>No Abandoned Carts</h3>
+   347→              <p>{filter !== "all" ? "No carts match this filter." : "No abandoned carts detected yet. Click 'Detect Carts' to scan for new ones."}</p>
+   348→            </div>
+   349→          ) : (
+   350→            <div className="table-scroll-wrapper">
+   351→            <table className="data-table">
+   352→              <thead>
+   353→                <tr>
+   354→                  <th>Customer</th>
+   355→                  <th>Channel</th>
+   356→                  <th>Items</th>
+   357→                  <th>Value</th>
+   358→                  <th>Abandoned</th>
+   359→                  <th>Status</th>
+   360→                  <th>Actions</th>
+   361→                </tr>
+   362→              </thead>
+   363→              <tbody>
+   364→                {filteredCarts.map((cart) => {
+   365→                  const statusCfg = statusConfig[cart.status] || statusConfig.abandoned;
+   366→                  const channelCfg = channelConfig[cart.channel] || { emoji: "💬", label: cart.channel, class: "" };
+   367→                  const items = Array.isArray(cart.items) ? cart.items : [];
+   368→                  const itemsSummary = items.slice(0, 3).map(i => i.name || i.title || "Item").join(", ") + (items.length > 3 ? ` +${items.length - 3} more` : "");
+   369→
+   370→                  return (
+   371→                    <tr key={cart.id} style={{ cursor: "pointer" }} onClick={() => setSelectedCart(cart)}>
+   372→                      <td>
+   373→                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+   374→                          <div style={{
+   375→                            width: 36, height: 36, borderRadius: "50%",
+   376→                            background: "var(--accent-gradient)", display: "flex",
+   377→                            alignItems: "center", justifyContent: "center",
+   378→                            fontWeight: 700, fontSize: 12, flexShrink: 0,
+   379→                          }}>
+   380→                            {getInitials(cart.customer?.name)}
+   381→                          </div>
+   382→                          <div>
+   383→                            <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>
+   384→                              {cart.customer?.name || "Unknown"}
+   385→                            </div>
+   386→                            {cart.customer?.email && (
+   387→                              <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+   388→                                {cart.customer.email}
+   389→                              </div>
+   390→                            )}
+   391→                          </div>
+   392→                        </div>
+   393→                      </td>
+   394→                      <td>
+   395→                        <span className={`channel-badge ${channelCfg.class}`}>
+   396→                          {channelCfg.emoji} {channelCfg.label}
+   397→                        </span>
+   398→                      </td>
+   399→                      <td>
+   400→                        <div style={{ fontSize: "var(--font-size-sm)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+   401→                          {itemsSummary || "No items"}
+   402→                        </div>
+   403→                      </td>
+   404→                      <td style={{ fontWeight: 700, color: "var(--accent-primary-light)" }}>
+   405→                        {formatCurrency(cart.cart_value)}
+   406→                      </td>
+   407→                      <td style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+   408→                        {formatTimeAgo(cart.abandoned_at)}
+   409→                      </td>
+   410→                      <td>
+   411→                        <span className="status-badge" style={{
+   412→                          background: statusCfg.bg,
+   413→                          color: statusCfg.color,
+   414→                        }}>
+   415→                          {statusCfg.label}
+   416→                        </span>
+   417→                      </td>
+   418→                      <td>
+   419→                        <div style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+   420→                          {(cart.status === "abandoned" || cart.status === "reminded") && (
+   421→                            <button
+   422→                              className="btn btn-primary btn-sm"
+   423→                              style={{ fontSize: 11, padding: "4px 10px" }}
+   424→                              disabled={sendingReminder === cart.id}
+   425→                              onClick={() => handleSendReminder(cart.id)}
+   426→                            >
+   427→                              {sendingReminder === cart.id ? <Loader2 size={12} className="spin" /> : <Send size={12} />}
+   428→                              Remind
+   429→                            </button>
+   430→                          )}
+   431→                          {(cart.status === "abandoned" || cart.status === "reminded") && (
+   432→                            <button
+   433→                              className="btn btn-secondary btn-sm"
+   434→                              style={{ fontSize: 11, padding: "4px 10px" }}
+   435→                              onClick={() => handleMarkRecovered(cart.id)}
+   436→                            >
+   437→                              <CheckCircle size={12} /> Recovered
+   438→                            </button>
+   439→                          )}
+   440→                          <button
+   441→                            className="topbar-btn"
+   442→                            style={{ width: 28, height: 28 }}
+   443→                            title="View details"
+   444→                            onClick={() => setSelectedCart(cart)}
+   445→                          >
+   446→                            <ChevronRight size={14} />
+   447→                          </button>
+   448→                        </div>
+   449→                      </td>
+   450→                    </tr>
+   451→                  );
+   452→                })}
+   453→              </tbody>
+   454→            </table>
+   455→            </div>
+   456→          )}
+   457→        </div>
+   458→      </div>
+   459→
+   460→      {/* ═══ Cart Detail Panel ═══ */}
+   461→      {selectedCart && (
+   462→        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setSelectedCart(null)}>
+   463→          <div className="modal" style={{ maxWidth: 600 }}>
+   464→            <div className="modal-header">
+   465→              <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   466→                <ShoppingCart size={18} style={{ color: "var(--accent-orange)" }} />
+   467→                Cart Details
+   468→              </h3>
+   469→              <button className="modal-close" onClick={() => setSelectedCart(null)}>
+   470→                <X size={18} />
+   471→              </button>
+   472→            </div>
+   473→            <div className="modal-body" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+   474→              {/* Status & Time */}
+   475→              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-lg)" }}>
+   476→                <span className="status-badge" style={{
+   477→                  background: (statusConfig[selectedCart.status] || statusConfig.abandoned).bg,
+   478→                  color: (statusConfig[selectedCart.status] || statusConfig.abandoned).color,
+   479→                }}>
+   480→                  {(statusConfig[selectedCart.status] || statusConfig.abandoned).label}
+   481→                </span>
+   482→                <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
+   483→                  Abandoned {formatTimeAgo(selectedCart.abandoned_at)}
+   484→                </span>
+   485→              </div>
+   486→
+   487→              {/* Customer Info */}
+   488→              <div style={{
+   489→                background: "var(--bg-glass)", borderRadius: "var(--radius-md)",
+   490→                padding: "var(--space-md)", marginBottom: "var(--space-lg)",
+   491→                border: "1px solid var(--border-subtle)",
+   492→              }}>
+   493→                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: "var(--space-sm)", display: "flex", alignItems: "center", gap: 6 }}>
+   494→                  <User size={12} /> Customer
+   495→                </div>
+   496→                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+   497→                  <div style={{
+   498→                    width: 44, height: 44, borderRadius: "50%",
+   499→                    background: "var(--accent-gradient)", display: "flex",
+   500→                    alignItems: "center", justifyContent: "center",
+   501→                    fontWeight: 700, fontSize: 14,
+   502→                  }}>
+   503→                    {getInitials(selectedCart.customer?.name)}
+   504→                  </div>
+   505→                  <div>
+   506→                    <div style={{ fontWeight: 600 }}>{selectedCart.customer?.name || "Unknown"}</div>
+   507→                    {selectedCart.customer?.email && <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>{selectedCart.customer.email}</div>}
+   508→                    {selectedCart.customer?.phone && <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>{selectedCart.customer.phone}</div>}
+   509→                  </div>
+   510→                </div>
+   511→                <div style={{ marginTop: 8 }}>
+   512→                  <span className={`channel-badge ${channelConfig[selectedCart.channel]?.class || ""}`}>
+   513→                    {channelConfig[selectedCart.channel]?.emoji || "💬"} {channelConfig[selectedCart.channel]?.label || selectedCart.channel}
+   514→                  </span>
+   515→                </div>
+   516→              </div>
+   517→
+   518→              {/* Items List */}
+   519→              <div style={{ marginBottom: "var(--space-lg)" }}>
+   520→                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: "var(--space-sm)", display: "flex", alignItems: "center", gap: 6 }}>
+   521→                  <Package size={12} /> Items
+   522→                </div>
+   523→                {(Array.isArray(selectedCart.items) ? selectedCart.items : []).map((item, i) => (
+   524→                  <div key={i} style={{
+   525→                    display: "flex", justifyContent: "space-between", alignItems: "center",
+   526→                    padding: "var(--space-sm) 0",
+   527→                    borderBottom: i < (selectedCart.items?.length || 0) - 1 ? "1px solid var(--border-subtle)" : "none",
+   528→                  }}>
+   529→                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+   530→                      {item.image ? (
+   531→                        <img src={item.image} alt={item.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} />
+   532→                      ) : (
+   533→                        <div style={{
+   534→                          width: 40, height: 40, borderRadius: 8,
+   535→                          background: "var(--bg-tertiary)", display: "flex",
+   536→                          alignItems: "center", justifyContent: "center",
+   537→                          color: "var(--text-tertiary)", fontSize: 18,
+   538→                        }}>
+   539→                          🛍️
+   540→                        </div>
+   541→                      )}
+   542→                      <div>
+   543→                        <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 500 }}>{item.name || item.title || "Item"}</div>
+   544→                        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Qty: {item.qty || 1}</div>
+   545→                      </div>
+   546→                    </div>
+   547→                    <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 600 }}>
+   548→                      {formatCurrency((parseFloat(item.price) || 0) * (parseInt(item.qty) || 1))}
+   549→                    </div>
+   550→                  </div>
+   551→                ))}
+   552→                <div style={{
+   553→                  display: "flex", justifyContent: "space-between", paddingTop: "var(--space-sm)",
+   554→                  marginTop: "var(--space-sm)", borderTop: "2px solid var(--border-medium)",
+   555→                }}>
+   556→                  <span style={{ fontWeight: 700 }}>Total</span>
+   557→                  <span style={{ fontWeight: 800, fontSize: "var(--font-size-lg)", color: "var(--accent-green)" }}>
+   558→                    {formatCurrency(selectedCart.cart_value)}
+   559→                  </span>
+   560→                </div>
+   561→              </div>
+   562→
+   563→              {/* Timeline */}
+   564→              <div style={{ marginBottom: "var(--space-lg)" }}>
+   565→                <div style={{ fontSize: 11, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: "var(--space-sm)", display: "flex", alignItems: "center", gap: 6 }}>
+   566→                  <Clock size={12} /> Timeline
+   567→                </div>
+   568→                <div style={{ paddingLeft: 16, borderLeft: "2px solid var(--border-subtle)" }}>
+   569→                  {/* Abandoned */}
+   570→                  <div style={{ position: "relative", padding: "4px 0 16px 16px" }}>
+   571→                    <div style={{
+   572→                      position: "absolute", left: -7, top: 6,
+   573→                      width: 12, height: 12, borderRadius: "50%",
+   574→                      background: "var(--accent-orange)", border: "2px solid var(--bg-primary)",
+   575→                    }} />
+   576→                    <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 600 }}>Cart Abandoned</div>
+   577→                    <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+   578→                      {selectedCart.abandoned_at ? new Date(selectedCart.abandoned_at).toLocaleString() : "N/A"}
+   579→                    </div>
+   580→                  </div>
+   581→
+   582→                  {/* First Reminder */}
+   583→                  <div style={{ position: "relative", padding: "4px 0 16px 16px" }}>
+   584→                    <div style={{
+   585→                      position: "absolute", left: -7, top: 6,
+   586→                      width: 12, height: 12, borderRadius: "50%",
+   587→                      background: selectedCart.first_reminder_at ? "var(--accent-primary-light)" : "var(--bg-tertiary)",
+   588→                      border: "2px solid var(--bg-primary)",
+   589→                    }} />
+   590→                    <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: selectedCart.first_reminder_at ? "var(--text-primary)" : "var(--text-tertiary)" }}>
+   591→                      First Reminder
+   592→                    </div>
+   593→                    <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+   594→                      {selectedCart.first_reminder_at ? new Date(selectedCart.first_reminder_at).toLocaleString() : "Not sent yet"}
+   595→                    </div>
+   596→                  </div>
+   597→
+   598→                  {/* Second Reminder */}
+   599→                  <div style={{ position: "relative", padding: "4px 0 16px 16px" }}>
+   600→                    <div style={{
+   601→                      position: "absolute", left: -7, top: 6,
+   602→                      width: 12, height: 12, borderRadius: "50%",
+   603→                      background: selectedCart.second_reminder_at ? "var(--accent-primary-light)" : "var(--bg-tertiary)",
+   604→                      border: "2px solid var(--bg-primary)",
+   605→                    }} />
+   606→                    <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: selectedCart.second_reminder_at ? "var(--text-primary)" : "var(--text-tertiary)" }}>
+   607→                      Second Reminder {selectedCart.coupon_code && `(+ Discount)`}
+   608→                    </div>
+   609→                    <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+   610→                      {selectedCart.second_reminder_at ? new Date(selectedCart.second_reminder_at).toLocaleString() : "Not sent yet"}
+   611→                    </div>
+   612→                  </div>
+   613→
+   614→                  {/* Recovered */}
+   615→                  <div style={{ position: "relative", padding: "4px 0 0 16px" }}>
+   616→                    <div style={{
+   617→                      position: "absolute", left: -7, top: 6,
+   618→                      width: 12, height: 12, borderRadius: "50%",
+   619→                      background: selectedCart.recovered_at ? "var(--accent-green)" : "var(--bg-tertiary)",
+   620→                      border: "2px solid var(--bg-primary)",
+   621→                    }} />
+   622→                    <div style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: selectedCart.recovered_at ? "var(--accent-green)" : "var(--text-tertiary)" }}>
+   623→                      Recovered
+   624→                    </div>
+   625→                    <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+   626→                      {selectedCart.recovered_at ? new Date(selectedCart.recovered_at).toLocaleString() : "Not recovered yet"}
+   627→                    </div>
+   628→                  </div>
+   629→                </div>
+   630→              </div>
+   631→
+   632→              {/* Coupon Code */}
+   633→              {selectedCart.coupon_code && (
+   634→                <div style={{
+   635→                  background: "rgba(255, 145, 0, 0.08)", borderRadius: "var(--radius-md)",
+   636→                  padding: "var(--space-md)", marginBottom: "var(--space-lg)",
+   637→                  border: "1px solid rgba(255, 145, 0, 0.2)",
+   638→                }}>
+   639→                  <div style={{ fontSize: 11, color: "var(--accent-orange)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+   640→                    <Tag size={12} /> Coupon Code
+   641→                  </div>
+   642→                  <div style={{ fontSize: "var(--font-size-lg)", fontWeight: 800, fontFamily: "monospace", color: "var(--accent-orange)" }}>
+   643→                    {selectedCart.coupon_code}
+   644→                  </div>
+   645→                </div>
+   646→              )}
+   647→            </div>
+   648→
+   649→            {/* Modal Footer - Quick Actions */}
+   650→            <div className="modal-footer" style={{ flexWrap: "wrap", gap: "var(--space-sm)" }}>
+   651→              {(selectedCart.status === "abandoned" || selectedCart.status === "reminded") && (
+   652→                <>
+   653→                  <button
+   654→                    className="btn btn-primary"
+   655→                    disabled={sendingReminder === selectedCart.id}
+   656→                    onClick={() => handleSendReminder(selectedCart.id)}
+   657→                  >
+   658→                    {sendingReminder === selectedCart.id ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
+   659→                    {selectedCart.status === "abandoned" ? "Send Reminder" : "Send Second Reminder"}
+   660→                  </button>
+   661→                  <button
+   662→                    className="btn btn-secondary"
+   663→                    onClick={() => handleMarkRecovered(selectedCart.id)}
+   664→                  >
+   665→                    <CheckCircle size={16} /> Mark Recovered
+   666→                  </button>
+   667→                </>
+   668→              )}
+   669→              <button className="btn btn-secondary" onClick={() => setSelectedCart(null)}>Close</button>
+   670→            </div>
+   671→          </div>
+   672→        </div>
+   673→      )}
+   674→    </>
+   675→  );
+   676→}
+   677→
