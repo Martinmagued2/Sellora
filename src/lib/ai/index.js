@@ -530,7 +530,22 @@ export async function generateAIReply({
       try {
         console.log("[generateAIReply] All providers failed — trying ZAI SDK direct fallback");
         const ZAI = (await import("z-ai-web-dev-sdk")).default;
-        const zai = await ZAI.create();
+        
+        // Try to create ZAI instance — it auto-discovers config from env vars or /etc/.z-ai-config
+        let zai;
+        try {
+          zai = await ZAI.create();
+        } catch (createErr) {
+          // If ZAI.create() fails (no config found), try constructing with explicit config
+          console.log("[generateAIReply] ZAI.create() failed, trying explicit config from getZAIConfig()");
+          const zaiConfig = getZAIConfig();
+          if (zaiConfig?.baseUrl && zaiConfig?.apiKey) {
+            zai = new ZAI({ baseUrl: zaiConfig.baseUrl, apiKey: zaiConfig.apiKey });
+          } else {
+            throw new Error("No ZAI config available — neither env vars nor config file found");
+          }
+        }
+        
         const completion = await zai.chat.completions.create({
           messages: [
             { role: "system", content: fullSystemPrompt },
