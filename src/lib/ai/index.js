@@ -7,6 +7,7 @@ import { routeMessage } from "./router";
 import { createSalesTools, createSupportTools } from "./tools";
 import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt, buildPersonalityFromSettings } from "./agents";
 import { getZAIConfig } from "./z-ai-config";
+import { buildGroqProviders, getGroqConfigSummary } from "./groq-keys";
 
 const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY 
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
@@ -258,8 +259,13 @@ function buildProviderChain() {
     }
   }
 
-  if (process.env.GROQ_API_KEY) {
-    providers.push({ name: 'groq', model: groq("llama-3.3-70b-versatile") });
+  // ─── Multi-Key Groq Support ───
+  // Supports GROQ_API_KEYS (comma-separated), GROQ_API_KEY + GROQ_API_KEY_2/3/..., or just GROQ_API_KEY
+  // Each key creates separate provider entries with primary + fast models,
+  // so if one key hits rate limits, the next key is tried automatically.
+  const groqProviders = buildGroqProviders();
+  if (groqProviders.length > 0) {
+    providers.push(...groqProviders);
   }
 
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) {

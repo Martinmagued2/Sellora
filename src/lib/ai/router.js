@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { buildGroqRoutingProviders } from "./groq-keys";
 
 /**
  * Classifies the intent of the conversation to route to the correct agent.
@@ -49,9 +50,11 @@ Use "urgent" sentiment for angry, very frustrated, or threatening messages.`;
       }
     }
 
-    // Try Groq next (primary)
-    if (process.env.GROQ_API_KEY) {
-      providers.push({ name: 'groq', model: groq("llama-3.3-70b-versatile") });
+    // Try Groq next (multi-key support)
+    // Uses fast/cheap models for routing to conserve rate limits on primary models
+    const groqRoutingProviders = buildGroqRoutingProviders();
+    if (groqRoutingProviders.length > 0) {
+      providers.push(...groqRoutingProviders);
     }
 
     // Fallback to Google Gemini
