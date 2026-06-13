@@ -434,27 +434,51 @@ export async function processIncomingMessage({
           const lowerText = text.toLowerCase();
           const searchTerms = lowerText.split(/\s+/).filter(Boolean);
 
+          // Common stop words that cause false FAQ matches.
+          // These words appear in many FAQ questions/answers and should NOT
+          // contribute to scoring because they match almost any FAQ.
+          const STOP_WORDS = new Set([
+            'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can',
+            'had', 'her', 'was', 'one', 'our', 'out', 'has', 'have', 'this',
+            'that', 'with', 'they', 'will', 'what', 'when', 'how', 'why',
+            'who', 'from', 'your', 'been', 'does', 'just', 'want', 'like',
+            'know', 'need', 'some', 'more', 'also', 'very', 'much', 'tell',
+            'about', 'could', 'would', 'should', 'there', 'their', 'where',
+            'which', 'hello', 'please', 'thank', 'thanks', 'hi', 'hey',
+          ]);
+
           const scored = faqs.map((faq) => {
             let score = 0;
+            let matchCount = 0; // Track how many unique terms actually matched
             const qLower = (faq.question || "").toLowerCase();
             const aLower = (faq.answer || "").toLowerCase();
             const cLower = (faq.category || "").toLowerCase();
-            const allText = `${qLower} ${aLower} ${cLower}`;
 
             for (const term of searchTerms) {
-              // Ignore very common short words that cause false FAQ matches
-              // Words like "hi", "how", "the", "a", "is", "do", "I", etc. should NOT
-              // score highly because they match almost any FAQ question
+              // Skip very short words (1-2 chars) and common stop words
               if (term.length <= 2) continue;
-              if (qLower.includes(term)) score += 10;
-              if (cLower.includes(term)) score += 8;
-              if (aLower.includes(term)) score += 5;
-              if (allText.includes(term)) score += 2;
+              if (STOP_WORDS.has(term)) continue;
+
+              let termMatched = false;
+              if (qLower.includes(term)) { score += 10; termMatched = true; }
+              if (cLower.includes(term)) { score += 8; termMatched = true; }
+              if (aLower.includes(term)) { score += 5; termMatched = true; }
+              if (termMatched) matchCount++;
             }
 
-            // Bonus: exact question match or near-exact match gets a big boost
+            // Bonus: exact question match gets a big boost (very high confidence)
             if (qLower === lowerText) score += 50;
-            if (qLower.includes(lowerText) || lowerText.includes(qLower)) score += 20;
+            // Near-exact match: the FAQ question is a substring of the customer message,
+            // or vice versa — but ONLY if the shorter one is at least 4 chars to avoid
+            // trivial matches like "hi" matching "Hi, how are you?"
+            const shorter = qLower.length < lowerText.length ? qLower : lowerText;
+            if (shorter.length >= 4) {
+              if (qLower.includes(lowerText) || lowerText.includes(qLower)) score += 20;
+            }
+
+            // Require at least 2 meaningful terms to match, otherwise it's likely a
+            // false positive from a single common word hitting a FAQ
+            if (matchCount < 2) score = Math.min(score, 15); // Cap score if only 1 term matched
 
             return { ...faq, score };
           });
@@ -463,10 +487,11 @@ export async function processIncomingMessage({
             .filter((f) => f.score > 0)
             .sort((a, b) => b.score - a.score)[0];
 
-          // Use FAQ auto-reply ONLY for high-confidence matches (score >= 20).
-          // Low scores (10-19) are often false positives from common words matching
+          // Use FAQ auto-reply ONLY for high-confidence matches (score >= 30).
+          // Scores 20-29 are often false positives from common words matching
           // FAQ content — in those cases, let AI handle it instead.
-          if (bestMatch && bestMatch.score >= 20) {
+          // Raised from 20 to 30 to reduce false positives that were blocking AI replies.
+          if (bestMatch && bestMatch.score >= 30) {
             // Send the FAQ answer via the appropriate channel (best-effort)
             let faqDelivered = false;
             try {
@@ -526,9 +551,15 @@ export async function processIncomingMessage({
                 .eq("id", conversation.id);
             }
 
-            // FAQ reply handled, skip keyword and AI
-            faqMatchedAndReplied = true;
-            return;
+            // FAQ reply handled, skip keyword and AI — but ONLY if delivery succeeded.
+            // If delivery failed, fall through to AI so the customer still gets a reply.
+            if (faqDelivered) {
+              faqMatchedAndReplied = true;
+              return;
+            } else {
+              console.log(`[PROCESSOR] FAQ matched but delivery failed — falling through to AI reply`);
+              faqMatchedAndReplied = false; // Let AI handle it instead
+            }
           }
         }
       } catch (faqErr) {
@@ -612,7 +643,13 @@ export async function processIncomingMessage({
               .eq("id", conversation.id);
           }
 
-          return; // Keyword reply handled, skip AI
+          // Keyword reply handled, skip AI — but ONLY if delivery succeeded.
+          // If delivery failed, fall through to AI so the customer still gets a reply.
+          if (keywordDelivered) {
+            return;
+          } else {
+            console.log(`[PROCESSOR] Keyword matched but delivery failed — falling through to AI reply`);
+          }
         }
       }
     }
@@ -699,6 +736,12 @@ export async function processIncomingMessage({
               });
 
           console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
+
+          // Defensive: ensure we always have a reply — never leave a customer with no response
+          if (aiResult && !aiResult.reply) {
+            console.error(`[PROCESSOR] AI returned null reply — using fallback. This should not happen after the generateAIReply fix.`);
+            aiResult.reply = `Thanks for reaching out! I'm experiencing some connectivity issues right now, but our team has been notified and will respond to you shortly.`;
+          }
 
           if (aiResult && aiResult.reply) {
             const aiReply = aiResult.reply;

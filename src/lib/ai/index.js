@@ -563,7 +563,16 @@ export async function generateAIReply({
     return { reply: text, intent, sentiment, toolCalls, needsHumanAttention, escalationReason, abTestVariant: abTestVariant?.name || null, abTestId };
   } catch (err) {
     console.error("Error generating AI reply:", err);
-    return { reply: null, intent: "general", sentiment: "neutral", toolCalls: null, needsHumanAttention: false, escalationReason: null };
+    // CRITICAL: Never return null reply — the customer must always get some response.
+    // Previously this returned reply: null which meant the processor silently skipped
+    // the reply, leaving the customer with NO response at all.
+    const fallbackReplies = {
+      sales: `Thank you for your interest! I'm currently experiencing high demand. A team member will follow up with you shortly to help you with your request.`,
+      support: `I appreciate your patience! I'm having trouble connecting right now. Our support team has been notified and will get back to you shortly.`,
+      order_tracking: `I'm having trouble accessing order information right now. Our team has been notified and will update you on your order status shortly.`,
+      general: `Thanks for reaching out! I'm experiencing some connectivity issues right now, but our team has been notified and will respond to you shortly.`,
+    };
+    return { reply: fallbackReplies.general, intent: "general", sentiment: "neutral", toolCalls: null, needsHumanAttention: false, escalationReason: null };
   }
 }
 

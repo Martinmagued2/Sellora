@@ -147,3 +147,38 @@ Stage Summary:
 - All animations respect prefers-reduced-motion
 - No existing dashboard functionality broken
 - Build passes successfully
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix AI not replying to customer messages
+
+Work Log:
+- Explored full project structure (Sellora/ChatCommerce - Next.js AI chat commerce platform)
+- Read the core message pipeline: src/lib/channels/processor.js (processIncomingMessage)
+- Read AI reply generation: src/lib/ai/index.js (generateAIReply)
+- Read intent router: src/lib/ai/router.js
+- Read message send route: src/app/api/messages/send/route.js
+- Read plan limits: src/lib/plan-limits.js
+- Identified 3 bugs causing AI not to reply
+
+Bug 1: FAQ matching too aggressive (processor.js)
+  - Old scoring: +10 per term in question, +8 per category, +5 per answer, +2 per any text
+  - Old bonus: +20 if lowerText.includes(qLower) or qLower.includes(lowerText) - very broad
+  - Old threshold: score >= 20 triggered FAQ auto-reply + return (skipping AI entirely)
+  - Problem: 2 common terms matching = score 20+ → FAQ reply → AI bypassed entirely
+  - Fix: Added stop words list, require min 4 chars for substring bonus, require 2+ matching terms, raised threshold to 30
+
+Bug 2: FAQ/keyword auto-replies use `return` even when delivery fails (processor.js)
+  - When FAQ or keyword match triggers but delivery fails (no token, API error), `return` still exits
+  - Customer gets NO response at all - not from FAQ/keyword (failed) and not from AI (bypassed)
+  - Fix: Only `return` (skip AI) if delivery succeeded; if delivery failed, fall through to AI
+
+Bug 3: generateAIReply outer catch returns reply: null (ai/index.js)
+  - When the outer try/catch catches any unexpected error, returns { reply: null }
+  - Processor checks `if (aiResult && aiResult.reply)` → silently skips, customer gets nothing
+  - Fix: Return a fallback reply message instead of null
+
+Stage Summary:
+- Fixed 3 bugs in 2 files that together caused AI to not reply to customer messages
+- Files modified: src/lib/channels/processor.js, src/lib/ai/index.js
+- Syntax validation passed for both files
