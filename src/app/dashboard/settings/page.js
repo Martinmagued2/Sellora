@@ -217,8 +217,55 @@ function SettingsContent() {
 
   const handleSave = async () => {
     setSaving(true);
+
+    // Fields to save
+    const fields = {
+      business_name: account.business_name,
+      business_description: account.business_description,
+      industry: account.industry,
+      phone: account.phone,
+      country: account.country,
+      currency: account.currency,
+      ai_enabled: account.ai_enabled,
+      ai_personality: account.ai_personality,
+      notify_escalations: account.notify_escalations !== false,
+      instagram_url: account.instagram_url,
+      facebook_url: account.facebook_url,
+      website_url: account.website_url,
+      auto_greeting: account.auto_greeting,
+      auto_greeting_message: account.auto_greeting_message,
+      greeting_per_channel: account.greeting_per_channel,
+      instagram_greeting: account.instagram_greeting,
+      facebook_greeting: account.facebook_greeting,
+      whatsapp_greeting: account.whatsapp_greeting,
+      greeting_delay_seconds: account.greeting_delay_seconds,
+      auto_follow_up_enabled: account.auto_follow_up_enabled,
+      notification_prefs: account.notification_prefs,
+      logo_url: account.logo_url,
+    };
+
     try {
-      // Get the current session token for reliable server-side auth
+      // ── Method 1: Direct client-side update (original method, works with RLS policies) ──
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error: clientError } = await supabase
+          .from("accounts")
+          .update(fields)
+          .eq("id", user.id);
+
+        if (!clientError) {
+          // Client-side update succeeded
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2000);
+          setSaving(false);
+          return;
+        }
+
+        // Client-side failed (likely RLS blocking) — fall through to server API
+        console.warn("[Settings] Client-side save failed, falling back to server API:", clientError.message);
+      }
+
+      // ── Method 2: Server-side API route (bypasses RLS with service role key) ──
       const { data: { session } } = await supabase.auth.getSession();
       const headers = { "Content-Type": "application/json" };
       if (session?.access_token) {
@@ -228,30 +275,7 @@ function SettingsContent() {
       const res = await fetch("/api/account", {
         method: "PATCH",
         headers,
-        body: JSON.stringify({
-          business_name: account.business_name,
-          business_description: account.business_description,
-          industry: account.industry,
-          phone: account.phone,
-          country: account.country,
-          currency: account.currency,
-          ai_enabled: account.ai_enabled,
-          ai_personality: account.ai_personality,
-          notify_escalations: account.notify_escalations !== false,
-          instagram_url: account.instagram_url,
-          facebook_url: account.facebook_url,
-          website_url: account.website_url,
-          auto_greeting: account.auto_greeting,
-          auto_greeting_message: account.auto_greeting_message,
-          greeting_per_channel: account.greeting_per_channel,
-          instagram_greeting: account.instagram_greeting,
-          facebook_greeting: account.facebook_greeting,
-          whatsapp_greeting: account.whatsapp_greeting,
-          greeting_delay_seconds: account.greeting_delay_seconds,
-          auto_follow_up_enabled: account.auto_follow_up_enabled,
-          notification_prefs: account.notification_prefs,
-          logo_url: account.logo_url,
-        }),
+        body: JSON.stringify(fields),
       });
       const data = await res.json();
       if (!res.ok) {
