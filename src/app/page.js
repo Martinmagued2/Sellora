@@ -13,6 +13,9 @@ import {
 import { motion, AnimatePresence, useInView, useScroll, useTransform } from "framer-motion";
 import { useTheme } from "@/lib/theme/ThemeProvider";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
+import SmoothScrollProvider from "@/components/SmoothScrollProvider";
+import GSAPAnimations from "@/components/GSAPAnimations";
+import MagneticButton from "@/components/MagneticButton";
 
 /* Dynamic import for 3D hero scene (SSR safe) */
 const HeroScene3D = lazy(() => import("./components/HeroScene3D"));
@@ -226,7 +229,7 @@ function AIChatDemo() {
             <Bot size={12} />
             AI Conversation Demo
           </span>
-          <h2>Watch Sellora AI <span className="text-gradient-static">in Action</span></h2>
+          <h2 className="section-title-reveal">Watch Sellora AI <span className="text-gradient-static">in Action</span></h2>
           <p>See how our AI handles real customer conversations — instantly, accurately, and in any language.</p>
         </div>
 
@@ -302,7 +305,7 @@ function ROICalculator() {
       <div className="section-inner">
         <div className="section-header animate-on-scroll">
           <span className="badge badge-primary" style={{ marginBottom: 16 }}><Calculator size={12} /> ROI Calculator</span>
-          <h2>See Your <span className="text-gradient-static">Potential ROI</span></h2>
+          <h2 className="section-title-reveal">See Your <span className="text-gradient-static">Potential ROI</span></h2>
           <p>Estimate how much time and money Sellora can save you every month.</p>
         </div>
         <motion.div className="roi-calculator-card" initial={{ opacity: 0, y: 40 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: "easeOut" }}>
@@ -376,7 +379,7 @@ function LiveDashboardPreview() {
       <div className="section-inner">
         <div className="section-header animate-on-scroll">
           <span className="badge badge-green" style={{ marginBottom: 16 }}><LayoutDashboard size={12} /> Live Preview</span>
-          <h2>Experience the <span className="text-gradient-static">Dashboard</span></h2>
+          <h2 className="section-title-reveal">Experience the <span className="text-gradient-static">Dashboard</span></h2>
           <p>See how Sellora helps you manage conversations, orders, and analytics — all in one place.</p>
         </div>
         <motion.div className="dashboard-preview-card" initial={{ opacity: 0, y: 40 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: "easeOut" }}>
@@ -645,9 +648,9 @@ function SolutionSection() {
     <section className="section solution-section" id="solution" ref={ref}>
       <div className="section-inner">
         <div className="solution-grid">
-          <motion.div className="solution-content" initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
+          <motion.div className="solution-content solution-left" initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
             <span className="badge badge-green" style={{ marginBottom: 16 }}><Zap size={12} /> The Solution</span>
-            <h2>Sellora AI <span className="text-gradient-static">never sleeps</span></h2>
+            <h2 className="section-title-reveal">Sellora AI <span className="text-gradient-static">never sleeps</span></h2>
             <p>While your competitors keep customers waiting, Sellora responds instantly. Every message answered. Every lead captured. Every sale closed — even at 3 AM.</p>
             <div className="solution-features">
               {[
@@ -664,7 +667,7 @@ function SolutionSection() {
             </div>
           </motion.div>
 
-          <motion.div className="solution-visual" initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
+          <motion.div className="solution-visual solution-right" initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
             <div className="solution-chat-card">
               <div className="solution-chat-header">
                 <div className="solution-chat-header-ai"><Bot size={16} /><span>Sellora AI</span></div>
@@ -707,7 +710,7 @@ function IntegrationsSection() {
       <div className="section-inner">
         <div className="section-header animate-on-scroll">
           <span className="badge badge-primary" style={{ marginBottom: 16 }}><Radio size={12} /> Integrations</span>
-          <h2>One AI, <span className="text-gradient-static">Every Channel</span></h2>
+          <h2 className="section-title-reveal">One AI, <span className="text-gradient-static">Every Channel</span></h2>
           <p>Sellora connects to all your sales channels. One dashboard, one AI, zero missed messages.</p>
         </div>
 
@@ -841,7 +844,8 @@ export default function Home() {
   const preventNav = (e) => e.preventDefault();
 
   return (
-    <>
+    <SmoothScrollProvider>
+      <GSAPAnimations />
       <ParticleCanvas />
       <SVGGrainOverlay />
       <div className="cursor-glow" style={{ left: cursorGlow.x - 200, top: cursorGlow.y - 200, opacity: cursorGlow.visible ? 1 : 0 }} />
@@ -940,28 +944,39 @@ export default function Home() {
             </div>
 
             <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.8 }}>
-              Never Lose a Customer Because You{" "}
-              <span className="text-gradient">Replied Too Late.</span>
+              <span className="hero-word">Never</span>{" "}
+              <span className="hero-word">Lose</span>{" "}
+              <span className="hero-word">a</span>{" "}
+              <span className="hero-word">Customer</span>{" "}
+              <span className="hero-word">Because</span>{" "}
+              <span className="hero-word">You</span>{" "}
+              <span className="hero-word text-gradient">Replied</span>{" "}
+              <span className="hero-word text-gradient">Too</span>{" "}
+              <span className="hero-word text-gradient">Late.</span>
             </motion.h1>
 
-            <motion.p className="hero-subtitle" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.8 }}>
+            <motion.p className="hero-subtitle hero-subtitle-mask" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.8 }}>
               {t("hero_subtitle")}
             </motion.p>
 
             <motion.div className="hero-cta" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.8 }}>
-              <button className="btn btn-primary btn-lg magnetic-btn" onClick={() => router.push('/signup')}>
-                Join the Waitlist <ArrowRight size={18} />
-              </button>
-              <button className="btn btn-secondary btn-lg" onClick={() => router.push('/login')}>
-                Watch Demo <Play size={18} />
-              </button>
+              <MagneticButton className="hero-cta-btn">
+                <button className="btn btn-primary btn-lg magnetic-btn" onClick={() => router.push('/signup')}>
+                  Join the Waitlist <ArrowRight size={18} />
+                </button>
+              </MagneticButton>
+              <MagneticButton className="hero-cta-btn">
+                <button className="btn btn-secondary btn-lg" onClick={() => router.push('/login')}>
+                  Watch Demo <Play size={18} />
+                </button>
+              </MagneticButton>
             </motion.div>
 
             <motion.div className="hero-stats" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8, duration: 1 }}>
-              <div className="hero-stat"><div className="hero-stat-value text-gradient-static">5,000+</div><div className="hero-stat-label">{t("hero_stat_sellers")}</div></div>
-              <div className="hero-stat"><div className="hero-stat-value text-gradient-static">2.5M+</div><div className="hero-stat-label">{t("hero_stat_messages")}</div></div>
+              <div className="hero-stat"><div className="hero-stat-value text-gradient-static"><span className="stat-counter" data-target="5000">0</span>+</div><div className="hero-stat-label">{t("hero_stat_sellers")}</div></div>
+              <div className="hero-stat"><div className="hero-stat-value text-gradient-static"><span className="stat-counter" data-target="2500000">0</span>M+</div><div className="hero-stat-label">{t("hero_stat_messages")}</div></div>
               <div className="hero-stat"><div className="hero-stat-value text-gradient-static">3x</div><div className="hero-stat-label">Avg Sales Increase</div></div>
-              <div className="hero-stat"><div className="hero-stat-value text-gradient-static">98%</div><div className="hero-stat-label">{t("hero_stat_uptime")}</div></div>
+              <div className="hero-stat"><div className="hero-stat-value text-gradient-static"><span className="stat-counter" data-target="98">0</span>%</div><div className="hero-stat-label">{t("hero_stat_uptime")}</div></div>
             </motion.div>
           </motion.div>
         </div>
@@ -976,9 +991,9 @@ export default function Home() {
         <SVGHexGrid />
         <div className="section-inner">
           <div className="problem-grid">
-            <motion.div className="problem-content" initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
+            <motion.div className="problem-content problem-left" initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
               <span className="badge badge-primary" style={{ marginBottom: 16 }}><AlertTriangle size={12} /> The Problem</span>
-              <h2>You&apos;re losing sales in your <span className="text-gradient-static">DMs</span> right now</h2>
+              <h2 className="section-title-reveal">You&apos;re losing sales in your <span className="text-gradient-static">DMs</span> right now</h2>
               <p>Every unanswered message is a lost customer. Every delayed reply is money left on the table. Here&apos;s what&apos;s happening:</p>
               <div className="problem-list">
                 {[
@@ -994,7 +1009,7 @@ export default function Home() {
               </div>
             </motion.div>
 
-            <motion.div className="problem-visual" initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
+            <motion.div className="problem-visual problem-right" initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
               <div className="problem-mockup">
                 <div className="problem-chat">
                   <motion.div className="problem-chat-msg incoming" initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 }}>Hi, how much is the black bag? <span className="time">11:47 PM</span></motion.div>
@@ -1023,7 +1038,7 @@ export default function Home() {
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-green" style={{ marginBottom: 16 }}><Sparkles size={12} /> AI Capabilities</span>
-            <h2>Powered by <span className="text-gradient-static">Intelligence</span></h2>
+            <h2 className="section-title-reveal">Powered by <span className="text-gradient-static">Intelligence</span></h2>
             <p>Seven AI-powered capabilities that transform how you sell, support, and grow.</p>
           </div>
 
@@ -1046,7 +1061,7 @@ export default function Home() {
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-primary" style={{ marginBottom: 16 }}><Zap size={12} />{t("features_badge")}</span>
-            <h2>{t("features_title_1")} <span className="text-gradient-static">{t("features_title_2")}</span></h2>
+            <h2 className="section-title-reveal">{t("features_title_1")} <span className="text-gradient-static">{t("features_title_2")}</span></h2>
             <p>{t("features_subtitle")}</p>
           </div>
           <div className="features-grid">
@@ -1076,7 +1091,7 @@ export default function Home() {
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-primary" style={{ marginBottom: 16 }}><Globe size={12} />{t("how_badge")}</span>
-            <h2>{t("how_title_1")} <span className="text-gradient-static">{t("how_title_2")}</span> {t("how_title_3")}</h2>
+            <h2 className="section-title-reveal">{t("how_title_1")} <span className="text-gradient-static">{t("how_title_2")}</span> {t("how_title_3")}</h2>
           </div>
           <div className="steps-container">
             {[
@@ -1106,7 +1121,7 @@ export default function Home() {
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-primary" style={{ marginBottom: 16 }}><CreditCard size={12} />{t("pricing_badge")}</span>
-            <h2>{t("pricing_title_1")} <span className="text-gradient-static">{t("pricing_title_2")}</span></h2>
+            <h2 className="section-title-reveal">{t("pricing_title_1")} <span className="text-gradient-static">{t("pricing_title_2")}</span></h2>
             <p>{t("pricing_subtitle")}</p>
           </div>
           <div className="pricing-toggle animate-on-scroll">
@@ -1186,7 +1201,7 @@ export default function Home() {
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-green" style={{ marginBottom: 16 }}><Star size={12} />{t("testimonials_badge")}</span>
-            <h2>{t("testimonials_title")}</h2>
+            <h2 className="section-title-reveal">{t("testimonials_title")}</h2>
             <p>{t("testimonials_subtitle")}</p>
           </div>
           <div className="testimonials-grid">
@@ -1215,7 +1230,7 @@ export default function Home() {
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
             <span className="badge badge-primary" style={{ marginBottom: 16 }}><MessageCircle size={12} />{t("faq_badge")}</span>
-            <h2>{t("faq_title_1")} <span className="text-gradient-static">{t("faq_title_2")}</span></h2>
+            <h2 className="section-title-reveal">{t("faq_title_1")} <span className="text-gradient-static">{t("faq_title_2")}</span></h2>
           </div>
           <div className="faq-list">
             {faqs.map((faq, i) => (
@@ -1240,7 +1255,9 @@ export default function Home() {
             <p>Start growing with Sellora today. Every minute you wait is a sale your competitor just closed.</p>
             <div className="cta-form">
               <input type="email" className="cta-input" placeholder={t("cta_placeholder")} id="cta-email" />
-              <button className="btn btn-primary magnetic-btn" id="cta-submit" onClick={() => router.push('/signup')}>Start Growing with Sellora <ArrowRight size={16} /></button>
+              <MagneticButton>
+                <button className="btn btn-primary magnetic-btn" id="cta-submit" onClick={() => router.push('/signup')}>Start Growing with Sellora <ArrowRight size={16} /></button>
+              </MagneticButton>
             </div>
           </div>
         </div>
@@ -1294,6 +1311,6 @@ export default function Home() {
           </div>
         </div>
       </footer>
-    </>
+    </SmoothScrollProvider>
   );
 }

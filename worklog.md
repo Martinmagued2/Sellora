@@ -53,3 +53,97 @@ Stage Summary:
 - Build error fixed: Missing backtick in `getSalesAgentPrompt` template literal (agents.js line 125)
 - Coupon validation bug fixed: Root cause was broken template literal preventing agent prompts from loading; enhanced tool descriptions as extra safeguard
 - Both `createSalesTools` and `createSupportTools` `validate_coupon` tools now have explicit instructions for code extraction
+
+---
+Task ID: 3-4
+Agent: Main Agent
+Task: Implement GSAP animations for the Sellora landing page
+
+Work Log:
+- Read and analyzed the full page.js (~1300 lines) to understand existing structure, components, and Framer Motion animations
+- Created `/src/components/SmoothScrollProvider.js`: Lenis-based smooth scrolling with GSAP ScrollTrigger integration, 1.2s duration with custom easing
+- Created `/src/components/MagneticButton.js`: Magnetic hover effect using `useGSAP` and `gsap.quickTo` for x/y with 0.3x pull factor, returns to 0,0 on mouseleave
+- Created `/src/components/GSAPAnimations.js`: Comprehensive GSAP animation orchestrator with:
+  - Hero word-by-word reveal (y:80, stagger:0.08, power3.out)
+  - Hero subtitle clip-path mask reveal (inset(100% 0 0 0) → inset(0 0 0 0))
+  - CTA buttons pop-in with back.out(1.4) easing and scale
+  - Stat counter count-up with snap:{value:1} and onUpdate callback
+  - Floating notification elements with random y-axis floating
+  - ScrollTrigger.batch() for glass-card/tilt-card grids (under 20 triggers)
+  - Problem section left/right slide (x:-60 / x:60)
+  - Solution section reversed emphasis (right from left, left from right)
+  - Dashboard preview scale from 0.95 with power3.out
+  - Integration hub nodes scale from 0 with back.out easing
+  - AI Chat demo messages staggered reveal
+  - ROI calculator results slide-in
+  - Pricing cards staggered reveal
+  - Testimonial cards with variable y offsets
+  - How It Works steps staggered reveal
+  - Section titles scroll-triggered reveal
+  - Navbar shrink on scroll (height, backdrop blur, background)
+  - Parallax effects on hero background elements with scrub:1
+  - prefers-reduced-motion support via gsap.matchMedia()
+- Modified `/src/app/page.js`:
+  - Added imports for SmoothScrollProvider, GSAPAnimations, MagneticButton
+  - Wrapped page content with SmoothScrollProvider
+  - Added GSAPAnimations component inside page (no visible UI, runs GSAP code)
+  - Split hero title into individual span.hero-word elements for word-by-word animation
+  - Added hero-subtitle-mask class to subtitle
+  - Replaced CTA buttons with MagneticButton wrappers (hero-cta-btn class)
+  - Added stat-counter class with data-target attributes to hero stats
+  - Added problem-left/problem-right classes to problem section
+  - Added solution-left/solution-right classes to solution section
+  - Added section-title-reveal class to all section h2 elements
+  - Replaced final CTA submit button with MagneticButton wrapper
+- Build verified: Next.js 16.2.4 Turbopack compiled successfully (0 errors)
+- No new lint errors introduced
+
+Stage Summary:
+- All 3 new components created and working alongside existing Framer Motion animations
+- GSAP animations add ON TOP of Framer Motion (no removal of existing animations)
+- ScrollTrigger count kept under 20 per page using batch() and shared triggers
+- All animations use GPU-accelerated properties (transform, opacity) only
+- prefers-reduced-motion fully supported via gsap.matchMedia()
+- Build succeeds with no errors
+
+---
+Task ID: 5
+Agent: GSAP Dashboard Agent
+Task: Add GSAP micro-interactions and page transitions to the Sellora dashboard
+
+Work Log:
+- Read and analyzed the dashboard layout.js (~570 lines) to understand existing structure, sidebar, topbar, content areas, and provider hierarchy
+- Verified GSAP (3.15.0) and @gsap/react (2.1.2) are already installed in package.json
+- Confirmed SmoothScrollProvider.js already exists with Lenis + ScrollTrigger integration
+- Confirmed GSAPAnimations.js already exists (landing page animations, not dashboard)
+- Identified correct CSS selectors used in the dashboard: `.sidebar-link` (not sidebar-item), `.glass-card`, `.dashboard-panel`, `.notification-badge` (not yet present)
+- Created `/src/components/PageTransition.js`:
+  - "use client" component using useGSAP with scope
+  - Fade-in + slide-up (opacity:0, y:16, duration:0.45, power2.out)
+  - Respects prefers-reduced-motion — skips to final state if enabled
+- Created `/src/components/DashboardAnimations.js`:
+  - "use client" component using useGSAP with scope
+  - Registers ScrollTrigger plugin
+  - Card hover lift effect: `.glass-card` and `.dashboard-panel` get y:-4 + enhanced box-shadow on mouseenter, return to y:0 on mouseleave (0.25s duration)
+  - Staggered sidebar item reveal: `.sidebar-link` elements animate from opacity:0, x:-12 with stagger:0.04 (0.3s duration)
+  - Notification badge pulse: `.notification-badge` elements get scale:1.15 pulse animation (0.6s, yoyo, sine.inOut)
+  - All animations respect prefers-reduced-motion via gsap.matchMedia()
+  - Renders with display:contents (no visual wrapper)
+- Added `notification-badge` className to the unread count badge in NotificationBell.js
+- Modified `/src/app/dashboard/layout.js`:
+  - Imported PageTransition, DashboardAnimations, SmoothScrollProvider
+  - Added SmoothScrollProvider wrapper around dashboard content (after ServiceWorkerRegistration, inside ConfirmProvider)
+  - Added DashboardAnimations component inside SmoothScrollProvider
+  - Wrapped children content with PageTransition (inside page-content div)
+  - Closed SmoothScrollProvider properly in the component tree
+- Build verified: Next.js build passes successfully with no errors
+- No new lint errors introduced (pre-existing lint issues are unrelated)
+
+Stage Summary:
+- 2 new components created: PageTransition.js, DashboardAnimations.js
+- 2 existing files modified: layout.js (imports + wrappers), NotificationBell.js (className addition)
+- All animations are subtle and appropriate for a productivity dashboard
+- Page transitions are fast (0.45s max), card hover effects barely noticeable (4px lift)
+- All animations respect prefers-reduced-motion
+- No existing dashboard functionality broken
+- Build passes successfully

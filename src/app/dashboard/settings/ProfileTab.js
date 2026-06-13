@@ -44,7 +44,12 @@ export default function ProfileTab({ account, updateField, supabase, uploadingLo
 
                     // Ensure the logos bucket exists before uploading
                     try {
-                      await fetch("/api/storage/ensure-buckets", { method: "POST" });
+                      const { data: sessionData2 } = await supabase.auth.getSession();
+                      const token2 = sessionData2.session?.access_token || '';
+                      await fetch("/api/storage/ensure-buckets", {
+                        method: "POST",
+                        headers: { 'Authorization': `Bearer ${token2}` },
+                      });
                     } catch (e) {}
 
                     // Try client-side upload first
@@ -58,12 +63,18 @@ export default function ProfileTab({ account, updateField, supabase, uploadingLo
                       formData.append('file', file);
                       formData.append('path', path);
                       formData.append('bucket', 'logos');
-                      const adminRes = await fetch('/api/storage/upload', { method: 'POST', body: formData });
-                      if (!adminRes.ok) {
-                        const errData = await adminRes.json();
-                        throw new Error(errData.error || 'Upload failed');
-                      }
+                      // Pass the user's access token so the server can verify identity
+                      const { data: sessionData } = await supabase.auth.getSession();
+                      const accessToken = sessionData.session?.access_token || '';
+                      const adminRes = await fetch('/api/storage/upload', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        body: formData,
+                      });
                       const adminData = await adminRes.json();
+                      if (!adminRes.ok) {
+                        throw new Error(adminData.error || 'Upload failed');
+                      }
                       logoUrl = adminData.url;
                     } else {
                       const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path);

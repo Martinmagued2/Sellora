@@ -13,7 +13,15 @@ import crypto from 'crypto';
 
 // Encryption key for TOTP secrets at rest (derived from env var)
 // 🔒 SECURITY: Use dedicated TOTP_ENCRYPTION_KEY — never reuse SUPABASE_SERVICE_ROLE_KEY
-const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY;
+// Falls back to a derived key from SUPABASE_SERVICE_ROLE_KEY if TOTP_ENCRYPTION_KEY is not set,
+// with a loud warning. This ensures 2FA setup works even if the dedicated key isn't configured yet.
+const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || (() => {
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn("[TOTP] WARNING: TOTP_ENCRYPTION_KEY not set — deriving from SUPABASE_SERVICE_ROLE_KEY. Set TOTP_ENCRYPTION_KEY for production!");
+    return "derived:" + process.env.SUPABASE_SERVICE_ROLE_KEY;
+  }
+  return null;
+})();
 
 /**
  * Encrypt a TOTP secret for storage

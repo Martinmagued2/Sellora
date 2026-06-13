@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Webhook, RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle,
   Loader2, Plus, Trash2, ExternalLink, ChevronRight, ArrowLeft,
@@ -383,7 +384,7 @@ export default function WebhooksPage() {
         )}
 
         {/* Create Webhook Modal */}
-        {showCreateModal && (
+        {showCreateModal && createPortal(
           <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowCreateModal(false)}>
             <div className="modal" style={{ maxWidth: 520 }}>
               <div className="modal-header">
@@ -447,7 +448,7 @@ export default function WebhooksPage() {
               </form>
             </div>
           </div>
-        )}
+        , document.body)}
       </>
     );
   }

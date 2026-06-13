@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   FlaskConical, Plus, Play, Pause, Square, BarChart3,
   Users, TrendingUp, AlertCircle, CheckCircle, Loader2,
@@ -348,7 +349,7 @@ export default function ABTestsPage() {
       </div>
 
       {/* Create Test Modal */}
-      {showCreateModal && (
+      {showCreateModal && createPortal(
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="modal" style={{ maxWidth: 700 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -473,7 +474,7 @@ export default function ABTestsPage() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }

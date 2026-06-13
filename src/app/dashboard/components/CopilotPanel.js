@@ -97,6 +97,23 @@ function getFallbackTextFromTools(toolInvs) {
         lines.push(`**Recent Sales:** ${output.sales?.length || 0} orders found`);
         if (output.sales?.slice(0, 3).forEach(s => lines.push(`  - Order #${s.order_number || s.id}: ${s.total} (${s.status})`)));
         break;
+      case 'compare_plans':
+        if (output.plans) {
+          const currentPlan = output.currentPlan || 'starter';
+          lines.push(`**Plan Comparison** (You're on **${currentPlan}**):`);
+          lines.push('');
+          for (const [key, plan] of Object.entries(output.plans)) {
+            const marker = key === currentPlan ? ' ← **Your plan**' : '';
+            lines.push(`**${plan.name}** — ${plan.price}${marker}`);
+            lines.push(`  Channels: ${plan.channels} | Products: ${plan.products} | AI: ${plan.aiRepliesPerDay}/day (${plan.aiModel})`);
+            lines.push(`  Conversations: ${plan.conversationsPerMonth}/mo | Customers: ${plan.customers} | Stores: ${plan.stores}`);
+            lines.push(`  Campaigns: ${plan.campaignsPerMonth}/mo | Coupons: ${plan.coupons} | Team: ${plan.teamMembers}`);
+            lines.push(`  Analytics: ${plan.analyticsFull ? 'Full' : 'Basic'} | Webhooks: ${plan.webhooks ? 'Yes' : 'No'} | CSV Export: ${plan.csvExport ? 'Yes' : 'No'} | AI Personality: ${plan.customAIPersonality ? 'Yes' : 'No'}`);
+            lines.push(`  Data Retention: ${plan.dataRetention} | Copilot: ${plan.copilotMessagesPerDay}/day`);
+            lines.push('');
+          }
+        }
+        break;
       case 'get_inventory_alerts':
         if (output.outOfStock?.length > 0) {
           lines.push(`🔴 **Out of Stock:** ${output.outOfStock.map(p => p.name).join(', ')}`);
@@ -200,6 +217,8 @@ const TOOL_LABELS = {
   send_message_to_customer: { label: "Sending message to customer...", doneLabel: "Message sent to customer", icon: "💬" },
   send_follow_up: { label: "Sending follow-up messages...", doneLabel: "Follow-ups sent", icon: "📧" },
   recommend_products: { label: "Finding recommendations...", doneLabel: "Recommendations ready", icon: "💡" },
+  compare_plans: { label: "Comparing plans...", doneLabel: "Plans comparison loaded", icon: "💎" },
+  navigate_to: { label: "Opening page...", doneLabel: "Ready to navigate", icon: "🔗" },
 };
 
 // Convert raw API errors into user-friendly messages

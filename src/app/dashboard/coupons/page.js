@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Plus, X, Loader2, Copy, Trash2, Edit, Check, Tag, Percent,
@@ -477,7 +478,7 @@ export default function CouponsPage() {
       )}
 
       {/* Create/Edit Modal */}
-      {showModal && (
+      {showModal && createPortal(
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
           <div className="modal" style={{ maxWidth: 600 }}>
             <div className="modal-header">
@@ -666,7 +667,7 @@ export default function CouponsPage() {
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 }
