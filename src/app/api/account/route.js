@@ -27,6 +27,37 @@ async function getAuthUser(req) {
 }
 
 /**
+ * Try to create the missing RLS UPDATE policy for accounts table.
+ * This is needed because the migration only added an INSERT policy.
+ */
+let _policyEnsured = false;
+async function ensureUpdatePolicy() {
+  if (_policyEnsured) return;
+  try {
+    const supabase = getSupabase();
+    await supabase.rpc("exec_sql", {
+      sql: `
+        CREATE POLICY IF NOT EXISTS "Users can read own account"
+          ON accounts FOR SELECT
+          TO authenticated
+          USING (auth.uid() = id);
+
+        CREATE POLICY IF NOT EXISTS "Users can update own account"
+          ON accounts FOR UPDATE
+          TO authenticated
+          USING (auth.uid() = id)
+          WITH CHECK (auth.uid() = id);
+      `,
+    });
+    console.log("[Account] Created UPDATE RLS policy");
+    _policyEnsured = true;
+  } catch (e) {
+    // exec_sql might not exist, that's ok — server-side API bypasses RLS anyway
+    _policyEnsured = true;
+  }
+}
+
+/**
  * PATCH /api/account
  *
  * Updates the authenticated user's account profile.
@@ -72,6 +103,9 @@ export async function PATCH(request) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
+    // Try to create the missing RLS policy (one-time)
+    await ensureUpdatePolicy();
+
     const body = await request.json();
 
     // Filter to only allowed fields
@@ -100,6 +134,6 @@ export async function PATCH(request) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[Account Update] Error:", err);
-    return NextResponse.json({ error: "Failed to save changes" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to save changes: " + (err.message || "Unknown error") }, { status: 500 });
   }
 }

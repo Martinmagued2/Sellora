@@ -248,8 +248,7 @@ function SettingsContent() {
       });
       const data = await res.json();
       if (!res.ok) {
-        console.error("[Settings] Save failed:", data.error);
-        alert("Failed to save: " + (data.error || "Unknown error"));
+        alert("Save failed: " + (data.error || "Unknown error"));
         setSaving(false);
         return;
       }
@@ -257,7 +256,7 @@ function SettingsContent() {
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error("[Settings] Save error:", err);
-      alert("Failed to save changes. Please try again.");
+      alert("Failed to save: " + err.message);
     }
     setSaving(false);
   };
