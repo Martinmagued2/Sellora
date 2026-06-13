@@ -218,9 +218,16 @@ function SettingsContent() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Get the current session token for reliable server-side auth
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch("/api/account", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           business_name: account.business_name,
           business_description: account.business_description,

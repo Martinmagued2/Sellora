@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 let _supabase = null;
-function getSupabase() {
+function getServiceRoleClient() {
   if (!_supabase) {
     _supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -14,46 +14,71 @@ function getSupabase() {
   return _supabase;
 }
 
-async function getAuthUser(req) {
-  const cookieStore = await cookies();
-  const supabaseAuth = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookieStore.getAll(); } } }
-  );
-  const { data: { user }, error } = await supabaseAuth.auth.getUser();
-  if (error || !user) return null;
-  return user;
-}
-
 /**
- * Try to create the missing RLS UPDATE policy for accounts table.
- * This is needed because the migration only added an INSERT policy.
+ * Get authenticated user from either:
+ *   1. Bearer token in Authorization header (preferred, more reliable)
+ *   2. Cookie-based session (fallback)
  */
-let _policyEnsured = false;
-async function ensureUpdatePolicy() {
-  if (_policyEnsured) return;
-  try {
-    const supabase = getSupabase();
-    await supabase.rpc("exec_sql", {
-      sql: `
-        CREATE POLICY IF NOT EXISTS "Users can read own account"
-          ON accounts FOR SELECT
-          TO authenticated
-          USING (auth.uid() = id);
+async function getAuthUser(request) {
+  // ── Method 1: Bearer token ──
+  const authHeader = request.headers.get("authorization");
+  if (authHeader) {
+    try {
+      const token = authHeader.replace("Bearer ", "");
+      const supabase = getServiceRoleClient();
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data?.user) {
+        console.log("[Account API] Authenticated via Bearer token for user", data.user.id);
+        return data.user;
+      }
+      console.warn("[Account API] Bearer token auth failed:", error?.message);
+    } catch (err) {
+      console.warn("[Account API] Bearer token exception:", err.message);
+    }
+  }
 
-        CREATE POLICY IF NOT EXISTS "Users can update own account"
-          ON accounts FOR UPDATE
-          TO authenticated
-          USING (auth.uid() = id)
-          WITH CHECK (auth.uid() = id);
-      `,
-    });
-    console.log("[Account] Created UPDATE RLS policy");
-    _policyEnsured = true;
-  } catch (e) {
-    // exec_sql might not exist, that's ok — server-side API bypasses RLS anyway
-    _policyEnsured = true;
+  // ── Method 2: Cookie-based session ──
+  try {
+    const cookieStore = await cookies();
+    const allCookies = cookieStore.getAll();
+
+    if (!allCookies || allCookies.length === 0) {
+      console.error("[Account API] No cookies found — user not authenticated");
+      return null;
+    }
+
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return allCookies;
+          },
+          setAll() {
+            // No-op — we don't need to set cookies in an API route
+          },
+        },
+      }
+    );
+
+    const { data, error } = await supabaseAuth.auth.getUser();
+
+    if (error) {
+      console.error("[Account API] Cookie auth error:", error.message);
+      return null;
+    }
+
+    if (!data?.user) {
+      console.error("[Account API] No user found in session");
+      return null;
+    }
+
+    console.log("[Account API] Authenticated via cookies for user", data.user.id);
+    return data.user;
+  } catch (err) {
+    console.error("[Account API] Cookie auth exception:", err.message);
+    return null;
   }
 }
 
@@ -100,11 +125,11 @@ export async function PATCH(request) {
   try {
     const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Not authenticated — please log in again" },
+        { status: 401 }
+      );
     }
-
-    // Try to create the missing RLS policy (one-time)
-    await ensureUpdatePolicy();
 
     const body = await request.json();
 
@@ -117,23 +142,76 @@ export async function PATCH(request) {
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No valid fields to update" },
+        { status: 400 }
+      );
     }
 
-    const supabase = getSupabase();
+    console.log("[Account API] Updating user", user.id, "with fields:", Object.keys(updates));
+
+    const supabase = getServiceRoleClient();
     const { error: updateError } = await supabase
       .from("accounts")
       .update(updates)
       .eq("id", user.id);
 
     if (updateError) {
-      console.error("[Account Update] Failed:", updateError.message);
-      return NextResponse.json({ error: "Failed to save: " + updateError.message }, { status: 500 });
+      console.error("[Account API] Update failed:", updateError.message);
+      return NextResponse.json(
+        { error: "Failed to save: " + updateError.message },
+        { status: 500 }
+      );
     }
 
+    console.log("[Account API] Update successful for user", user.id);
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("[Account Update] Error:", err);
-    return NextResponse.json({ error: "Failed to save changes: " + (err.message || "Unknown error") }, { status: 500 });
+    console.error("[Account API] PATCH exception:", err);
+    return NextResponse.json(
+      { error: "Failed to save changes: " + (err.message || "Unknown error") },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * GET /api/account
+ *
+ * Fetches the authenticated user's account profile.
+ * Uses the service role key to bypass RLS policies.
+ */
+export async function GET(request) {
+  try {
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+      .from("accounts")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    if (error) {
+      console.error("[Account API] GET failed:", error.message);
+      return NextResponse.json(
+        { error: "Failed to fetch account" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ account: data });
+  } catch (err) {
+    console.error("[Account API] GET exception:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch account" },
+      { status: 500 }
+    );
   }
 }
