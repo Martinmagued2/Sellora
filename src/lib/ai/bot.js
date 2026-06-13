@@ -1,15 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { routeMessage } from "./router";
 import { createSalesTools, createSupportTools } from "./tools";
 import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt } from "./agents";
+import { buildFullProviderChain, recordKeyFailure, recordKeySuccess } from "./provider-chain";
 
-const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY 
-  ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
-  : null;
+
 
 // Init Supabase with Service Role to bypass RLS for internal API calls (lazy-initialized)
 let _supabase = null;
@@ -25,57 +21,11 @@ function getSupabase() {
 
 /**
  * Build the provider fallback chain from available API keys.
- * Order: Groq (primary) → Google Gemini → OpenAI
+ * Delegates to the unified provider-chain module which handles
+ * multi-key support, health tracking, and smart failover for ALL providers.
  */
 function buildProviderChain() {
-  const providers = [];
-
-  if (process.env.VECTORENGINE_API_KEY) {
-    const customOpenAI = createOpenAI({
-      apiKey: process.env.VECTORENGINE_API_KEY,
-      baseURL: process.env.VECTORENGINE_BASE_URL || "https://api.vectorengine.ai/v1",
-      compatibility: "compatible",
-    });
-    providers.push({ name: 'vectorengine', model: customOpenAI("gpt-5.5-pro") });
-  }
-
-  // Groq as primary (fast and reliable)
-  if (process.env.GROQ_API_KEY) {
-    providers.push({ name: 'groq', model: groq("llama-3.3-70b-versatile") });
-  }
-
-  // Google Gemini as fallback
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) {
-    providers.push({ name: 'google', model: google("gemini-2.0-flash") });
-  }
-
-  // OpenAI as last resort
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      providers.push({ name: 'openai', model: openai("gpt-4o-mini") });
-    } catch (e) {
-      console.warn("[AI] OpenAI setup failed:", e?.message);
-    }
-  }
-
-  // NVIDIA NIM — free tier with top-tier models
-  if (process.env.NVIDIA_API_KEY) {
-    try {
-      const nvidia = createOpenAI({
-        apiKey: process.env.NVIDIA_API_KEY,
-        baseURL: process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
-        compatibility: "compatible",
-      });
-      providers.push({ name: 'nvidia-llama33-70b', model: nvidia("meta/llama-3.3-70b-instruct") });
-      providers.push({ name: 'nvidia-nemotron-70b', model: nvidia("nvidia/llama-3.1-nemotron-70b-instruct") });
-      providers.push({ name: 'nvidia-mistral-large', model: nvidia("mistralai/mistral-large-2-instruct") });
-    } catch (e) {
-      console.warn("[AI] NVIDIA NIM bot setup failed:", e?.message);
-    }
-  }
-
-  return providers;
+  return buildFullProviderChain();
 }
 
 /**
@@ -87,7 +37,7 @@ function buildProviderChain() {
  * much more reliable since tool-call failures won't result in empty replies.
  */
 export async function simulateChat(accountId, messages) {
-  if (!process.env.GROQ_API_KEY && !process.env.GOOGLE_GENERATIVE_AI_API_KEY && !process.env.OPENAI_API_KEY && !process.env.NVIDIA_API_KEY) {
+  if (!process.env.GROQ_API_KEY && !process.env.GROQ_API_KEYS && !process.env.GOOGLE_GENERATIVE_AI_API_KEY && !process.env.GOOGLE_API_KEYS && !process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEYS && !process.env.NVIDIA_API_KEY && !process.env.NVIDIA_API_KEYS && !process.env.VECTORENGINE_API_KEY) {
     return "AI is not configured yet. Please add your API keys in settings.";
   }
 
@@ -199,6 +149,8 @@ export async function simulateChat(accountId, messages) {
     let lastError = null;
 
     for (const provider of providerChain) {
+      // ─── Smart Failover: Track success/failure per key ───
+      
       // Attempt 1: With tools (for advanced interactions like order creation)
       try {
         console.log(`[simulateChat] Trying ${provider.name} with tools...`);
@@ -220,12 +172,14 @@ export async function simulateChat(accountId, messages) {
         text = result.text;
         if (text && text.trim()) {
           console.log(`[simulateChat] ${provider.name} with tools succeeded`);
+          if (provider._provider !== undefined) recordKeySuccess(provider._provider, provider._keyIndex);
           break;
         }
         console.warn(`[simulateChat] ${provider.name} with tools returned empty text, will retry without tools`);
       } catch (providerError) {
         lastError = providerError;
         console.warn(`[simulateChat] ${provider.name} with tools failed: ${providerError.message}`);
+        if (provider._provider !== undefined) recordKeyFailure(provider._provider, provider._keyIndex, providerError);
       }
 
       // Attempt 2: WITHOUT tools — guaranteed text response since all
@@ -241,12 +195,14 @@ export async function simulateChat(accountId, messages) {
         text = result.text;
         if (text && text.trim()) {
           console.log(`[simulateChat] ${provider.name} without tools succeeded`);
+          if (provider._provider !== undefined) recordKeySuccess(provider._provider, provider._keyIndex);
           break;
         }
         console.warn(`[simulateChat] ${provider.name} without tools also returned empty text`);
       } catch (providerError) {
         lastError = providerError;
         console.warn(`[simulateChat] ${provider.name} without tools failed: ${providerError.message}`);
+        if (provider._provider !== undefined) recordKeyFailure(provider._provider, provider._keyIndex, providerError);
       }
     }
 

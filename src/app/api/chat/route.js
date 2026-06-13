@@ -1,12 +1,10 @@
 import { streamText } from "ai";
-import { groq } from "@ai-sdk/groq";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { createCopilotTools } from "@/lib/ai/copilot-tools";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { createClient } from "@supabase/supabase-js";
+import { buildStreamingProviderChain, recordKeyFailure, recordKeySuccess } from "@/lib/ai/provider-chain";
 
 // Lazy-init Supabase admin client to avoid build-time errors (env vars not available during build)
 let _adminClient = null;
@@ -337,47 +335,8 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
 
 MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools, you must also write explanatory text that the user can read. Never return only tool results without a text explanation.`;
 
-    // Build provider model list with fallback chain
-    const providerModels = [];
-
-    if (process.env.GROQ_API_KEY) {
-      providerModels.push({ name: 'groq-llama70b', model: groq('llama-3.3-70b-versatile') });
-      providerModels.push({ name: 'groq-llama8b', model: groq('llama-3.1-8b-instant') });
-      providerModels.push({ name: 'groq-mixtral', model: groq('mixtral-8x7b-32768') });
-    }
-
-    if (process.env.VECTORENGINE_API_KEY) {
-      const customOpenAI = createOpenAI({
-        apiKey: process.env.VECTORENGINE_API_KEY,
-        baseURL: process.env.VECTORENGINE_BASE_URL || "https://api.vectorengine.ai/v1",
-        compatibility: "compatible",
-      });
-      providerModels.push({ name: 'vectorengine', model: customOpenAI('gpt-5.5-pro') });
-    }
-
-    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-      const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
-      providerModels.push({ name: 'google-flash', model: google('gemini-2.0-flash') });
-      providerModels.push({ name: 'google-flash-lite', model: google('gemini-2.0-flash-lite') });
-    }
-
-    if (process.env.OPENAI_API_KEY) {
-      const { openai } = await import('@ai-sdk/openai');
-      providerModels.push({ name: 'openai', model: openai('gpt-4o-mini') });
-    }
-
-    // NVIDIA NIM
-    if (process.env.NVIDIA_API_KEY) {
-      const nvidia = createOpenAI({
-        apiKey: process.env.NVIDIA_API_KEY,
-        baseURL: process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1',
-        compatibility: 'compatible',
-      });
-      providerModels.push({ name: 'nvidia-llama33-70b', model: nvidia('meta/llama-3.3-70b-instruct') });
-      providerModels.push({ name: 'nvidia-nemotron-70b', model: nvidia('nvidia/llama-3.1-nemotron-70b-instruct') });
-      providerModels.push({ name: 'nvidia-deepseek-r1', model: nvidia('deepseek-ai/deepseek-r1') });
-      providerModels.push({ name: 'nvidia-mistral-large', model: nvidia('mistralai/mistral-large-2-instruct') });
-    }
+    // Build provider model list using unified chain (multi-key + health tracking)
+    const providerModels = buildStreamingProviderChain();
 
     if (providerModels.length === 0) {
       return Response.json({ error: 'AI is not configured. Please add GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to your .env.local file.' }, { status: 500 });
@@ -393,17 +352,11 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
     // Mid-stream errors cannot be caught (same trade-off as /api/agent/route.js),
     // but initial errors (most common) are handled properly.
 
-    let groqRateLimited = false;
     let lastError = null;
     let lastErrorType = 'unknown'; // Track error type for better messages
 
     // Attempt 1: Try each provider with tools (streaming)
     for (const providerEntry of providerModels) {
-      if (groqRateLimited && providerEntry.name.startsWith('groq-')) {
-        console.warn(`[Agent] Skipping ${providerEntry.name} because Groq rate limit was already hit`);
-        continue;
-      }
-
       try {
         const result = await streamText({
           model: providerEntry.model,
@@ -415,30 +368,25 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
         });
 
         console.log(`[Agent] ${providerEntry.name} stream started successfully`);
+        // ✅ Success — mark key as healthy
+        if (providerEntry._provider !== undefined) recordKeySuccess(providerEntry._provider, providerEntry._keyIndex);
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
         lastError = providerError;
         const errMsg = providerError?.message || '';
         console.warn(`[Agent] ${providerEntry.name} failed:`, errMsg.substring(0, 200));
+        // ❌ Failure — record it for smart failover
+        if (providerEntry._provider !== undefined) recordKeyFailure(providerEntry._provider, providerEntry._keyIndex, providerError);
 
-        // Detect Groq rate limit — mark all Groq providers as unavailable
-        if (errMsg.includes('Rate limit') && providerEntry.name.startsWith('groq-')) {
-          groqRateLimited = true;
+        // Detect error type for user-friendly messages
+        if (errMsg.includes('Rate limit') || errMsg.includes('429') || errMsg.includes('too many requests')) {
           lastErrorType = 'rate_limit';
-          console.warn(`[Agent] Groq rate limit detected, skipping remaining Groq providers`);
-        }
-        // Detect Groq function calling failures — these are transient, try next provider
-        if (errMsg.includes('Failed to call a function') || errMsg.includes('invalid_request_error')) {
-          lastErrorType = 'function_error';
-          console.warn(`[Agent] ${providerEntry.name} had function calling error, trying next provider`);
-        }
-        // Detect auth errors
-        if (errMsg.includes('Invalid API Key') || errMsg.includes('Unauthorized') || errMsg.includes('authentication')) {
+        } else if (errMsg.includes('Invalid API Key') || errMsg.includes('Unauthorized') || errMsg.includes('authentication') || errMsg.includes('401') || errMsg.includes('403')) {
           lastErrorType = 'auth_error';
-        }
-        // Detect server errors / overload
-        if (errMsg.includes('overloaded') || errMsg.includes('503') || errMsg.includes('500')) {
+        } else if (errMsg.includes('overloaded') || errMsg.includes('503') || errMsg.includes('500')) {
           lastErrorType = 'server_error';
+        } else if (errMsg.includes('Failed to call a function') || errMsg.includes('invalid_request_error')) {
+          lastErrorType = 'function_error';
         }
       }
     }
@@ -446,10 +394,6 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
     // Attempt 2: Fallback — stream WITHOUT tools
     console.warn("[Agent] All providers with tools failed, trying without tools...");
     for (const providerEntry of providerModels) {
-      if (groqRateLimited && providerEntry.name.startsWith('groq-')) {
-        continue;
-      }
-
       try {
         const result = await streamText({
           model: providerEntry.model,
@@ -460,9 +404,11 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
         });
 
         console.log(`[Agent] ${providerEntry.name} stream started without tools`);
+        if (providerEntry._provider !== undefined) recordKeySuccess(providerEntry._provider, providerEntry._keyIndex);
         return result.toUIMessageStreamResponse();
       } catch (providerError) {
         console.warn(`[Agent] ${providerEntry.name} without tools also failed:`, providerError?.message?.substring(0, 120) || providerError);
+        if (providerEntry._provider !== undefined) recordKeyFailure(providerEntry._provider, providerEntry._keyIndex, providerError);
       }
     }
 

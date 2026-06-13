@@ -1,14 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { routeMessage } from "./router";
 import { createSalesTools, createSupportTools } from "./tools";
 import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt, buildPersonalityFromSettings } from "./agents";
 import { getZAIConfig } from "./z-ai-config";
-import { buildGroqProviders, getGroqConfigSummary } from "./groq-keys";
+import { buildFullProviderChain, recordKeyFailure, recordKeySuccess, getProviderChainSummary } from "./provider-chain";
 
+// Google instance for vision analysis (kept here since buildFullProviderChain handles chat providers)
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY 
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
   : null;
@@ -224,69 +223,13 @@ function getSupabase() {
 
 /**
  * Build the provider fallback chain from available API keys.
+ * Delegates to the unified provider-chain module which handles
+ * multi-key support, health tracking, and smart failover for ALL providers.
  */
 function buildProviderChain() {
-  const providers = [];
+  const providers = buildFullProviderChain();
 
-  if (process.env.VECTORENGINE_API_KEY) {
-    const customOpenAI = createOpenAI({
-      apiKey: process.env.VECTORENGINE_API_KEY,
-      baseURL: process.env.VECTORENGINE_BASE_URL || "https://api.vectorengine.ai/v1",
-      compatibility: "compatible",
-    });
-    providers.push({ name: 'vectorengine', model: customOpenAI("gpt-5.5-pro") });
-  }
-
-  // NVIDIA NIM — free tier: 1,000 credits, 40 req/min
-  // Top models: Llama 3.3 70B, DeepSeek R1, Nemotron 70B, Mistral Large 2, Qwen 2.5
-  if (process.env.NVIDIA_API_KEY) {
-    try {
-      const nvidia = createOpenAI({
-        apiKey: process.env.NVIDIA_API_KEY,
-        baseURL: process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
-        compatibility: "compatible",
-      });
-      // Primary NVIDIA model — Llama 3.3 70B (excellent for sales/support)
-      providers.push({ name: 'nvidia-llama33-70b', model: nvidia("meta/llama-3.3-70b-instruct") });
-      // Fallback — Nemotron 70B (NVIDIA's fine-tuned Llama, great instruction following)
-      providers.push({ name: 'nvidia-nemotron-70b', model: nvidia("nvidia/llama-3.1-nemotron-70b-instruct") });
-      // Heavy-duty — DeepSeek R1 (advanced reasoning for complex queries)
-      providers.push({ name: 'nvidia-deepseek-r1', model: nvidia("deepseek-ai/deepseek-r1") });
-      // Fast — Mistral Large 2 (good for quick routing/classification)
-      providers.push({ name: 'nvidia-mistral-large', model: nvidia("mistralai/mistral-large-2-instruct") });
-    } catch (e) {
-      console.warn("[AI] NVIDIA NIM setup failed:", e?.message);
-    }
-  }
-
-  // ─── Multi-Key Groq Support ───
-  // Supports GROQ_API_KEYS (comma-separated), GROQ_API_KEY + GROQ_API_KEY_2/3/..., or just GROQ_API_KEY
-  // Each key creates separate provider entries with primary + fast models,
-  // so if one key hits rate limits, the next key is tried automatically.
-  const groqProviders = buildGroqProviders();
-  if (groqProviders.length > 0) {
-    providers.push(...groqProviders);
-  }
-
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) {
-    providers.push({ name: 'google', model: google("gemini-2.0-flash") });
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      providers.push({ name: 'openai', model: openai("gpt-4o-mini") });
-    } catch (e) {
-      console.warn("[AI] OpenAI setup failed:", e?.message);
-    }
-  }
-
-  // ─── ZAI SDK (guaranteed fallback — always available in this environment) ───
-  // Reads config from env vars (ZAI_BASE_URL + ZAI_API_KEY) or /etc/.z-ai-config.
-  // This ensures AI always works even when no other provider keys are set.
-  // NOTE: The ZAI SDK's chat completions API is not OpenAI-compatible at the model
-  // routing level, so we can't use createOpenAI(). Instead, we use the SDK directly
-  // in the generateAIReply function as a post-chain fallback (see below).
+  // Check if ZAI SDK is available as last-resort fallback
   try {
     const zaiConfig = getZAIConfig();
     if (zaiConfig?.baseUrl && zaiConfig?.apiKey) {
@@ -494,6 +437,10 @@ export async function generateAIReply({
     }
 
     for (const provider of providerChain) {
+      // ─── Smart Failover: Track success/failure per key ───
+      // If a key is rate-limited or broken, we record it and the next
+      // buildProviderChain() call will skip it automatically.
+      
       // Attempt 1: With tools (for advanced interactions like order creation)
       try {
         const result = await generateText({
@@ -505,11 +452,17 @@ export async function generateAIReply({
         });
         text = result.text;
         toolCalls = result.toolCalls;
-        if (text && text.trim()) break;
+        if (text && text.trim()) {
+          // ✅ Success — record it so this key stays healthy
+          if (provider._provider !== undefined) recordKeySuccess(provider._provider, provider._keyIndex);
+          break;
+        }
         console.warn(`[generateAIReply] ${provider.name} with tools returned empty text`);
       } catch (providerError) {
         lastError = providerError;
         console.warn(`[generateAIReply] ${provider.name} with tools failed: ${providerError.message}`);
+        // ❌ Failure — record it so this key gets deprioritized
+        if (provider._provider !== undefined) recordKeyFailure(provider._provider, provider._keyIndex, providerError);
       }
 
       // Attempt 2: Without tools — guaranteed text response
@@ -521,10 +474,15 @@ export async function generateAIReply({
           maxSteps: 1,
         });
         text = result.text;
-        if (text && text.trim()) break;
+        if (text && text.trim()) {
+          // ✅ Success
+          if (provider._provider !== undefined) recordKeySuccess(provider._provider, provider._keyIndex);
+          break;
+        }
       } catch (providerError) {
         lastError = providerError;
         console.warn(`[generateAIReply] ${provider.name} without tools failed: ${providerError.message}`);
+        if (provider._provider !== undefined) recordKeyFailure(provider._provider, provider._keyIndex, providerError);
       }
     }
 
