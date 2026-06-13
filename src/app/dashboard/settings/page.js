@@ -217,24 +217,49 @@ function SettingsContent() {
 
   const handleSave = async () => {
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("accounts").update({
-      business_name: account.business_name,
-      business_description: account.business_description,
-      industry: account.industry,
-      phone: account.phone,
-      country: account.country,
-      currency: account.currency,
-      ai_enabled: account.ai_enabled,
-      ai_personality: account.ai_personality,
-      notify_escalations: account.notify_escalations !== false,
-      instagram_url: account.instagram_url,
-      facebook_url: account.facebook_url,
-      website_url: account.website_url,
-    }).eq("id", user.id);
+    try {
+      const res = await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_name: account.business_name,
+          business_description: account.business_description,
+          industry: account.industry,
+          phone: account.phone,
+          country: account.country,
+          currency: account.currency,
+          ai_enabled: account.ai_enabled,
+          ai_personality: account.ai_personality,
+          notify_escalations: account.notify_escalations !== false,
+          instagram_url: account.instagram_url,
+          facebook_url: account.facebook_url,
+          website_url: account.website_url,
+          auto_greeting: account.auto_greeting,
+          auto_greeting_message: account.auto_greeting_message,
+          greeting_per_channel: account.greeting_per_channel,
+          instagram_greeting: account.instagram_greeting,
+          facebook_greeting: account.facebook_greeting,
+          whatsapp_greeting: account.whatsapp_greeting,
+          greeting_delay_seconds: account.greeting_delay_seconds,
+          auto_follow_up_enabled: account.auto_follow_up_enabled,
+          notification_prefs: account.notification_prefs,
+          logo_url: account.logo_url,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("[Settings] Save failed:", data.error);
+        alert("Failed to save: " + (data.error || "Unknown error"));
+        setSaving(false);
+        return;
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("[Settings] Save error:", err);
+      alert("Failed to save changes. Please try again.");
+    }
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
   };
 
   const updateField = (field, value) => setAccount((prev) => ({ ...prev, [field]: value }));
