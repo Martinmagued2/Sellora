@@ -6,6 +6,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { routeMessage } from "./router";
 import { createSalesTools, createSupportTools } from "./tools";
 import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt, buildPersonalityFromSettings } from "./agents";
+import { getZAIConfig } from "./z-ai-config";
 
 const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY 
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
@@ -274,26 +275,19 @@ function buildProviderChain() {
     }
   }
 
-  // ─── ZAI SDK (guaranteed fallback) ───
-  // The z-ai-web-dev-sdk is always available in this environment.
-  // If ZAI_BASE_URL + ZAI_API_KEY are configured, use them as a provider
-  // via the OpenAI-compatible API. This ensures AI always works even when
-  // no other provider keys (Groq, Google, OpenAI, NVIDIA) are set.
+  // ─── ZAI SDK (guaranteed fallback — always available in this environment) ───
+  // Reads config from env vars (ZAI_BASE_URL + ZAI_API_KEY) or /etc/.z-ai-config.
+  // This ensures AI always works even when no other provider keys are set.
+  // NOTE: The ZAI SDK's chat completions API is not OpenAI-compatible at the model
+  // routing level, so we can't use createOpenAI(). Instead, we use the SDK directly
+  // in the generateAIReply function as a post-chain fallback (see below).
   try {
-    const { getZAIConfig } = require("./z-ai-config");
     const zaiConfig = getZAIConfig();
     if (zaiConfig?.baseUrl && zaiConfig?.apiKey) {
-      const zaiProvider = createOpenAI({
-        apiKey: zaiConfig.apiKey,
-        baseURL: zaiConfig.baseUrl,
-        compatibility: "compatible",
-      });
-      providers.push({ name: 'zai-sdk', model: zaiProvider("default") });
-      console.log("[AI] ZAI SDK provider added to fallback chain");
+      console.log("[AI] ZAI SDK config found — will be used as fallback if all providers fail");
     }
   } catch (e) {
-    // ZAI SDK not configured — this is fine, other providers may work
-    console.log("[AI] ZAI SDK not configured, skipping");
+    console.log("[AI] ZAI SDK not configured, skipping:", e?.message);
   }
 
   return providers;
