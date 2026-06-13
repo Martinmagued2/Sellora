@@ -119,7 +119,6 @@ export default function SecurityTab({
           Object.assign(account, updatedAccount);
         }
       }
-      window.location.reload();
     } catch (err) {
       setTotpError(err.message);
     }
@@ -313,6 +312,9 @@ export default function SecurityTab({
               </div>
               <button className="btn btn-secondary btn-sm" onClick={copyBackupCodes}>
                 {codesCopied ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy Codes</>}
+              </button>
+              <button className="btn btn-primary btn-sm" style={{ marginLeft: "var(--space-sm)" }} onClick={() => window.location.reload()}>
+                Done (Refresh Page)
               </button>
             </div>
           )}
