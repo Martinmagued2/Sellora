@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
 import {
   Smartphone, RefreshCw, CheckCircle, XCircle, Loader2,
   Package, Upload, Trash2, ToggleLeft, ToggleRight, Eye,
@@ -422,7 +421,7 @@ export default function WhatsAppCatalogPage() {
       )}
 
       {/* Settings Modal */}
-      {showSettings && createPortal(
+      {showSettings && (
         <div className="modal-overlay" onClick={() => setShowSettings(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -472,7 +471,7 @@ export default function WhatsAppCatalogPage() {
             </div>
           </div>
         </div>
-      , document.body)}
+      )}
     </>
   );
 }

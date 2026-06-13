@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -12,8 +11,7 @@ const SIZE_MAP = {
 };
 
 /**
- * Reusable modal component — rendered via React Portal at document.body
- * so it's never affected by parent transforms (which break position:fixed).
+ * Reusable modal component
  * Props: isOpen, onClose, title, children, footer, size (sm/md/lg)
  */
 export default function Modal({
@@ -42,7 +40,7 @@ export default function Modal({
     };
   }, [isOpen, handleKeyDown]);
 
-  const modalContent = (
+  return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -74,8 +72,4 @@ export default function Modal({
       )}
     </AnimatePresence>
   );
-
-  // Portal to body so modals aren't trapped inside transformed containers
-  if (typeof window === "undefined") return null;
-  return createPortal(modalContent, document.body);
 }

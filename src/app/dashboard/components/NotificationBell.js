@@ -234,7 +234,6 @@ export default function NotificationBell() {
         <Bell size={18} />
         {unreadCount > 0 && (
           <motion.span
-            className="notification-badge"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             style={{

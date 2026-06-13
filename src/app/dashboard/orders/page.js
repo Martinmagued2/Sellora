@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote, Link2, Loader2, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
@@ -205,7 +204,7 @@ export default function OrdersPage() {
       </div>
 
       {/* ═══ Order Detail Modal ═══ */}
-      {viewOrder && createPortal(
+      {viewOrder && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewOrder(null)}>
           <div className="modal" style={{ maxWidth: 560 }}>
             <div className="modal-header">
@@ -300,7 +299,7 @@ export default function OrdersPage() {
             </div>
           </div>
         </div>
-      , document.body)}
+      )}
     </>
   );
 }

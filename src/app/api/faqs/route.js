@@ -1,47 +1,17 @@
-import { createClient } from "@supabase/supabase-js";
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-
-// Service role client (lazy-initialized)
-let _supabase = null;
-function getSupabase() {
-  if (!_supabase) {
-    _supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return _supabase;
-}
+import { getServiceRoleClient, getAuthUser } from "@/lib/auth-helper";
 
 /**
  * GET /api/faqs - List FAQs for the authenticated user's account
- * POST /api/faqs - Create a new FAQ entry
- * PUT /api/faqs - Update an existing FAQ entry
- * DELETE /api/faqs - Delete an FAQ entry
  */
 export async function GET(req) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getServiceRoleClient();
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
 
@@ -68,23 +38,13 @@ export async function GET(req) {
   }
 }
 
+/**
+ * POST /api/faqs - Create a new FAQ entry
+ */
 export async function POST(req) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -95,7 +55,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "Question and answer are required" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getServiceRoleClient();
     const { data, error } = await supabase
       .from("faqs")
       .insert({
@@ -119,23 +79,13 @@ export async function POST(req) {
   }
 }
 
+/**
+ * PUT /api/faqs - Update an existing FAQ entry
+ */
 export async function PUT(req) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -146,7 +96,7 @@ export async function PUT(req) {
       return NextResponse.json({ error: "FAQ ID is required" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getServiceRoleClient();
     const updates = {};
     if (question !== undefined) updates.question = question;
     if (answer !== undefined) updates.answer = answer;
@@ -172,23 +122,13 @@ export async function PUT(req) {
   }
 }
 
+/**
+ * DELETE /api/faqs - Delete an FAQ entry
+ */
 export async function DELETE(req) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -199,7 +139,7 @@ export async function DELETE(req) {
       return NextResponse.json({ error: "FAQ ID is required" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getServiceRoleClient();
     const { error } = await supabase
       .from("faqs")
       .delete()
@@ -207,6 +147,7 @@ export async function DELETE(req) {
       .eq("account_id", user.id);
 
     if (error) {
+      console.error("[FAQs DELETE] Supabase error:", error.message);
       return NextResponse.json({ error: "Failed to delete FAQ" }, { status: 500 });
     }
 

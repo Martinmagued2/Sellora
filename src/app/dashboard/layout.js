@@ -42,9 +42,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 import { StoreProvider } from "@/lib/store-context";
 import { useDevice } from "@/lib/use-device";
-import PageTransition from "@/components/PageTransition";
-import DashboardAnimations from "@/components/DashboardAnimations";
-
 import CopilotPanel from "./components/CopilotPanel";
 import NotificationBell from "./components/NotificationBell";
 import ToastProvider, { useToast } from "./components/ToastProvider";
@@ -257,7 +254,6 @@ export default function DashboardLayout({ children }) {
     <ToastProvider>
     <ConfirmProvider>
     <ServiceWorkerRegistration />
-    <DashboardAnimations />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
       {/* Sidebar — only on desktop / tablet */}
       {!isMobile && (
@@ -506,7 +502,6 @@ export default function DashboardLayout({ children }) {
               </div>
             </div>
           )}
-          <PageTransition>
           <div style={{ 
             pointerEvents: isLockedOut ? "none" : "auto", 
             userSelect: isLockedOut ? "none" : "auto", 
@@ -516,7 +511,6 @@ export default function DashboardLayout({ children }) {
           }}>
             {children}
           </div>
-          </PageTransition>
         </div>
       </main>
 

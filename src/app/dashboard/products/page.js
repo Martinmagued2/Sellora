@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Package,
@@ -347,13 +346,8 @@ export default function ProductsPage() {
           const formData = new FormData();
           formData.append("file", imageFile);
           formData.append("path", fileName);
-          formData.append("bucket", "product-images");
-          // Pass auth token for server-side verification
-          const { data: sessData } = await supabase.auth.getSession();
-          const authToken = sessData.session?.access_token || '';
           const adminRes = await fetch("/api/storage/upload", {
             method: "POST",
-            headers: { 'Authorization': `Bearer ${authToken}` },
             body: formData,
           });
           if (adminRes.ok) {
@@ -774,7 +768,7 @@ export default function ProductsPage() {
       )}
 
       {/* ═══════════ View Product Modal ═══════════ */}
-      {viewProduct && createPortal(
+      {viewProduct && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewProduct(null)}>
           <div className="modal modal-wide" style={{ maxWidth: 640 }}>
             <div className="modal-header">
@@ -899,10 +893,10 @@ export default function ProductsPage() {
             </div>
           </div>
         </div>
-      , document.body)}
+      )}
 
       {/* ═══════════ Add/Edit Product Modal ═══════════ */}
-      {showModal && createPortal(
+      {showModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
           <div className="modal modal-wide">
             <div className="modal-header">
@@ -1146,7 +1140,7 @@ export default function ProductsPage() {
             </form>
           </div>
         </div>
-      , document.body)}
+      )}
     </>
   );
 }

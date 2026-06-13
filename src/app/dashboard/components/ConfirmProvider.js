@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, X } from "lucide-react";
 
@@ -51,7 +50,7 @@ export default function ConfirmProvider({ children }) {
     <ConfirmContext.Provider value={confirmAction}>
       {children}
       <AnimatePresence>
-        {confirmState && createPortal(
+        {confirmState && (
           <motion.div
             className="modal-overlay"
             initial={{ opacity: 0 }}
@@ -91,7 +90,7 @@ export default function ConfirmProvider({ children }) {
               </div>
             </motion.div>
           </motion.div>
-        , document.body)}
+        )}
       </AnimatePresence>
     </ConfirmContext.Provider>
   );

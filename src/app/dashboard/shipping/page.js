@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
 import {
   Truck,
   Package,
@@ -830,7 +829,7 @@ export default function ShippingPage() {
       </div>
 
       {/* Add Tracking Modal */}
-      {showAddModal && createPortal(
+      {showAddModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowAddModal(false)}>
           <div className="modal" style={{ maxWidth: 480 }}>
             <div className="modal-header">
@@ -916,7 +915,7 @@ export default function ShippingPage() {
             </div>
           </div>
         </div>
-      , document.body)}
+      )}
 
       {/* Tracking Timeline Panel */}
       {viewingShipment && (

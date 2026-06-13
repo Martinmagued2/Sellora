@@ -64,24 +64,12 @@ export default function SecurityTab({
     setTotpError("");
     try {
       const token = await getAuthToken();
-      if (!token) {
-        setTotpError("Not authenticated — please log in again.");
-        return;
-      }
       const res = await fetch("/api/auth/2fa/setup", {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}` },
+        headers: { ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
       });
       const data = await res.json();
-      if (!res.ok) {
-        // If 2FA is already enabled, reload the page to reflect the correct state
-        if (data.error?.includes("already enabled")) {
-          window.location.reload();
-          return;
-        }
-        const details = data.details ? ` (${data.details})` : "";
-        throw new Error(data.error + details || "Failed to start 2FA setup");
-      }
+      if (!res.ok) throw new Error(data.error || "Failed to start 2FA setup");
       setTotpSetup(data);
     } catch (err) {
       setTotpError(err.message);
@@ -119,6 +107,7 @@ export default function SecurityTab({
           Object.assign(account, updatedAccount);
         }
       }
+      window.location.reload();
     } catch (err) {
       setTotpError(err.message);
     }
@@ -312,9 +301,6 @@ export default function SecurityTab({
               </div>
               <button className="btn btn-secondary btn-sm" onClick={copyBackupCodes}>
                 {codesCopied ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy Codes</>}
-              </button>
-              <button className="btn btn-primary btn-sm" style={{ marginLeft: "var(--space-sm)" }} onClick={() => window.location.reload()}>
-                Done (Refresh Page)
               </button>
             </div>
           )}

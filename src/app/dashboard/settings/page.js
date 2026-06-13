@@ -232,25 +232,17 @@ function SettingsContent() {
       instagram_url: account.instagram_url,
       facebook_url: account.facebook_url,
       website_url: account.website_url,
-      auto_greeting: autoGreeting,
-      auto_greeting_message: autoGreetingMessage,
-      greeting_per_channel: greetingPerChannel,
-      instagram_greeting: instagramGreeting,
-      facebook_greeting: facebookGreeting,
-      whatsapp_greeting: whatsappGreeting,
-      greeting_delay_seconds: greetingDelaySeconds,
-      auto_follow_up_enabled: autoFollowUp,
-      notification_prefs: notifPrefs,
+      auto_greeting: account.auto_greeting,
+      auto_greeting_message: account.auto_greeting_message,
+      greeting_per_channel: account.greeting_per_channel,
+      instagram_greeting: account.instagram_greeting,
+      facebook_greeting: account.facebook_greeting,
+      whatsapp_greeting: account.whatsapp_greeting,
+      greeting_delay_seconds: account.greeting_delay_seconds,
+      auto_follow_up_enabled: account.auto_follow_up_enabled,
+      notification_prefs: account.notification_prefs,
       logo_url: account.logo_url,
     };
-
-    // Filter out undefined properties to prevent schema/request validation errors
-    const cleanedFields = {};
-    for (const [key, value] of Object.entries(fields)) {
-      if (value !== undefined) {
-        cleanedFields[key] = value;
-      }
-    }
 
     try {
       // ── Method 1: Direct client-side update (original method, works with RLS policies) ──
@@ -258,7 +250,7 @@ function SettingsContent() {
       if (user) {
         const { error: clientError } = await supabase
           .from("accounts")
-          .update(cleanedFields)
+          .update(fields)
           .eq("id", user.id);
 
         if (!clientError) {
@@ -283,7 +275,7 @@ function SettingsContent() {
       const res = await fetch("/api/account", {
         method: "PATCH",
         headers,
-        body: JSON.stringify(cleanedFields),
+        body: JSON.stringify(fields),
       });
       const data = await res.json();
       if (!res.ok) {

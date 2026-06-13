@@ -1,44 +1,17 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-
-// Service role client (lazy-initialized)
-let _supabase = null;
-function getSupabase() {
-  if (!_supabase) {
-    _supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return _supabase;
-}
+import { getServiceRoleClient, getAuthUser } from "@/lib/auth-helper";
 
 /**
  * GET /api/quick-replies - List quick replies for the authenticated user
  */
 export async function GET(req) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getServiceRoleClient();
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
 
@@ -90,21 +63,8 @@ export async function GET(req) {
  */
 export async function POST(req) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -115,7 +75,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getServiceRoleClient();
     const insertData = {
       account_id: user.id,
       title: title.trim(),
@@ -147,21 +107,8 @@ export async function POST(req) {
  */
 export async function PUT(req) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -172,7 +119,7 @@ export async function PUT(req) {
       return NextResponse.json({ error: "Quick reply ID is required" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getServiceRoleClient();
     const updates = {};
     if (title !== undefined) updates.title = title.trim();
     if (content !== undefined) updates.content = content.trim();
@@ -204,21 +151,8 @@ export async function PUT(req) {
  */
 export async function DELETE(req) {
   try {
-    const cookieStore = await cookies();
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-        },
-      }
-    );
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) {
+    const user = await getAuthUser(req);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -229,7 +163,7 @@ export async function DELETE(req) {
       return NextResponse.json({ error: "Quick reply ID is required" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getServiceRoleClient();
     const { error } = await supabase
       .from("quick_replies")
       .delete()

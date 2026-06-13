@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
 import {
   MessageCircle, Send, Search, Bot, Phone, MoreVertical,
   FlaskConical, Package, ShoppingBag, Tag, X, Plus, Minus,
@@ -1312,7 +1311,7 @@ export default function ConversationsPage() {
         {/* ═══ Shared Modals (used by both mobile and desktop) ═══ */}
 
         {/* Product Picker Modal */}
-        {showProductPicker && createPortal(
+        {showProductPicker && (
           <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowProductPicker(false)}>
             <div className="modal" style={{ maxWidth: 480 }}>
               <div className="modal-header">
@@ -1343,10 +1342,10 @@ export default function ConversationsPage() {
               </div>
             </div>
           </div>
-        , document.body)}
+        )}
 
         {/* Create Order Modal */}
-        {showOrderModal && createPortal(
+        {showOrderModal && (
           <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowOrderModal(false)}>
             <div className="modal" style={{ maxWidth: 560 }}>
               <div className="modal-header">
@@ -1445,10 +1444,10 @@ export default function ConversationsPage() {
               </div>
             </div>
           </div>
-        , document.body)}
+        )}
 
         {/* Quick Broadcast Modal */}
-        {showBroadcastModal && createPortal(
+        {showBroadcastModal && (
           <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowBroadcastModal(false)}>
             <div className="modal" style={{ maxWidth: 560 }}>
               <div className="modal-header">
@@ -1547,7 +1546,7 @@ export default function ConversationsPage() {
               </div>
             </div>
           </div>
-        , document.body)}
+        )}
       </div>
     );
   }
@@ -2219,7 +2218,7 @@ export default function ConversationsPage() {
       {/* ═══════ MODALS ═══════ */}
 
       {/* Product Picker Modal */}
-      {showProductPicker && createPortal(
+      {showProductPicker && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowProductPicker(false)}>
           <div className="modal" style={{ maxWidth: 480 }}>
             <div className="modal-header">
@@ -2250,10 +2249,10 @@ export default function ConversationsPage() {
             </div>
           </div>
         </div>
-      , document.body)}
+      )}
 
       {/* Create Order Modal */}
-      {showOrderModal && createPortal(
+      {showOrderModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowOrderModal(false)}>
           <div className="modal" style={{ maxWidth: 560 }}>
             <div className="modal-header">
@@ -2353,10 +2352,10 @@ export default function ConversationsPage() {
             </div>
           </div>
         </div>
-      , document.body)}
+      )}
 
       {/* ═══════ Quick Broadcast Modal ═══════ */}
-      {showBroadcastModal && createPortal(
+      {showBroadcastModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowBroadcastModal(false)}>
           <div className="modal" style={{ maxWidth: 560 }}>
             <div className="modal-header">
@@ -2455,7 +2454,7 @@ export default function ConversationsPage() {
             </div>
           </div>
         </div>
-      , document.body)}
+      )}
     </div>
   );
 }

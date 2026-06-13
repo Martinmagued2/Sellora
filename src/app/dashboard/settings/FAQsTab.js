@@ -9,8 +9,24 @@ export default function FAQsTab({
   newFaq, setNewFaq,
   faqSaving, setFaqSaving,
   editingFaq, setEditingFaq,
+  supabase,
 }) {
   const confirmAction = useConfirm();
+
+  /** Get auth headers with Bearer token for API calls */
+  const getAuthHeaders = async () => {
+    const headers = { "Content-Type": "application/json" };
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+    } catch (e) {
+      // Non-critical — cookie auth will be attempted as fallback
+    }
+    return headers;
+  };
+
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">
@@ -52,9 +68,10 @@ export default function FAQsTab({
               <button className="btn btn-primary btn-sm" disabled={faqSaving || !newFaq.question || !newFaq.answer} onClick={async () => {
                 setFaqSaving(true);
                 try {
+                  const headers = await getAuthHeaders();
                   const res = await fetch("/api/faqs", {
                     method: editingFaq ? "PUT" : "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers,
                     body: JSON.stringify(editingFaq ? { id: editingFaq.id, ...newFaq } : newFaq),
                   });
                   const data = await res.json();
@@ -67,8 +84,13 @@ export default function FAQsTab({
                     setShowAddFaq(false);
                     setEditingFaq(null);
                     setNewFaq({ question: "", answer: "", category: "General" });
+                  } else {
+                    alert(data.error || "Failed to save FAQ");
                   }
-                } catch (err) { console.error("FAQ save error:", err); }
+                } catch (err) {
+                  console.error("FAQ save error:", err);
+                  alert("Failed to save FAQ");
+                }
                 setFaqSaving(false);
               }}>
                 {faqSaving ? "Saving..." : editingFaq ? "Update FAQ" : "Add FAQ"}
@@ -95,8 +117,22 @@ export default function FAQsTab({
                   </button>
                   <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
                     if (!(await confirmAction("Delete this FAQ?"))) return;
-                    await fetch(`/api/faqs?id=${faq.id}`, { method: "DELETE" });
-                    setFaqs((prev) => prev.filter(f => f.id !== faq.id));
+                    try {
+                      const headers = await getAuthHeaders();
+                      const res = await fetch(`/api/faqs?id=${faq.id}`, {
+                        method: "DELETE",
+                        headers,
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        setFaqs((prev) => prev.filter(f => f.id !== faq.id));
+                      } else {
+                        alert(data.error || "Failed to delete FAQ");
+                      }
+                    } catch (err) {
+                      console.error("FAQ delete error:", err);
+                      alert("Failed to delete FAQ");
+                    }
                   }}>
                     <Trash2 size={11} style={{ color: "var(--accent-red)" }} />
                   </button>

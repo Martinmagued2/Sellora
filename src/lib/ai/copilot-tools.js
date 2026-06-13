@@ -406,15 +406,14 @@ export const createCopilotTools = (accountId) => {
     }),
 
     update_product: tool({
-      description: "Update an existing product's details. Provide EITHER product_id (UUID) OR product_name to identify the product. If product_name is given instead of a UUID, the tool will search for the product by name automatically. Only pass the fields you want to change — omit any field to leave it unchanged. Supports updating variants (sizes, colors, etc.) — when variants are provided, the product's base price is set to the lowest variant price, and total stock is the sum of all variant stocks. Pass an empty variants array [] to remove all variants from a product.",
+      description: "Update an existing product's details. You need the product ID and at least one field to update. Supports updating variants (sizes, colors, etc.) — when variants are provided, the product's base price is set to the lowest variant price, and total stock is the sum of all variant stocks. Pass an empty variants array [] to remove all variants from a product.",
       inputSchema: z.object({
-        product_id: z.string().optional().describe("The UUID of the product to update. If you don't have the UUID, use product_name instead."),
-        product_name: z.string().optional().describe("The name of the product to update (use this if you don't have the product UUID). The tool will search for the product by name."),
-        name: z.string().optional().describe("New product name (omit to keep current)"),
-        price: z.string().optional().describe("New product price (omit to keep current; ignored if variants are provided)"),
-        stock: z.string().optional().describe("New stock quantity (omit to keep current; ignored if variants are provided)"),
-        category: z.string().optional().describe("New product category (omit to keep current)"),
-        description: z.string().optional().describe("New product description (omit to keep current)"),
+        product_id: z.string().describe("The ID of the product to update"),
+        name: z.string().describe("New product name (pass empty string to skip)"),
+        price: z.string().describe("New product price (pass empty string to skip; ignored if variants are provided)"),
+        stock: z.string().describe("New stock quantity (pass empty string to skip; ignored if variants are provided)"),
+        category: z.string().describe("New product category (pass empty string to skip)"),
+        description: z.string().describe("New product description (pass empty string to skip)"),
         variants: z.array(z.object({
           name: z.string().describe("Variant name e.g. 'Red / Large' or 'Size M'"),
           sku: z.string().describe("SKU code (pass empty string if none)"),
@@ -422,42 +421,7 @@ export const createCopilotTools = (accountId) => {
           stock: z.string().describe("Variant stock quantity"),
         })).optional().describe("Replace ALL variants for this product. Each variant has its own absolute price and stock. Pass [] to remove all variants. Omit this field to keep existing variants unchanged."),
       }),
-      execute: async ({ product_id, product_name, name, price, stock, category, description, variants }) => {
-        // Resolve the product ID: if product_id looks like a UUID, use it directly;
-        // otherwise search by product_name
-        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        let resolvedId = product_id;
-        let resolvedByName = false;
-
-        if (!resolvedId || !UUID_REGEX.test(resolvedId)) {
-          // Not a valid UUID — try to find by name
-          const searchName = product_name || resolvedId; // use product_name, or fall back to whatever was passed as product_id
-          if (!searchName || !searchName.trim()) {
-            return { success: false, error: "Please provide either a valid product_id (UUID) or a product_name to identify the product." };
-          }
-
-          const { data: found, error: findError } = await supabase
-            .from("products")
-            .select("id, name, stock, price, variants")
-            .eq("account_id", accountId)
-            .ilike("name", `%${searchName.trim()}%`)
-            .limit(5);
-
-          if (findError) return { success: false, error: `Failed to search for product: ${findError.message}` };
-          if (!found || found.length === 0) return { success: false, error: `No product found matching "${searchName}". Try searching with search_products first.` };
-          if (found.length > 1) {
-            return {
-              success: false,
-              error: `Multiple products match "${searchName}": ${found.map(p => `"${p.name}" (ID: ${p.id})`).join(', ')}. Please use the specific product ID.`,
-              matches: found.map(p => ({ id: p.id, name: p.name })),
-            };
-          }
-
-          resolvedId = found[0].id;
-          resolvedByName = true;
-          console.log(`[update_product] Resolved "${searchName}" to product ID ${resolvedId}`);
-        }
-
+      execute: async ({ product_id, name, price, stock, category, description, variants }) => {
         const updates = {};
         if (name && name.trim()) updates.name = name.trim();
         if (category && category.trim()) updates.category = category.trim();
@@ -502,7 +466,7 @@ export const createCopilotTools = (accountId) => {
         const { data, error } = await supabase
           .from("products")
           .update(updates)
-          .eq("id", resolvedId)
+          .eq("id", product_id)
           .eq("account_id", accountId)
           .select("id, name, price, stock, category, variants")
           .single();
@@ -1629,112 +1593,6 @@ export const createCopilotTools = (accountId) => {
           coupons: formatted,
           total: formatted.length,
           _action: { type: "navigate", path: "/dashboard/coupons", label: "View Coupons" },
-        };
-      },
-    }),
-
-    compare_plans: tool({
-      description: "Compare Sellora subscription plans (Starter, Professional, Business). Use this when the seller asks about plan differences, pricing, what each plan includes, wants to compare plans, asks 'which plan should I choose', or mentions upgrading/downgrading. Also use when they ask about specific plan limits like 'how many channels do I get' or 'how many AI replies'.",
-      inputSchema: z.object({
-        focus: z.string().optional().describe("Optional specific feature to focus on, e.g. 'channels', 'AI', 'pricing', 'campaigns'. Leave empty for full comparison."),
-      }),
-      execute: async ({ focus }) => {
-        // Fetch current account plan
-        const { data: acct } = await supabase
-          .from("accounts")
-          .select("plan, business_name")
-          .eq("id", accountId)
-          .single();
-
-        const currentPlan = acct?.plan || "starter";
-
-        const plans = {
-          starter: {
-            name: "Starter",
-            price: "499 EGP/mo",
-            channels: 1,
-            products: 25,
-            aiRepliesPerDay: 50,
-            aiModel: "Fast (Llama 3.3 70B)",
-            conversationsPerMonth: 100,
-            customers: 200,
-            stores: 1,
-            campaignsPerMonth: 0,
-            autoReplyRules: 3,
-            coupons: 3,
-            teamMembers: 1,
-            analyticsFull: false,
-            customAIPersonality: false,
-            webhooks: false,
-            csvExport: false,
-            dataRetention: "30 days",
-            copilotMessagesPerDay: 10,
-          },
-          professional: {
-            name: "Professional",
-            price: "1,299 EGP/mo",
-            channels: 2,
-            products: "Unlimited",
-            aiRepliesPerDay: 500,
-            aiModel: "Smart (Gemini 2.0 Flash)",
-            conversationsPerMonth: 1000,
-            customers: "Unlimited",
-            stores: 3,
-            campaignsPerMonth: 5,
-            autoReplyRules: "Unlimited",
-            coupons: 10,
-            teamMembers: 3,
-            analyticsFull: true,
-            customAIPersonality: true,
-            webhooks: true,
-            csvExport: false,
-            dataRetention: "6 months",
-            copilotMessagesPerDay: 50,
-          },
-          business: {
-            name: "Business",
-            price: "2,999 EGP/mo",
-            channels: 3,
-            products: "Unlimited",
-            aiRepliesPerDay: "Unlimited",
-            aiModel: "Premium (Gemini 2.5 Flash)",
-            conversationsPerMonth: "Unlimited",
-            customers: "Unlimited",
-            stores: "Unlimited",
-            campaignsPerMonth: "Unlimited",
-            autoReplyRules: "Unlimited",
-            coupons: "Unlimited",
-            teamMembers: "Unlimited",
-            analyticsFull: true,
-            customAIPersonality: true,
-            webhooks: true,
-            csvExport: true,
-            dataRetention: "Unlimited",
-            copilotMessagesPerDay: "Unlimited",
-          },
-        };
-
-        return {
-          success: true,
-          currentPlan,
-          focus: focus || "all",
-          plans,
-          _action: { type: "navigate", path: "/dashboard/billing", label: "Go to Billing & Plans" },
-        };
-      },
-    }),
-
-    navigate_to: tool({
-      description: "Navigate the seller to a specific page or tab in the Sellora dashboard. Use this when the seller asks to go to a page, wants to be taken to a setting, or says 'take me there' / 'go to X'. Common paths: /dashboard/settings?tab=security (2FA, password), /dashboard/settings?tab=channels (WhatsApp, Instagram, Facebook), /dashboard/settings?tab=profile (business name, currency), /dashboard/settings?tab=faqs (FAQs), /dashboard/settings?tab=autoreplies (auto-replies), /dashboard/settings?tab=quickreplies (quick replies), /dashboard/settings?tab=automation (automation), /dashboard/settings?tab=webhooks (webhooks), /dashboard/settings?tab=team (team members), /dashboard/settings?tab=notifications (notifications), /dashboard/settings?tab=policies (policies), /dashboard/ai-personality (AI personality), /dashboard/products (products), /dashboard/orders (orders), /dashboard/conversations (conversations), /dashboard/customers (customers), /dashboard/analytics (analytics), /dashboard/coupons (coupons), /dashboard/campaigns (campaigns), /dashboard/billing (billing), /dashboard/automation (automation), /dashboard/abandoned-carts (abandoned carts), /dashboard/segments (segments), /dashboard/shipping (shipping), /dashboard/webhooks (webhooks), /dashboard/stores (stores), /dashboard/notifications (notifications), /dashboard/whatsapp-catalog (WhatsApp catalog).",
-      inputSchema: z.object({
-        path: z.string().describe("The dashboard path to navigate to, e.g. /dashboard/settings?tab=security"),
-        label: z.string().describe("A short label for the navigation button, e.g. 'Go to Security Settings'"),
-      }),
-      execute: async ({ path, label }) => {
-        return {
-          success: true,
-          message: `Navigating to ${label}...`,
-          _action: { type: "navigate", path, label },
         };
       },
     }),

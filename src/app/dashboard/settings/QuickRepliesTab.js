@@ -4,6 +4,7 @@ import { Zap, Plus, Edit, Trash2 } from "lucide-react";
 import { useConfirm } from "../components/ConfirmProvider";
 
 export default function QuickRepliesTab({
+  supabase,
   quickReplies, setQuickReplies,
   showAddQuickReply, setShowAddQuickReply,
   newQuickReply, setNewQuickReply,
@@ -11,6 +12,15 @@ export default function QuickRepliesTab({
   editingQuickReply, setEditingQuickReply,
 }) {
   const confirmAction = useConfirm();
+
+  const getAuthHeaders = async () => {
+    const headers = { "Content-Type": "application/json" };
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+    } catch (e) {}
+    return headers;
+  };
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">
@@ -65,10 +75,11 @@ export default function QuickRepliesTab({
               <button className="btn btn-primary btn-sm" disabled={quickReplySaving || !newQuickReply.title || !newQuickReply.content} onClick={async () => {
                 setQuickReplySaving(true);
                 try {
+                  const headers = await getAuthHeaders();
                   if (editingQuickReply) {
                     const res = await fetch("/api/quick-replies", {
                       method: "PUT",
-                      headers: { "Content-Type": "application/json" },
+                      headers,
                       body: JSON.stringify({ id: editingQuickReply.id, ...newQuickReply }),
                     });
                     const data = await res.json();
@@ -78,7 +89,7 @@ export default function QuickRepliesTab({
                   } else {
                     const res = await fetch("/api/quick-replies", {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
+                      headers,
                       body: JSON.stringify(newQuickReply),
                     });
                     const data = await res.json();
@@ -126,7 +137,8 @@ export default function QuickRepliesTab({
                   </button>
                   <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
                     if (!(await confirmAction("Delete this template?"))) return;
-                    await fetch(`/api/quick-replies?id=${qr.id}`, { method: "DELETE" });
+                    const headers = await getAuthHeaders();
+                    await fetch(`/api/quick-replies?id=${qr.id}`, { method: "DELETE", headers });
                     setQuickReplies((prev) => prev.filter(q => q.id !== qr.id));
                   }}>
                     <Trash2 size={11} style={{ color: "var(--accent-red)" }} />

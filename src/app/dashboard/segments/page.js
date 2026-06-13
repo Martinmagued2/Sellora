@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Plus, Users, Star, Crown, Heart, Shield, Zap, Target, Gift,
@@ -574,7 +573,7 @@ export default function SegmentsPage() {
       )}
 
       {/* Create Segment Modal */}
-      {showCreateModal && createPortal(
+      {showCreateModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowCreateModal(false)}>
           <div className="modal" style={{ maxWidth: 640 }}>
             <div className="modal-header">
@@ -743,7 +742,7 @@ export default function SegmentsPage() {
             </form>
           </div>
         </div>
-      , document.body)}
+      )}
     </>
   );
 }

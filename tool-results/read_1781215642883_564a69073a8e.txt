@@ -1,0 +1,1045 @@
+     1→import { tool } from "ai";
+     2→import { z } from "zod";
+     3→import { createClient } from "@supabase/supabase-js";
+     4→import { dispatchWebhook } from "@/lib/webhooks";
+     5→
+     6→let _supabase = null;
+     7→function getSupabase() {
+     8→  if (!_supabase) {
+     9→    _supabase = createClient(
+    10→      process.env.NEXT_PUBLIC_SUPABASE_URL,
+    11→      process.env.SUPABASE_SERVICE_ROLE_KEY
+    12→    );
+    13→  }
+    14→  return _supabase;
+    15→}
+    16→
+    17→// Helper to fetch account context
+    18→const getAccountCurrency = async (accountId) => {
+    19→  const { data } = await getSupabase()
+    20→    .from("accounts")
+    21→    .select("currency")
+    22→    .eq("id", accountId)
+    23→    .single();
+    24→  return data?.currency || "EGP";
+    25→};
+    26→
+    27→export const createSalesTools = (accountId, customerId) => {
+    28→  return {
+    29→    personalized_recommendations: tool({
+    30→      description: "Get personalized product recommendations for a customer based on their purchase history and similar customers' behavior. Use this when you want to suggest products a specific customer might like, such as 'you might also like', 'based on your style', or when you want to proactively upsell. Returns products with reasons like 'Frequently bought together', 'Similar category to your purchases', or 'Popular with similar customers'.",
+    31→      inputSchema: z.object({
+    32→        current_product_id: z.string().optional().describe("Optional: product the customer is currently viewing or discussing"),
+    33→        limit: z.coerce.number().optional().describe("Number of recommendations (default 3)"),
+    34→      }),
+    35→      execute: async ({ current_product_id, limit }) => {
+    36→        if (!customerId) {
+    37→          return { success: false, error: "No customer context available for recommendations" };
+    38→        }
+    39→
+    40→        try {
+    41→          // Fetch customer's order history for collaborative filtering
+    42→          const supabase = getSupabase();
+    43→          const { data: customerOrders } = await supabase
+    44→            .from("orders")
+    45→            .select("items")
+    46→            .eq("customer_id", customerId)
+    47→            .eq("account_id", accountId)
+    48→            .order("created_at", { ascending: false })
+    49→            .limit(10);
+    50→
+    51→          const purchasedProductIds = new Set();
+    52→          const purchasedCategories = new Set();
+    53→
+    54→          if (customerOrders) {
+    55→            for (const order of customerOrders) {
+    56→              if (order.items && Array.isArray(order.items)) {
+    57→                for (const item of order.items) {
+    58→                  if (item.product_id) purchasedProductIds.add(item.product_id);
+    59→                }
+    60→              }
+    61→            }
+    62→          }
+    63→
+    64→          // Get all active products (exclude hidden_from_ai and out-of-stock from AI recommendations)
+    65→          const { data: allProducts } = await supabase
+    66→            .from("products")
+    67→            .select("id, name, description, price, stock, category, variants")
+    68→            .eq("account_id", accountId)
+    69→            .eq("status", "active")
+    70→            .neq("hidden_from_ai", true)
+    71→            .gt("stock", 0);
+    72→
+    73→          if (!allProducts || allProducts.length === 0) {
+    74→            return { success: true, recommendations: [], message: "No products available" };
+    75→          }
+    76→
+    77→          // Collect purchased categories
+    78→          for (const pid of purchasedProductIds) {
+    79→            const prod = allProducts.find((p) => p.id === pid);
+    80→            if (prod?.category) purchasedCategories.add(prod.category);
+    81→          }
+    82→
+    83→          // Collaborative filtering (simplified)
+    84→          let collabProductScores = {};
+    85→          if (purchasedProductIds.size > 0) {
+    86→            const pidArray = Array.from(purchasedProductIds);
+    87→            const { data: otherOrders } = await supabase
+    88→              .from("orders")
+    89→              .select("customer_id, items")
+    90→              .eq("account_id", accountId)
+    91→              .neq("customer_id", customerId)
+    92→              .limit(100);
+    93→
+    94→            if (otherOrders) {
+    95→              const similarCustomers = new Set();
+    96→              for (const order of otherOrders) {
+    97→                if (order.items && Array.isArray(order.items)) {
+    98→                  for (const item of order.items) {
+    99→                    if (pidArray.includes(item.product_id)) {
+   100→                      similarCustomers.add(order.customer_id);
+   101→                      break;
+   102→                    }
+   103→                  }
+   104→                }
+   105→              }
+   106→
+   107→              if (similarCustomers.size > 0) {
+   108→                const { data: similarOrders } = await supabase
+   109→                  .from("orders")
+   110→                  .select("items")
+   111→                  .eq("account_id", accountId)
+   112→                  .in("customer_id", Array.from(similarCustomers))
+   113→                  .limit(200);
+   114→
+   115→                if (similarOrders) {
+   116→                  for (const order of similarOrders) {
+   117→                    if (order.items && Array.isArray(order.items)) {
+   118→                      for (const item of order.items) {
+   119→                        if (item.product_id && !purchasedProductIds.has(item.product_id)) {
+   120→                          collabProductScores[item.product_id] = (collabProductScores[item.product_id] || 0) + 1;
+   121→                        }
+   122→                      }
+   123→                    }
+   124→                  }
+   125→                }
+   126→              }
+   127→            }
+   128→          }
+   129→
+   130→          const recLimit = limit || 3;
+   131→          const currentProduct = current_product_id ? allProducts.find(p => p.id === current_product_id) : null;
+   132→
+   133→          const scored = allProducts
+   134→            .filter((p) => p.id !== current_product_id)
+   135→            .map((product) => {
+   136→              let score = 0;
+   137→              let reason = "Popular product";
+   138→
+   139→              if (collabProductScores[product.id]) {
+   140→                score += collabProductScores[product.id] * 10;
+   141→                reason = "Popular with similar customers";
+   142→              }
+   143→
+   144→              if (purchasedCategories.has(product.category) && !purchasedProductIds.has(product.id)) {
+   145→                score += 5;
+   146→                reason = "Similar category to your purchases";
+   147→              }
+   148→
+   149→              if (product.stock > 0) score += 2;
+   150→
+   151→              if (purchasedProductIds.size === 0) {
+   152→                score += Math.random() * 3;
+   153→                reason = "Trending product";
+   154→              }
+   155→
+   156→              if (currentProduct && product.category === currentProduct.category) {
+   157→                score += 3;
+   158→                reason = "Frequently bought together";
+   159→              }
+   160→
+   161→              return { ...product, score, reason };
+   162→            });
+   163→
+   164→          const currency = await getAccountCurrency(accountId);
+   165→          const recommendations = scored
+   166→            .sort((a, b) => b.score - a.score)
+   167→            .slice(0, recLimit)
+   168→            .map(({ score, ...rest }) => rest);
+   169→
+   170→          return {
+   171→            success: true,
+   172→            currency,
+   173→            recommendations,
+   174→            message: recommendations.length > 0
+   175→              ? `Found ${recommendations.length} personalized recommendations based on purchase history`
+   176→              : "No personalized recommendations available",
+   177→          };
+   178→        } catch (err) {
+   179→          console.error("Personalized recommendations error:", err);
+   180→          return { success: false, error: "Failed to get recommendations" };
+   181→        }
+   182→      },
+   183→    }),
+   184→
+   185→    recommend_products: tool({
+   186→      description: "Recommend products based on a customer's needs, preferences, or context. Use this when a customer asks for suggestions like 'something for dry skin', 'a gift for my mom', or 'I need something casual'. Searches product names, descriptions, and categories to find the best matches.",
+   187→      inputSchema: z.object({
+   188→        query: z.string().describe("The customer's need, preference, or context (e.g. 'dry skin', 'gift for mom', 'casual outfit')"),
+   189→      }),
+   190→      execute: async ({ query }) => {
+   191→        if (!query) {
+   192→          return { success: false, error: "Please describe what you're looking for" };
+   193→        }
+   194→
+   195→        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+   196→
+   197→        // Fetch all active products for this account (exclude hidden_from_ai and out-of-stock)
+   198→        const { data: products, error } = await getSupabase()
+   199→          .from("products")
+   200→          .select("id, name, description, price, stock, category, variants")
+   201→          .eq("account_id", accountId)
+   202→          .eq("status", "active")
+   203→          .neq("hidden_from_ai", true)
+   204→          .gt("stock", 0);
+   205→
+   206→        if (error) {
+   207→          return { success: false, error: "Failed to search products" };
+   208→        }
+   209→
+   210→        if (!products || products.length === 0) {
+   211→          return { success: true, message: "No products available at the moment.", products: [] };
+   212→        }
+   213→
+   214→        // Score each product based on relevance to the query
+   215→        const scored = products.map((product) => {
+   216→          let score = 0;
+   217→          const nameLower = (product.name || "").toLowerCase();
+   218→          const descLower = (product.description || "").toLowerCase();
+   219→          const catLower = (product.category || "").toLowerCase();
+   220→          // Also search in variant names (e.g. "red", "large", "32GB")
+   221→          const variantText = (product.variants || []).map(v => v.name).join(" ").toLowerCase();
+   222→          const allText = `${nameLower} ${descLower} ${catLower} ${variantText}`;
+   223→
+   224→          for (const term of searchTerms) {
+   225→            if (nameLower.includes(term)) score += 10; // Name match is strongest
+   226→            if (catLower.includes(term)) score += 8;   // Category match
+   227→            if (descLower.includes(term)) score += 5;   // Description match
+   228→            if (variantText.includes(term)) score += 7;  // Variant match (e.g. "red", "large")
+   229→            if (allText.includes(term)) score += 2;     // Any mention
+   230→          }
+   231→
+   232→          // Boost products that are in stock
+   233→          if (product.stock > 0) score += 3;
+   234→
+   235→          return { ...product, score };
+   236→        });
+   237→
+   238→        // Filter to products with some relevance and sort by score
+   239→        const recommendations = scored
+   240→          .filter((p) => p.score > 0)
+   241→          .sort((a, b) => b.score - a.score)
+   242→          .slice(0, 5);
+   243→
+   244→        if (recommendations.length === 0) {
+   245→          return { success: true, message: `I couldn't find products matching "${query}". Let me show you what we have available.`, products: products.slice(0, 5) };
+   246→        }
+   247→
+   248→        const currency = await getAccountCurrency(accountId);
+   249→        return { success: true, currency, query, products: recommendations.map(({ score, ...rest }) => rest) };
+   250→      },
+   251→    }),
+   252→
+   253→    search_products: tool({
+   254→      description: "Search the store's inventory for products by name or category. Use this when the customer asks what you sell or is looking for something specific.",
+   255→      inputSchema: z.object({
+   256→        query: z.string().optional().describe("Search term, product name, or category to look for (optional)"),
+   257→        search_query: z.string().optional().describe("Alternative search query parameter"),
+   258→      }),
+   259→      execute: async ({ query, search_query }) => {
+   260→        const finalQuery = query || search_query;
+   261→        let dbQuery = getSupabase()
+   262→          .from("products")
+   263→          .select("id, name, description, price, stock, category, variants")
+   264→          .eq("account_id", accountId)
+   265→          .eq("status", "active")
+   266→          .neq("hidden_from_ai", true)
+   267→          .gt("stock", 0)
+   268→          .limit(10);
+   269→
+   270→        if (finalQuery) {
+   271→          dbQuery = dbQuery.ilike("name", `%${finalQuery}%`);
+   272→        }
+   273→
+   274→        const { data, error } = await dbQuery;
+   275→
+   276→        if (error) {
+   277→          return { success: false, error: "Failed to search products" };
+   278→        }
+   279→
+   280→        if (!data || data.length === 0) {
+   281→          return { success: true, message: "No products found matching that query.", products: [] };
+   282→        }
+   283→
+   284→        const currency = await getAccountCurrency(accountId);
+   285→        return { success: true, currency, products: data };
+   286→      },
+   287→    }),
+   288→
+   289→    check_stock: tool({
+   290→      description: "Check the exact stock level for a product using its ID or product name.",
+   291→      inputSchema: z.object({
+   292→        productId: z.string().optional().describe("The ID of the product to check"),
+   293→        product_id: z.string().optional().describe("Alternative product ID parameter"),
+   294→        name: z.string().optional().describe("The name of the product to check (alternative if ID is unknown)"),
+   295→        product_name: z.string().optional().describe("Alternative product name parameter"),
+   296→      }),
+   297→      execute: async ({ productId, product_id, name, product_name }) => {
+   298→        const finalId = productId || product_id;
+   299→        const finalName = name || product_name;
+   300→
+   301→        let dbQuery = getSupabase()
+   302→          .from("products")
+   303→          .select("id, name, stock, variants")
+   304→          .eq("account_id", accountId);
+   305→
+   306→        if (finalId) {
+   307→          dbQuery = dbQuery.eq("id", finalId);
+   308→        } else if (finalName) {
+   309→          dbQuery = dbQuery.ilike("name", `%${finalName}%`).limit(1);
+   310→        } else {
+   311→          return { success: false, error: "Either productId or product name is required" };
+   312→        }
+   313→
+   314→        const { data, error } = await dbQuery;
+   315→
+   316→        if (error || !data || data.length === 0) {
+   317→          return { success: false, error: "Product not found" };
+   318→        }
+   319→
+   320→        const product = Array.isArray(data) ? data[0] : data;
+   321→        const result = { success: true, product: product.name, in_stock: product.stock > 0, stock_quantity: product.stock, productId: product.id };
+   322→        // Include variant-level stock if available
+   323→        if (product.variants && product.variants.length > 0) {
+   324→          result.variants = product.variants.map(v => ({
+   325→            name: v.name,
+   326→            price: v.price,
+   327→            in_stock: v.stock > 0,
+   328→            stock_quantity: v.stock,
+   329→          }));
+   330→        }
+   331→        return result;
+   332→      },
+   333→    }),
+   334→
+   335→    calculate_cart_total: tool({
+   336→      description: "Calculate the total cost for a list of items before creating an order. Use this to confirm the total with the customer.",
+   337→      inputSchema: z.object({
+   338→        items: z.array(z.object({
+   339→          productId: z.string().optional().describe("Product ID"),
+   340→          product_id: z.string().optional().describe("Alternative product ID"),
+   341→          quantity: z.coerce.number().positive().describe("Quantity of items"),
+   342→        })),
+   343→      }),
+   344→      execute: async ({ items }) => {
+   345→        let total = 0;
+   346→        let lineItems = [];
+   347→        
+   348→        for (const item of items) {
+   349→          const finalId = item.productId || item.product_id;
+   350→          if (!finalId) continue;
+   351→
+   352→          const { data } = await getSupabase()
+   353→            .from("products")
+   354→            .select("id, name, price, variants")
+   355→            .eq("id", finalId)
+   356→            .eq("account_id", accountId)
+   357→            .single();
+   358→
+   359→          if (data) {
+   360→            const lineTotal = data.price * item.quantity;
+   361→            total += lineTotal;
+   362→            lineItems.push({
+   363→              name: data.name,
+   364→              price: data.price,
+   365→              quantity: item.quantity,
+   366→              subtotal: lineTotal,
+   367→              variants: data.variants || null,
+   368→            });
+   369→          }
+   370→        }
+   371→
+   372→        const currency = await getAccountCurrency(accountId);
+   373→        return { success: true, total, currency, items: lineItems };
+   374→      },
+   375→    }),
+   376→
+   377→    search_faq: tool({
+   378→      description: "Search the shop's FAQ knowledge base for answers to common questions about shipping, returns, locations, hours, and policies. Use this BEFORE generating a reply when a customer asks a general question that might be covered in the FAQ.",
+   379→      inputSchema: z.object({
+   380→        query: z.string().describe("The customer's question or topic to search for in the FAQ (e.g. 'shipping', 'return policy', 'store hours')"),
+   381→      }),
+   382→      execute: async ({ query }) => {
+   383→        if (!query) return { success: false, error: "Query is required" };
+   384→
+   385→        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+   386→
+   387→        const { data: faqs, error } = await getSupabase()
+   388→          .from("faqs")
+   389→          .select("id, question, answer, category")
+   390→          .eq("account_id", accountId)
+   391→          .eq("is_active", true);
+   392→
+   393→        if (error) {
+   394→          return { success: false, error: "Failed to search FAQs" };
+   395→        }
+   396→
+   397→        if (!faqs || faqs.length === 0) {
+   398→          return { success: true, found: false, message: "No FAQ entries found for this store." };
+   399→        }
+   400→
+   401→        const scored = faqs.map((faq) => {
+   402→          let score = 0;
+   403→          const qLower = (faq.question || "").toLowerCase();
+   404→          const aLower = (faq.answer || "").toLowerCase();
+   405→          const cLower = (faq.category || "").toLowerCase();
+   406→          const allText = `${qLower} ${aLower} ${cLower}`;
+   407→
+   408→          for (const term of searchTerms) {
+   409→            if (qLower.includes(term)) score += 10;
+   410→            if (cLower.includes(term)) score += 8;
+   411→            if (aLower.includes(term)) score += 5;
+   412→            if (allText.includes(term)) score += 2;
+   413→          }
+   414→
+   415→          return { ...faq, score };
+   416→        });
+   417→
+   418→        const matches = scored
+   419→          .filter((f) => f.score > 0)
+   420→          .sort((a, b) => b.score - a.score)
+   421→          .slice(0, 3);
+   422→
+   423→        if (matches.length === 0) {
+   424→          return { success: true, found: false, message: "No matching FAQ found. Answer from your general knowledge." };
+   425→        }
+   426→
+   427→        return {
+   428→          success: true,
+   429→          found: true,
+   430→          faqs: matches.map(({ score, ...rest }) => rest),
+   431→        };
+   432→      },
+   433→    }),
+   434→
+   435→    validate_coupon: tool({
+   436→      description: "Validate a coupon code and get discount details. Use this when a customer mentions or asks about a coupon code, promo code, or discount code. IMPORTANT: You MUST extract the exact coupon code from the customer's message (e.g. if they say 'MAR10' or 'I have code SUMMER50', pass 'MAR10' or 'SUMMER50' as the code parameter). NEVER pass an empty string. Checks if the code is active, not expired, within usage limits, and meets minimum order value requirements.",
+   437→      inputSchema: z.object({
+   438→        code: z.string().describe("The exact coupon code the customer provided (e.g. 'MAR10', 'SUMMER50'). Must NOT be empty."),
+   439→        order_total: z.coerce.number().optional().describe("The current order total to check against minimum order value requirements"),
+   440→      }),
+   441→      execute: async ({ code, order_total }) => {
+   442→        if (!code || !code.trim()) {
+   443→          return { success: false, error: "Coupon code is required" };
+   444→        }
+   445→
+   446→        const now = new Date();
+   447→
+   448→        // Look up coupon by code and account
+   449→        const { data: coupon, error } = await getSupabase()
+   450→          .from("coupons")
+   451→          .select("*")
+   452→          .eq("account_id", accountId)
+   453→          .eq("code", code.trim().toUpperCase())
+   454→          .single();
+   455→
+   456→        if (error || !coupon) {
+   457→          return { success: false, valid: false, error: "Invalid coupon code. This code does not exist or is not for this store." };
+   458→        }
+   459→
+   460→        // Validation checks
+   461→        if (!coupon.is_active) {
+   462→          return { success: true, valid: false, error: "This coupon is no longer active", coupon: { code: coupon.code, type: coupon.type } };
+   463→        }
+   464→
+   465→        if (coupon.starts_at && new Date(coupon.starts_at) > now) {
+   466→          return { success: true, valid: false, error: "This coupon is not yet active", coupon: { code: coupon.code, type: coupon.type, starts_at: coupon.starts_at } };
+   467→        }
+   468→
+   469→        if (coupon.expires_at && new Date(coupon.expires_at) < now) {
+   470→          return { success: true, valid: false, error: "This coupon has expired", coupon: { code: coupon.code, type: coupon.type, expires_at: coupon.expires_at } };
+   471→        }
+   472→
+   473→        if (coupon.max_uses !== null && coupon.used_count >= coupon.max_uses) {
+   474→          return { success: true, valid: false, error: "This coupon has reached its usage limit", coupon: { code: coupon.code, type: coupon.type, max_uses: coupon.max_uses, used_count: coupon.used_count } };
+   475→        }
+   476→
+   477→        if (order_total !== undefined && coupon.min_order_value > 0 && order_total < parseFloat(coupon.min_order_value)) {
+   478→          const currency = await getAccountCurrency(accountId);
+   479→          return { success: true, valid: false, error: `Minimum order value is ${coupon.min_order_value} ${currency}. Your order total is ${order_total} ${currency}.`, coupon: { code: coupon.code, type: coupon.type, min_order_value: coupon.min_order_value } };
+   480→        }
+   481→
+   482→        // Coupon is valid — calculate discount
+   483→        let discountAmount = 0;
+   484→        const total = order_total || 0;
+   485→        const currency = await getAccountCurrency(accountId);
+   486→
+   487→        if (coupon.type === "percentage") {
+   488→          discountAmount = total * (coupon.value / 100);
+   489→          discountAmount = Math.min(discountAmount, total);
+   490→        } else if (coupon.type === "fixed") {
+   491→          discountAmount = parseFloat(coupon.value);
+   492→          if (total > 0) discountAmount = Math.min(discountAmount, total);
+   493→        } else if (coupon.type === "free_shipping") {
+   494→          discountAmount = 0; // Shipping discount handled separately
+   495→        }
+   496→
+   497→        return {
+   498→          success: true,
+   499→          valid: true,
+   500→          discount_amount: discountAmount,
+   501→          currency,
+   502→          coupon: {
+   503→            id: coupon.id,
+   504→            code: coupon.code,
+   505→            type: coupon.type,
+   506→            value: coupon.value,
+   507→            min_order_value: coupon.min_order_value,
+   508→            applies_to: coupon.applies_to,
+   509→            product_ids: coupon.product_ids,
+   510→            categories: coupon.categories,
+   511→          },
+   512→          message: coupon.type === "percentage"
+   513→            ? `${coupon.value}% discount applied! You save ${discountAmount.toFixed(2)} ${currency}.`
+   514→            : coupon.type === "fixed"
+   515→            ? `${coupon.value} ${currency} discount applied!`
+   516→            : "Free shipping applied!",
+   517→        };
+   518→      },
+   519→    }),
+   520→
+   521→    list_active_coupons: tool({
+   522→      description: "List all currently active and valid coupon codes for the store. Use this when a customer asks 'do you have any discounts?', 'are there any coupons?', or 'is there a sale?'. Returns available coupon codes with their discount type and value.",
+   523→      inputSchema: z.object({}),
+   524→      execute: async () => {
+   525→        const now = new Date().toISOString();
+   526→
+   527→        const { data: coupons, error } = await getSupabase()
+   528→          .from("coupons")
+   529→          .select("id, code, type, value, min_order_value, applies_to, categories, starts_at, expires_at, max_uses, used_count")
+   530→          .eq("account_id", accountId)
+   531→          .eq("is_active", true)
+   532→          .lte("starts_at", now)
+   533→          .or(`expires_at.is.null,expires_at.gte.${now}`);
+   534→
+   535→        if (error) {
+   536→          return { success: false, error: "Failed to fetch coupons" };
+   537→        }
+   538→
+   539→        if (!coupons || coupons.length === 0) {
+   540→          return { success: true, coupons: [], message: "No active coupons available at the moment." };
+   541→        }
+   542→
+   543→        // Filter out exhausted coupons
+   544→        const available = coupons.filter(c => c.max_uses === null || c.used_count < c.max_uses);
+   545→
+   546→        if (available.length === 0) {
+   547→          return { success: true, coupons: [], message: "No coupons currently available — all have been used up." };
+   548→        }
+   549→
+   550→        const currency = await getAccountCurrency(accountId);
+   551→
+   552→        const formatted = available.map(c => {
+   553→          let desc = "";
+   554→          if (c.type === "percentage") desc = `${c.value}% off`;
+   555→          else if (c.type === "fixed") desc = `${c.value} ${currency} off`;
+   556→          else if (c.type === "free_shipping") desc = "Free shipping";
+   557→
+   558→          let conditions = [];
+   559→          if (c.min_order_value > 0) conditions.push(`min order ${c.min_order_value} ${currency}`);
+   560→          if (c.applies_to === "specific_products") conditions.push("select products only");
+   561→          if (c.applies_to === "specific_categories") conditions.push("select categories only");
+   562→          if (c.max_uses !== null) conditions.push(`limited uses: ${c.max_uses - c.used_count} left`);
+   563→
+   564→          return {
+   565→            code: c.code,
+   566→            discount: desc,
+   567→            type: c.type,
+   568→            value: c.value,
+   569→            conditions: conditions.length > 0 ? conditions.join(", ") : "no restrictions",
+   570→          };
+   571→        });
+   572→
+   573→        return {
+   574→          success: true,
+   575→          coupons: formatted,
+   576→          currency,
+   577→          message: `Found ${formatted.length} active coupon${formatted.length > 1 ? 's' : ''} available!`,
+   578→        };
+   579→      },
+   580→    }),
+   581→
+   582→    create_order: tool({
+   583→      description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price.",
+   584→      inputSchema: z.object({
+   585→        items: z.array(z.object({
+   586→          productId: z.string().optional().describe("Product ID"),
+   587→          product_id: z.string().optional().describe("Alternative product ID"),
+   588→          quantity: z.coerce.number().positive().describe("Quantity of items"),
+   589→        })),
+   590→        shippingAddress: z.string().optional().describe("Customer's shipping address"),
+   591→        shipping_address: z.string().optional().describe("Alternative shipping address parameter"),
+   592→        paymentMethod: z.enum(["cod", "vodafone_cash", "instapay"]).optional().describe("Payment method"),
+   593→        payment_method: z.enum(["cod", "vodafone_cash", "instapay"]).optional().describe("Alternative payment method parameter"),
+   594→        coupon_code: z.string().optional().describe("Coupon code to apply to this order (optional)"),
+   595→      }),
+   596→      execute: async ({ items, shippingAddress, shipping_address, paymentMethod, payment_method, coupon_code }) => {
+   597→        const finalShippingAddress = shippingAddress || shipping_address || "Address needed";
+   598→        const finalPaymentMethod = paymentMethod || payment_method || "cod";
+   599→
+   600→        // 1. Calculate total and format items for DB
+   601→        let total = 0;
+   602→        let dbItems = [];
+   603→        
+   604→        for (const item of items) {
+   605→          const finalId = item.productId || item.product_id;
+   606→          if (!finalId) continue;
+   607→
+   608→          const { data } = await getSupabase()
+   609→            .from("products")
+   610→            .select("id, name, price, stock, variants, category")
+   611→            .eq("id", finalId)
+   612→            .eq("account_id", accountId)
+   613→            .single();
+   614→
+   615→          if (data && data.stock >= item.quantity) {
+   616→            total += data.price * item.quantity;
+   617→            dbItems.push({
+   618→              product_id: data.id,
+   619→              name: data.name,
+   620→              price: data.price,
+   621→              qty: item.quantity,
+   622→              category: data.category,
+   623→            });
+   624→          } else if (data) {
+   625→             return { success: false, error: `Insufficient stock for ${data.name}. Only ${data.stock} available.` };
+   626→          }
+   627→        }
+   628→
+   629→        if (dbItems.length === 0) {
+   630→           return { success: false, error: "No valid items to order." };
+   631→        }
+   632→
+   633→        // 2. Apply coupon if provided
+   634→        let discountAmount = 0;
+   635→        let couponId = null;
+   636→        const subtotal = total;
+   637→        const currency = await getAccountCurrency(accountId);
+   638→
+   639→        if (coupon_code) {
+   640→          const { data: coupon, error: couponError } = await getSupabase()
+   641→            .from("coupons")
+   642→            .select("*")
+   643→            .eq("account_id", accountId)
+   644→            .eq("code", coupon_code.trim().toUpperCase())
+   645→            .single();
+   646→
+   647→          if (!couponError && coupon) {
+   648→            // Validate
+   649→            const now = new Date();
+   650→            if (coupon.is_active &&
+   651→                (!coupon.starts_at || new Date(coupon.starts_at) <= now) &&
+   652→                (!coupon.expires_at || new Date(coupon.expires_at) >= now) &&
+   653→                (coupon.max_uses === null || coupon.used_count < coupon.max_uses) &&
+   654→                (!coupon.min_order_value || total >= parseFloat(coupon.min_order_value))) {
+   655→              
+   656→              // Calculate discount
+   657→              if (coupon.type === "percentage") {
+   658→                discountAmount = total * (coupon.value / 100);
+   659→                discountAmount = Math.min(discountAmount, total);
+   660→              } else if (coupon.type === "fixed") {
+   661→                discountAmount = Math.min(parseFloat(coupon.value), total);
+   662→              }
+   663→
+   664→              total = Math.max(0, total - discountAmount);
+   665→              couponId = coupon.id;
+   666→
+   667→              // SECURITY FIX: Atomic coupon increment to prevent double-spend
+   668→              // Use conditional update: only increment if used_count < max_uses
+   669→              if (coupon.max_uses === null) {
+   670→                // No limit — safe to increment directly
+   671→                await getSupabase()
+   672→                  .from("coupons")
+   673→                  .update({ used_count: coupon.used_count + 1 })
+   674→                  .eq("id", coupon.id);
+   675→              } else {
+   676→                // Has limit — use conditional update to prevent race condition
+   677→                const { data: updateResult } = await getSupabase()
+   678→                  .from("coupons")
+   679→                  .update({ used_count: coupon.used_count + 1 })
+   680→                  .eq("id", coupon.id)
+   681→                  .eq("used_count", coupon.used_count) // Only succeed if count hasn't changed
+   682→                  .select("id");
+   683→                
+   684→                if (!updateResult || updateResult.length === 0) {
+   685→                  // Race condition detected — another request already used this coupon
+   686→                  discountAmount = 0;
+   687→                  total = subtotal;
+   688→                  couponId = null;
+   689→                }
+   690→              }
+   691→            }
+   692→          }
+   693→        }
+   694→
+   695→        // 3. Insert Order
+   696→        const { data: order, error } = await getSupabase()
+   697→          .from("orders")
+   698→          .insert({
+   699→            account_id: accountId,
+   700→            customer_id: customerId,
+   701→            items: dbItems,
+   702→            subtotal: subtotal,
+   703→            total: total,
+   704→            coupon_id: couponId,
+   705→            coupon_code: coupon_code ? coupon_code.trim().toUpperCase() : null,
+   706→            discount_amount: discountAmount,
+   707→            status: "pending",
+   708→            payment_method: finalPaymentMethod,
+   709→            shipping_address: finalShippingAddress,
+   710→            source: "ai_agent"
+   711→          })
+   712→          .select("order_number")
+   713→          .single();
+   714→
+   715→        if (error) {
+   716→          return { success: false, error: "Failed to create order" };
+   717→        }
+   718→
+   719→        // 4. Decrement stock for each item
+   720→        for (const item of dbItems) {
+   721→          await getSupabase().rpc('decrement_stock', {
+   722→            p_id: item.product_id,
+   723→            qty: item.qty
+   724→          }).catch(async () => {
+   725→            const { data: prod } = await getSupabase()
+   726→              .from("products")
+   727→              .select("stock")
+   728→              .eq("id", item.product_id)
+   729→              .single();
+   730→            if (prod) {
+   731→              await getSupabase()
+   732→                .from("products")
+   733→                .update({ stock: Math.max(0, prod.stock - item.qty) })
+   734→                .eq("id", item.product_id);
+   735→            }
+   736→          });
+   737→        }
+   738→
+   739→        const result = { 
+   740→          success: true, 
+   741→          message: "Order created successfully", 
+   742→          order_number: order.order_number,
+   743→          subtotal: subtotal,
+   744→          total,
+   745→          currency,
+   746→        };
+   747→
+   748→        if (discountAmount > 0) {
+   749→          result.discount_amount = discountAmount;
+   750→          result.coupon_code = coupon_code.trim().toUpperCase();
+   751→          result.message += ` Coupon ${coupon_code.trim().toUpperCase()} applied! ${discountAmount.toFixed(2)} ${currency} discount.`;
+   752→        }
+   753→
+   754→        // Dispatch webhook for order.created
+   755→        dispatchWebhook(accountId, "order.created", {
+   756→          orderId: order.id,
+   757→          orderNumber: order.order_number,
+   758→          items: dbItems,
+   759→          subtotal,
+   760→          total,
+   761→          currency,
+   762→          couponCode: coupon_code || null,
+   763→          discountAmount,
+   764→          customerId,
+   765→          status: "pending",
+   766→          source: "ai_agent",
+   767→        }).catch(err => console.error("[ORDER] Webhook dispatch failed:", err.message));
+   768→
+   769→        return result;
+   770→      },
+   771→    }),
+   772→
+   773→    redeem_coupon: tool({
+   774→      description: "Redeem (apply) a coupon code for a customer. This decrements the coupon's usage count and returns the discount amount. Use this AFTER validating the coupon with validate_coupon, when the customer confirms they want to apply the discount. This is the action that actually uses up the coupon.",
+   775→      inputSchema: z.object({
+   776→        code: z.string().describe("The coupon code to redeem"),
+   777→        order_total: z.coerce.number().describe("The current order total (before discount)"),
+   778→        order_id: z.string().optional().describe("The order ID to link the coupon to (if an order exists)"),
+   779→      }),
+   780→      execute: async ({ code, order_total, order_id }) => {
+   781→        if (!code || !code.trim()) {
+   782→          return { success: false, error: "Coupon code is required" };
+   783→        }
+   784→
+   785→        try {
+   786→          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+   787→          const res = await fetch(`${baseUrl}/api/coupons/redeem`, {
+   788→            method: "POST",
+   789→            headers: { "Content-Type": "application/json" },
+   790→            body: JSON.stringify({
+   791→              code: code.trim(),
+   792→              order_total,
+   793→              account_id: accountId,
+   794→              order_id: order_id || null,
+   795→            }),
+   796→          });
+   797→
+   798→          const data = await res.json();
+   799→
+   800→          if (data.redeemed) {
+   801→            const currency = await getAccountCurrency(accountId);
+   802→            return {
+   803→              success: true,
+   804→              redeemed: true,
+   805→              discount_amount: data.discount_amount,
+   806→              currency,
+   807→              coupon: data.coupon,
+   808→              message: data.coupon.type === "percentage"
+   809→                ? `Coupon ${data.coupon.code} redeemed! ${data.coupon.value}% off = ${data.discount_amount.toFixed(2)} ${currency} discount. New total: ${(order_total - data.discount_amount).toFixed(2)} ${currency}`
+   810→                : data.coupon.type === "fixed"
+   811→                ? `Coupon ${data.coupon.code} redeemed! ${data.coupon.value} ${currency} off. New total: ${(order_total - data.discount_amount).toFixed(2)} ${currency}`
+   812→                : `Coupon ${data.coupon.code} redeemed! Free shipping applied.`,
+   813→            };
+   814→          } else {
+   815→            return { success: false, redeemed: false, error: data.error || "Failed to redeem coupon" };
+   816→          }
+   817→        } catch (err) {
+   818→          return { success: false, error: "Failed to redeem coupon: " + err.message };
+   819→        }
+   820→      },
+   821→    }),
+   822→  };
+   823→};
+   824→
+   825→export const createSupportTools = (accountId, customerId) => {
+   826→  return {
+   827→    recommend_products: tool({
+   828→      description: "Recommend products based on a customer's needs, preferences, or context. Use this when a customer asks for suggestions like 'something for dry skin', 'a gift for my mom', or 'I need something casual'. Searches product names, descriptions, and categories to find the best matches.",
+   829→      inputSchema: z.object({
+   830→        query: z.string().describe("The customer's need, preference, or context (e.g. 'dry skin', 'gift for mom', 'casual outfit')"),
+   831→      }),
+   832→      execute: async ({ query }) => {
+   833→        if (!query) {
+   834→          return { success: false, error: "Please describe what you're looking for" };
+   835→        }
+   836→
+   837→        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+   838→
+   839→        // Fetch active products (exclude hidden_from_ai and out-of-stock)
+   840→        const { data: products, error } = await getSupabase()
+   841→          .from("products")
+   842→          .select("id, name, description, price, stock, category, variants")
+   843→          .eq("account_id", accountId)
+   844→          .eq("status", "active")
+   845→          .neq("hidden_from_ai", true)
+   846→          .gt("stock", 0);
+   847→
+   848→        if (error) {
+   849→          return { success: false, error: "Failed to search products" };
+   850→        }
+   851→
+   852→        if (!products || products.length === 0) {
+   853→          return { success: true, message: "No products available at the moment.", products: [] };
+   854→        }
+   855→
+   856→        const scored = products.map((product) => {
+   857→          let score = 0;
+   858→          const nameLower = (product.name || "").toLowerCase();
+   859→          const descLower = (product.description || "").toLowerCase();
+   860→          const catLower = (product.category || "").toLowerCase();
+   861→          const variantText = (product.variants || []).map(v => v.name).join(" ").toLowerCase();
+   862→          const allText = `${nameLower} ${descLower} ${catLower} ${variantText}`;
+   863→
+   864→          for (const term of searchTerms) {
+   865→            if (nameLower.includes(term)) score += 10;
+   866→            if (catLower.includes(term)) score += 8;
+   867→            if (descLower.includes(term)) score += 5;
+   868→            if (variantText.includes(term)) score += 7;
+   869→            if (allText.includes(term)) score += 2;
+   870→          }
+   871→
+   872→          if (product.stock > 0) score += 3;
+   873→
+   874→          return { ...product, score };
+   875→        });
+   876→
+   877→        const recommendations = scored
+   878→          .filter((p) => p.score > 0)
+   879→          .sort((a, b) => b.score - a.score)
+   880→          .slice(0, 5);
+   881→
+   882→        if (recommendations.length === 0) {
+   883→          return { success: true, message: `I couldn't find products matching "${query}".`, products: products.slice(0, 5) };
+   884→        }
+   885→
+   886→        const currency = await getAccountCurrency(accountId);
+   887→        return { success: true, currency, query, products: recommendations.map(({ score, ...rest }) => rest) };
+   888→      },
+   889→    }),
+   890→
+   891→    search_faq: tool({
+   892→      description: "Search the shop's FAQ knowledge base for answers to common questions about shipping, returns, locations, hours, and policies. Use this BEFORE generating a reply when a customer asks a general question that might be covered in the FAQ.",
+   893→      inputSchema: z.object({
+   894→        query: z.string().describe("The customer's question or topic to search for in the FAQ (e.g. 'shipping', 'return policy', 'store hours')"),
+   895→      }),
+   896→      execute: async ({ query }) => {
+   897→        if (!query) return { success: false, error: "Query is required" };
+   898→
+   899→        const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+   900→
+   901→        const { data: faqs, error } = await getSupabase()
+   902→          .from("faqs")
+   903→          .select("id, question, answer, category")
+   904→          .eq("account_id", accountId)
+   905→          .eq("is_active", true);
+   906→
+   907→        if (error) {
+   908→          return { success: false, error: "Failed to search FAQs" };
+   909→        }
+   910→
+   911→        if (!faqs || faqs.length === 0) {
+   912→          return { success: true, found: false, message: "No FAQ entries found for this store." };
+   913→        }
+   914→
+   915→        // Score FAQs by relevance
+   916→        const scored = faqs.map((faq) => {
+   917→          let score = 0;
+   918→          const qLower = (faq.question || "").toLowerCase();
+   919→          const aLower = (faq.answer || "").toLowerCase();
+   920→          const cLower = (faq.category || "").toLowerCase();
+   921→          const allText = `${qLower} ${aLower} ${cLower}`;
+   922→
+   923→          for (const term of searchTerms) {
+   924→            if (qLower.includes(term)) score += 10;
+   925→            if (cLower.includes(term)) score += 8;
+   926→            if (aLower.includes(term)) score += 5;
+   927→            if (allText.includes(term)) score += 2;
+   928→          }
+   929→
+   930→          return { ...faq, score };
+   931→        });
+   932→
+   933→        const matches = scored
+   934→          .filter((f) => f.score > 0)
+   935→          .sort((a, b) => b.score - a.score)
+   936→          .slice(0, 3);
+   937→
+   938→        if (matches.length === 0) {
+   939→          return { success: true, found: false, message: "No matching FAQ found. Answer from your general knowledge." };
+   940→        }
+   941→
+   942→        return {
+   943→          success: true,
+   944→          found: true,
+   945→          faqs: matches.map(({ score, ...rest }) => rest),
+   946→        };
+   947→      },
+   948→    }),
+   949→
+   950→    validate_coupon: tool({
+   951→      description: "Validate a coupon code and get discount details. Use this when a customer mentions or asks about a coupon code, promo code, or discount code. IMPORTANT: You MUST extract the exact coupon code from the customer's message (e.g. if they say 'MAR10' or 'I have code SUMMER50', pass 'MAR10' or 'SUMMER50' as the code parameter). NEVER pass an empty string.",
+   952→      inputSchema: z.object({
+   953→        code: z.string().describe("The exact coupon code the customer provided (e.g. 'MAR10', 'SUMMER50'). Must NOT be empty."),
+   954→        order_total: z.coerce.number().optional().describe("The current order total"),
+   955→      }),
+   956→      execute: async ({ code, order_total }) => {
+   957→        if (!code || !code.trim()) {
+   958→          return { success: false, error: "Coupon code is required" };
+   959→        }
+   960→
+   961→        const now = new Date();
+   962→        const { data: coupon, error } = await getSupabase()
+   963→          .from("coupons")
+   964→          .select("*")
+   965→          .eq("account_id", accountId)
+   966→          .eq("code", code.trim().toUpperCase())
+   967→          .single();
+   968→
+   969→        if (error || !coupon) {
+   970→          return { success: false, valid: false, error: "Invalid coupon code" };
+   971→        }
+   972→
+   973→        if (!coupon.is_active) {
+   974→          return { success: true, valid: false, error: "This coupon is no longer active" };
+   975→        }
+   976→
+   977→        if (coupon.expires_at && new Date(coupon.expires_at) < now) {
+   978→          return { success: true, valid: false, error: "This coupon has expired" };
+   979→        }
+   980→
+   981→        if (coupon.max_uses !== null && coupon.used_count >= coupon.max_uses) {
+   982→          return { success: true, valid: false, error: "This coupon has reached its usage limit" };
+   983→        }
+   984→
+   985→        let discountAmount = 0;
+   986→        const total = order_total || 0;
+   987→        const currency = await getAccountCurrency(accountId);
+   988→
+   989→        if (coupon.type === "percentage") {
+   990→          discountAmount = total * (coupon.value / 100);
+   991→        } else if (coupon.type === "fixed") {
+   992→          discountAmount = parseFloat(coupon.value);
+   993→        }
+   994→
+   995→        return {
+   996→          success: true,
+   997→          valid: true,
+   998→          discount_amount: discountAmount,
+   999→          currency,
+  1000→          coupon: { code: coupon.code, type: coupon.type, value: coupon.value },
+  1001→        };
+  1002→      },
+  1003→    }),
+  1004→
+  1005→    get_customer_orders: tool({
+  1006→      description: "Get all recent orders for the current customer.",
+  1007→      inputSchema: z.object({}),
+  1008→      execute: async () => {
+  1009→        const { data, error } = await getSupabase()
+  1010→          .from("orders")
+  1011→          .select("order_number, total, status, created_at, items")
+  1012→          .eq("account_id", accountId)
+  1013→          .eq("customer_id", customerId)
+  1014→          .order("created_at", { ascending: false })
+  1015→          .limit(5);
+  1016→
+  1017→        if (error) return { success: false, error: "Failed to fetch orders" };
+  1018→        return { success: true, orders: data };
+  1019→      },
+  1020→    }),
+  1021→
+  1022→    get_order_status: tool({
+  1023→      description: "Get the current status of a specific order by its order number.",
+  1024→      inputSchema: z.object({
+  1025→        orderNumber: z.string().optional().describe("The order number to check"),
+  1026→        order_number: z.string().optional().describe("Alternative order number parameter"),
+  1027→      }),
+  1028→      execute: async ({ orderNumber, order_number }) => {
+  1029→        const finalOrderNumber = orderNumber || order_number;
+  1030→        if (!finalOrderNumber) return { success: false, error: "Order number is required" };
+  1031→
+  1032→        const { data, error } = await getSupabase()
+  1033→          .from("orders")
+  1034→          .select("status, total, created_at, tracking_number")
+  1035→          .eq("account_id", accountId)
+  1036→          .eq("order_number", finalOrderNumber)
+  1037→          .single();
+  1038→
+  1039→        if (error || !data) return { success: false, error: "Order not found" };
+  1040→        return { success: true, order: data };
+  1041→      },
+  1042→    }),
+  1043→  };
+  1044→};
+  1045→

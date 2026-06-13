@@ -12,6 +12,15 @@ export default function PoliciesTab({
   editingPolicy, setEditingPolicy,
 }) {
   const confirmAction = useConfirm();
+
+  const getAuthHeaders = async () => {
+    const headers = { "Content-Type": "application/json" };
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+    } catch (e) {}
+    return headers;
+  };
   return (
     <div className="dashboard-panel">
       <div className="dashboard-panel-header">
@@ -56,9 +65,10 @@ export default function PoliciesTab({
               <button className="btn btn-primary btn-sm" disabled={policySaving || !newPolicy.title || !newPolicy.content} onClick={async () => {
                 setPolicySaving(true);
                 try {
+                  const headers = await getAuthHeaders();
                   const res = await fetch("/api/policies", {
                     method: editingPolicy ? "PUT" : "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers,
                     body: JSON.stringify(editingPolicy ? { id: editingPolicy.id, ...newPolicy } : newPolicy),
                   });
                   const data = await res.json();
@@ -103,7 +113,8 @@ export default function PoliciesTab({
                 <div style={{ display: "flex", gap: 4, marginLeft: "var(--space-sm)" }}>
                   <button className="topbar-btn" title="Toggle active" style={{ width: 24, height: 24 }} onClick={async () => {
                     const newVal = !policy.is_active;
-                    await fetch("/api/policies", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: policy.id, is_active: newVal }) });
+                    const headers = await getAuthHeaders();
+                    await fetch("/api/policies", { method: "PUT", headers, body: JSON.stringify({ id: policy.id, is_active: newVal }) });
                     setPolicies((prev) => prev.map(p => p.id === policy.id ? { ...p, is_active: newVal } : p));
                   }}>
                     {policy.is_active ? <ToggleRight size={13} style={{ color: "var(--accent-green)" }} /> : <ToggleLeft size={13} style={{ color: "var(--text-tertiary)" }} />}
@@ -113,7 +124,8 @@ export default function PoliciesTab({
                   </button>
                   <button className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }} onClick={async () => {
                     if (!(await confirmAction("Delete this policy?"))) return;
-                    await fetch(`/api/policies?id=${policy.id}`, { method: "DELETE" });
+                    const headers = await getAuthHeaders();
+                    await fetch(`/api/policies?id=${policy.id}`, { method: "DELETE", headers });
                     setPolicies((prev) => prev.filter(p => p.id !== policy.id));
                   }}>
                     <Trash2 size={11} style={{ color: "var(--accent-red)" }} />

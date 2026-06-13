@@ -1,86 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-
-let _supabase = null;
-function getServiceRoleClient() {
-  if (!_supabase) {
-    _supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-  }
-  return _supabase;
-}
-
-/**
- * Get authenticated user from either:
- *   1. Bearer token in Authorization header (preferred, more reliable)
- *   2. Cookie-based session (fallback)
- */
-async function getAuthUser(request) {
-  // ── Method 1: Bearer token ──
-  const authHeader = request.headers.get("authorization");
-  if (authHeader) {
-    try {
-      const token = authHeader.replace("Bearer ", "");
-      const supabase = getServiceRoleClient();
-      const { data, error } = await supabase.auth.getUser(token);
-      if (!error && data?.user) {
-        console.log("[Account API] Authenticated via Bearer token for user", data.user.id);
-        return data.user;
-      }
-      console.warn("[Account API] Bearer token auth failed:", error?.message);
-    } catch (err) {
-      console.warn("[Account API] Bearer token exception:", err.message);
-    }
-  }
-
-  // ── Method 2: Cookie-based session ──
-  try {
-    const cookieStore = await cookies();
-    const allCookies = cookieStore.getAll();
-
-    if (!allCookies || allCookies.length === 0) {
-      console.error("[Account API] No cookies found — user not authenticated");
-      return null;
-    }
-
-    const supabaseAuth = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return allCookies;
-          },
-          setAll() {
-            // No-op — we don't need to set cookies in an API route
-          },
-        },
-      }
-    );
-
-    const { data, error } = await supabaseAuth.auth.getUser();
-
-    if (error) {
-      console.error("[Account API] Cookie auth error:", error.message);
-      return null;
-    }
-
-    if (!data?.user) {
-      console.error("[Account API] No user found in session");
-      return null;
-    }
-
-    console.log("[Account API] Authenticated via cookies for user", data.user.id);
-    return data.user;
-  } catch (err) {
-    console.error("[Account API] Cookie auth exception:", err.message);
-    return null;
-  }
-}
+import { getServiceRoleClient, getAuthUser } from "@/lib/auth-helper";
 
 /**
  * PATCH /api/account
@@ -148,8 +67,6 @@ export async function PATCH(request) {
       );
     }
 
-    console.log("[Account API] Updating user", user.id, "with fields:", Object.keys(updates));
-
     const supabase = getServiceRoleClient();
     const { error: updateError } = await supabase
       .from("accounts")
@@ -164,7 +81,6 @@ export async function PATCH(request) {
       );
     }
 
-    console.log("[Account API] Update successful for user", user.id);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[Account API] PATCH exception:", err);
