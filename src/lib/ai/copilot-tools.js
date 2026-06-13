@@ -1633,6 +1633,97 @@ export const createCopilotTools = (accountId) => {
       },
     }),
 
+    compare_plans: tool({
+      description: "Compare Sellora subscription plans (Starter, Professional, Business). Use this when the seller asks about plan differences, pricing, what each plan includes, wants to compare plans, asks 'which plan should I choose', or mentions upgrading/downgrading. Also use when they ask about specific plan limits like 'how many channels do I get' or 'how many AI replies'.",
+      inputSchema: z.object({
+        focus: z.string().optional().describe("Optional specific feature to focus on, e.g. 'channels', 'AI', 'pricing', 'campaigns'. Leave empty for full comparison."),
+      }),
+      execute: async ({ focus }) => {
+        // Fetch current account plan
+        const { data: acct } = await supabase
+          .from("accounts")
+          .select("plan, business_name")
+          .eq("id", accountId)
+          .single();
+
+        const currentPlan = acct?.plan || "starter";
+
+        const plans = {
+          starter: {
+            name: "Starter",
+            price: "499 EGP/mo",
+            channels: 1,
+            products: 25,
+            aiRepliesPerDay: 50,
+            aiModel: "Fast (Llama 3.3 70B)",
+            conversationsPerMonth: 100,
+            customers: 200,
+            stores: 1,
+            campaignsPerMonth: 0,
+            autoReplyRules: 3,
+            coupons: 3,
+            teamMembers: 1,
+            analyticsFull: false,
+            customAIPersonality: false,
+            webhooks: false,
+            csvExport: false,
+            dataRetention: "30 days",
+            copilotMessagesPerDay: 10,
+          },
+          professional: {
+            name: "Professional",
+            price: "1,299 EGP/mo",
+            channels: 2,
+            products: "Unlimited",
+            aiRepliesPerDay: 500,
+            aiModel: "Smart (Gemini 2.0 Flash)",
+            conversationsPerMonth: 1000,
+            customers: "Unlimited",
+            stores: 3,
+            campaignsPerMonth: 5,
+            autoReplyRules: "Unlimited",
+            coupons: 10,
+            teamMembers: 3,
+            analyticsFull: true,
+            customAIPersonality: true,
+            webhooks: true,
+            csvExport: false,
+            dataRetention: "6 months",
+            copilotMessagesPerDay: 50,
+          },
+          business: {
+            name: "Business",
+            price: "2,999 EGP/mo",
+            channels: 3,
+            products: "Unlimited",
+            aiRepliesPerDay: "Unlimited",
+            aiModel: "Premium (Gemini 2.5 Flash)",
+            conversationsPerMonth: "Unlimited",
+            customers: "Unlimited",
+            stores: "Unlimited",
+            campaignsPerMonth: "Unlimited",
+            autoReplyRules: "Unlimited",
+            coupons: "Unlimited",
+            teamMembers: "Unlimited",
+            analyticsFull: true,
+            customAIPersonality: true,
+            webhooks: true,
+            csvExport: true,
+            dataRetention: "Unlimited",
+            copilotMessagesPerDay: "Unlimited",
+          },
+        };
+
+        return {
+          success: true,
+          currentPlan,
+          focus: focus || "all",
+          plans,
+          _action: { type: "navigate", path: "/dashboard/billing", label: "Go to Billing & Plans" },
+        };
+      },
+    }),
+
     navigate_to: tool({
       description: "Navigate the seller to a specific page or tab in the Sellora dashboard. Use this when the seller asks to go to a page, wants to be taken to a setting, or says 'take me there' / 'go to X'. Common paths: /dashboard/settings?tab=security (2FA, password), /dashboard/settings?tab=channels (WhatsApp, Instagram, Facebook), /dashboard/settings?tab=profile (business name, currency), /dashboard/settings?tab=faqs (FAQs), /dashboard/settings?tab=autoreplies (auto-replies), /dashboard/settings?tab=quickreplies (quick replies), /dashboard/settings?tab=automation (automation), /dashboard/settings?tab=webhooks (webhooks), /dashboard/settings?tab=team (team members), /dashboard/settings?tab=notifications (notifications), /dashboard/settings?tab=policies (policies), /dashboard/ai-personality (AI personality), /dashboard/products (products), /dashboard/orders (orders), /dashboard/conversations (conversations), /dashboard/customers (customers), /dashboard/analytics (analytics), /dashboard/coupons (coupons), /dashboard/campaigns (campaigns), /dashboard/billing (billing), /dashboard/automation (automation), /dashboard/abandoned-carts (abandoned carts), /dashboard/segments (segments), /dashboard/shipping (shipping), /dashboard/webhooks (webhooks), /dashboard/stores (stores), /dashboard/notifications (notifications), /dashboard/whatsapp-catalog (WhatsApp catalog).",
       inputSchema: z.object({
