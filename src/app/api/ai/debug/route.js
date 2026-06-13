@@ -8,7 +8,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { verifyAdmin } from "@/lib/admin-auth";
 import { collectKeys, getProviderChainSummary, buildFullProviderChain } from "@/lib/ai/provider-chain";
@@ -87,8 +87,9 @@ export async function POST(req) {
   if (process.env.GROQ_API_KEY) {
     try {
       const startTime = Date.now();
+      const groqProvider = createGroq();
       const result = await generateText({
-        model: groq("llama-3.3-70b-versatile"),
+        model: groqProvider("llama-3.3-70b-versatile"),
         prompt: "Say 'Groq works!' in exactly 3 words.",
         maxTokens: 20,
       });

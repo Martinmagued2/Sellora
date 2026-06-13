@@ -14,7 +14,7 @@
  * All options can be mixed — keys are collected from all sources.
  */
 
-import { groq } from "@ai-sdk/groq";
+import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 
 // Available Groq models to rotate through
@@ -89,10 +89,10 @@ export function buildGroqProviders(primaryModel = "llama-3.3-70b-versatile", fas
     
     // Primary model with this key
     try {
-      const groqInstance = groq({ apiKey: key });
+      const groqProvider = createGroq({ apiKey: key });
       providers.push({
         name: `groq-${primaryModel}${keyLabel}`,
-        model: groqInstance(primaryModel),
+        model: groqProvider(primaryModel),
         _groqKeyIndex: index,
       });
     } catch (e) {
@@ -102,10 +102,10 @@ export function buildGroqProviders(primaryModel = "llama-3.3-70b-versatile", fas
     // Fast/cheap model with this key (different model = different rate limit bucket)
     if (fastModel !== primaryModel) {
       try {
-        const groqInstance = groq({ apiKey: key });
+        const groqProvider = createGroq({ apiKey: key });
         providers.push({
           name: `groq-${fastModel}${keyLabel}`,
-          model: groqInstance(fastModel),
+          model: groqProvider(fastModel),
           _groqKeyIndex: index,
           _isFastModel: true,
         });
@@ -142,10 +142,10 @@ export function buildGroqRoutingProviders() {
   keys.forEach((key, keyIndex) => {
     routingModels.forEach((model) => {
       try {
-        const groqInstance = groq({ apiKey: key });
+        const groqProvider = createGroq({ apiKey: key });
         providers.push({
           name: `groq-route-${model.name}${keys.length > 1 ? ` (key ${keyIndex + 1})` : ""}`,
-          model: groqInstance(model.id),
+          model: groqProvider(model.id),
           _groqKeyIndex: keyIndex,
         });
       } catch (e) {

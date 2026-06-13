@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 
@@ -33,7 +33,8 @@ function buildProviderChain() {
   }
 
   if (process.env.GROQ_API_KEY) {
-    providers.push({ name: 'groq', model: groq("llama-3.3-70b-versatile") });
+    const groqProvider = createGroq();
+    providers.push({ name: 'groq', model: groqProvider("llama-3.3-70b-versatile") });
   }
 
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {

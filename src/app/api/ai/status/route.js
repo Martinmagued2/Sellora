@@ -86,10 +86,11 @@ export async function GET() {
   if (groqKeys.length > 0) {
     try {
       const { generateText } = await import("ai");
-      const { groq } = await import("@ai-sdk/groq");
+      const { createGroq } = await import("@ai-sdk/groq");
+      const groqProvider = createGroq();
       const startTime = Date.now();
       const result = await generateText({
-        model: groq("llama-3.1-8b-instant"),
+        model: groqProvider("llama-3.1-8b-instant"),
         prompt: "Say OK",
         maxTokens: 5,
       });

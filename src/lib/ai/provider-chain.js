@@ -22,7 +22,7 @@
  *   OPENAI_API_KEYS or OPENAI_API_KEY + OPENAI_API_KEY_2 + ...
  */
 
-import { groq } from "@ai-sdk/groq";
+import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 
@@ -188,18 +188,19 @@ export function buildGroqProviders(opts = {}) {
     
     const keyLabel = keys.length > 1 ? `-k${keyIndex + 1}` : "";
     
-    for (const model of [...primaryModels, ...fastModels]) {
-      try {
-        const groqInstance = groq({ apiKey: key });
+    try {
+      const groqProvider = createGroq({ apiKey: key });
+      
+      for (const model of [...primaryModels, ...fastModels]) {
         providers.push({
           name: `${model.name}${keyLabel}`,
-          model: groqInstance(model.id),
+          model: groqProvider(model.id),
           _provider: "groq",
           _keyIndex: keyIndex,
         });
-      } catch (e) {
-        console.warn(`[ProviderChain] Groq key ${keyIndex + 1} + ${model.id} setup failed:`, e?.message);
       }
+    } catch (e) {
+      console.error(`[ProviderChain] Groq key ${keyIndex + 1} setup failed:`, e?.message);
     }
   });
 
