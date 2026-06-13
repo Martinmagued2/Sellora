@@ -1,0 +1,1147 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from "react";
+     4→import { useRouter } from "next/navigation";
+     5→import {
+     6→  Package,
+     7→  Plus,
+     8→  Search,
+     9→  X,
+    10→  Edit,
+    11→  Trash2,
+    12→  Upload,
+    13→  Image as ImageIcon,
+    14→  Sparkles,
+    15→  Loader2,
+    16→  TrendingUp,
+    17→  Layers,
+    18→  Minus,
+    19→} from "lucide-react";
+    20→import { createClient } from "@/lib/supabase/client";
+    21→import { getPlanLimits } from "@/lib/plan-limits";
+    22→import { useCurrentStore } from "@/lib/store-context";
+    23→import { useToast } from "../components/ToastProvider";
+    24→import { useConfirm } from "../components/ConfirmProvider";
+    25→import { PageSkeleton } from "@/components/SkeletonLoader";
+    26→
+    27→export default function ProductsPage() {
+    28→  const router = useRouter();
+    29→  const toast = useToast();
+    30→  
+    31→  const confirmAction = useConfirm();
+    32→  const [products, setProducts] = useState([]);
+    33→  const [filter, setFilter] = useState("all");
+    34→  const [search, setSearch] = useState("");
+    35→  const [showModal, setShowModal] = useState(false);
+    36→  const [loading, setLoading] = useState(true);
+    37→  const [saving, setSaving] = useState(false);
+    38→  const [editingProduct, setEditingProduct] = useState(null);
+    39→  const [imageFile, setImageFile] = useState(null);
+    40→  const [imagePreview, setImagePreview] = useState(null);
+    41→  const [dragOver, setDragOver] = useState(false);
+    42→  const [accountPlan, setAccountPlan] = useState("starter");
+    43→  const [generatingImage, setGeneratingImage] = useState(false);
+    44→  const [aiStyle, setAiStyle] = useState("studio");
+    45→  const [generatedImageUrl, setGeneratedImageUrl] = useState(null);
+    46→  const [generatingDesc, setGeneratingDesc] = useState(false);
+    47→  const [aiDescEnglish, setAiDescEnglish] = useState("");
+    48→  const [aiDescArabic, setAiDescArabic] = useState("");
+    49→  const [aiPriceSuggestion, setAiPriceSuggestion] = useState("");
+    50→  const [topRecommended, setTopRecommended] = useState([]);
+    51→  const [recLoading, setRecLoading] = useState(false);
+    52→
+    53→  // Variants state
+    54→  const [variants, setVariants] = useState([]);
+    55→
+    56→  // Active coupons for discount display
+    57→  const [activeCoupons, setActiveCoupons] = useState([]);
+    58→
+    59→  // View product details modal
+    60→  const [viewProduct, setViewProduct] = useState(null);
+    61→
+    62→  const fileInputRef = useRef(null);
+    63→
+    64→  const { currentStoreId } = useCurrentStore();
+    65→
+    66→  const supabase = createClient();
+    67→  const planLimits = getPlanLimits(accountPlan);
+    68→  const limitReached = planLimits.products !== -1 && products.length >= planLimits.products;
+    69→
+    70→  // Ensure storage buckets exist
+    71→  const ensureBuckets = useCallback(async () => {
+    72→    try {
+    73→      await fetch("/api/storage/ensure-buckets", { method: "POST" });
+    74→    } catch (e) {
+    75→      console.warn("[Products] Bucket ensure failed:", e.message);
+    76→    }
+    77→  }, []);
+    78→
+    79→  const fetchProducts = useCallback(async () => {
+    80→    setLoading(true);
+    81→
+    82→    const { data: { user } } = await supabase.auth.getUser();
+    83→    if (user) {
+    84→      const { data: account } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
+    85→      if (account?.plan) setAccountPlan(account.plan);
+    86→    }
+    87→    if (!user) { setLoading(false); return; }
+    88→
+    89→    let query = supabase.from("products").select("*").eq("account_id", user.id).order("created_at", { ascending: false });
+    90→
+    91→    if (filter === "active") query = query.eq("status", "active");
+    92→    if (filter === "draft") query = query.eq("status", "draft");
+    93→    if (filter === "low") query = query.lte("stock", 5).gt("stock", 0);
+    94→    if (search) query = query.ilike("name", `%${search}%`);
+    95→    if (currentStoreId) query = query.or(`store_id.eq.${currentStoreId},store_id.is.null`);
+    96→
+    97→    const { data, error } = await query;
+    98→    if (!error) setProducts(data || []);
+    99→    setLoading(false);
+   100→  }, [filter, search, currentStoreId]);
+   101→
+   102→  useEffect(() => { ensureBuckets(); fetchProducts(); }, [ensureBuckets, fetchProducts]);
+   103→
+   104→  // Fetch active coupons for discount display
+   105→  useEffect(() => {
+   106→    const fetchActiveCoupons = async () => {
+   107→      try {
+   108→        const { data: { user } } = await supabase.auth.getUser();
+   109→        if (!user) return;
+   110→        const now = new Date().toISOString();
+   111→        const { data, error } = await supabase
+   112→          .from("coupons")
+   113→          .select("*")
+   114→          .eq("account_id", user.id)
+   115→          .eq("is_active", true)
+   116→          .lte("starts_at", now)
+   117→          .or(`expires_at.is.null,expires_at.gte.${now}`);
+   118→        if (!error && data) {
+   119→          // Filter out exhausted coupons
+   120→          const active = data.filter(c => c.max_uses === null || c.used_count < c.max_uses);
+   121→          setActiveCoupons(active);
+   122→        }
+   123→      } catch (err) {
+   124→        console.warn("Failed to fetch active coupons:", err.message);
+   125→      }
+   126→    };
+   127→    fetchActiveCoupons();
+   128→  }, [supabase]);
+   129→
+   130→  // Helper: find the best applicable coupon for a product
+   131→  const getDiscountForProduct = useCallback((product) => {
+   132→    if (!activeCoupons.length) return null;
+   133→    let bestDiscount = null;
+   134→    let bestSavings = 0;
+   135→
+   136→    for (const coupon of activeCoupons) {
+   137→      // Check if coupon applies to this product
+   138→      let applies = false;
+   139→      if (coupon.applies_to === "all") {
+   140→        applies = true;
+   141→      } else if (coupon.applies_to === "specific_products") {
+   142→        applies = Array.isArray(coupon.product_ids) && coupon.product_ids.includes(product.id);
+   143→      } else if (coupon.applies_to === "specific_categories") {
+   144→        applies = Array.isArray(coupon.categories) && product.category && coupon.categories.includes(product.category);
+   145→      }
+   146→
+   147→      if (!applies) continue;
+   148→
+   149→      // Check min_order_value (product price as proxy)
+   150→      if (coupon.min_order_value && product.price < coupon.min_order_value) continue;
+   151→
+   152→      // Calculate savings
+   153→      let savings = 0;
+   154→      if (coupon.type === "percentage") {
+   155→        savings = product.price * (coupon.value / 100);
+   156→      } else if (coupon.type === "fixed") {
+   157→        savings = Math.min(parseFloat(coupon.value), product.price);
+   158→      } else if (coupon.type === "free_shipping") {
+   159→        // Free shipping doesn't change product price display
+   160→        continue;
+   161→      }
+   162→
+   163→      // Pick the coupon that gives the biggest discount
+   164→      if (savings > bestSavings) {
+   165→        bestSavings = savings;
+   166→        bestDiscount = {
+   167→          coupon,
+   168→          discountAmount: savings,
+   169→          newPrice: Math.max(product.price - savings, 0),
+   170→          label: coupon.type === "percentage" ? `${coupon.value}% OFF` : `${parseFloat(coupon.value).toLocaleString()} EGP OFF`,
+   171→        };
+   172→      }
+   173→    }
+   174→
+   175→    return bestDiscount;
+   176→  }, [activeCoupons]);
+   177→
+   178→  // Fetch top recommended products
+   179→  const fetchTopRecommended = useCallback(async () => {
+   180→    setRecLoading(true);
+   181→    try {
+   182→      const { data: { user } } = await supabase.auth.getUser();
+   183→      if (!user) return;
+   184→
+   185→      const { data: orders } = await supabase
+   186→        .from("orders")
+   187→        .select("items")
+   188→        .eq("account_id", user.id)
+   189→        .limit(500);
+   190→
+   191→      if (!orders || orders.length === 0) { setTopRecommended([]); setRecLoading(false); return; }
+   192→
+   193→      const productCounts = {};
+   194→      for (const order of orders) {
+   195→        if (order.items && Array.isArray(order.items)) {
+   196→          for (const item of order.items) {
+   197→            if (item.product_id) {
+   198→              productCounts[item.product_id] = (productCounts[item.product_id] || 0) + 1;
+   199→            }
+   200→          }
+   201→        }
+   202→      }
+   203→
+   204→      const topIds = Object.entries(productCounts)
+   205→        .sort((a, b) => b[1] - a[1])
+   206→        .slice(0, 5)
+   207→        .map(([id, count]) => ({ id, count }));
+   208→
+   209→      if (topIds.length === 0) { setTopRecommended([]); setRecLoading(false); return; }
+   210→
+   211→      const { data: prods } = await supabase
+   212→        .from("products")
+   213→        .select("id, name, price, category, image_urls, stock")
+   214→        .in("id", topIds.map(t => t.id));
+   215→
+   216→      const merged = topIds.map(t => {
+   217→        const prod = prods?.find(p => p.id === t.id);
+   218→        return prod ? { ...prod, rec_count: t.count } : null;
+   219→      }).filter(Boolean);
+   220→
+   221→      setTopRecommended(merged);
+   222→    } catch (err) {
+   223→      console.error("Failed to fetch top recommended:", err);
+   224→    }
+   225→    setRecLoading(false);
+   226→  }, [supabase]);
+   227→
+   228→  useEffect(() => { fetchTopRecommended(); }, [fetchTopRecommended]);
+   229→
+   230→  // ─── Variant helpers ───
+   231→  const addVariant = () => {
+   232→    setVariants((prev) => [
+   233→      ...prev,
+   234→      { name: "", sku: "", price: 0, stock: 0, image_url: "" },
+   235→    ]);
+   236→  };
+   237→
+   238→  const removeVariant = (index) => {
+   239→    setVariants((prev) => prev.filter((_, i) => i !== index));
+   240→  };
+   241→
+   242→  const updateVariant = (index, field, value) => {
+   243→    setVariants((prev) => {
+   244→      const copy = [...prev];
+   245→      copy[index] = { ...copy[index], [field]: value };
+   246→      return copy;
+   247→    });
+   248→  };
+   249→
+   250→  // ─── File handling ───
+   251→  const handleFileSelect = (file) => {
+   252→    if (!file) return;
+   253→    if (!file.type.startsWith("image/")) {
+   254→      toast.warning("Please select an image file (jpg, png, webp)");
+   255→      return;
+   256→    }
+   257→    if (file.size > 5 * 1024 * 1024) {
+   258→      toast.warning("Image must be smaller than 5MB");
+   259→      return;
+   260→    }
+   261→    setImageFile(file);
+   262→    setGeneratedImageUrl(null);
+   263→    const reader = new FileReader();
+   264→    reader.onloadend = () => setImagePreview(reader.result);
+   265→    reader.readAsDataURL(file);
+   266→  };
+   267→
+   268→  const handleDragOver = (e) => { e.preventDefault(); setDragOver(true); };
+   269→  const handleDragLeave = (e) => { e.preventDefault(); setDragOver(false); };
+   270→  const handleDrop = (e) => {
+   271→    e.preventDefault();
+   272→    setDragOver(false);
+   273→    handleFileSelect(e.dataTransfer.files[0]);
+   274→  };
+   275→
+   276→  const handleGenerateImage = async () => {
+   277→    const form = document.querySelector('.modal form');
+   278→    const productName = form?.elements?.name?.value;
+   279→    const description = form?.elements?.description?.value;
+   280→
+   281→    if (!productName?.trim()) {
+   282→      toast.warning("Please enter a product name first, then generate an image.");
+   283→      return;
+   284→    }
+   285→
+   286→    setGeneratingImage(true);
+   287→    try {
+   288→      const res = await fetch("/api/products/generate-image", {
+   289→        method: "POST",
+   290→        headers: { "Content-Type": "application/json" },
+   291→        body: JSON.stringify({
+   292→          product_name: productName.trim(),
+   293→          description: description?.trim() || "",
+   294→          style: aiStyle,
+   295→        }),
+   296→      });
+   297→
+   298→      const data = await res.json();
+   299→      if (!res.ok || !data.success) {
+   300→        toast.error(data.error || "Image generation failed. Please try again.");
+   301→        return;
+   302→      }
+   303→
+   304→      const dataUrl = `data:image/png;base64,${data.image_base64}`;
+   305→      setImagePreview(dataUrl);
+   306→      setImageFile(null);
+   307→      setGeneratedImageUrl(data.image_url);
+   308→    } catch (err) {
+   309→      console.error("Image generation error:", err);
+   310→      toast.error("Image generation failed. Please try again.");
+   311→    } finally {
+   312→      setGeneratingImage(false);
+   313→    }
+   314→  };
+   315→
+   316→  const handleAddProduct = async (e) => {
+   317→    e.preventDefault();
+   318→    setSaving(true);
+   319→    const fd = new FormData(e.target);
+   320→    const { data: { user } } = await supabase.auth.getUser();
+   321→
+   322→    let imageUrl = null;
+   323→
+   324→    if (generatedImageUrl) {
+   325→      imageUrl = generatedImageUrl;
+   326→    } else if (imageFile) {
+   327→      try {
+   328→        await fetch("/api/storage/ensure-buckets", { method: "POST" });
+   329→      } catch (e) {}
+   330→
+   331→      const ext = imageFile.name.split(".").pop();
+   332→      const fileName = `${user.id}/${Date.now()}.${ext}`;
+   333→
+   334→      let uploadError;
+   335→      let uploadData;
+   336→
+   337→      const clientResult = await supabase.storage
+   338→        .from("product-images")
+   339→        .upload(fileName, imageFile, { cacheControl: "3600", upsert: false });
+   340→      uploadError = clientResult.error;
+   341→      uploadData = clientResult.data;
+   342→
+   343→      if (uploadError) {
+   344→        console.warn("[Products] Client upload failed, trying admin:", uploadError.message);
+   345→        try {
+   346→          const formData = new FormData();
+   347→          formData.append("file", imageFile);
+   348→          formData.append("path", fileName);
+   349→          const adminRes = await fetch("/api/storage/upload", {
+   350→            method: "POST",
+   351→            body: formData,
+   352→          });
+   353→          if (adminRes.ok) {
+   354→            const adminData = await adminRes.json();
+   355→            if (adminData.url) {
+   356→              imageUrl = adminData.url;
+   357→              uploadError = null;
+   358→            }
+   359→          }
+   360→        } catch (adminErr) {
+   361→          console.error("[Products] Admin upload also failed:", adminErr.message);
+   362→        }
+   363→      }
+   364→
+   365→      if (!uploadError && uploadData) {
+   366→        const { data: urlData } = supabase.storage
+   367→          .from("product-images")
+   368→          .getPublicUrl(fileName);
+   369→        imageUrl = urlData.publicUrl;
+   370→      } else if (uploadError && !imageUrl) {
+   371→        toast.error("Image upload failed: " + (uploadError.message || "Unknown error."));
+   372→      }
+   373→    }
+   374→
+   375→    // Build variants array: clean up empty entries
+   376→    const hasVariants = variants.some((v) => v.name.trim() !== "");
+   377→    const cleanVariants = variants
+   378→      .filter((v) => v.name.trim() !== "")
+   379→      .map((v) => ({
+   380→        name: v.name.trim(),
+   381→        sku: v.sku.trim() || null,
+   382→        price: Number(v.price) || 0,
+   383→        stock: Number(v.stock) || 0,
+   384→        image_url: v.image_url.trim() || null,
+   385→      }));
+   386→
+   387→    // Calculate base price/stock from variants or form fields
+   388→    let basePrice, baseStock;
+   389→    if (hasVariants) {
+   390→      // When variants exist, use the lowest variant price as the base price
+   391→      // and sum all variant stocks as the total stock
+   392→      basePrice = cleanVariants.length > 0 ? Math.min(...cleanVariants.map(v => v.price)) : 0;
+   393→      baseStock = cleanVariants.reduce((sum, v) => sum + v.stock, 0);
+   394→    } else {
+   395→      basePrice = parseFloat(fd.get("price"));
+   396→      baseStock = parseInt(fd.get("stock"));
+   397→    }
+   398→
+   399→    const payload = {
+   400→      account_id: user.id,
+   401→      name: fd.get("name"),
+   402→      description: fd.get("description"),
+   403→      price: basePrice,
+   404→      category: fd.get("category"),
+   405→      stock: baseStock,
+   406→      status: fd.get("status") || "active",
+   407→      variants: cleanVariants,
+   408→    };
+   409→
+   410→    if (imageUrl) {
+   411→      payload.image_urls = [imageUrl];
+   412→    } else if (editingProduct && !imagePreview) {
+   413→      payload.image_urls = [];
+   414→    }
+   415→
+   416→    let error;
+   417→    if (editingProduct) {
+   418→      const { error: updateError } = await supabase.from("products").update(payload).eq("id", editingProduct.id).eq("account_id", user.id);
+   419→      error = updateError;
+   420→    } else {
+   421→      if (!imageUrl && !editingProduct) {
+   422→        payload.image_urls = [];
+   423→      }
+   424→      const { error: insertError } = await supabase.from("products").insert(payload);
+   425→      error = insertError;
+   426→    }
+   427→
+   428→    if (!error) {
+   429→      closeModal();
+   430→      fetchProducts();
+   431→    }
+   432→    setSaving(false);
+   433→  };
+   434→
+   435→  const handleEdit = async (product) => {
+   436→    setEditingProduct(product);
+   437→    setImagePreview(product.image_urls && product.image_urls.length > 0 ? product.image_urls[0] : null);
+   438→    // Load existing variants
+   439→    const existingVariants = Array.isArray(product.variants) ? product.variants : [];
+   440→    setVariants(
+   441→      existingVariants.map((v) => ({
+   442→        name: v.name || "",
+   443→        sku: v.sku || "",
+   444→        price: v.price ?? v.price_offset ?? 0,
+   445→        stock: v.stock ?? 0,
+   446→        image_url: v.image_url || "",
+   447→      }))
+   448→    );
+   449→    setShowModal(true);
+   450→  };
+   451→
+   452→  const handleDelete = async (id, imageUrls) => {
+   453→    if (!(await confirmAction("Delete this product?"))) return;
+   454→
+   455→    if (imageUrls && imageUrls.length > 0) {
+   456→      try {
+   457→        const { data: { user } } = await supabase.auth.getUser();
+   458→        if (user) {
+   459→          const pathsToRemove = imageUrls.map(url => {
+   460→            const parts = url.split("product-images/");
+   461→            return parts.length > 1 ? parts[1] : null;
+   462→          }).filter(Boolean);
+   463→
+   464→          if (pathsToRemove.length > 0) {
+   465→            await supabase.storage.from("product-images").remove(pathsToRemove);
+   466→          }
+   467→        }
+   468→      } catch (err) {
+   469→        console.error("Failed to delete product images from storage:", err);
+   470→      }
+   471→    }
+   472→
+   473→    const { data: { user: delUser } } = await supabase.auth.getUser();
+   474→    await supabase.from("products").delete().eq("id", id).eq("account_id", delUser?.id);
+   475→    fetchProducts();
+   476→  };
+   477→
+   478→  const closeModal = () => {
+   479→    setShowModal(false);
+   480→    setEditingProduct(null);
+   481→    setImageFile(null);
+   482→    setImagePreview(null);
+   483→    setGeneratingImage(false);
+   484→    setAiStyle("studio");
+   485→    setGeneratedImageUrl(null);
+   486→    setGeneratingDesc(false);
+   487→    setAiDescEnglish("");
+   488→    setAiDescArabic("");
+   489→    setAiPriceSuggestion("");
+   490→    setVariants([]);
+   491→  };
+   492→
+   493→  const handleGenerateDescription = async () => {
+   494→    const form = document.querySelector('.modal form');
+   495→    const productName = form?.elements?.name?.value;
+   496→    const category = form?.elements?.category?.value;
+   497→
+   498→    if (!productName?.trim()) {
+   499→      toast.warning("Please enter a product name first, then generate a description.");
+   500→      return;
+   501→    }
+   502→
+   503→    setGeneratingDesc(true);
+   504→    try {
+   505→      const res = await fetch("/api/ai/generate-description", {
+   506→        method: "POST",
+   507→        headers: { "Content-Type": "application/json" },
+   508→        body: JSON.stringify({
+   509→          product_name: productName.trim(),
+   510→          features: productName.trim(),
+   511→          category: category || "General",
+   512→        }),
+   513→      });
+   514→
+   515→      const data = await res.json();
+   516→      if (!res.ok || !data.success) {
+   517→        toast.error(data.error || "Description generation failed.");
+   518→        return;
+   519→      }
+   520→
+   521→      if (data.english) {
+   522→        setAiDescEnglish(data.english);
+   523→        const descField = form?.elements?.description;
+   524→        if (descField) descField.value = data.english;
+   525→      }
+   526→      if (data.arabic) setAiDescArabic(data.arabic);
+   527→      if (data.price_suggestion) setAiPriceSuggestion(data.price_suggestion);
+   528→    } catch (err) {
+   529→      console.error("Description generation error:", err);
+   530→      toast.error("Description generation failed. Please try again.");
+   531→    } finally {
+   532→      setGeneratingDesc(false);
+   533→    }
+   534→  };
+   535→
+   536→  const emojis = { Bags: "👜", Jewelry: "💎", Accessories: "🧣", Electronics: "📱", Watches: "⌚", Clothing: "👗" };
+   537→
+   538→  return (
+   539→    <>
+   540→      <div className="page-header">
+   541→        <h1>Products</h1>
+   542→        <div className="page-header-actions">
+   543→          {limitReached ? (
+   544→            <button className="btn btn-primary" onClick={() => router.push('/dashboard/billing')} id="add-product" style={{ opacity: 0.7 }}>
+   545→               Upgrade to Add More
+   546→            </button>
+   547→          ) : (
+   548→            <button className="btn btn-primary" onClick={() => { setVariants([]); setShowModal(true); }} id="add-product">
+   549→              <Plus size={16} /> Add Product
+   550→            </button>
+   551→          )}
+   552→        </div>
+   553→      </div>
+   554→
+   555→      <div className="filter-bar">
+   556→        <div className="filter-tabs">
+   557→          {[
+   558→            { key: "all", label: "All Products" },
+   559→            { key: "active", label: "Active" },
+   560→            { key: "draft", label: "Draft" },
+   561→            { key: "low", label: "Low Stock" },
+   562→          ].map((f) => (
+   563→            <button key={f.key} className={`filter-tab ${filter === f.key ? "active" : ""}`} onClick={() => setFilter(f.key)}>
+   564→              {f.label}
+   565→            </button>
+   566→          ))}
+   567→        </div>
+   568→        <div className="filter-search">
+   569→          <Search size={14} />
+   570→          <input type="text" placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} />
+   571→        </div>
+   572→      </div>
+   573→
+   574→      {loading ? (
+   575→        <PageSkeleton showStats={false} showTable={false} />
+   576→      ) : (
+   577→        <div className="products-grid">
+   578→          {products.map((product) => (
+   579→            <div key={product.id} className="product-card">
+   580→              <div className="product-card-image">
+   581→                {product.image_urls && product.image_urls.length > 0 ? (
+   582→                  <img
+   583→                    src={product.image_urls[0]}
+   584→                    alt={product.name}
+   585→                    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "var(--radius-md) var(--radius-md) 0 0" }}
+   586→                  />
+   587→                ) : (
+   588→                  <span style={{ fontSize: 40 }}>{emojis[product.category] || "📦"}</span>
+   589→                )}
+   590→                <span className={`product-card-status ${product.status}`}>
+   591→                  <span className="status-dot" /> {product.status.charAt(0).toUpperCase() + product.status.slice(1)}
+   592→                </span>
+   593→                {(() => {
+   594→                  const discount = getDiscountForProduct(product);
+   595→                  if (discount) {
+   596→                    return (
+   597→                      <span style={{
+   598→                        position: "absolute", top: 8, right: 8,
+   599→                        background: "var(--accent-red)", color: "white",
+   600→                        padding: "3px 8px", borderRadius: 8, fontSize: 10,
+   601→                        fontWeight: 700, letterSpacing: "0.02em",
+   602→                        boxShadow: "0 2px 8px rgba(255, 82, 82, 0.35)",
+   603→                        zIndex: 2,
+   604→                      }}>
+   605→                        {discount.label}
+   606→                      </span>
+   607→                    );
+   608→                  }
+   609→                  return null;
+   610→                })()}
+   611→              </div>
+   612→              <div className="product-card-body">
+   613→                <h3 className="product-card-name">
+   614→                  {product.name}
+   615→                  {Array.isArray(product.variants) && product.variants.length > 0 && (
+   616→                    <span className="variant-count-badge">
+   617→                      <Layers size={10} /> {product.variants.length} variant{product.variants.length > 1 ? "s" : ""}
+   618→                    </span>
+   619→                  )}
+   620→                </h3>
+   621→                <p className="product-card-category">{product.category}</p>
+   622→                <div className="product-card-footer">
+   623→                  {(() => {
+   624→                    const discount = getDiscountForProduct(product);
+   625→                    if (discount) {
+   626→                      return (
+   627→                        <div className="product-card-pricing">
+   628→                          <div className="product-card-price-row">
+   629→                            <span className="product-card-price-old">{product.price.toLocaleString()} EGP</span>
+   630→                            <span className="product-card-discount-badge">{discount.label}</span>
+   631→                          </div>
+   632→                          <span className="product-card-price-new">{discount.newPrice.toLocaleString()} EGP</span>
+   633→                        </div>
+   634→                      );
+   635→                    }
+   636→                    return <span className="product-card-price">{product.price.toLocaleString()} EGP</span>;
+   637→                  })()}
+   638→                  <span className={`product-card-stock ${product.stock === 0 ? "out" : product.stock <= 5 ? "low" : ""}`}>
+   639→                    {product.stock === 0 ? "Out of stock" : `${product.stock} in stock`}
+   640→                  </span>
+   641→                </div>
+   642→                <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: "var(--space-sm)" }}>
+   643→                  <button className="topbar-btn" title="View" onClick={() => setViewProduct(product)} style={{ width: 28, height: 28 }}>
+   644→                    <ImageIcon size={13} />
+   645→                  </button>
+   646→                  <button className="topbar-btn" title="Edit" onClick={() => handleEdit(product)} style={{ width: 28, height: 28 }}>
+   647→                    <Edit size={13} />
+   648→                  </button>
+   649→                  <button className="topbar-btn" title="Delete" onClick={() => handleDelete(product.id, product.image_urls)} style={{ width: 28, height: 28 }}>
+   650→                    <Trash2 size={13} />
+   651→                  </button>
+   652→                </div>
+   653→              </div>
+   654→            </div>
+   655→          ))}
+   656→        </div>
+   657→      )}
+   658→
+   659→      {/* Top Recommended Products Section */}
+   660→      {!loading && topRecommended.length > 0 && (
+   661→        <div style={{ marginTop: "var(--space-2xl)" }}>
+   662→          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-lg)" }}>
+   663→            <div style={{
+   664→              width: 36, height: 36, borderRadius: "var(--radius-md)",
+   665→              background: "rgba(0,210,255,0.12)", color: "var(--accent-secondary)",
+   666→              display: "flex", alignItems: "center", justifyContent: "center",
+   667→            }}>
+   668→              <TrendingUp size={18} />
+   669→            </div>
+   670→            <div>
+   671→              <h2 style={{ fontSize: "var(--font-size-lg)", fontWeight: 700 }}>Top Recommended Products</h2>
+   672→              <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
+   673→                Products most frequently ordered by your customers — great for upselling
+   674→              </p>
+   675→            </div>
+   676→          </div>
+   677→          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "var(--space-md)" }}>
+   678→            {topRecommended.map((product, i) => (
+   679→              <div
+   680→                key={product.id}
+   681→                style={{
+   682→                  background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+   683→                  borderRadius: "var(--radius-lg)", overflow: "hidden",
+   684→                  transition: "all 0.2s", cursor: "pointer",
+   685→                }}
+   686→              >
+   687→                <div style={{
+   688→                  height: 120, background: "var(--bg-tertiary)", display: "flex",
+   689→                  alignItems: "center", justifyContent: "center", position: "relative",
+   690→                }}>
+   691→                  {product.image_urls?.[0] ? (
+   692→                    <img src={product.image_urls[0]} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+   693→                  ) : (
+   694→                    <span style={{ fontSize: 32 }}>{emojis[product.category] || "📦"}</span>
+   695→                  )}
+   696→                  <div style={{
+   697→                    position: "absolute", top: 8, left: 8,
+   698→                    background: "var(--accent-secondary)", color: "white",
+   699→                    padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+   700→                  }}>
+   701→                    #{i + 1}
+   702→                  </div>
+   703→                  {(() => {
+   704→                    const discount = getDiscountForProduct(product);
+   705→                    if (discount) {
+   706→                      return (
+   707→                        <span style={{
+   708→                          position: "absolute", top: 8, right: 8,
+   709→                          background: "var(--accent-red)", color: "white",
+   710→                          padding: "2px 6px", borderRadius: 8, fontSize: 9,
+   711→                          fontWeight: 700, letterSpacing: "0.02em",
+   712→                          boxShadow: "0 2px 6px rgba(255, 82, 82, 0.35)",
+   713→                        }}>
+   714→                          {discount.label}
+   715→                        </span>
+   716→                      );
+   717→                    }
+   718→                    return null;
+   719→                  })()}
+   720→                </div>
+   721→                <div style={{ padding: "var(--space-md)" }}>
+   722→                  <h4 style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+   723→                    {product.name}
+   724→                  </h4>
+   725→                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+   726→                    {(() => {
+   727→                      const discount = getDiscountForProduct(product);
+   728→                      if (discount) {
+   729→                        return (
+   730→                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+   731→                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+   732→                              <span style={{ fontSize: 11, color: "var(--text-tertiary)", textDecoration: "line-through" }}>
+   733→                                {product.price?.toLocaleString()} EGP
+   734→                              </span>
+   735→                              <span style={{
+   736→                                fontSize: 9, padding: "1px 6px", borderRadius: 10,
+   737→                                background: "rgba(255, 82, 82, 0.12)", color: "var(--accent-red)",
+   738→                                fontWeight: 700, letterSpacing: "0.02em",
+   739→                              }}>
+   740→                                {discount.label}
+   741→                              </span>
+   742→                            </div>
+   743→                            <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 800, color: "var(--accent-primary-light)" }}>
+   744→                              {discount.newPrice.toLocaleString()} EGP
+   745→                            </span>
+   746→                          </div>
+   747→                        );
+   748→                      }
+   749→                      return (
+   750→                        <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 800, color: "var(--accent-primary-light)" }}>
+   751→                          {product.price?.toLocaleString()} EGP
+   752→                        </span>
+   753→                      );
+   754→                    })()}
+   755→                    <span style={{
+   756→                      fontSize: 10, padding: "2px 8px", borderRadius: 12,
+   757→                      background: "rgba(0,210,255,0.1)", color: "var(--accent-secondary)",
+   758→                      border: "1px solid rgba(0,210,255,0.2)", fontWeight: 600,
+   759→                    }}>
+   760→                      {product.rec_count} orders
+   761→                    </span>
+   762→                  </div>
+   763→                </div>
+   764→              </div>
+   765→            ))}
+   766→          </div>
+   767→        </div>
+   768→      )}
+   769→
+   770→      {/* ═══════════ View Product Modal ═══════════ */}
+   771→      {viewProduct && (
+   772→        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewProduct(null)}>
+   773→          <div className="modal modal-wide" style={{ maxWidth: 640 }}>
+   774→            <div className="modal-header">
+   775→              <h3>{viewProduct.name}</h3>
+   776→              <button className="modal-close" onClick={() => setViewProduct(null)}><X size={18} /></button>
+   777→            </div>
+   778→            <div className="modal-body">
+   779→              {/* Product image */}
+   780→              {viewProduct.image_urls && viewProduct.image_urls.length > 0 && (
+   781→                <div style={{ marginBottom: "var(--space-lg)", borderRadius: "var(--radius-md)", overflow: "hidden", height: 200 }}>
+   782→                  <img src={viewProduct.image_urls[0]} alt={viewProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+   783→                </div>
+   784→              )}
+   785→
+   786→              {/* Product info */}
+   787→              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)", marginBottom: "var(--space-lg)" }}>
+   788→                <div>
+   789→                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Category</div>
+   790→                  <div style={{ fontWeight: 600 }}>{viewProduct.category}</div>
+   791→                </div>
+   792→                <div>
+   793→                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Price</div>
+   794→                  {(() => {
+   795→                    const discount = getDiscountForProduct(viewProduct);
+   796→                    if (discount) {
+   797→                      return (
+   798→                        <div>
+   799→                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   800→                            <span style={{ fontWeight: 800, color: "var(--accent-primary-light)" }}>{discount.newPrice.toLocaleString()} EGP</span>
+   801→                            <span style={{
+   802→                              fontSize: 10, padding: "2px 8px", borderRadius: 10,
+   803→                              background: "rgba(255, 82, 82, 0.12)", color: "var(--accent-red)",
+   804→                              fontWeight: 700,
+   805→                            }}>
+   806→                              {discount.label}
+   807→                            </span>
+   808→                          </div>
+   809→                          <div style={{ fontSize: 12, color: "var(--text-tertiary)", textDecoration: "line-through", marginTop: 2 }}>
+   810→                            {viewProduct.price?.toLocaleString()} EGP
+   811→                          </div>
+   812→                          <div style={{ fontSize: 10, color: "var(--accent-green)", marginTop: 2 }}>
+   813→                            You save {discount.discountAmount.toLocaleString()} EGP
+   814→                          </div>
+   815→                        </div>
+   816→                      );
+   817→                    }
+   818→                    return <div style={{ fontWeight: 800, color: "var(--accent-primary-light)" }}>{viewProduct.price?.toLocaleString()} EGP</div>;
+   819→                  })()}
+   820→                </div>
+   821→                <div>
+   822→                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Stock</div>
+   823→                  <div style={{ fontWeight: 600, color: viewProduct.stock === 0 ? "var(--accent-red)" : viewProduct.stock <= 5 ? "var(--accent-orange)" : "var(--text-primary)" }}>
+   824→                    {viewProduct.stock}
+   825→                  </div>
+   826→                </div>
+   827→                <div>
+   828→                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 2 }}>Status</div>
+   829→                  <div style={{ fontWeight: 600 }}>{viewProduct.status}</div>
+   830→                </div>
+   831→              </div>
+   832→
+   833→              {viewProduct.description && (
+   834→                <div style={{ marginBottom: "var(--space-lg)", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+   835→                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 4 }}>Description</div>
+   836→                  <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", lineHeight: 1.5 }}>{viewProduct.description}</div>
+   837→                </div>
+   838→              )}
+   839→
+   840→              {/* Variants table */}
+   841→              {Array.isArray(viewProduct.variants) && viewProduct.variants.length > 0 && (
+   842→                <div>
+   843→                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-sm)" }}>
+   844→                    <Layers size={16} style={{ color: "var(--accent-primary-light)" }} />
+   845→                    <span style={{ fontWeight: 700, fontSize: "var(--font-size-sm)" }}>Variants</span>
+   846→                    <span className="variant-count-badge">{viewProduct.variants.length}</span>
+   847→                  </div>
+   848→                  <table className="variant-table">
+   849→                    <thead>
+   850→                      <tr>
+   851→                        <th>Variant</th>
+   852→                        <th>SKU</th>
+   853→                        <th>Price</th>
+   854→                        <th>Stock</th>
+   855→                      </tr>
+   856→                    </thead>
+   857→                    <tbody>
+   858→                      {viewProduct.variants.map((v, i) => {
+   859→                        const variantPrice = v.price ?? (v.price_offset !== undefined ? (viewProduct.price + v.price_offset) : null);
+   860→                        return (
+   861→                          <tr key={i}>
+   862→                            <td style={{ fontWeight: 600 }}>{v.name}</td>
+   863→                            <td style={{ color: "var(--text-tertiary)", fontSize: 12 }}>{v.sku || "—"}</td>
+   864→                            <td>
+   865→                              <span className="price-offset">
+   866→                                {variantPrice !== null ? `${variantPrice} EGP` : "—"}
+   867→                              </span>
+   868→                            </td>
+   869→                            <td>
+   870→                              <span className={`stock-cell ${v.stock === 0 ? "out" : v.stock <= 5 ? "low" : ""}`}>
+   871→                                {v.stock}
+   872→                              </span>
+   873→                            </td>
+   874→                          </tr>
+   875→                        );
+   876→                      })}
+   877→                    </tbody>
+   878→                  </table>
+   879→                </div>
+   880→              )}
+   881→
+   882→              {(!Array.isArray(viewProduct.variants) || viewProduct.variants.length === 0) && (
+   883→                <div style={{ textAlign: "center", padding: "var(--space-lg)", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>
+   884→                  No variants configured for this product
+   885→                </div>
+   886→              )}
+   887→            </div>
+   888→            <div className="modal-footer">
+   889→              <button className="btn btn-secondary" onClick={() => setViewProduct(null)}>Close</button>
+   890→              <button className="btn btn-primary" onClick={() => { setViewProduct(null); handleEdit(viewProduct); }}>
+   891→                <Edit size={14} /> Edit Product
+   892→              </button>
+   893→            </div>
+   894→          </div>
+   895→        </div>
+   896→      )}
+   897→
+   898→      {/* ═══════════ Add/Edit Product Modal ═══════════ */}
+   899→      {showModal && (
+   900→        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
+   901→          <div className="modal modal-wide">
+   902→            <div className="modal-header">
+   903→              <h3>{editingProduct ? "Edit Product" : "Add New Product"}</h3>
+   904→              <button className="modal-close" onClick={closeModal}><X size={18} /></button>
+   905→            </div>
+   906→            <form onSubmit={handleAddProduct}>
+   907→              <div className="modal-body">
+   908→                <div className="form-group">
+   909→                  <label className="form-label">Product Image</label>
+   910→                  <div
+   911→                    className={`image-upload-area ${dragOver ? "drag-over" : ""} ${imagePreview ? "has-image" : ""}`}
+   912→                    onDragOver={handleDragOver}
+   913→                    onDragLeave={handleDragLeave}
+   914→                    onDrop={handleDrop}
+   915→                    onClick={() => !imagePreview && fileInputRef.current?.click()}
+   916→                  >
+   917→                    {imagePreview ? (
+   918→                      <div className="image-preview-wrapper">
+   919→                        <img src={imagePreview} alt="Preview" className="image-preview" />
+   920→                        <button type="button" className="image-remove-btn" onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(null); setGeneratedImageUrl(null); }}>
+   921→                          <X size={14} />
+   922→                        </button>
+   923→                      </div>
+   924→                    ) : (
+   925→                      <div className="image-upload-placeholder">
+   926→                        <div className="image-upload-icon"><Upload size={24} /></div>
+   927→                        <p className="image-upload-text">Drag & drop an image, or <span>browse</span></p>
+   928→                        <p className="image-upload-hint">JPG, PNG or WebP · Max 5MB</p>
+   929→                      </div>
+   930→                    )}
+   931→                    <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleFileSelect(e.target.files[0])} />
+   932→                  </div>
+   933→                  {/* AI Image Generation */}
+   934→                  <div className="ai-image-generator">
+   935→                    <div className="ai-image-divider">
+   936→                      <span>or generate with AI</span>
+   937→                    </div>
+   938→                    <div className="ai-image-controls">
+   939→                      <select
+   940→                        className="ai-style-select"
+   941→                        value={aiStyle}
+   942→                        onChange={(e) => setAiStyle(e.target.value)}
+   943→                        disabled={generatingImage}
+   944→                      >
+   945→                        <option value="studio">Studio (White BG)</option>
+   946→                        <option value="lifestyle">Lifestyle (In Use)</option>
+   947→                        <option value="minimal">Minimal (Elegant)</option>
+   948→                      </select>
+   949→                      <button
+   950→                        type="button"
+   951→                        className="btn btn-ai-generate"
+   952→                        onClick={handleGenerateImage}
+   953→                        disabled={generatingImage}
+   954→                      >
+   955→                        {generatingImage ? (
+   956→                          <><Loader2 size={14} className="spin" /> Generating...</>
+   957→                        ) : (
+   958→                          <><Sparkles size={14} /> Generate Image</>
+   959→                        )}
+   960→                      </button>
+   961→                    </div>
+   962→                  </div>
+   963→                </div>
+   964→                <div className="form-group">
+   965→                  <label className="form-label">Product Name</label>
+   966→                  <input type="text" name="name" className="form-input" placeholder="e.g. Black Leather Bag" defaultValue={editingProduct?.name || ""} required />
+   967→                </div>
+   968→                <div className="form-group">
+   969→                  <label className="form-label">Description</label>
+   970→                  <textarea name="description" className="form-input form-textarea" placeholder="Product description..." defaultValue={editingProduct?.description || ""} />
+   971→                  <button
+   972→                    type="button"
+   973→                    className="btn btn-secondary btn-sm"
+   974→                    style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}
+   975→                    onClick={handleGenerateDescription}
+   976→                    disabled={generatingDesc}
+   977→                  >
+   978→                    {generatingDesc ? <><Loader2 size={12} className="spin" /> Generating...</> : <><Sparkles size={12} /> Generate with AI</>}
+   979→                  </button>
+   980→                  {aiDescArabic && (
+   981→                    <div style={{ marginTop: 8, padding: 8, background: "var(--bg-glass)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 12 }}>
+   982→                      <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--accent-primary-light)", fontSize: 10 }}>Arabic Description (Preview)</div>
+   983→                      <div style={{ direction: "rtl", textAlign: "right", color: "var(--text-secondary)" }}>{aiDescArabic}</div>
+   984→                    </div>
+   985→                  )}
+   986→                  {aiPriceSuggestion && (
+   987→                    <div style={{ marginTop: 4, fontSize: 11, color: "var(--accent-green)" }}>💡 {aiPriceSuggestion}</div>
+   988→                  )}
+   989→                </div>
+   990→                {/* Price & Stock — only show when there are NO variants */}
+   991→                {variants.length === 0 && (
+   992→                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+   993→                    <div className="form-group">
+   994→                      <label className="form-label">Price (EGP)</label>
+   995→                      <input type="number" name="price" className="form-input" placeholder="0.00" defaultValue={editingProduct?.price || ""} required min="0" step="0.01" />
+   996→                    </div>
+   997→                    <div className="form-group">
+   998→                      <label className="form-label">Stock</label>
+   999→                      <input type="number" name="stock" className="form-input" placeholder="0" defaultValue={editingProduct?.stock || 0} required min="0" />
+  1000→                    </div>
+  1001→                  </div>
+  1002→                )}
+  1003→                {/* When variants exist, show a hint instead */}
+  1004→                {variants.length > 0 && (
+  1005→                  <div style={{
+  1006→                    padding: "var(--space-md)",
+  1007→                    background: "rgba(108, 92, 231, 0.06)",
+  1008→                    border: "1px solid rgba(108, 92, 231, 0.15)",
+  1009→                    borderRadius: "var(--radius-md)",
+  1010→                    fontSize: "var(--font-size-xs)",
+  1011→                    color: "var(--text-secondary)",
+  1012→                    display: "flex",
+  1013→                    alignItems: "center",
+  1014→                    gap: "var(--space-sm)",
+  1015→                  }}>
+  1016→                    <Layers size={14} style={{ color: "var(--accent-primary-light)", flexShrink: 0 }} />
+  1017→                    Price and stock are set per variant below. Remove all variants to use a single price/stock instead.
+  1018→                  </div>
+  1019→                )}
+  1020→                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)" }}>
+  1021→                  <div className="form-group">
+  1022→                    <label className="form-label">Category</label>
+  1023→                    <select name="category" className="form-input" defaultValue={editingProduct?.category || "Bags"}>
+  1024→                      <option value="Bags">Bags</option>
+  1025→                      <option value="Jewelry">Jewelry</option>
+  1026→                      <option value="Accessories">Accessories</option>
+  1027→                      <option value="Electronics">Electronics</option>
+  1028→                      <option value="Watches">Watches</option>
+  1029→                      <option value="Clothing">Clothing</option>
+  1030→                    </select>
+  1031→                  </div>
+  1032→                  <div className="form-group">
+  1033→                    <label className="form-label">Status</label>
+  1034→                    <select name="status" className="form-input" defaultValue={editingProduct?.status || "active"}>
+  1035→                      <option value="active">Active</option>
+  1036→                      <option value="draft">Draft</option>
+  1037→                    </select>
+  1038→                  </div>
+  1039→                </div>
+  1040→
+  1041→                {/* ═══════════ Variants Section ═══════════ */}
+  1042→                <div className="form-group" style={{ marginTop: "var(--space-lg)" }}>
+  1043→                  <label className="form-label" style={{ display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+  1044→                    <Layers size={14} />
+  1045→                    Variants
+  1046→                    {variants.length > 0 && (
+  1047→                      <span className="variant-count-badge">{variants.length}</span>
+  1048→                    )}
+  1049→                  </label>
+  1050→                  <p style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2, marginBottom: "var(--space-sm)" }}>
+  1051→                    Add size, color, or other variant options. Each variant has its own price and stock.
+  1052→                  </p>
+  1053→
+  1054→                  {/* Column headers */}
+  1055→                  {variants.length > 0 && (
+  1056→                    <div className="variant-header">
+  1057→                      <span>Name</span>
+  1058→                      <span>SKU</span>
+  1059→                      <span>Price</span>
+  1060→                      <span>Stock</span>
+  1061→                      <span></span>
+  1062→                    </div>
+  1063→                  )}
+  1064→
+  1065→                  <div className="variant-list">
+  1066→                    {variants.map((v, index) => (
+  1067→                      <div key={index} className="variant-row">
+  1068→                        <input
+  1069→                          type="text"
+  1070→                          placeholder="e.g. Red / Large"
+  1071→                          value={v.name}
+  1072→                          onChange={(e) => updateVariant(index, "name", e.target.value)}
+  1073→                        />
+  1074→                        <input
+  1075→                          type="text"
+  1076→                          placeholder="SKU"
+  1077→                          value={v.sku}
+  1078→                          onChange={(e) => updateVariant(index, "sku", e.target.value)}
+  1079→                        />
+  1080→                        <input
+  1081→                          type="number"
+  1082→                          placeholder="0"
+  1083→                          value={v.price}
+  1084→                          onChange={(e) => updateVariant(index, "price", e.target.value)}
+  1085→                          step="0.01"
+  1086→                          min="0"
+  1087→                        />
+  1088→                        <input
+  1089→                          type="number"
+  1090→                          placeholder="0"
+  1091→                          value={v.stock}
+  1092→                          onChange={(e) => updateVariant(index, "stock", e.target.value)}
+  1093→                          min="0"
+  1094→                        />
+  1095→                        <button type="button" className="variant-remove-btn" onClick={() => removeVariant(index)}>
+  1096→                          <Minus size={14} />
+  1097→                        </button>
+  1098→                      </div>
+  1099→                    ))}
+  1100→                  </div>
+  1101→
+  1102→                  <button type="button" className="variant-add-btn" onClick={addVariant}>
+  1103→                    <Plus size={14} /> Add Variant
+  1104→                  </button>
+  1105→
+  1106→                  {/* Image URL field for last added variant (optional enhancement) */}
+  1107→                  {variants.length > 0 && (
+  1108→                    <div style={{ marginTop: "var(--space-md)" }}>
+  1109→                      {variants.map((v, index) => (
+  1110→                        v.name.trim() !== "" && (
+  1111→                          <div key={`img-${index}`} style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)", marginBottom: "var(--space-xs)" }}>
+  1112→                            <span style={{ fontSize: 11, color: "var(--text-tertiary)", minWidth: 100, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+  1113→                              {v.name} image:
+  1114→                            </span>
+  1115→                            <input
+  1116→                              type="url"
+  1117→                              placeholder="https://example.com/image.jpg (optional)"
+  1118→                              value={v.image_url}
+  1119→                              onChange={(e) => updateVariant(index, "image_url", e.target.value)}
+  1120→                              style={{
+  1121→                                flex: 1, padding: "4px 8px", background: "var(--bg-primary)",
+  1122→                                border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)",
+  1123→                                color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-family)",
+  1124→                                outline: "none",
+  1125→                              }}
+  1126→                            />
+  1127→                          </div>
+  1128→                        )
+  1129→                      ))}
+  1130→                    </div>
+  1131→                  )}
+  1132→                </div>
+  1133→              </div>
+  1134→              <div className="modal-footer">
+  1135→                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cancel</button>
+  1136→                <button type="submit" className="btn btn-primary" disabled={saving}>
+  1137→                  {saving ? "Saving..." : editingProduct ? "Save Changes" : "Add Product"}
+  1138→                </button>
+  1139→              </div>
+  1140→            </form>
+  1141→          </div>
+  1142→        </div>
+  1143→      )}
+  1144→    </>
+  1145→  );
+  1146→}
+  1147→

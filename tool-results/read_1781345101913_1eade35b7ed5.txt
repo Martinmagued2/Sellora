@@ -1,0 +1,645 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, useRef } from "react";
+     4→import {
+     5→  Webhook, RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle,
+     6→  Loader2, Plus, Trash2, ExternalLink, ChevronRight, ArrowLeft,
+     7→  Activity, Zap, Shield, X,
+     8→} from "lucide-react";
+     9→import { createClient } from "@/lib/supabase/client";
+    10→import { useToast } from "../components/ToastProvider";
+    11→import { useConfirm } from "../components/ConfirmProvider";
+    12→
+    13→const STATUS_CONFIG = {
+    14→  success: { label: "Success", color: "var(--accent-green)", bg: "rgba(0, 230, 118, 0.1)", icon: CheckCircle },
+    15→  failed: { label: "Failed", color: "var(--accent-red)", bg: "rgba(255, 82, 82, 0.1)", icon: XCircle },
+    16→  pending: { label: "Pending", color: "var(--accent-orange)", bg: "rgba(255, 145, 0, 0.1)", icon: Clock },
+    17→  retrying: { label: "Retrying", color: "var(--accent-primary-light)", bg: "rgba(108, 92, 231, 0.1)", icon: RefreshCw },
+    18→};
+    19→
+    20→export default function WebhooksPage() {
+    21→  const toast = useToast();
+    22→  
+    23→  const confirmAction = useConfirm();
+    24→  const [webhooks, setWebhooks] = useState([]);
+    25→  const [loading, setLoading] = useState(true);
+    26→  const [selectedWebhook, setSelectedWebhook] = useState(null);
+    27→  const [deliveries, setDeliveries] = useState([]);
+    28→  const [deliveriesLoading, setDeliveriesLoading] = useState(false);
+    29→  const [statusFilter, setStatusFilter] = useState("all");
+    30→  const [deliveryPage, setDeliveryPage] = useState(1);
+    31→  const [deliveryTotal, setDeliveryTotal] = useState(0);
+    32→  const [retryingId, setRetryingId] = useState(null);
+    33→  const [testingId, setTestingId] = useState(null);
+    34→  const [showCreateModal, setShowCreateModal] = useState(false);
+    35→  const [creating, setCreating] = useState(false);
+    36→  const [newWebhook, setNewWebhook] = useState({ url: "", events: ["order.created"], secret: "" });
+    37→  const pollRef = useRef(null);
+    38→
+    39→  const supabase = createClient();
+    40→
+    41→  // Fetch all webhooks with delivery stats
+    42→  const fetchWebhooks = useCallback(async () => {
+    43→    const { data: { user } } = await supabase.auth.getUser();
+    44→    if (!user) return;
+    45→
+    46→    const { data } = await supabase
+    47→      .from("account_webhooks")
+    48→      .select("*")
+    49→      .eq("account_id", user.id)
+    50→      .order("created_at", { ascending: false });
+    51→
+    52→    if (data) {
+    53→      // Get delivery stats for each webhook
+    54→      const webhooksWithStats = await Promise.all(
+    55→        data.map(async (wh) => {
+    56→          const [successRes, failedRes, pendingRes] = await Promise.all([
+    57→            supabase.from("webhook_deliveries").select("id", { count: "exact", head: true }).eq("webhook_id", wh.id).eq("status", "success"),
+    58→            supabase.from("webhook_deliveries").select("id", { count: "exact", head: true }).eq("webhook_id", wh.id).eq("status", "failed"),
+    59→            supabase.from("webhook_deliveries").select("id", { count: "exact", head: true }).eq("webhook_id", wh.id).in("status", ["pending", "retrying"]),
+    60→          ]);
+    61→          return {
+    62→            ...wh,
+    63→            stats: {
+    64→              success: successRes.count || 0,
+    65→              failed: failedRes.count || 0,
+    66→              pending: (pendingRes.count || 0),
+    67→            },
+    68→          };
+    69→        })
+    70→      );
+    71→      setWebhooks(webhooksWithStats);
+    72→    }
+    73→    setLoading(false);
+    74→  }, []);
+    75→
+    76→  // Fetch deliveries for a selected webhook
+    77→  const fetchDeliveries = useCallback(async (webhookId, page = 1, status = statusFilter) => {
+    78→    setDeliveriesLoading(true);
+    79→    try {
+    80→      const params = new URLSearchParams({
+    81→        page: String(page),
+    82→        limit: "20",
+    83→      });
+    84→      if (webhookId) params.set("webhook_id", webhookId);
+    85→      if (status && status !== "all") params.set("status", status);
+    86→
+    87→      const res = await fetch(`/api/webhooks/deliveries?${params}`);
+    88→      const data = await res.json();
+    89→      if (data.success) {
+    90→        setDeliveries(data.deliveries || []);
+    91→        setDeliveryTotal(data.pagination?.total || 0);
+    92→        setDeliveryPage(page);
+    93→      }
+    94→    } catch (err) {
+    95→      console.error("Failed to fetch deliveries:", err);
+    96→    }
+    97→    setDeliveriesLoading(false);
+    98→  }, [statusFilter]);
+    99→
+   100→  useEffect(() => {
+   101→    fetchWebhooks();
+   102→  }, [fetchWebhooks]);
+   103→
+   104→  // Fetch deliveries when selected webhook or filter changes
+   105→  useEffect(() => {
+   106→    if (selectedWebhook !== null) {
+   107→      fetchDeliveries(selectedWebhook, 1, statusFilter);
+   108→    }
+   109→  }, [selectedWebhook, statusFilter, fetchDeliveries]);
+   110→
+   111→  // Auto-refresh every 10s when there are pending deliveries
+   112→  useEffect(() => {
+   113→    const hasPending = deliveries.some(d => d.status === "pending" || d.status === "retrying");
+   114→    if (hasPending && selectedWebhook) {
+   115→      pollRef.current = setInterval(() => {
+   116→        fetchDeliveries(selectedWebhook, deliveryPage, statusFilter);
+   117→      }, 10000);
+   118→    }
+   119→    return () => {
+   120→      if (pollRef.current) clearInterval(pollRef.current);
+   121→    };
+   122→  }, [deliveries, selectedWebhook, deliveryPage, statusFilter, fetchDeliveries]);
+   123→
+   124→  const handleRetry = async (deliveryId) => {
+   125→    setRetryingId(deliveryId);
+   126→    try {
+   127→      const res = await fetch(`/api/webhooks/deliveries/${deliveryId}/retry`, { method: "POST" });
+   128→      const data = await res.json();
+   129→      if (data.success) {
+   130→        // Refresh deliveries and webhook stats
+   131→        fetchDeliveries(selectedWebhook, deliveryPage, statusFilter);
+   132→        fetchWebhooks();
+   133→      } else {
+   134→        toast.error(data.error || "Failed to retry delivery");
+   135→      }
+   136→    } catch (err) {
+   137→      toast.error("Failed to retry: " + err.message);
+   138→    }
+   139→    setRetryingId(null);
+   140→  };
+   141→
+   142→  const handleDeleteWebhook = async (whId) => {
+   143→    if (!(await confirmAction("Delete this webhook? All delivery logs will also be removed."))) return;
+   144→    await supabase.from("account_webhooks").delete().eq("id", whId);
+   145→    if (selectedWebhook === whId) setSelectedWebhook(null);
+   146→    fetchWebhooks();
+   147→  };
+   148→
+   149→  const handleToggleWebhook = async (wh) => {
+   150→    await supabase.from("account_webhooks").update({ is_active: !wh.is_active }).eq("id", wh.id);
+   151→    fetchWebhooks();
+   152→  };
+   153→
+   154→  const handleTestWebhook = async (wh) => {
+   155→    setTestingId(wh.id);
+   156→    try {
+   157→      const event = wh.events?.[0] || "order.created";
+   158→      const res = await fetch("/api/webhooks/test", {
+   159→        method: "POST",
+   160→        headers: { "Content-Type": "application/json" },
+   161→        body: JSON.stringify({ webhookId: wh.id, event }),
+   162→      });
+   163→      const data = await res.json();
+   164→      if (data.success && data.results?.[0]) {
+   165→        const result = data.results[0];
+   166→        if (result.ok) {
+   167→          toast.success(`Test sent! Got ${result.status} in ${result.durationMs}ms`);
+   168→        } else {
+   169→          toast.error(`Test failed: ${result.error || `HTTP ${result.status}`}`);
+   170→        }
+   171→      } else {
+   172→        toast.error(data.error || "Test failed");
+   173→      }
+   174→      fetchWebhooks();
+   175→      if (selectedWebhook) fetchDeliveries(selectedWebhook, deliveryPage, statusFilter);
+   176→    } catch (err) {
+   177→      toast.error("Test failed: " + err.message);
+   178→    }
+   179→    setTestingId(null);
+   180→  };
+   181→
+   182→  const handleCreateWebhook = async (e) => {
+   183→    e.preventDefault();
+   184→    if (!newWebhook.url.trim()) return;
+   185→    setCreating(true);
+   186→
+   187→    const { data: { user } } = await supabase.auth.getUser();
+   188→    const { error } = await supabase.from("account_webhooks").insert({
+   189→      account_id: user.id,
+   190→      url: newWebhook.url.trim(),
+   191→      events: newWebhook.events,
+   192→      secret: newWebhook.secret || null,
+   193→      is_active: true,
+   194→    });
+   195→
+   196→    if (!error) {
+   197→      setShowCreateModal(false);
+   198→      setNewWebhook({ url: "", events: ["order.created"], secret: "" });
+   199→      fetchWebhooks();
+   200→    } else {
+   201→      toast.error("Failed to create webhook: " + error.message);
+   202→    }
+   203→    setCreating(false);
+   204→  };
+   205→
+   206→  const toggleEvent = (event) => {
+   207→    setNewWebhook((prev) => ({
+   208→      ...prev,
+   209→      events: prev.events.includes(event)
+   210→        ? prev.events.filter((e) => e !== event)
+   211→        : [...prev.events, event],
+   212→    }));
+   213→  };
+   214→
+   215→  const AVAILABLE_EVENTS = [
+   216→    "order.created",
+   217→    "order.updated",
+   218→    "message.received",
+   219→    "customer.created",
+   220→  ];
+   221→
+   222→  const formatDate = (d) => new Date(d).toLocaleString("en-US", {
+   223→    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit",
+   224→  });
+   225→
+   226→  const totalDeliveries = deliveryTotal;
+   227→  const totalPages = Math.ceil(totalDeliveries / 20);
+   228→
+   229→  // ───── Webhook List View ─────
+   230→  if (!selectedWebhook) {
+   231→    return (
+   232→      <>
+   233→        <div className="page-header">
+   234→          <h1>Webhooks</h1>
+   235→          <div className="page-header-actions">
+   236→            <button className="btn btn-secondary" onClick={fetchWebhooks}>
+   237→              <RefreshCw size={16} /> Refresh
+   238→            </button>
+   239→            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+   240→              <Plus size={16} /> Add Webhook
+   241→            </button>
+   242→          </div>
+   243→        </div>
+   244→
+   245→        {/* Stats Row */}
+   246→        <div className="stats-grid" style={{ marginBottom: "var(--space-xl)" }}>
+   247→          {[
+   248→            {
+   249→              label: "Active Webhooks",
+   250→              value: webhooks.filter((w) => w.is_active).length,
+   251→              icon: <Webhook size={18} />,
+   252→              color: "purple",
+   253→            },
+   254→            {
+   255→              label: "Total Deliveries",
+   256→              value: webhooks.reduce((sum, w) => sum + (w.stats?.success || 0) + (w.stats?.failed || 0) + (w.stats?.pending || 0), 0),
+   257→              icon: <Activity size={18} />,
+   258→              color: "blue",
+   259→            },
+   260→            {
+   261→              label: "Failed Deliveries",
+   262→              value: webhooks.reduce((sum, w) => sum + (w.stats?.failed || 0), 0),
+   263→              icon: <AlertTriangle size={18} />,
+   264→              color: "orange",
+   265→            },
+   266→            {
+   267→              label: "Success Rate",
+   268→              value: (() => {
+   269→                const totalSuccess = webhooks.reduce((s, w) => s + (w.stats?.success || 0), 0);
+   270→                const totalAll = webhooks.reduce((s, w) => s + (w.stats?.success || 0) + (w.stats?.failed || 0), 0);
+   271→                return totalAll > 0 ? `${Math.round((totalSuccess / totalAll) * 100)}%` : "—";
+   272→              })(),
+   273→              icon: <Zap size={18} />,
+   274→              color: "green",
+   275→            },
+   276→          ].map((s, i) => (
+   277→            <div key={i} className="stat-card">
+   278→              <div className="stat-card-header">
+   279→                <span className="stat-card-label">{s.label}</span>
+   280→                <div className={`stat-card-icon ${s.color}`}>{s.icon}</div>
+   281→              </div>
+   282→              <div className="stat-card-value">{s.value}</div>
+   283→            </div>
+   284→          ))}
+   285→        </div>
+   286→
+   287→        {/* Webhook List */}
+   288→        {loading ? (
+   289→          <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>
+   290→            <Loader2 size={24} className="spin" style={{ display: "inline-block" }} /> Loading webhooks...
+   291→          </div>
+   292→        ) : webhooks.length === 0 ? (
+   293→          <div className="dashboard-panel" style={{ padding: "var(--space-4xl)", textAlign: "center" }}>
+   294→            <div style={{ width: 64, height: 64, borderRadius: 20, background: "rgba(108, 92, 231, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto var(--space-xl)", color: "var(--accent-primary)" }}>
+   295→              <Webhook size={32} />
+   296→            </div>
+   297→            <h3 style={{ fontSize: "var(--font-size-xl)", marginBottom: "var(--space-sm)" }}>No Webhooks Yet</h3>
+   298→            <p style={{ color: "var(--text-secondary)", marginBottom: "var(--space-xl)", maxWidth: 400, margin: "0 auto var(--space-xl)" }}>
+   299→              Create a webhook endpoint to receive real-time notifications when events happen in your store.
+   300→            </p>
+   301→            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+   302→              <Plus size={16} /> Create Your First Webhook
+   303→            </button>
+   304→          </div>
+   305→        ) : (
+   306→          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+   307→            {webhooks.map((wh) => (
+   308→              <div key={wh.id} className="dashboard-panel webhook-card" style={{ cursor: "pointer" }} onClick={() => setSelectedWebhook(wh.id)}>
+   309→                <div style={{ padding: "var(--space-xl)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+   310→                  <div style={{ flex: 1, minWidth: 0 }}>
+   311→                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)", marginBottom: "var(--space-sm)" }}>
+   312→                      <Webhook size={18} style={{ color: wh.is_active ? "var(--accent-green)" : "var(--text-tertiary)", flexShrink: 0 }} />
+   313→                      <span style={{ fontWeight: 700, fontSize: "var(--font-size-base)" }}>{wh.url}</span>
+   314→                      <span style={{
+   315→                        padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+   316→                        background: wh.is_active ? "rgba(0, 230, 118, 0.1)" : "rgba(255, 255, 255, 0.05)",
+   317→                        color: wh.is_active ? "var(--accent-green)" : "var(--text-tertiary)",
+   318→                        border: `1px solid ${wh.is_active ? "rgba(0, 230, 118, 0.3)" : "var(--border-subtle)"}`,
+   319→                      }}>
+   320→                        {wh.is_active ? "Active" : "Disabled"}
+   321→                      </span>
+   322→                    </div>
+   323→                    <div style={{ display: "flex", gap: "var(--space-lg)", fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)", flexWrap: "wrap" }}>
+   324→                      <span>Events: {(wh.events || []).join(", ")}</span>
+   325→                      {wh.last_triggered_at && (
+   326→                        <span>Last triggered: {formatDate(wh.last_triggered_at)}</span>
+   327→                      )}
+   328→                    </div>
+   329→                    {/* Delivery stats mini bar */}
+   330→                    <div style={{ display: "flex", gap: "var(--space-md)", marginTop: "var(--space-md)" }}>
+   331→                      {[
+   332→                        { label: "Success", value: wh.stats?.success || 0, color: "var(--accent-green)" },
+   333→                        { label: "Failed", value: wh.stats?.failed || 0, color: "var(--accent-red)" },
+   334→                        { label: "Pending", value: wh.stats?.pending || 0, color: "var(--accent-orange)" },
+   335→                      ].map((s, i) => (
+   336→                        <span key={i} style={{
+   337→                          padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+   338→                          background: `${s.color}15`, color: s.color,
+   339→                        }}>
+   340→                          {s.value} {s.label}
+   341→                        </span>
+   342→                      ))}
+   343→                    </div>
+   344→                  </div>
+   345→                  <div style={{ display: "flex", gap: "var(--space-xs)", marginLeft: "var(--space-lg)" }}>
+   346→                    <button
+   347→                      className="topbar-btn"
+   348→                      title="Send test event"
+   349→                      onClick={(e) => { e.stopPropagation(); handleTestWebhook(wh); }}
+   350→                      disabled={testingId === wh.id}
+   351→                      style={{ color: "var(--accent-primary-light)" }}
+   352→                    >
+   353→                      {testingId === wh.id ? <Loader2 size={16} className="spin" /> : <Zap size={16} />}
+   354→                    </button>
+   355→                    <button
+   356→                      className="topbar-btn"
+   357→                      title="View deliveries"
+   358→                      onClick={(e) => { e.stopPropagation(); setSelectedWebhook(wh.id); }}
+   359→                    >
+   360→                      <ChevronRight size={16} />
+   361→                    </button>
+   362→                    <button
+   363→                      className="topbar-btn"
+   364→                      title={wh.is_active ? "Disable" : "Enable"}
+   365→                      onClick={(e) => { e.stopPropagation(); handleToggleWebhook(wh); }}
+   366→                      style={{ color: wh.is_active ? "var(--accent-orange)" : "var(--accent-green)" }}
+   367→                    >
+   368→                      {wh.is_active ? <XCircle size={16} /> : <CheckCircle size={16} />}
+   369→                    </button>
+   370→                    <button
+   371→                      className="topbar-btn"
+   372→                      title="Delete webhook"
+   373→                      onClick={(e) => { e.stopPropagation(); handleDeleteWebhook(wh.id); }}
+   374→                      style={{ color: "var(--accent-red)" }}
+   375→                    >
+   376→                      <Trash2 size={16} />
+   377→                    </button>
+   378→                  </div>
+   379→                </div>
+   380→              </div>
+   381→            ))}
+   382→          </div>
+   383→        )}
+   384→
+   385→        {/* Create Webhook Modal */}
+   386→        {showCreateModal && (
+   387→          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowCreateModal(false)}>
+   388→            <div className="modal" style={{ maxWidth: 520 }}>
+   389→              <div className="modal-header">
+   390→                <h3>Create Webhook</h3>
+   391→                <button className="modal-close" onClick={() => setShowCreateModal(false)}><X size={18} /></button>
+   392→              </div>
+   393→              <form onSubmit={handleCreateWebhook}>
+   394→                <div className="modal-body">
+   395→                  <div className="form-group">
+   396→                    <label className="form-label">Endpoint URL</label>
+   397→                    <input
+   398→                      type="url"
+   399→                      className="form-input"
+   400→                      placeholder="https://your-server.com/webhooks/sellora"
+   401→                      value={newWebhook.url}
+   402→                      onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })}
+   403→                      required
+   404→                    />
+   405→                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+   406→                      The URL where Sellora will send HTTP POST requests
+   407→                    </p>
+   408→                  </div>
+   409→                  <div className="form-group">
+   410→                    <label className="form-label">Events</label>
+   411→                    <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+   412→                      {AVAILABLE_EVENTS.map((event) => (
+   413→                        <button
+   414→                          key={event}
+   415→                          type="button"
+   416→                          className={`filter-tab ${newWebhook.events.includes(event) ? "active" : ""}`}
+   417→                          onClick={() => toggleEvent(event)}
+   418→                          style={{ fontSize: "var(--font-size-xs)" }}
+   419→                        >
+   420→                          {event}
+   421→                        </button>
+   422→                      ))}
+   423→                    </div>
+   424→                  </div>
+   425→                  <div className="form-group">
+   426→                    <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+   427→                      <Shield size={14} /> Signing Secret (optional)
+   428→                    </label>
+   429→                    <input
+   430→                      type="text"
+   431→                      className="form-input"
+   432→                      placeholder="whsec_..."
+   433→                      value={newWebhook.secret}
+   434→                      onChange={(e) => setNewWebhook({ ...newWebhook, secret: e.target.value })}
+   435→                    />
+   436→                    <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+   437→                      If set, each delivery will include an X-Sellora-Signature header with HMAC-SHA256
+   438→                    </p>
+   439→                  </div>
+   440→                </div>
+   441→                <div className="modal-footer">
+   442→                  <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
+   443→                  <button type="submit" className="btn btn-primary" disabled={creating || !newWebhook.url.trim() || newWebhook.events.length === 0}>
+   444→                    {creating ? <><Loader2 size={14} className="spin" /> Creating...</> : <><Webhook size={14} /> Create Webhook</>}
+   445→                  </button>
+   446→                </div>
+   447→              </form>
+   448→            </div>
+   449→          </div>
+   450→        )}
+   451→      </>
+   452→    );
+   453→  }
+   454→
+   455→  // ───── Delivery Log View ─────
+   456→  const selectedWh = webhooks.find((w) => w.id === selectedWebhook);
+   457→
+   458→  return (
+   459→    <>
+   460→      <div className="page-header">
+   461→        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+   462→          <button className="topbar-btn" onClick={() => setSelectedWebhook(null)} title="Back to webhooks">
+   463→            <ArrowLeft size={18} />
+   464→          </button>
+   465→          <div>
+   466→            <h1 style={{ fontSize: "var(--font-size-xl)" }}>Delivery Log</h1>
+   467→            <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)", marginTop: 2 }}>
+   468→              {selectedWh?.url}
+   469→            </p>
+   470→          </div>
+   471→        </div>
+   472→        <div className="page-header-actions">
+   473→          <div className="filter-tabs">
+   474→            {["all", "success", "failed", "pending"].map((f) => (
+   475→              <button
+   476→                key={f}
+   477→                className={`filter-tab ${statusFilter === f ? "active" : ""}`}
+   478→                onClick={() => setStatusFilter(f)}
+   479→              >
+   480→                {f.charAt(0).toUpperCase() + f.slice(1)}
+   481→              </button>
+   482→            ))}
+   483→          </div>
+   484→          <button className="btn btn-secondary" onClick={() => fetchDeliveries(selectedWebhook, deliveryPage, statusFilter)}>
+   485→            <RefreshCw size={16} /> Refresh
+   486→          </button>
+   487→        </div>
+   488→      </div>
+   489→
+   490→      {/* Delivery stats for selected webhook */}
+   491→      {selectedWh && (
+   492→        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
+   493→          {[
+   494→            { label: "Success", value: selectedWh.stats?.success || 0, color: "var(--accent-green)", bg: "rgba(0, 230, 118, 0.1)" },
+   495→            { label: "Failed", value: selectedWh.stats?.failed || 0, color: "var(--accent-red)", bg: "rgba(255, 82, 82, 0.1)" },
+   496→            { label: "Pending", value: selectedWh.stats?.pending || 0, color: "var(--accent-orange)", bg: "rgba(255, 145, 0, 0.1)" },
+   497→            { label: "Last Status", value: selectedWh.last_status_code || "—", color: selectedWh.last_status_code >= 200 && selectedWh.last_status_code < 300 ? "var(--accent-green)" : "var(--text-tertiary)", bg: "var(--bg-glass)" },
+   498→          ].map((s, i) => (
+   499→            <div key={i} style={{
+   500→              padding: "var(--space-md) var(--space-lg)",
+   501→              background: s.bg,
+   502→              borderRadius: "var(--radius-md)",
+   503→              border: "1px solid var(--border-subtle)",
+   504→              textAlign: "center",
+   505→            }}>
+   506→              <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: s.color }}>{s.value}</div>
+   507→              <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>{s.label}</div>
+   508→            </div>
+   509→          ))}
+   510→        </div>
+   511→      )}
+   512→
+   513→      {/* Deliveries Table */}
+   514→      {deliveriesLoading ? (
+   515→        <div style={{ padding: "var(--space-3xl)", textAlign: "center", color: "var(--text-tertiary)" }}>
+   516→          <Loader2 size={24} className="spin" style={{ display: "inline-block" }} /> Loading deliveries...
+   517→        </div>
+   518→      ) : (
+   519→        <div className="dashboard-panel">
+   520→          <div className="dashboard-panel-body" style={{ padding: 0 }}>
+   521→            <div className="table-scroll-wrapper">
+   522→              <table className="data-table">
+   523→                <thead>
+   524→                  <tr>
+   525→                    <th>Timestamp</th>
+   526→                    <th>Event</th>
+   527→                    <th>Status</th>
+   528→                    <th>Response</th>
+   529→                    <th>Duration</th>
+   530→                    <th>Attempts</th>
+   531→                    <th>Actions</th>
+   532→                  </tr>
+   533→                </thead>
+   534→                <tbody>
+   535→                  {deliveries.map((del) => {
+   536→                    const statusConf = STATUS_CONFIG[del.status] || STATUS_CONFIG.pending;
+   537→                    const StatusIcon = statusConf.icon;
+   538→                    return (
+   539→                      <tr key={del.id}>
+   540→                        <td style={{ whiteSpace: "nowrap", fontSize: "var(--font-size-xs)", color: "var(--text-secondary)" }}>
+   541→                          {formatDate(del.created_at)}
+   542→                        </td>
+   543→                        <td>
+   544→                          <span style={{
+   545→                            padding: "2px 8px", borderRadius: 8, fontSize: 11, fontWeight: 600,
+   546→                            background: "rgba(108, 92, 231, 0.1)", color: "var(--accent-primary-light)",
+   547→                          }}>
+   548→                            {del.event}
+   549→                          </span>
+   550→                        </td>
+   551→                        <td>
+   552→                          <span style={{
+   553→                            display: "inline-flex", alignItems: "center", gap: 4,
+   554→                            padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+   555→                            background: statusConf.bg, color: statusConf.color,
+   556→                          }}>
+   557→                            <StatusIcon size={12} />
+   558→                            {statusConf.label}
+   559→                          </span>
+   560→                        </td>
+   561→                        <td style={{ fontSize: "var(--font-size-sm)", color: del.response_status >= 200 && del.response_status < 300 ? "var(--accent-green)" : del.response_status ? "var(--accent-red)" : "var(--text-tertiary)" }}>
+   562→                          {del.response_status || "—"}
+   563→                        </td>
+   564→                        <td style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>
+   565→                          {del.duration_ms ? `${del.duration_ms}ms` : "—"}
+   566→                        </td>
+   567→                        <td style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>
+   568→                          {del.attempts || 1}
+   569→                        </td>
+   570→                        <td>
+   571→                          {(del.status === "failed" || del.status === "retrying") && (
+   572→                            <button
+   573→                              className="btn btn-secondary"
+   574→                              style={{ padding: "4px 10px", fontSize: "var(--font-size-xs)" }}
+   575→                              onClick={() => handleRetry(del.id)}
+   576→                              disabled={retryingId === del.id}
+   577→                            >
+   578→                              {retryingId === del.id ? (
+   579→                                <><Loader2 size={12} className="spin" /> Retrying...</>
+   580→                              ) : (
+   581→                                <><RefreshCw size={12} /> Retry</>
+   582→                              )}
+   583→                            </button>
+   584→                          )}
+   585→                          {del.response_body && (
+   586→                            <button
+   587→                              className="topbar-btn"
+   588→                              title="View response"
+   589→                              onClick={() => toast.info(`Response Body: ${del.response_body?.substring(0, 200)}...`) }
+   590→                              style={{ marginLeft: 4 }}
+   591→                            >
+   592→                              <ExternalLink size={14} />
+   593→                            </button>
+   594→                          )}
+   595→                        </td>
+   596→                      </tr>
+   597→                    );
+   598→                  })}
+   599→                  {deliveries.length === 0 && (
+   600→                    <tr>
+   601→                      <td colSpan={7} style={{ padding: "var(--space-2xl)", textAlign: "center", color: "var(--text-tertiary)" }}>
+   602→                        No deliveries found {statusFilter !== "all" ? `with status "${statusFilter}"` : ""}
+   603→                      </td>
+   604→                    </tr>
+   605→                  )}
+   606→                </tbody>
+   607→              </table>
+   608→            </div>
+   609→          </div>
+   610→
+   611→          {/* Pagination */}
+   612→          {totalPages > 1 && (
+   613→            <div style={{
+   614→              display: "flex", alignItems: "center", justifyContent: "space-between",
+   615→              padding: "var(--space-md) var(--space-lg)", borderTop: "1px solid var(--border-subtle)",
+   616→            }}>
+   617→              <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+   618→                Showing {((deliveryPage - 1) * 20) + 1}–{Math.min(deliveryPage * 20, totalDeliveries)} of {totalDeliveries}
+   619→              </span>
+   620→              <div style={{ display: "flex", gap: "var(--space-xs)" }}>
+   621→                <button
+   622→                  className="btn btn-secondary"
+   623→                  style={{ padding: "4px 10px", fontSize: "var(--font-size-xs)" }}
+   624→                  disabled={deliveryPage <= 1}
+   625→                  onClick={() => fetchDeliveries(selectedWebhook, deliveryPage - 1, statusFilter)}
+   626→                >
+   627→                  Previous
+   628→                </button>
+   629→                <button
+   630→                  className="btn btn-secondary"
+   631→                  style={{ padding: "4px 10px", fontSize: "var(--font-size-xs)" }}
+   632→                  disabled={deliveryPage >= totalPages}
+   633→                  onClick={() => fetchDeliveries(selectedWebhook, deliveryPage + 1, statusFilter)}
+   634→                >
+   635→                  Next
+   636→                </button>
+   637→              </div>
+   638→            </div>
+   639→          )}
+   640→        </div>
+   641→      )}
+   642→    </>
+   643→  );
+   644→}
+   645→

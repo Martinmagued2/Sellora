@@ -1,0 +1,1012 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect } from "react";
+     4→import Link from "next/link";
+     5→import {
+     6→  MessageCircle, Clock, ToggleLeft, ToggleRight, AlertCircle,
+     7→  HelpCircle, Zap, Send, Plus, Edit, Trash2, Loader2, Megaphone,
+     8→  Globe, Smartphone, Save, Check, ShoppingCart, ChevronRight,
+     9→} from "lucide-react";
+    10→import { createClient } from "@/lib/supabase/client";
+    11→import { SAFE_ACCOUNT_FIELDS } from "@/lib/safe-fields";
+    12→import { useToast } from "../components/ToastProvider";
+    13→import { useConfirm } from "../components/ConfirmProvider";
+    14→
+    15→export default function AutomationPage() {
+    16→  const toast = useToast();
+    17→  // Account / automation state
+    18→  
+    19→  const confirmAction = useConfirm();
+    20→  const [loading, setLoading] = useState(true);
+    21→  const [saving, setSaving] = useState(false);
+    22→  const [saved, setSaved] = useState(false);
+    23→
+    24→  const [account, setAccount] = useState({});
+    25→  const [autoGreeting, setAutoGreeting] = useState(false);
+    26→  const [autoGreetingMessage, setAutoGreetingMessage] = useState("");
+    27→  const [greetingPerChannel, setGreetingPerChannel] = useState(false);
+    28→  const [instagramGreeting, setInstagramGreeting] = useState("");
+    29→  const [facebookGreeting, setFacebookGreeting] = useState("");
+    30→  const [whatsappGreeting, setWhatsappGreeting] = useState("");
+    31→  const [greetingDelaySeconds, setGreetingDelaySeconds] = useState(0);
+    32→  const [autoFollowUp, setAutoFollowUp] = useState(false);
+    33→  const [sendingFollowUps, setSendingFollowUps] = useState(false);
+    34→
+    35→  // Quick Replies state
+    36→  const [quickReplies, setQuickReplies] = useState([]);
+    37→  const [showAddQuickReply, setShowAddQuickReply] = useState(false);
+    38→  const [newQuickReply, setNewQuickReply] = useState({ title: "", content: "", category: "General", shortcut: "" });
+    39→  const [quickReplySaving, setQuickReplySaving] = useState(false);
+    40→  const [editingQuickReply, setEditingQuickReply] = useState(null);
+    41→
+    42→  // FAQ count
+    43→  const [faqCount, setFaqCount] = useState(0);
+    44→
+    45→  // Abandoned Cart Recovery state
+    46→  const [abandonedCartEnabled, setAbandonedCartEnabled] = useState(false);
+    47→  const [abandonedCartHours, setAbandonedCartHours] = useState(2);
+    48→  const [abandonedCartAutoReminder, setAbandonedCartAutoReminder] = useState(false);
+    49→  const [abandonedCartReminderHours, setAbandonedCartReminderHours] = useState(1);
+    50→  const [abandonedCartAutoSecondReminder, setAbandonedCartAutoSecondReminder] = useState(false);
+    51→  const [abandonedCartSecondReminderHours, setAbandonedCartSecondReminderHours] = useState(24);
+    52→  const [abandonedCartDiscountPercent, setAbandonedCartDiscountPercent] = useState(10);
+    53→
+    54→  // Broadcast state (Phase 2)
+    55→  const [broadcastAudience, setBroadcastAudience] = useState("all");
+    56→  const [broadcastChannel, setBroadcastChannel] = useState("instagram");
+    57→  const [broadcastMessage, setBroadcastMessage] = useState("");
+    58→  const [broadcastSending, setBroadcastSending] = useState(false);
+    59→  const [broadcastResult, setBroadcastResult] = useState(null);
+    60→  const [showBroadcast, setShowBroadcast] = useState(false);
+    61→
+    62→  // Lazy supabase client - only created on the client side
+    63→  const getSupabase = () => createClient();
+    64→
+    65→  useEffect(() => {
+    66→    const load = async () => {
+    67→      try {
+    68→        const supabase = getSupabase();
+    69→        const { data: { user } } = await supabase.auth.getUser();
+    70→        if (!user) return;
+    71→
+    72→        const { data } = await supabase.from("accounts").select(SAFE_ACCOUNT_FIELDS).eq("id", user.id).single();
+    73→        if (data) {
+    74→          setAccount(data);
+    75→          setAutoGreeting(data.auto_greeting || false);
+    76→          setAutoGreetingMessage(data.auto_greeting_message || "");
+    77→          setGreetingPerChannel(data.greeting_per_channel || false);
+    78→          setInstagramGreeting(data.instagram_greeting || "");
+    79→          setFacebookGreeting(data.facebook_greeting || "");
+    80→          setWhatsappGreeting(data.whatsapp_greeting || "");
+    81→          setGreetingDelaySeconds(data.greeting_delay_seconds || 0);
+    82→          setAutoFollowUp(data.auto_follow_up_enabled || false);
+    83→          setAbandonedCartEnabled(data.abandoned_cart_enabled || false);
+    84→          setAbandonedCartHours(data.abandoned_cart_hours || 2);
+    85→          setAbandonedCartAutoReminder(data.abandoned_cart_auto_reminder || false);
+    86→          setAbandonedCartReminderHours(data.abandoned_cart_reminder_hours || 1);
+    87→          setAbandonedCartAutoSecondReminder(data.abandoned_cart_auto_second_reminder || false);
+    88→          setAbandonedCartSecondReminderHours(data.abandoned_cart_second_reminder_hours || 24);
+    89→          setAbandonedCartDiscountPercent(data.abandoned_cart_discount_percent || 10);
+    90→        }
+    91→
+    92→        // Fetch quick replies
+    93→        const { data: qrData } = await supabase.from("quick_replies").select("*").eq("account_id", user.id).order("created_at");
+    94→        if (qrData) setQuickReplies(qrData);
+    95→
+    96→        // Fetch FAQ count
+    97→        const { count } = await supabase.from("faqs").select("*", { count: "exact", head: true }).eq("account_id", user.id);
+    98→        setFaqCount(count || 0);
+    99→      } catch (err) {
+   100→        console.error("Automation page load error:", err);
+   101→      } finally {
+   102→        setLoading(false);
+   103→      }
+   104→    };
+   105→    load();
+   106→  }, []);
+   107→
+   108→  // Helper: update account field
+   109→  const updateAccount = async (field, value) => {
+   110→    const supabase = getSupabase();
+   111→    const { data: { user } } = await supabase.auth.getUser();
+   112→    if (!user) return;
+   113→    await supabase.from("accounts").update({ [field]: value }).eq("id", user.id);
+   114→  };
+   115→
+   116→  const handleSave = async () => {
+   117→    setSaving(true);
+   118→    try {
+   119→      const supabase = getSupabase();
+   120→      const { data: { user } } = await supabase.auth.getUser();
+   121→      if (!user) return;
+   122→      await supabase.from("accounts").update({
+   123→        auto_greeting: autoGreeting,
+   124→        auto_greeting_message: autoGreetingMessage,
+   125→        greeting_per_channel: greetingPerChannel,
+   126→        instagram_greeting: instagramGreeting,
+   127→        facebook_greeting: facebookGreeting,
+   128→        whatsapp_greeting: whatsappGreeting,
+   129→        greeting_delay_seconds: greetingDelaySeconds,
+   130→        auto_follow_up_enabled: autoFollowUp,
+   131→        abandoned_cart_enabled: abandonedCartEnabled,
+   132→        abandoned_cart_hours: abandonedCartHours,
+   133→        abandoned_cart_auto_reminder: abandonedCartAutoReminder,
+   134→        abandoned_cart_reminder_hours: abandonedCartReminderHours,
+   135→        abandoned_cart_auto_second_reminder: abandonedCartAutoSecondReminder,
+   136→        abandoned_cart_second_reminder_hours: abandonedCartSecondReminderHours,
+   137→        abandoned_cart_discount_percent: abandonedCartDiscountPercent,
+   138→      }).eq("id", user.id);
+   139→      setSaved(true);
+   140→      setTimeout(() => setSaved(false), 2000);
+   141→    } catch (err) {
+   142→      console.error("Save error:", err);
+   143→    }
+   144→    setSaving(false);
+   145→  };
+   146→
+   147→  const handleSendFollowUps = async () => {
+   148→    setSendingFollowUps(true);
+   149→    try {
+   150→      const supabase = getSupabase();
+   151→      const { data: { user } } = await supabase.auth.getUser();
+   152→      const res = await fetch("/api/automation/follow-up", {
+   153→        method: "POST",
+   154→        headers: { "Content-Type": "application/json" },
+   155→        body: JSON.stringify({ account_id: user.id }),
+   156→      });
+   157→      const data = await res.json();
+   158→      toast.info(data.message || `Sent ${data.sent || 0} follow-up messages`);
+   159→    } catch (err) {
+   160→      toast.error("Failed to send follow-ups: " + err.message);
+   161→    }
+   162→    setSendingFollowUps(false);
+   163→  };
+   164→
+   165→  const handleQuickReplySave = async () => {
+   166→    setQuickReplySaving(true);
+   167→    try {
+   168→      if (editingQuickReply) {
+   169→        const res = await fetch("/api/quick-replies", {
+   170→          method: "PUT",
+   171→          headers: { "Content-Type": "application/json" },
+   172→          body: JSON.stringify({ id: editingQuickReply.id, ...newQuickReply }),
+   173→        });
+   174→        const data = await res.json();
+   175→        if (data.success) {
+   176→          setQuickReplies((prev) => prev.map(qr => qr.id === editingQuickReply.id ? data.quickReply : qr));
+   177→        }
+   178→      } else {
+   179→        const res = await fetch("/api/quick-replies", {
+   180→          method: "POST",
+   181→          headers: { "Content-Type": "application/json" },
+   182→          body: JSON.stringify(newQuickReply),
+   183→        });
+   184→        const data = await res.json();
+   185→        if (data.success) {
+   186→          setQuickReplies((prev) => [...prev, data.quickReply]);
+   187→        }
+   188→      }
+   189→      setShowAddQuickReply(false);
+   190→      setEditingQuickReply(null);
+   191→      setNewQuickReply({ title: "", content: "", category: "General", shortcut: "" });
+   192→    } catch (err) {
+   193→      console.error("Quick reply save error:", err);
+   194→    }
+   195→    setQuickReplySaving(false);
+   196→  };
+   197→
+   198→  const handleQuickReplyDelete = async (id) => {
+   199→    if (!(await confirmAction("Delete this template?"))) return;
+   200→    await fetch(`/api/quick-replies?id=${id}`, { method: "DELETE" });
+   201→    setQuickReplies((prev) => prev.filter(q => q.id !== id));
+   202→  };
+   203→
+   204→  const handleBroadcast = async () => {
+   205→    setBroadcastSending(true);
+   206→    setBroadcastResult(null);
+   207→    try {
+   208→      const res = await fetch("/api/automation/broadcast", {
+   209→        method: "POST",
+   210→        headers: { "Content-Type": "application/json" },
+   211→        body: JSON.stringify({
+   212→          audience: broadcastAudience,
+   213→          channel: broadcastChannel,
+   214→          message: broadcastMessage,
+   215→        }),
+   216→      });
+   217→      const data = await res.json();
+   218→      setBroadcastResult(data);
+   219→    } catch (err) {
+   220→      setBroadcastResult({ error: "Failed to send broadcast: " + err.message });
+   221→    }
+   222→    setBroadcastSending(false);
+   223→  };
+   224→
+   225→  if (loading) {
+   226→    return (
+   227→      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+   228→        <Loader2 size={32} className="spin" style={{ color: "var(--accent-primary)" }} />
+   229→      </div>
+   230→    );
+   231→  }
+   232→
+   233→  return (
+   234→    <>
+   235→      {/* Page Header */}
+   236→      <div className="page-header">
+   237→        <h1>Automation</h1>
+   238→        <div className="page-header-actions">
+   239→          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+   240→            {saved ? <><Check size={16} /> Saved!</> : saving ? <><Loader2 size={16} className="spin" /> Saving...</> : <><Save size={16} /> Save Changes</>}
+   241→          </button>
+   242→        </div>
+   243→      </div>
+   244→
+   245→      {/* Section 1: Auto-Greeting */}
+   246→      <div className="dashboard-panel" style={{ marginBottom: "var(--space-xl)" }}>
+   247→        <div className="dashboard-panel-header">
+   248→          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   249→            <MessageCircle size={18} style={{ color: "var(--accent-primary-light)" }} />
+   250→            Auto-Greeting
+   251→          </h3>
+   252→        </div>
+   253→        <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+   254→          {/* Toggle */}
+   255→          <div style={{
+   256→            display: "flex", alignItems: "center", justifyContent: "space-between",
+   257→            padding: "var(--space-lg)", background: "var(--bg-glass)",
+   258→            borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)",
+   259→          }}>
+   260→            <div>
+   261→              <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto-Greeting</div>
+   262→              <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+   263→                Automatically send a welcome message to new customers on their first message
+   264→              </div>
+   265→            </div>
+   266→            <div
+   267→              style={{ color: autoGreeting ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+   268→              onClick={() => {
+   269→                const newVal = !autoGreeting;
+   270→                setAutoGreeting(newVal);
+   271→              }}
+   272→            >
+   273→              {autoGreeting ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+   274→            </div>
+   275→          </div>
+   276→
+   277→          {/* Greeting Configuration (shown when enabled) */}
+   278→          {autoGreeting && (
+   279→            <>
+   280→              {/* Default Greeting Message */}
+   281→              <div className="form-group" style={{ marginBottom: "var(--space-lg)" }}>
+   282→                <label className="form-label">Default Greeting Message</label>
+   283→                <textarea
+   284→                  className="form-input form-textarea"
+   285→                  value={autoGreetingMessage}
+   286→                  onChange={(e) => setAutoGreetingMessage(e.target.value)}
+   287→                  rows={3}
+   288→                  placeholder="Hi! Welcome to {business_name} 👋 How can I help you today?"
+   289→                />
+   290→                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+   291→                  Use {"{business_name}"} for your store name, {"{name}"} for the customer&apos;s name.
+   292→                </p>
+   293→              </div>
+   294→
+   295→              {/* Greeting Delay */}
+   296→              <div className="form-group" style={{ marginBottom: "var(--space-lg)" }}>
+   297→                <label className="form-label">Greeting Delay (seconds)</label>
+   298→                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+   299→                  <input
+   300→                    type="range"
+   301→                    min="0"
+   302→                    max="30"
+   303→                    value={greetingDelaySeconds}
+   304→                    onChange={(e) => setGreetingDelaySeconds(Number(e.target.value))}
+   305→                    style={{ flex: 1, accentColor: "var(--accent-primary)" }}
+   306→                  />
+   307→                  <span style={{
+   308→                    minWidth: 50, textAlign: "center", fontWeight: 600,
+   309→                    fontSize: "var(--font-size-sm)", color: "var(--accent-primary)",
+   310→                  }}>
+   311→                    {greetingDelaySeconds}s
+   312→                  </span>
+   313→                </div>
+   314→                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+   315→                  Wait before sending (0 = instant, max 30s)
+   316→                </p>
+   317→              </div>
+   318→
+   319→              {/* Per-Channel Greeting Toggle */}
+   320→              <div style={{
+   321→                display: "flex", alignItems: "center", justifyContent: "space-between",
+   322→                padding: "var(--space-md)", background: "var(--bg-glass)",
+   323→                borderRadius: "var(--radius-md)", marginBottom: "var(--space-md)",
+   324→              }}>
+   325→                <div>
+   326→                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>Custom Greetings Per Channel</div>
+   327→                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>
+   328→                    Set different greeting messages for Instagram, Facebook, and WhatsApp
+   329→                  </div>
+   330→                </div>
+   331→                <div
+   332→                  style={{ color: greetingPerChannel ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+   333→                  onClick={() => setGreetingPerChannel(!greetingPerChannel)}
+   334→                >
+   335→                  {greetingPerChannel ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+   336→                </div>
+   337→              </div>
+   338→
+   339→              {/* Per-Channel Greeting Messages */}
+   340→              {greetingPerChannel && (
+   341→                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
+   342→                  <div className="form-group" style={{ marginBottom: 0 }}>
+   343→                    <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+   344→                      📷 Instagram Greeting
+   345→                    </label>
+   346→                    <textarea
+   347→                      className="form-input form-textarea"
+   348→                      value={instagramGreeting}
+   349→                      onChange={(e) => setInstagramGreeting(e.target.value)}
+   350→                      rows={3}
+   351→                      placeholder="Hey {name}! 👋 Welcome to {business_name} on Instagram!"
+   352→                      style={{ fontSize: 12 }}
+   353→                    />
+   354→                  </div>
+   355→                  <div className="form-group" style={{ marginBottom: 0 }}>
+   356→                    <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+   357→                      🌐 Facebook Greeting
+   358→                    </label>
+   359→                    <textarea
+   360→                      className="form-input form-textarea"
+   361→                      value={facebookGreeting}
+   362→                      onChange={(e) => setFacebookGreeting(e.target.value)}
+   363→                      rows={3}
+   364→                      placeholder="Hi {name}! Welcome to {business_name}! How can we help?"
+   365→                      style={{ fontSize: 12 }}
+   366→                    />
+   367→                  </div>
+   368→                  <div className="form-group" style={{ marginBottom: 0 }}>
+   369→                    <label className="form-label" style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+   370→                      📱 WhatsApp Greeting
+   371→                    </label>
+   372→                    <textarea
+   373→                      className="form-input form-textarea"
+   374→                      value={whatsappGreeting}
+   375→                      onChange={(e) => setWhatsappGreeting(e.target.value)}
+   376→                      rows={3}
+   377→                      placeholder="Hello {name}! 🙏 Thanks for messaging {business_name} on WhatsApp!"
+   378→                      style={{ fontSize: 12 }}
+   379→                    />
+   380→                  </div>
+   381→                </div>
+   382→              )}
+   383→
+   384→              {/* Greeting Preview */}
+   385→              <div style={{
+   386→                padding: "var(--space-md)", background: "rgba(108, 92, 231, 0.05)",
+   387→                border: "1px solid rgba(108, 92, 231, 0.15)", borderRadius: "var(--radius-md)",
+   388→              }}>
+   389→                <div style={{ fontWeight: 600, fontSize: 11, color: "var(--accent-primary-light)", marginBottom: 6, textTransform: "uppercase" }}>Preview</div>
+   390→                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", lineHeight: 1.6 }}>
+   391→                  {autoGreetingMessage
+   392→                    .replace(/\{business_name\}/g, account.business_name || "Sellora")
+   393→                    .replace(/\{name\}/g, "Ahmed")}
+   394→                </div>
+   395→                {greetingDelaySeconds > 0 && (
+   396→                  <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
+   397→                    ⏱ Sent after {greetingDelaySeconds}s delay
+   398→                  </div>
+   399→                )}
+   400→              </div>
+   401→            </>
+   402→          )}
+   403→        </div>
+   404→      </div>
+   405→
+   406→      {/* Section 2: Auto Follow-Up for Unpaid Orders */}
+   407→      <div className="dashboard-panel" style={{ marginBottom: "var(--space-xl)" }}>
+   408→        <div className="dashboard-panel-header">
+   409→          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   410→            <Clock size={18} style={{ color: "var(--accent-orange)" }} />
+   411→            Auto Follow-Up for Unpaid Orders
+   412→          </h3>
+   413→        </div>
+   414→        <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+   415→          <div style={{
+   416→            display: "flex", alignItems: "center", justifyContent: "space-between",
+   417→            padding: "var(--space-lg)", background: "var(--bg-glass)",
+   418→            borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)",
+   419→          }}>
+   420→            <div>
+   421→              <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto Follow-Up</div>
+   422→              <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+   423→                Automatically send follow-up messages to customers with unpaid orders after 24 hours
+   424→              </div>
+   425→            </div>
+   426→            <div
+   427→              style={{ color: autoFollowUp ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+   428→              onClick={() => setAutoFollowUp(!autoFollowUp)}
+   429→            >
+   430→              {autoFollowUp ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+   431→            </div>
+   432→          </div>
+   433→
+   434→          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+   435→            <button
+   436→              className="btn btn-secondary"
+   437→              disabled={sendingFollowUps}
+   438→              onClick={handleSendFollowUps}
+   439→            >
+   440→              {sendingFollowUps ? <><Loader2 size={16} className="spin" /> Sending...</> : <><Clock size={16} /> Send Follow-Ups Now</>}
+   441→            </button>
+   442→            <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
+   443→              Manually trigger follow-up messages for all unpaid orders older than 24 hours
+   444→            </p>
+   445→          </div>
+   446→        </div>
+   447→      </div>
+   448→
+   449→      {/* Section 2.5: Abandoned Cart Recovery */}
+   450→      <div className="dashboard-panel" style={{ marginBottom: "var(--space-xl)" }}>
+   451→        <div className="dashboard-panel-header">
+   452→          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   453→            <ShoppingCart size={18} style={{ color: "var(--accent-orange)" }} />
+   454→            Abandoned Cart Recovery
+   455→          </h3>
+   456→          <Link
+   457→            href="/dashboard/abandoned-carts"
+   458→            style={{
+   459→              display: "inline-flex", alignItems: "center", gap: 6,
+   460→              color: "var(--accent-primary)", fontWeight: 500,
+   461→              fontSize: "var(--font-size-sm)", textDecoration: "none",
+   462→            }}
+   463→          >
+   464→            View Carts <ChevronRight size={14} />
+   465→          </Link>
+   466→        </div>
+   467→        <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+   468→          {/* Main toggle */}
+   469→          <div style={{
+   470→            display: "flex", alignItems: "center", justifyContent: "space-between",
+   471→            padding: "var(--space-lg)", background: "var(--bg-glass)",
+   472→            borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)",
+   473→          }}>
+   474→            <div>
+   475→              <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto-Detect Abandoned Carts</div>
+   476→              <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+   477→                Automatically detect when customers show purchase intent but don&apos;t complete their order
+   478→              </div>
+   479→            </div>
+   480→            <div
+   481→              style={{ color: abandonedCartEnabled ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+   482→              onClick={() => setAbandonedCartEnabled(!abandonedCartEnabled)}
+   483→            >
+   484→              {abandonedCartEnabled ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+   485→            </div>
+   486→          </div>
+   487→
+   488→          {abandonedCartEnabled && (
+   489→            <>
+   490→              {/* Hours before marking as abandoned */}
+   491→              <div className="form-group" style={{ marginBottom: "var(--space-lg)" }}>
+   492→                <label className="form-label">Hours before marking as abandoned</label>
+   493→                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+   494→                  <input
+   495→                    type="range"
+   496→                    min="1"
+   497→                    max="48"
+   498→                    value={abandonedCartHours}
+   499→                    onChange={(e) => setAbandonedCartHours(Number(e.target.value))}
+   500→                    style={{ flex: 1, accentColor: "var(--accent-orange)" }}
+   501→                  />
+   502→                  <span style={{
+   503→                    minWidth: 50, textAlign: "center", fontWeight: 600,
+   504→                    fontSize: "var(--font-size-sm)", color: "var(--accent-orange)",
+   505→                  }}>
+   506→                    {abandonedCartHours}h
+   507→                  </span>
+   508→                </div>
+   509→                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+   510→                  How long to wait after last customer activity before marking a cart as abandoned (default: 2 hours)
+   511→                </p>
+   512→              </div>
+   513→
+   514→              {/* Auto-send first reminder */}
+   515→              <div style={{
+   516→                display: "flex", alignItems: "center", justifyContent: "space-between",
+   517→                padding: "var(--space-md)", background: "var(--bg-glass)",
+   518→                borderRadius: "var(--radius-md)", marginBottom: "var(--space-md)",
+   519→              }}>
+   520→                <div>
+   521→                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>Auto-Send First Reminder</div>
+   522→                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>
+   523→                    Automatically send a follow-up message after the cart is abandoned
+   524→                  </div>
+   525→                </div>
+   526→                <div
+   527→                  style={{ color: abandonedCartAutoReminder ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+   528→                  onClick={() => setAbandonedCartAutoReminder(!abandonedCartAutoReminder)}
+   529→                >
+   530→                  {abandonedCartAutoReminder ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+   531→                </div>
+   532→              </div>
+   533→
+   534→              {abandonedCartAutoReminder && (
+   535→                <div className="form-group" style={{ marginBottom: "var(--space-lg)", paddingLeft: "var(--space-md)" }}>
+   536→                  <label className="form-label" style={{ fontSize: 12 }}>Delay after abandonment (hours)</label>
+   537→                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+   538→                    <input
+   539→                      type="range"
+   540→                      min="1"
+   541→                      max="72"
+   542→                      value={abandonedCartReminderHours}
+   543→                      onChange={(e) => setAbandonedCartReminderHours(Number(e.target.value))}
+   544→                      style={{ flex: 1, accentColor: "var(--accent-primary)" }}
+   545→                    />
+   546→                    <span style={{
+   547→                      minWidth: 50, textAlign: "center", fontWeight: 600,
+   548→                      fontSize: "var(--font-size-sm)", color: "var(--accent-primary)",
+   549→                    }}>
+   550→                      {abandonedCartReminderHours}h
+   551→                    </span>
+   552→                  </div>
+   553→                </div>
+   554→              )}
+   555→
+   556→              {/* Auto-send second reminder with discount */}
+   557→              <div style={{
+   558→                display: "flex", alignItems: "center", justifyContent: "space-between",
+   559→                padding: "var(--space-md)", background: "var(--bg-glass)",
+   560→                borderRadius: "var(--radius-md)", marginBottom: "var(--space-md)",
+   561→              }}>
+   562→                <div>
+   563→                  <div style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>Auto-Send Second Reminder with Discount</div>
+   564→                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>
+   565→                    Send a second follow-up with a special discount code to encourage purchase
+   566→                  </div>
+   567→                </div>
+   568→                <div
+   569→                  style={{ color: abandonedCartAutoSecondReminder ? "var(--accent-green)" : "var(--text-tertiary)", cursor: "pointer" }}
+   570→                  onClick={() => setAbandonedCartAutoSecondReminder(!abandonedCartAutoSecondReminder)}
+   571→                >
+   572→                  {abandonedCartAutoSecondReminder ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+   573→                </div>
+   574→              </div>
+   575→
+   576→              {abandonedCartAutoSecondReminder && (
+   577→                <div style={{ paddingLeft: "var(--space-md)" }}>
+   578→                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)", marginBottom: "var(--space-lg)" }}>
+   579→                    <div className="form-group" style={{ marginBottom: 0 }}>
+   580→                      <label className="form-label" style={{ fontSize: 12 }}>Delay after first reminder (hours)</label>
+   581→                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+   582→                        <input
+   583→                          type="range"
+   584→                          min="1"
+   585→                          max="168"
+   586→                          value={abandonedCartSecondReminderHours}
+   587→                          onChange={(e) => setAbandonedCartSecondReminderHours(Number(e.target.value))}
+   588→                          style={{ flex: 1, accentColor: "var(--accent-orange)" }}
+   589→                        />
+   590→                        <span style={{
+   591→                          minWidth: 50, textAlign: "center", fontWeight: 600,
+   592→                          fontSize: "var(--font-size-sm)", color: "var(--accent-orange)",
+   593→                        }}>
+   594→                          {abandonedCartSecondReminderHours}h
+   595→                        </span>
+   596→                      </div>
+   597→                    </div>
+   598→                    <div className="form-group" style={{ marginBottom: 0 }}>
+   599→                      <label className="form-label" style={{ fontSize: 12 }}>Discount Percentage</label>
+   600→                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+   601→                        <input
+   602→                          type="range"
+   603→                          min="5"
+   604→                          max="50"
+   605→                          value={abandonedCartDiscountPercent}
+   606→                          onChange={(e) => setAbandonedCartDiscountPercent(Number(e.target.value))}
+   607→                          style={{ flex: 1, accentColor: "var(--accent-green)" }}
+   608→                        />
+   609→                        <span style={{
+   610→                          minWidth: 50, textAlign: "center", fontWeight: 600,
+   611→                          fontSize: "var(--font-size-sm)", color: "var(--accent-green)",
+   612→                        }}>
+   613→                          {abandonedCartDiscountPercent}%
+   614→                        </span>
+   615→                      </div>
+   616→                    </div>
+   617→                  </div>
+   618→                </div>
+   619→              )}
+   620→
+   621→              {/* Preview */}
+   622→              <div style={{
+   623→                padding: "var(--space-md)", background: "rgba(255, 145, 0, 0.05)",
+   624→                border: "1px solid rgba(255, 145, 0, 0.15)", borderRadius: "var(--radius-md)",
+   625→              }}>
+   626→                <div style={{ fontWeight: 600, fontSize: 11, color: "var(--accent-orange)", marginBottom: 6, textTransform: "uppercase" }}>Abandoned Cart Flow</div>
+   627→                <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", lineHeight: 1.8 }}>
+   628→                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+   629→                    <span style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(255, 145, 0, 0.2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "var(--accent-orange)" }}>1</span>
+   630→                    Customer shows purchase intent but no order after <strong>{abandonedCartHours}h</strong>
+   631→                  </div>
+   632→                  {abandonedCartAutoReminder && (
+   633→                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+   634→                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(108, 92, 231, 0.2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "var(--accent-primary-light)" }}>2</span>
+   635→                      First reminder sent after <strong>{abandonedCartReminderHours}h</strong>
+   636→                    </div>
+   637→                  )}
+   638→                  {abandonedCartAutoSecondReminder && (
+   639→                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+   640→                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(0, 230, 118, 0.2)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "var(--accent-green)" }}>3</span>
+   641→                      Second reminder with <strong>{abandonedCartDiscountPercent}% discount</strong> after <strong>{abandonedCartSecondReminderHours}h</strong>
+   642→                    </div>
+   643→                  )}
+   644→                </div>
+   645→              </div>
+   646→            </>
+   647→          )}
+   648→        </div>
+   649→      </div>
+   650→
+   651→      {/* Section 3: Sentiment Detection */}
+   652→      <div className="dashboard-panel" style={{ marginBottom: "var(--space-xl)" }}>
+   653→        <div className="dashboard-panel-header">
+   654→          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   655→            <AlertCircle size={18} style={{ color: "var(--accent-primary-light)" }} />
+   656→            Sentiment Detection
+   657→          </h3>
+   658→        </div>
+   659→        <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+   660→          <div style={{
+   661→            padding: "var(--space-lg)", background: "var(--bg-glass)",
+   662→            borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)",
+   663→            display: "flex", gap: "var(--space-lg)", alignItems: "flex-start",
+   664→          }}>
+   665→            <div style={{
+   666→              width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+   667→              background: "rgba(108, 92, 231, 0.1)", display: "flex",
+   668→              alignItems: "center", justifyContent: "center",
+   669→            }}>
+   670→              <AlertCircle size={24} style={{ color: "var(--accent-primary-light)" }} />
+   671→            </div>
+   672→            <div>
+   673→              <div style={{ fontWeight: 600, marginBottom: 4 }}>Always Active</div>
+   674→              <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)", lineHeight: 1.6 }}>
+   675→                AI automatically detects negative or urgent messages and flags them with 🔴. 
+   676→                Urgent conversations are auto-escalated to &quot;In Progress&quot; status. 
+   677→                You can view escalated conversations in the <Link href="/dashboard/conversations" style={{ color: "var(--accent-primary)", fontWeight: 500 }}>Conversations</Link> page.
+   678→              </div>
+   679→            </div>
+   680→          </div>
+   681→        </div>
+   682→      </div>
+   683→
+   684→      {/* Section 4: FAQ Auto-Reply */}
+   685→      <div className="dashboard-panel" style={{ marginBottom: "var(--space-xl)" }}>
+   686→        <div className="dashboard-panel-header">
+   687→          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   688→            <HelpCircle size={18} style={{ color: "var(--accent-green)" }} />
+   689→            FAQ Auto-Reply
+   690→          </h3>
+   691→        </div>
+   692→        <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+   693→          <div style={{
+   694→            padding: "var(--space-lg)", background: "var(--bg-glass)",
+   695→            borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)",
+   696→            display: "flex", gap: "var(--space-lg)", alignItems: "flex-start",
+   697→          }}>
+   698→            <div style={{
+   699→              width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+   700→              background: "rgba(0, 200, 83, 0.1)", display: "flex",
+   701→              alignItems: "center", justifyContent: "center",
+   702→            }}>
+   703→              <HelpCircle size={24} style={{ color: "var(--accent-green)" }} />
+   704→            </div>
+   705→            <div style={{ flex: 1 }}>
+   706→              <div style={{ fontWeight: 600, marginBottom: 4 }}>Smart FAQ Auto-Reply</div>
+   707→              <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)", lineHeight: 1.6, marginBottom: "var(--space-md)" }}>
+   708→                When customers ask questions that match your FAQ knowledge base, the AI will automatically 
+   709→                send the matching answer. You currently have <strong style={{ color: "var(--text-primary)" }}>{faqCount} FAQs</strong> in your knowledge base.
+   710→              </div>
+   711→              <Link
+   712→                href="/dashboard/settings?tab=faqs"
+   713→                style={{
+   714→                  display: "inline-flex", alignItems: "center", gap: 6,
+   715→                  color: "var(--accent-primary)", fontWeight: 500,
+   716→                  fontSize: "var(--font-size-sm)",
+   717→                }}
+   718→              >
+   719→                <HelpCircle size={14} /> Manage FAQs in Settings
+   720→              </Link>
+   721→            </div>
+   722→          </div>
+   723→        </div>
+   724→      </div>
+   725→
+   726→      {/* Section 5: Broadcast / Bulk Messaging (Phase 2) */}
+   727→      <div className="dashboard-panel" style={{ marginBottom: "var(--space-xl)" }}>
+   728→        <div className="dashboard-panel-header">
+   729→          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   730→            <Megaphone size={18} style={{ color: "var(--accent-orange)" }} />
+   731→            Broadcast / Bulk Messaging
+   732→            <span style={{
+   733→              fontSize: 10, fontWeight: 600, padding: "2px 8px",
+   734→              borderRadius: 6, background: "rgba(255, 152, 0, 0.1)",
+   735→              color: "var(--accent-orange)", textTransform: "uppercase",
+   736→            }}>
+   737→              Phase 2
+   738→            </span>
+   739→          </h3>
+   740→        </div>
+   741→        <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+   742→          {!showBroadcast ? (
+   743→            <div style={{
+   744→              padding: "var(--space-2xl)", textAlign: "center",
+   745→              background: "var(--bg-glass)", borderRadius: "var(--radius-md)",
+   746→              border: "1px dashed var(--border-medium)",
+   747→            }}>
+   748→              <Megaphone size={40} style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }} />
+   749→              <h4 style={{ marginBottom: "var(--space-sm)" }}>Broadcast Messaging</h4>
+   750→              <p style={{ color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)", marginBottom: "var(--space-lg)", maxWidth: 400, margin: "0 auto var(--space-lg)" }}>
+   751→                Send bulk messages to your customers across Instagram, Facebook, and WhatsApp. Target specific segments or reach all customers at once.
+   752→              </p>
+   753→              <button className="btn btn-primary btn-sm" onClick={() => setShowBroadcast(true)}>
+   754→                <Megaphone size={14} /> Try Broadcast
+   755→              </button>
+   756→            </div>
+   757→          ) : (
+   758→            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-lg)" }}>
+   759→              {/* Target Audience */}
+   760→              <div className="form-group">
+   761→                <label className="form-label">Target Audience</label>
+   762→                <select
+   763→                  className="form-input"
+   764→                  value={broadcastAudience}
+   765→                  onChange={(e) => setBroadcastAudience(e.target.value)}
+   766→                >
+   767→                  <option value="all">All Customers</option>
+   768→                  <option value="instagram">Instagram Customers</option>
+   769→                  <option value="facebook">Facebook Customers</option>
+   770→                  <option value="whatsapp">WhatsApp Customers</option>
+   771→                </select>
+   772→              </div>
+   773→
+   774→              {/* Channel */}
+   775→              <div className="form-group">
+   776→                <label className="form-label">Channel</label>
+   777→                <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+   778→                  {[
+   779→                    { value: "instagram", label: "📷 Instagram", icon: Globe },
+   780→                    { value: "facebook", label: "🌐 Facebook", icon: Globe },
+   781→                    { value: "whatsapp", label: "📱 WhatsApp", icon: Smartphone },
+   782→                  ].map(ch => (
+   783→                    <button
+   784→                      key={ch.value}
+   785→                      className={`btn ${broadcastChannel === ch.value ? "btn-primary" : "btn-secondary"} btn-sm`}
+   786→                      onClick={() => setBroadcastChannel(ch.value)}
+   787→                    >
+   788→                      {ch.label}
+   789→                    </button>
+   790→                  ))}
+   791→                </div>
+   792→              </div>
+   793→
+   794→              {/* Message Composer */}
+   795→              <div className="form-group">
+   796→                <label className="form-label">Message</label>
+   797→                <textarea
+   798→                  className="form-input form-textarea"
+   799→                  value={broadcastMessage}
+   800→                  onChange={(e) => setBroadcastMessage(e.target.value)}
+   801→                  rows={4}
+   802→                  placeholder="Type your broadcast message here... Use {name} for personalization."
+   803→                />
+   804→                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+   805→                  Use {"{name}"} for the customer&apos;s name, {"{business_name}"} for your store name.
+   806→                </p>
+   807→              </div>
+   808→
+   809→              {/* Send Button */}
+   810→              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+   811→                <button
+   812→                  className="btn btn-primary"
+   813→                  disabled={broadcastSending || !broadcastMessage.trim()}
+   814→                  onClick={handleBroadcast}
+   815→                >
+   816→                  {broadcastSending ? <><Loader2 size={16} className="spin" /> Sending...</> : <><Send size={16} /> Send Broadcast</>}
+   817→                </button>
+   818→                <button className="btn btn-secondary btn-sm" onClick={() => setShowBroadcast(false)}>
+   819→                  Cancel
+   820→                </button>
+   821→              </div>
+   822→
+   823→              {/* Broadcast Result */}
+   824→              {broadcastResult && (
+   825→                <div style={{
+   826→                  padding: "var(--space-md)", borderRadius: "var(--radius-md)",
+   827→                  background: broadcastResult.error ? "rgba(255, 82, 82, 0.1)" : "rgba(0, 200, 83, 0.1)",
+   828→                  border: `1px solid ${broadcastResult.error ? "rgba(255, 82, 82, 0.3)" : "rgba(0, 200, 83, 0.3)"}`,
+   829→                  fontSize: "var(--font-size-sm)",
+   830→                  color: broadcastResult.error ? "var(--accent-red)" : "var(--accent-green)",
+   831→                }}>
+   832→                  {broadcastResult.error
+   833→                    ? broadcastResult.error
+   834→                    : `Broadcast sent! ${broadcastResult.sent || 0} delivered, ${broadcastResult.failed || 0} failed.`
+   835→                  }
+   836→                </div>
+   837→              )}
+   838→            </div>
+   839→          )}
+   840→        </div>
+   841→      </div>
+   842→
+   843→      {/* Section 6: Quick Reply Templates */}
+   844→      <div className="dashboard-panel" style={{ marginBottom: "var(--space-xl)" }}>
+   845→        <div className="dashboard-panel-header">
+   846→          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   847→            <Zap size={18} style={{ color: "var(--accent-primary-light)" }} />
+   848→            Quick Reply Templates
+   849→          </h3>
+   850→        </div>
+   851→        <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+   852→          <p style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-lg)", fontSize: "var(--font-size-sm)" }}>
+   853→            Save commonly used replies as templates. Type <code style={{ fontSize: 11, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4 }}>/{'{shortcut}'}</code> in chat to quickly insert a template. Use {"{name}"} and {"{business_name}"} for personalization.
+   854→          </p>
+   855→
+   856→          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-md)" }}>
+   857→            <button className="btn btn-primary btn-sm" onClick={() => {
+   858→              setShowAddQuickReply(true);
+   859→              setEditingQuickReply(null);
+   860→              setNewQuickReply({ title: "", content: "", category: "General", shortcut: "" });
+   861→            }}>
+   862→              <Plus size={14} /> Add Template
+   863→            </button>
+   864→          </div>
+   865→
+   866→          {/* Add/Edit Quick Reply Form */}
+   867→          {showAddQuickReply && (
+   868→            <div style={{
+   869→              padding: "var(--space-lg)", background: "var(--bg-glass)",
+   870→              borderRadius: "var(--radius-md)", marginBottom: "var(--space-lg)",
+   871→              border: "1px solid var(--border-subtle)",
+   872→            }}>
+   873→              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-sm)", marginBottom: "var(--space-sm)" }}>
+   874→                <div className="form-group" style={{ marginBottom: 0 }}>
+   875→                  <label className="form-label">Title</label>
+   876→                  <input
+   877→                    type="text" className="form-input" placeholder="e.g. Shipping Info"
+   878→                    value={newQuickReply.title}
+   879→                    onChange={(e) => setNewQuickReply({ ...newQuickReply, title: e.target.value })}
+   880→                  />
+   881→                </div>
+   882→                <div className="form-group" style={{ marginBottom: 0 }}>
+   883→                  <label className="form-label">Shortcut (optional)</label>
+   884→                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+   885→                    <span style={{ color: "var(--text-tertiary)", fontSize: 12 }}>/</span>
+   886→                    <input
+   887→                      type="text" className="form-input" placeholder="e.g. ship"
+   888→                      value={newQuickReply.shortcut || ""}
+   889→                      onChange={(e) => setNewQuickReply({ ...newQuickReply, shortcut: e.target.value.replace(/^\/+/, '').replace(/\s/g, '') })}
+   890→                      style={{ flex: 1 }}
+   891→                    />
+   892→                  </div>
+   893→                  <p style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 }}>
+   894→                    Type /{newQuickReply.shortcut || "shortcut"} in chat to use
+   895→                  </p>
+   896→                </div>
+   897→              </div>
+   898→              <div className="form-group">
+   899→                <label className="form-label">Message Content</label>
+   900→                <textarea
+   901→                  className="form-input form-textarea"
+   902→                  placeholder="The actual reply message..."
+   903→                  value={newQuickReply.content}
+   904→                  onChange={(e) => setNewQuickReply({ ...newQuickReply, content: e.target.value })}
+   905→                  rows={3}
+   906→                />
+   907→                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+   908→                  Variables: {"{name}"} = customer name, {"{business_name}"} = your store name
+   909→                </p>
+   910→              </div>
+   911→              <div className="form-group">
+   912→                <label className="form-label">Category</label>
+   913→                <select
+   914→                  className="form-input"
+   915→                  value={newQuickReply.category}
+   916→                  onChange={(e) => setNewQuickReply({ ...newQuickReply, category: e.target.value })}
+   917→                >
+   918→                  <option value="General">General</option>
+   919→                  <option value="Orders">Orders</option>
+   920→                  <option value="Shipping">Shipping</option>
+   921→                  <option value="Returns">Returns</option>
+   922→                  <option value="Payment">Payment</option>
+   923→                  <option value="Greeting">Greeting</option>
+   924→                </select>
+   925→              </div>
+   926→              <div style={{ display: "flex", gap: "var(--space-sm)" }}>
+   927→                <button
+   928→                  className="btn btn-primary btn-sm"
+   929→                  disabled={quickReplySaving || !newQuickReply.title || !newQuickReply.content}
+   930→                  onClick={handleQuickReplySave}
+   931→                >
+   932→                  {quickReplySaving ? "Saving..." : editingQuickReply ? "Update Template" : "Add Template"}
+   933→                </button>
+   934→                <button
+   935→                  className="btn btn-secondary btn-sm"
+   936→                  onClick={() => { setShowAddQuickReply(false); setEditingQuickReply(null); }}
+   937→                >
+   938→                  Cancel
+   939→                </button>
+   940→              </div>
+   941→            </div>
+   942→          )}
+   943→
+   944→          {/* Quick Reply List */}
+   945→          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+   946→            {quickReplies.length === 0 ? (
+   947→              <p style={{ color: "var(--text-tertiary)", textAlign: "center", padding: "var(--space-xl)" }}>
+   948→                No quick reply templates yet. Add your first one above!
+   949→              </p>
+   950→            ) : (
+   951→              quickReplies.map((qr) => (
+   952→                <div
+   953→                  key={qr.id}
+   954→                  style={{
+   955→                    padding: "var(--space-md)", background: "var(--bg-glass)",
+   956→                    borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)",
+   957→                  }}
+   958→                >
+   959→                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+   960→                    <div style={{ flex: 1 }}>
+   961→                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+   962→                        <Zap size={14} style={{ color: "var(--accent-primary-light)" }} />
+   963→                        <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)" }}>{qr.title}</span>
+   964→                        <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 6, background: "var(--bg-glass)", color: "var(--text-tertiary)" }}>
+   965→                          {qr.category}
+   966→                        </span>
+   967→                        {qr.shortcut && (
+   968→                          <code style={{
+   969→                            fontSize: 10, padding: "1px 6px", borderRadius: 4,
+   970→                            background: "rgba(108,92,231,0.1)", color: "var(--accent-primary-light)",
+   971→                            fontFamily: "monospace",
+   972→                          }}>
+   973→                            /{qr.shortcut}
+   974→                          </code>
+   975→                        )}
+   976→                      </div>
+   977→                      <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>
+   978→                        {qr.content}
+   979→                      </div>
+   980→                    </div>
+   981→                    <div style={{ display: "flex", gap: 4, marginLeft: "var(--space-md)" }}>
+   982→                      <button
+   983→                        className="topbar-btn" title="Edit" style={{ width: 24, height: 24 }}
+   984→                        onClick={() => {
+   985→                          setEditingQuickReply(qr);
+   986→                          setShowAddQuickReply(true);
+   987→                          setNewQuickReply({
+   988→                            title: qr.title, content: qr.content,
+   989→                            category: qr.category || "General", shortcut: qr.shortcut || "",
+   990→                          });
+   991→                        }}
+   992→                      >
+   993→                        <Edit size={11} style={{ color: "var(--text-secondary)" }} />
+   994→                      </button>
+   995→                      <button
+   996→                        className="topbar-btn" title="Delete" style={{ width: 24, height: 24 }}
+   997→                        onClick={() => handleQuickReplyDelete(qr.id)}
+   998→                      >
+   999→                        <Trash2 size={11} style={{ color: "var(--accent-red)" }} />
+  1000→                      </button>
+  1001→                    </div>
+  1002→                  </div>
+  1003→                </div>
+  1004→              ))
+  1005→            )}
+  1006→          </div>
+  1007→        </div>
+  1008→      </div>
+  1009→    </>
+  1010→  );
+  1011→}
+  1012→
