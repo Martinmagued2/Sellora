@@ -456,12 +456,18 @@ export default function ProductsPage() {
   };
 
   const handleDelete = async (id, imageUrls) => {
-    if (!(await confirmAction("Delete this product?"))) return;
+    if (!window.confirm("Delete this product? This action cannot be undone.")) return;
 
-    if (imageUrls && imageUrls.length > 0) {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Authentication required.");
+        return;
+      }
+
+      // Delete associated images from storage
+      if (imageUrls && imageUrls.length > 0) {
+        try {
           const pathsToRemove = imageUrls.map(url => {
             const parts = url.split("product-images/");
             return parts.length > 1 ? parts[1] : null;
@@ -470,15 +476,28 @@ export default function ProductsPage() {
           if (pathsToRemove.length > 0) {
             await supabase.storage.from("product-images").remove(pathsToRemove);
           }
+        } catch (err) {
+          console.error("Failed to delete product images from storage:", err);
         }
-      } catch (err) {
-        console.error("Failed to delete product images from storage:", err);
       }
-    }
 
-    const { data: { user: delUser } } = await supabase.auth.getUser();
-    await supabase.from("products").delete().eq("id", id).eq("account_id", delUser?.id);
-    fetchProducts();
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", id)
+        .eq("account_id", user.id);
+
+      if (error) {
+        toast.error("Failed to delete product: " + (error.message || "Unknown error"));
+        return;
+      }
+
+      toast.success("Product deleted");
+      fetchProducts();
+    } catch (err) {
+      console.error("Delete product error:", err);
+      toast.error("Failed to delete product. Please try again.");
+    }
   };
 
   const closeModal = () => {

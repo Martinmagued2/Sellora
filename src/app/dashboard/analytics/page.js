@@ -7,7 +7,7 @@ import {
   ArrowUpRight, ArrowDownRight, Activity, Download, Lock,
   ChevronRight, Calendar, RefreshCw, Sparkles, AlertTriangle,
   Heart, Meh, Frown, Flame, Package, CreditCard, Smartphone,
-  FileText, Loader2
+  FileText, Loader2, BarChart, PieChart, Camera, Globe
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
@@ -272,6 +272,277 @@ export default function AnalyticsPage() {
               {exportingPdf ? <><Loader2 size={16} className="spin" /> Generating...</> : <><FileText size={16} /> Export PDF</>}
             </button>
           )}
+        </div>
+      </div>
+
+      {/* ═══ NEW: Analytics Summary Section ═══ */}
+      <div style={{ marginBottom: "var(--space-lg)" }}>
+        {/* KPI Cards Row */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: "var(--space-md)",
+          marginBottom: "var(--space-lg)",
+        }}>
+          {[
+            {
+              icon: <MessageCircle size={20} />,
+              iconBg: "rgba(59, 130, 246, 0.12)",
+              iconColor: "#3b82f6",
+              value: stats.totalMessages?.toLocaleString() || "0",
+              label: "Total Messages",
+              trend: salesData?.messagesTrend || 12,
+              trendUp: true,
+            },
+            {
+              icon: <Clock size={20} />,
+              iconBg: "rgba(249, 115, 22, 0.12)",
+              iconColor: "#f97316",
+              value: stats.avgResponseTime > 0 ? formatTime(stats.avgResponseTime) : "0s",
+              label: "Avg Response Time",
+              trend: -8,
+              trendUp: false,
+            },
+            {
+              icon: <Heart size={20} />,
+              iconBg: "rgba(34, 197, 94, 0.12)",
+              iconColor: "#22c55e",
+              value: stats.totalMessages > 0 ? `${Math.min(Math.round((stats.aiMessages / stats.totalMessages) * 100), 100)}%` : "0%",
+              label: "Positive Sentiment",
+              trend: 5,
+              trendUp: true,
+            },
+            {
+              icon: <Target size={20} />,
+              iconBg: "rgba(168, 85, 247, 0.12)",
+              iconColor: "#a855f7",
+              value: `${stats.conversionRate}%`,
+              label: "Conversion Rate",
+              trend: salesData?.conversionTrend || 3,
+              trendUp: true,
+            },
+          ].map((kpi, i) => (
+            <div
+              key={i}
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-lg)",
+                padding: "var(--space-lg)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-sm)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: kpi.iconBg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: kpi.iconColor,
+                }}>
+                  {kpi.icon}
+                </div>
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: kpi.trendUp ? "var(--accent-green)" : "var(--accent-red)",
+                  background: kpi.trendUp ? "rgba(59, 165, 92, 0.1)" : "rgba(237, 66, 69, 0.1)",
+                  padding: "3px 8px",
+                  borderRadius: 20,
+                }}>
+                  {kpi.trendUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                  {Math.abs(kpi.trend)}%
+                </span>
+              </div>
+              <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: "var(--text-primary)" }}>
+                {kpi.value}
+              </div>
+              <div style={{ fontSize: "var(--font-size-sm)", color: "var(--text-tertiary)" }}>
+                {kpi.label}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Charts Row */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          gap: "var(--space-md)",
+        }}>
+          {/* Message Volume Line Chart */}
+          <div style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--radius-lg)",
+            padding: "var(--space-lg)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-lg)" }}>
+              <div>
+                <h3 style={{ fontSize: "var(--font-size-base)", fontWeight: 700, color: "var(--text-primary)" }}>Message Volume</h3>
+                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>Daily message activity</p>
+              </div>
+              <BarChart3 size={18} style={{ color: "var(--text-tertiary)" }} />
+            </div>
+            <div style={{ position: "relative", height: 180 }}>
+              <svg width="100%" height="100%" viewBox="0 0 400 180" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                {/* Grid lines */}
+                {[0, 1, 2, 3, 4].map(i => (
+                  <line key={i} x1="0" y1={i * 40 + 10} x2="400" y2={i * 40 + 10} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+                ))}
+                {/* Area fill */}
+                <path
+                  d={(() => {
+                    const hourData = stats.hourCounts || new Array(24).fill(0);
+                    const max = Math.max(...hourData, 1);
+                    const points = hourData.map((v, i) => `${(i / 23) * 400},${170 - (v / max) * 150}`);
+                    return `M0,170 L${points.join(" L")} L400,170 Z`;
+                  })()}
+                  fill="url(#lineGrad)"
+                />
+                {/* Line */}
+                <path
+                  d={(() => {
+                    const hourData = stats.hourCounts || new Array(24).fill(0);
+                    const max = Math.max(...hourData, 1);
+                    const points = hourData.map((v, i) => `${(i / 23) * 400},${170 - (v / max) * 150}`);
+                    return `M${points.join(" L")}`;
+                  })()}
+                  fill="none"
+                  stroke="#14b8a6"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {/* Data points */}
+                {(() => {
+                  const hourData = stats.hourCounts || new Array(24).fill(0);
+                  const max = Math.max(...hourData, 1);
+                  // Only show a few dots for cleanliness
+                  return [0, 6, 12, 18, 23].map(i => (
+                    <circle key={i} cx={(i / 23) * 400} cy={170 - (hourData[i] / max) * 150} r="4" fill="#14b8a6" stroke="#1e293b" strokeWidth="2" />
+                  ));
+                })()}
+              </svg>
+              {/* X-axis labels */}
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0 0", fontSize: 10, color: "var(--text-tertiary)" }}>
+                <span>12AM</span>
+                <span>6AM</span>
+                <span>12PM</span>
+                <span>6PM</span>
+                <span>11PM</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Platform Breakdown Donut Chart */}
+          <div style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--radius-lg)",
+            padding: "var(--space-lg)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-lg)" }}>
+              <div>
+                <h3 style={{ fontSize: "var(--font-size-base)", fontWeight: 700, color: "var(--text-primary)" }}>Platform Breakdown</h3>
+                <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 2 }}>Conversations by channel</p>
+              </div>
+              <PieChart size={18} style={{ color: "var(--text-tertiary)" }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-xl)" }}>
+              <div style={{ position: "relative", width: 140, height: 140, flexShrink: 0 }}>
+                <svg width="140" height="140" viewBox="0 0 140 140">
+                  {(() => {
+                    const total = (stats.igConvs || 0) + (stats.fbConvs || 0) + (stats.waConvs || 0);
+                    const channels = [
+                      { value: stats.igConvs || 0, color: "#E1306C", label: "Instagram" },
+                      { value: stats.fbConvs || 0, color: "#1877F2", label: "Facebook" },
+                      { value: stats.waConvs || 0, color: "#25D366", label: "WhatsApp" },
+                    ];
+                    if (total === 0) {
+                      // Empty state
+                      return <circle cx="70" cy="70" r="54" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="20" />;
+                    }
+                    let cumulative = 0;
+                    const circumference = 2 * Math.PI * 54;
+                    return channels.map((ch, i) => {
+                      const pct = ch.value / total;
+                      const offset = (cumulative / total) * circumference;
+                      cumulative += ch.value;
+                      return (
+                        <circle
+                          key={i}
+                          cx="70"
+                          cy="70"
+                          r="54"
+                          fill="none"
+                          stroke={ch.color}
+                          strokeWidth="20"
+                          strokeDasharray={`${pct * circumference} ${circumference}`}
+                          strokeDashoffset={-offset}
+                          strokeLinecap="round"
+                          transform="rotate(-90 70 70)"
+                          style={{ transition: "all 0.5s ease" }}
+                        />
+                      );
+                    });
+                  })()}
+                  {/* Center text */}
+                  <text x="70" y="65" textAnchor="middle" fill="var(--text-primary)" fontSize="20" fontWeight="800">
+                    {((stats.igConvs || 0) + (stats.fbConvs || 0) + (stats.waConvs || 0)).toLocaleString()}
+                  </text>
+                  <text x="70" y="82" textAnchor="middle" fill="var(--text-tertiary)" fontSize="10" fontWeight="500">
+                    total
+                  </text>
+                </svg>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)", flex: 1 }}>
+                {[
+                  { label: "Instagram", value: stats.igConvs || 0, color: "#E1306C", icon: <Camera size={14} /> },
+                  { label: "Facebook", value: stats.fbConvs || 0, color: "#1877F2", icon: <Globe size={14} /> },
+                  { label: "WhatsApp", value: stats.waConvs || 0, color: "#25D366", icon: <MessageCircle size={14} /> },
+                ].map((ch, i) => {
+                  const total = (stats.igConvs || 0) + (stats.fbConvs || 0) + (stats.waConvs || 0) || 1;
+                  const pct = Math.round((ch.value / total) * 100);
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 8,
+                        background: `${ch.color}18`, display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                        color: ch.color,
+                      }}>
+                        {ch.icon}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-primary)" }}>{ch.label}</span>
+                          <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>{ch.value} ({pct}%)</span>
+                        </div>
+                        <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: ch.color, borderRadius: 2, transition: "width 0.5s ease" }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

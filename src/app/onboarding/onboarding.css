@@ -1,322 +1,664 @@
-.onboarding-layout {
+/* ============================================
+   Sellora Onboarding — Dark Navy Wizard Theme
+   ============================================ */
+
+.ob-layout {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 0%, rgba(108, 92, 231, 0.05) 0%, var(--bg-primary) 70%);
-  padding: var(--space-xl);
+  background: #0f172a;
+  padding: 24px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-.onboarding-container {
+.ob-container {
   width: 100%;
   max-width: 580px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 28px;
-  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
 }
 
-.onboarding-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 24px 32px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.onboarding-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--text-primary);
-}
-
-.progress-container {
-  flex: 1;
-  max-width: 200px;
-  margin: 0 24px;
-}
-
-.progress-bar-bg {
-  height: 6px;
-  background: var(--bg-tertiary);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: var(--accent-gradient);
-  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.onboarding-step-count {
-  font-size: 13px;
-  color: var(--text-tertiary);
-  font-weight: 600;
-  text-align: right;
-  min-width: 40px;
-}
-
-.onboarding-body {
-  padding: 40px 48px;
-  min-height: 440px;
-  display: flex;
-  flex-direction: column;
-}
-
-.onboarding-step {
-  animation: fadeInSlideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-@keyframes fadeInSlideUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.onboarding-title {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  color: var(--text-primary);
-}
-
-.onboarding-subtitle {
-  font-size: 16px;
-  color: var(--text-tertiary);
-  margin-bottom: 32px;
-  line-height: 1.5;
-}
-
-.onboarding-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 24px 32px;
-  background: rgba(0, 0, 0, 0.1);
-  border-top: 1px solid var(--border-subtle);
-}
-
-/* Splash/Welcome Step */
-.welcome-visual {
-  height: 160px;
+/* ─── Progress Dots ─── */
+.ob-progress {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   margin-bottom: 32px;
-  position: relative;
 }
 
-.welcome-icon-circle {
-  width: 100px;
-  height: 100px;
+.ob-progress-dot {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: var(--accent-gradient);
+  border: 2px solid #334155;
+  background: transparent;
+  transition: all 0.3s ease;
+}
+
+.ob-progress-dot.completed {
+  background: #14b8a6;
+  border-color: #14b8a6;
+}
+
+.ob-progress-dot.current {
+  background: #14b8a6;
+  border-color: #14b8a6;
+  box-shadow: 0 0 12px rgba(20, 184, 166, 0.4);
+}
+
+.ob-progress-line {
+  width: 40px;
+  height: 2px;
+  background: #334155;
+  border-radius: 1px;
+  transition: background 0.3s ease;
+}
+
+.ob-progress-line.completed {
+  background: #14b8a6;
+}
+
+/* ─── Card ─── */
+.ob-card {
+  background: #1e293b;
+  border-radius: 20px;
+  padding: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── Step Animation ─── */
+.ob-step {
+  animation: obFadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes obFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Icon Circle ─── */
+.ob-icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  box-shadow: 0 0 40px rgba(108, 92, 231, 0.3);
+  margin-bottom: 24px;
+  box-shadow: 0 8px 24px rgba(20, 184, 166, 0.25);
+}
+
+.ob-icon-circle-lg {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+}
+
+/* ─── Headings ─── */
+.ob-heading {
+  font-size: 28px;
+  font-weight: 700;
+  color: #14b8a6;
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.ob-subtitle {
+  font-size: 15px;
+  color: #94a3b8;
+  margin-bottom: 32px;
+  line-height: 1.6;
+}
+
+/* ─── Feature Badges (Step 1) ─── */
+.ob-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+.ob-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.ob-badge:hover {
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.05);
+}
+
+.ob-badge-icon {
+  color: #14b8a6;
+}
+
+/* ─── Buttons ─── */
+.ob-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.ob-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ob-btn-primary {
+  background: #14b8a6;
+  color: white;
+  box-shadow: 0 4px 16px rgba(20, 184, 166, 0.25);
+}
+
+.ob-btn-primary:hover:not(:disabled) {
+  background: #0d9488;
+  box-shadow: 0 6px 20px rgba(20, 184, 166, 0.35);
+  transform: translateY(-1px);
+}
+
+.ob-btn-secondary {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+}
+
+.ob-btn-secondary:hover:not(:disabled) {
+  background: #283548;
+  border-color: #475569;
+}
+
+.ob-btn-skip {
+  background: transparent;
+  color: #64748b;
+  padding: 12px 16px;
+}
+
+.ob-btn-skip:hover:not(:disabled) {
+  color: #94a3b8;
+}
+
+/* ─── Footer ─── */
+.ob-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 32px;
+  gap: 12px;
+}
+
+.ob-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ─── Industry Grid (Step 2) ─── */
+.ob-industry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.ob-industry-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #0f172a;
+  border: 2px solid #1e293b;
+  border-radius: 12px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.ob-industry-btn:hover {
+  border-color: #475569;
+  background: #162033;
+}
+
+.ob-industry-btn.selected {
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.08);
+  color: #14b8a6;
+}
+
+.ob-industry-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* ─── Form Fields ─── */
+.ob-field {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #e2e8f0;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.ob-field::placeholder {
+  color: #475569;
+}
+
+.ob-field:focus {
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+.ob-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.ob-field-required {
+  color: #ef4444;
+}
+
+textarea.ob-field {
+  min-height: 80px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.ob-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ob-field-group {
+  margin-bottom: 16px;
+}
+
+/* ─── Personality Cards (Step 4) ─── */
+.ob-personality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ob-personality-card {
+  background: #0f172a;
+  border: 2px solid #1e293b;
+  border-radius: 14px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
   position: relative;
-  z-index: 2;
 }
 
-.welcome-pulse {
+.ob-personality-card:hover {
+  border-color: #475569;
+}
+
+.ob-personality-card.selected {
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.05);
+}
+
+.ob-personality-selected-dot {
   position: absolute;
-  width: 100px;
-  height: 100px;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--accent-primary);
-  opacity: 0.2;
-  animation: pulse 2s infinite;
+  background: #14b8a6;
+  box-shadow: 0 0 8px rgba(20, 184, 166, 0.5);
 }
 
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 0.4; }
-  100% { transform: scale(1.8); opacity: 0; }
+.ob-personality-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  margin-bottom: 10px;
 }
 
-/* Connect Cards */
-.connect-grid {
+.ob-personality-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 4px;
+}
+
+.ob-personality-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.ob-personality-bubble {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: white;
+  max-width: 100%;
+}
+
+.ob-personality-custom {
+  grid-column: 1 / -1;
+}
+
+/* ─── Channel Cards (Step 5) ─── */
+.ob-channel-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+  margin-bottom: 24px;
 }
 
-.connect-btn {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 18px;
+.ob-channel-card {
+  background: #0f172a;
+  border: 2px solid #1e293b;
+  border-radius: 16px;
   padding: 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  transition: all 0.2s ease;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.connect-btn:hover {
-  background: var(--bg-glass-hover);
-  border-color: var(--border-medium);
+.ob-channel-card:hover {
+  border-color: #475569;
   transform: translateY(-2px);
 }
 
-.connect-btn.active {
-  border-color: var(--accent-green);
-  background: rgba(0, 230, 118, 0.05);
+.ob-channel-card.connected {
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.05);
 }
 
-.platform-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+.ob-channel-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
 }
 
-.platform-icon.instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
-.platform-icon.facebook { background: #1877F2; }
+.ob-channel-icon.ig {
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+}
 
-/* Interactive Chat Step */
-.chat-demo-container {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 20px;
-  height: 300px;
+.ob-channel-icon.fb {
+  background: #1877F2;
+}
+
+.ob-channel-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.ob-channel-status {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.ob-channel-status.connected {
+  color: #14b8a6;
+}
+
+/* ─── Success Step ─── */
+.ob-success-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+  box-shadow: 0 12px 32px rgba(20, 184, 166, 0.25);
+}
+
+.ob-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.ob-check-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #e2e8f0;
+  padding: 10px 14px;
+  background: #0f172a;
+  border-radius: 10px;
+}
+
+.ob-check-icon {
+  color: #14b8a6;
+  flex-shrink: 0;
+}
+
+/* ─── Chat Demo ─── */
+.ob-chat-container {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  height: 280px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.chat-demo-messages {
+.ob-chat-messages {
   flex: 1;
-  padding: 16px;
+  padding: 14px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.chat-bubble {
+.ob-chat-bubble {
   max-width: 80%;
   padding: 10px 14px;
-  border-radius: 16px;
-  font-size: 14px;
+  border-radius: 14px;
+  font-size: 13px;
   line-height: 1.4;
-  position: relative;
 }
 
-.chat-bubble.customer {
-  background: var(--bg-card);
+.ob-chat-bubble.customer {
+  background: #1e293b;
+  color: #e2e8f0;
   align-self: flex-start;
   border-bottom-left-radius: 4px;
-  color: var(--text-primary);
 }
 
-.chat-bubble.ai {
-  background: var(--accent-primary);
+.ob-chat-bubble.ai {
+  background: #14b8a6;
   color: white;
   align-self: flex-end;
   border-bottom-right-radius: 4px;
-  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.2);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.2);
 }
 
-.typing-indicator {
+.ob-chat-typing {
   display: flex;
   gap: 4px;
   padding: 4px 8px;
 }
 
-.typing-dot {
+.ob-chat-typing-dot {
   width: 6px;
   height: 6px;
   background: rgba(255, 255, 255, 0.6);
   border-radius: 50%;
-  animation: typing 1.4s infinite;
+  animation: obTyping 1.4s infinite;
 }
 
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+.ob-chat-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.ob-chat-typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-@keyframes typing {
+@keyframes obTyping {
   0%, 60%, 100% { transform: translateY(0); }
   30% { transform: translateY(-4px); }
 }
 
-.chat-demo-input {
-  padding: 12px;
-  border-top: 1px solid var(--border-subtle);
+.ob-chat-input-area {
+  padding: 10px;
+  border-top: 1px solid #334155;
   display: flex;
   gap: 8px;
 }
 
-.chat-demo-field {
+.ob-chat-input {
   flex: 1;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 8px 16px;
-  font-size: 14px;
-  color: var(--text-primary);
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #e2e8f0;
+  outline: none;
+  font-family: inherit;
 }
 
-.chat-quick-actions {
+.ob-chat-input:focus {
+  border-color: #14b8a6;
+}
+
+.ob-chat-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #14b8a6;
+  color: white;
+  border: none;
   display: flex;
-  gap: 8px;
-  padding: 0 16px 12px;
-}
-
-.quick-action-btn {
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-card);
-  color: var(--text-secondary);
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.quick-action-btn:hover {
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
+.ob-chat-send:hover {
+  background: #0d9488;
 }
 
-/* Success Step */
-.success-check-visual {
-  text-align: center;
-  margin-bottom: 24px;
+.ob-chat-quick {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px 10px;
 }
 
-.success-badge {
-  display: inline-flex;
-  padding: 6px 12px;
-  background: rgba(0, 230, 118, 0.1);
-  color: var(--accent-green);
+.ob-chat-quick-btn {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.ob-chat-quick-btn:hover {
+  border-color: #14b8a6;
+  color: #14b8a6;
+}
+
+/* ─── Loading ─── */
+.ob-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
+  color: #14b8a6;
+}
+
+.ob-spin {
+  animation: obSpin 1s linear infinite;
+}
+
+@keyframes obSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Pulse ─── */
+.ob-pulse {
+  position: absolute;
+  width: 72px;
+  height: 72px;
   border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 16px;
+  background: #14b8a6;
+  opacity: 0.2;
+  animation: obPulse 2s infinite;
 }
 
-/* Mobile Optimizations */
+@keyframes obPulse {
+  0% { transform: scale(1); opacity: 0.3; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* ─── Mobile ─── */
 @media (max-width: 640px) {
-  .onboarding-layout { padding: 0; }
-  .onboarding-container { height: 100vh; border-radius: 0; border: none; }
-  .onboarding-body { padding: 32px 24px; }
-  .onboarding-title { font-size: 24px; }
-  .onboarding-footer { padding: 16px 24px; }
-  .connect-grid { grid-template-columns: 1fr; }
+  .ob-layout { padding: 0; background: #0f172a; }
+  .ob-container { max-width: 100%; }
+  .ob-card { padding: 24px; border-radius: 0; min-height: 100vh; }
+  .ob-heading { font-size: 24px; }
+  .ob-industry-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ob-personality-grid { grid-template-columns: 1fr; }
+  .ob-channel-grid { grid-template-columns: 1fr; }
+  .ob-field-row { grid-template-columns: 1fr; }
+  .ob-badges { gap: 6px; }
+  .ob-badge { padding: 6px 10px; font-size: 12px; }
+  .ob-progress { margin-bottom: 24px; gap: 8px; }
+  .ob-progress-line { width: 24px; }
 }
