@@ -174,7 +174,7 @@ export function buildGroqProviders(opts = {}) {
   
   const primaryModels = routingOnly
     ? [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "gemma2-9b-it", name: "groq-gemma2" }]
-    : [{ id: "llama-3.3-70b-versatile", name: "groq-llama70b" }];
+    : [{ id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "groq-llama4scout" }, { id: "llama-3.3-70b-versatile", name: "groq-llama70b" }];
   
   const fastModels = fastModel && !routingOnly
     ? [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "mixtral-8x7b-32768", name: "groq-mixtral" }]

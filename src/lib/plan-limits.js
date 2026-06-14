@@ -105,8 +105,8 @@ export const PLAN_LIMITS = {
 export const AI_MODELS = {
   fast: {
     provider: "groq",
-    model: "llama-3.3-70b-versatile",
-    label: "Groq (Llama 3.3 70B)",
+    model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    label: "Groq (Llama 4 Scout 17B)",
   },
   smart: {
     provider: "google",
