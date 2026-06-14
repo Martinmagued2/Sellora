@@ -166,17 +166,28 @@ export function collectKeys(singleKeyEnv, multiKeyEnv) {
  * Skips unhealthy keys automatically.
  */
 export function buildGroqProviders(opts = {}) {
-  const { fastModel = true, routingOnly = false } = opts;
+  const { fastModel = true, routingOnly = false, lightweight = false } = opts;
   const keys = collectKeys("GROQ_API_KEY", "GROQ_API_KEYS");
   const providers = [];
   
   if (keys.length === 0) return providers;
   
-  const primaryModels = routingOnly
-    ? [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "gemma2-9b-it", name: "groq-gemma2" }]
-    : [{ id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "groq-llama4scout" }, { id: "llama-3.3-70b-versatile", name: "groq-llama70b" }];
+  // Model selection based on use case:
+  // - Default (Copilot): Llama 4 Scout (smartest) → Llama 3.3 70B (fallback)
+  // - Lightweight (auto-replies): Llama 3.1 8B (fast, cheap) → Mixtral (fallback)
+  // - Routing only: Llama 3.1 8B + Gemma 2 (cheapest, fastest)
+  let primaryModels;
+  if (routingOnly) {
+    primaryModels = [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "gemma2-9b-it", name: "groq-gemma2" }];
+  } else if (lightweight) {
+    // Auto-replies: fast & cheap to conserve rate limits for Copilot
+    primaryModels = [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "mixtral-8x7b-32768", name: "groq-mixtral" }];
+  } else {
+    // Copilot: smartest model first
+    primaryModels = [{ id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "groq-llama4scout" }, { id: "llama-3.3-70b-versatile", name: "groq-llama70b" }];
+  }
   
-  const fastModels = fastModel && !routingOnly
+  const fastModels = fastModel && !routingOnly && !lightweight
     ? [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "mixtral-8x7b-32768", name: "groq-mixtral" }]
     : [];
 
@@ -391,8 +402,8 @@ export function buildFullProviderChain(opts = {}) {
   // 2. NVIDIA NIM (free tier, high quality)
   providers.push(...buildNvidiaProviders());
 
-  // 3. Groq (fast, free-friendly)
-  providers.push(...buildGroqProviders({ routingOnly }));
+  // 3. Groq — lightweight mode for auto-replies (fast/cheap models)
+  providers.push(...buildGroqProviders({ routingOnly, lightweight: !routingOnly }));
 
   // 4. Google Gemini (generous free tier)
   providers.push(...buildGoogleProviders());
@@ -400,7 +411,7 @@ export function buildFullProviderChain(opts = {}) {
   // 5. OpenAI (paid, last resort)
   providers.push(...buildOpenAIProviders());
 
-  console.log(`[ProviderChain] Built full chain: ${providers.length} provider(s) total`);
+  console.log(`[ProviderChain] Built full chain (auto-reply): ${providers.length} provider(s) total`);
   return providers;
 }
 
@@ -435,7 +446,7 @@ export function buildStreamingProviderChain() {
   // OpenAI last
   providers.push(...buildOpenAIProviders());
 
-  console.log(`[ProviderChain] Built streaming chain: ${providers.length} provider(s) total`);
+  console.log(`[ProviderChain] Built streaming chain (copilot): ${providers.length} provider(s) total`);
   return providers;
 }
 
