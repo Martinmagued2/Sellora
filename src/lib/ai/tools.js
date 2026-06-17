@@ -1078,23 +1078,33 @@ export const createSupportTools = (accountId, customerId) => {
     }),
 
     get_order_status: tool({
-      description: "Get the current status of a specific order by its order number.",
+      description: "Get the current status of a specific order by its order number. Accepts formats like 'ORD-001016' or 'ord-001016' (case-insensitive).",
       inputSchema: z.object({
-        orderNumber: z.string().optional().describe("The order number to check"),
+        orderNumber: z.string().optional().describe("The order number to check (e.g. 'ORD-001016')"),
         order_number: z.string().optional().describe("Alternative order number parameter"),
       }),
       execute: async ({ orderNumber, order_number }) => {
-        const finalOrderNumber = orderNumber || order_number;
+        const finalOrderNumber = (orderNumber || order_number || "").toUpperCase().trim();
         if (!finalOrderNumber) return { success: false, error: "Order number is required" };
 
         const { data, error } = await getSupabase()
           .from("orders")
-          .select("status, total, created_at, tracking_number")
+          .select("order_number, status, total, currency, created_at, tracking_number, carrier, payment_status, items")
           .eq("account_id", accountId)
           .eq("order_number", finalOrderNumber)
           .single();
 
-        if (error || !data) return { success: false, error: "Order not found" };
+        if (error || !data) {
+          // Fallback: case-insensitive search
+          const { data: fallback } = await getSupabase()
+            .from("orders")
+            .select("order_number, status, total, currency, created_at, tracking_number, carrier, payment_status, items")
+            .eq("account_id", accountId)
+            .ilike("order_number", finalOrderNumber)
+            .single();
+          if (fallback) return { success: true, order: fallback };
+          return { success: false, error: `Order '${finalOrderNumber}' not found` };
+        }
         return { success: true, order: data };
       },
     }),

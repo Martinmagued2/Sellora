@@ -1079,19 +1079,47 @@ export const createCopilotTools = (accountId) => {
     // ─── CUSTOMER TOOLS ───
 
     get_order_details: tool({
-      description: "Get detailed information about a specific order, including items, customer info, and payment details. Use when the seller asks about a specific order.",
+      description: "Get detailed information about a specific order, including items, customer info, and payment details. Use when the seller asks about a specific order. Accepts either the order ID (UUID) or the human-readable order number (e.g. 'ORD-001016').",
       inputSchema: z.object({
-        order_id: z.string().describe("The ID of the order"),
+        order_id: z.string().describe("The order ID (UUID) OR the order number (e.g. 'ORD-001016'). Either works."),
       }),
       execute: async ({ order_id }) => {
-        const { data, error } = await supabase
-          .from("orders")
-          .select("id, order_number, total, status, items, payment_method, created_at, shipping_address, customers(name, email, phone)")
-          .eq("id", order_id)
-          .eq("account_id", accountId)
-          .single();
+        // Detect if input is a UUID (order ID) or an order number (starts with 'ORD-')
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(order_id);
 
-        if (error) return { success: false, error: "Order not found" };
+        let query = supabase
+          .from("orders")
+          .select("id, order_number, total, status, items, payment_method, payment_status, shipping_address, tracking_number, carrier, created_at, customers(name, email, phone)")
+          .eq("account_id", accountId);
+
+        if (isUUID) {
+          query = query.eq("id", order_id);
+        } else {
+          // Treat as order_number — normalize to uppercase
+          query = query.eq("order_number", order_id.toUpperCase().trim());
+        }
+
+        const { data, error } = await query.single();
+
+        if (error || !data) {
+          // Try a fallback: if order_number didn't match exactly, try case-insensitive
+          if (!isUUID) {
+            const { data: fallback, error: fallbackErr } = await supabase
+              .from("orders")
+              .select("id, order_number, total, status, items, payment_method, payment_status, shipping_address, tracking_number, carrier, created_at, customers(name, email, phone)")
+              .eq("account_id", accountId)
+              .ilike("order_number", order_id.trim())
+              .single();
+            if (!fallbackErr && fallback) {
+              return {
+                success: true,
+                order: fallback,
+                _action: { type: "navigate", path: "/dashboard/orders", label: "View All Orders" },
+              };
+            }
+          }
+          return { success: false, error: `Order '${order_id}' not found. Make sure the order number is correct.` };
+        }
         return {
           success: true,
           order: data,
