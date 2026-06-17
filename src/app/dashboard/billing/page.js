@@ -86,7 +86,7 @@ export default function BillingPage() {
   const plans = [
     {
       name: "starter",
-      price: 499,
+      price: 999,
       currency: "EGP",
       color: "var(--accent-green)",
       features: [
@@ -101,7 +101,7 @@ export default function BillingPage() {
     },
     {
       name: "professional",
-      price: 1299,
+      price: 2499,
       currency: "EGP",
       color: "var(--accent-primary-light)",
       popular: true,
@@ -120,7 +120,7 @@ export default function BillingPage() {
     },
     {
       name: "business",
-      price: 2999,
+      price: 5999,
       currency: "EGP",
       color: "var(--accent-orange)",
       features: [

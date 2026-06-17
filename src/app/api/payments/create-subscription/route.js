@@ -17,9 +17,9 @@ function getSupabaseAdmin() {
 
 // Map plan identifiers to EGP amount strictly on backend
 const PLAN_PRICES = {
-  starter: 499,
-  professional: 1299,
-  business: 2999
+  starter: 999,
+  professional: 2499,
+  business: 5999
 };
 
 export async function POST(req) {

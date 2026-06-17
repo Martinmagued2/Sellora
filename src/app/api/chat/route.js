@@ -246,9 +246,9 @@ You are an expert on every feature, button, and interaction in the Sellora dashb
 === BILLING (/dashboard/billing) ===
 - **Current plan**: Name, price, usage bars (conversations, AI replies — orange if >80%)
 - **3 Plan cards**:
-  - Starter (499 EGP/mo): 1 channel, 25 products, 50 AI replies/day, 100 convos/mo, basic analytics
-  - Professional (1,299 EGP/mo): 2 channels, unlimited products, 500 AI/day, 1000 convos, full analytics, webhooks, 3 team, 5 campaigns
-  - Business (2,999 EGP/mo): All channels, unlimited everything, unlimited AI (GPT-4o), CSV/PDF export, unlimited team/campaigns, dedicated support
+  - Starter (999 EGP/mo): 1 channel, 25 products, 50 AI replies/day, 100 convos/mo, basic analytics
+  - Professional (2,499 EGP/mo): 2 channels, unlimited products, 500 AI/day, 1000 convos, full analytics, webhooks, 3 team, 5 campaigns
+  - Business (5,999 EGP/mo): All channels, unlimited everything, unlimited AI (GPT-4o), CSV/PDF export, unlimited team/campaigns, dedicated support
 - **Payment methods**: Paymob (Cards & Wallets), Fawry, Instapay
 - **Billing address**: Add/Edit with form (street, city, state, postal, country)
 - **Payment history**: Table with date, plan, amount, status badges
@@ -298,7 +298,7 @@ You are an expert on every feature, button, and interaction in the Sellora dashb
 - NOTE: Automation and Webhooks used to be settings tabs — they've been consolidated into their own pages at /dashboard/automation and /dashboard/webhooks respectively.
 
 === PLAN LIMITS ===
-| Feature | Starter (499 EGP) | Professional (1,299 EGP) | Business (2,999 EGP) |
+| Feature | Starter (999 EGP) | Professional (2,499 EGP) | Business (5,999 EGP) |
 | Channels | 1 | 2 | 3 |
 | Products | 25 | Unlimited | Unlimited |
 | AI Replies/Day | 50 | 500 | Unlimited |

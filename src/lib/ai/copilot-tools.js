@@ -1734,7 +1734,7 @@ export const createCopilotTools = (accountId) => {
         const plans = {
           starter: {
             name: "Starter",
-            price: "499 EGP/mo",
+            price: "999 EGP/mo",
             channels: 1,
             products: 25,
             aiRepliesPerDay: 50,
@@ -1755,7 +1755,7 @@ export const createCopilotTools = (accountId) => {
           },
           professional: {
             name: "Professional",
-            price: "1,299 EGP/mo",
+            price: "2,499 EGP/mo",
             channels: 2,
             products: "Unlimited",
             aiRepliesPerDay: 500,
@@ -1776,7 +1776,7 @@ export const createCopilotTools = (accountId) => {
           },
           business: {
             name: "Business",
-            price: "2,999 EGP/mo",
+            price: "5,999 EGP/mo",
             channels: 3,
             products: "Unlimited",
             aiRepliesPerDay: "Unlimited",
