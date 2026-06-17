@@ -4086,3 +4086,66 @@ html[data-theme="light"] .glassmorphism-card {
 :root[data-theme="light"] textarea::placeholder {
   color: var(--text-tertiary);
 }
+
+/* ============================================================
+   RTL SUPPORT — applied when [dir="rtl"] on <html>
+   ============================================================ */
+:root[dir="rtl"] body {
+  direction: rtl;
+  text-align: right;
+  font-family: "Cairo", "Inter", system-ui, sans-serif;
+}
+
+/* Flip horizontal layouts */
+:root[dir="rtl"] .dashboard-sidebar {
+  border-right: none;
+  border-left: 1px solid var(--border-subtle);
+}
+
+:root[dir="rtl"] .mobile-chat-header-back {
+  transform: scaleX(-1); /* flip the back arrow */
+}
+
+:root[dir="rtl"] .mobile-chat-header-actions {
+  flex-direction: row-reverse;
+}
+
+:root[dir="rtl"] .msg-bubble {
+  text-align: right;
+}
+
+:root[dir="rtl"] .chat-msg.outgoing {
+  align-self: flex-start;
+}
+
+:root[dir="rtl"] .chat-msg.incoming {
+  align-self: flex-end;
+}
+
+/* Flip sidebar nav icons */
+:root[dir="rtl"] .sidebar-nav-link svg {
+  margin-right: 0;
+  margin-left: 8px;
+}
+
+/* Flip dropdown menus */
+:root[dir="rtl"] .mobile-status-menu {
+  right: auto;
+  left: 8px;
+}
+
+/* Flip modals */
+:root[dir="rtl"] .modal-close {
+  right: auto;
+  left: 12px;
+}
+
+/* Number stays LTR even in RTL mode */
+:root[dir="rtl"] .stat-value,
+:root[dir="rtl"] .product-card-price,
+:root[dir="rtl"] input[type="number"],
+:root[dir="rtl"] .order-total {
+  direction: ltr;
+  text-align: right;
+  unicode-bidi: embed;
+}

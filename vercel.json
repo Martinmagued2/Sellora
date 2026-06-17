@@ -9,6 +9,10 @@
       "schedule": "0 1 * * *"
     },
     {
+      "path": "/api/subscriptions/process-scheduled",
+      "schedule": "0 3 * * *"
+    },
+    {
       "path": "/api/email/weekly-summary-cron",
       "schedule": "0 8 * * 1"
     },

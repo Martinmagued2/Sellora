@@ -48,6 +48,7 @@
     "stripe": "^22.0.2",
     "three": "^0.184.0",
     "typescript": "^6.0.3",
+    "web-push": "^3.6.7",
     "z-ai-web-dev-sdk": "^0.0.18",
     "zod": "^3.25.76"
   },

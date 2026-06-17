@@ -824,6 +824,64 @@ export const createSalesTools = (accountId, customerId) => {
 
 export const createSupportTools = (accountId, customerId) => {
   return {
+    search_knowledge_base: tool({
+      description:
+        "Search the store's knowledge base for policies, shipping info, return policies, size guides, care instructions, or any uploaded documents. " +
+        "Use this BEFORE answering general questions like 'what's your return policy?', 'how do I care for this?', 'do you ship internationally?' " +
+        "Returns relevant text chunks from the merchant's uploaded documents. If no match, fall back to the FAQ tool.",
+      inputSchema: z.object({
+        query: z.string().describe("The question or topic to search for (e.g. 'return policy', 'shipping times', 'size chart')"),
+      }),
+      execute: async ({ query }) => {
+        try {
+          const supabase = getSupabase();
+          const { data: docs } = await supabase
+            .from("knowledge_documents")
+            .select("id, title, chunks")
+            .eq("account_id", accountId)
+            .eq("is_active", true);
+
+          if (!docs || docs.length === 0) {
+            return { success: false, message: "No knowledge base documents available." };
+          }
+
+          // Simple keyword search across all chunks
+          const queryLower = query.toLowerCase();
+          const queryTerms = queryLower.split(/\s+/).filter((t) => t.length > 2);
+
+          const scored = [];
+          for (const doc of docs) {
+            const chunks = Array.isArray(doc.chunks) ? doc.chunks : [];
+            for (const chunk of chunks) {
+              const chunkLower = (chunk || "").toLowerCase();
+              let score = 0;
+              for (const term of queryTerms) {
+                const matches = (chunkLower.match(new RegExp(term, "g")) || []).length;
+                score += matches;
+              }
+              if (score > 0) {
+                scored.push({ doc_title: doc.title, chunk, score });
+              }
+            }
+          }
+
+          scored.sort((a, b) => b.score - a.score);
+          const top = scored.slice(0, 3);
+
+          if (top.length === 0) {
+            return { success: true, message: "No matching documents found.", results: [] };
+          }
+
+          return {
+            success: true,
+            results: top.map((r) => ({ source: r.doc_title, content: r.chunk })),
+          };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      },
+    }),
+
     recommend_products: tool({
       description: "Recommend products based on a customer's needs, preferences, or context. Use this when a customer asks for suggestions like 'something for dry skin', 'a gift for my mom', or 'I need something casual'. Searches product names, descriptions, and categories to find the best matches.",
       inputSchema: z.object({

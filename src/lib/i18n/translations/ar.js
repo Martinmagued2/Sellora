@@ -119,3 +119,98 @@ export const ar = {
   footer_security: "الأمان",
   footer_copyright: "© 2026 سيلورا. جميع الحقوق محفوظة.",
 };
+
+// ═══ Dashboard translations (Arabic) ═══
+// Sidebar navigation
+dash_home: "الرئيسية",
+dash_conversations: "المحادثات",
+dash_orders: "الطلبات",
+dash_products: "المنتجات",
+dash_customers: "العملاء",
+dash_campaigns: "الحملات",
+dash_segments: "الشرائح",
+dash_coupons: "الكوبونات",
+dash_analytics: "التحليلات",
+dash_webhooks: "Webhooks",
+dash_automation: "الأتمتة",
+dash_ai_personality: "شخصية الذكاء الاصطناعي",
+dash_ab_tests: "اختبارات A/B",
+dash_reviews: "التقييمات",
+dash_wa_catalog: "كتالوج واتساب",
+dash_stores: "المتاجر",
+dash_shipping: "الشحن",
+dash_settings: "الإعدادات",
+dash_billing: "الفوترة",
+dash_abandoned_carts: "سلات المتروكة",
+dash_notifications: "الإشعارات",
+dash_referrals: "الإحالات",
+
+// Common actions
+common_save: "حفظ",
+common_cancel: "إلغاء",
+common_delete: "حذف",
+common_edit: "تعديل",
+common_create: "إنشاء",
+common_search: "بحث",
+common_loading: "جاري التحميل...",
+common_error: "خطأ",
+common_success: "تم بنجاح",
+common_close: "إغلاق",
+common_back: "رجوع",
+common_next: "التالي",
+common_previous: "السابق",
+common_confirm: "تأكيد",
+common_yes: "نعم",
+common_no: "لا",
+
+// Conversations
+conv_pause_ai: "إيقاف الذكاء الاصطناعي",
+conv_resume_ai: "استئناف الذكاء الاصطناعي",
+conv_summarize: "تلخيص",
+conv_assign: "تعيين",
+conv_snooze: "تأجيل",
+conv_notes: "ملاحظات داخلية",
+conv_send_message: "إرسال رسالة",
+conv_type_message: "اكتب رسالة...",
+conv_mark_resolved: "وضع كمحلول",
+conv_take_over: "تولي المحادثة",
+
+// Onboarding
+onboarding_welcome: "مرحبًا بك في سيلورا — لنبدأ البيع",
+onboarding_step1: "ربط واتساب",
+onboarding_step2: "أضف منتجك الأول",
+onboarding_step3: "تخصيص الذكاء الاصطناعي",
+onboarding_step4: "إرسال رسالة تجريبية",
+onboarding_step5: "دعوة زميل",
+onboarding_complete: "اكتمل الإعداد",
+
+// Reviews
+reviews_title: "التقييمات",
+reviews_pending: "قيد الانتظار",
+reviews_published: "منشور",
+reviews_rejected: "مرفوض",
+reviews_publish: "نشر",
+reviews_reject: "رفض",
+reviews_reply: "رد",
+reviews_avg_rating: "متوسط التقييم",
+
+// Coupons
+coupons_create: "إنشاء كوبون",
+coupons_bogo: "اشترِ X واحصل على Y",
+coupons_tiered: "خصم متدرج",
+coupons_first_order: "الطلب الأول فقط",
+coupons_customer_specific: "عميل محدد",
+coupons_subtype: "نوع الكوبون",
+
+// Settings
+settings_profile: "الملف الشخصي",
+settings_channels: "القنوات المتصلة",
+settings_security: "الأمان",
+settings_team: "الفريق",
+settings_notifications: "الإشعارات",
+settings_policies: "السياسات",
+
+// Theme
+theme_dark: "الوضع الداكن",
+theme_light: "الوضع الفاتح",
+theme_toggle: "تبديل المظهر",
