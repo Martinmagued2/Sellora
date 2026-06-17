@@ -298,3 +298,144 @@ export function parseWebhookMessage(body) {
     phoneNumberId: value.metadata?.phone_number_id,
   };
 }
+
+// ═══════════════════════════════════════════════════════════
+// INTERACTIVE MESSAGES (buttons, lists, images with captions)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Send a message with tappable buttons (up to 3).
+ * Buttons appear below the message text — customer taps to respond.
+ *
+ * @param {Object} params
+ * @param {string} params.to - recipient phone
+ * @param {string} params.body - message text
+ * @param {Array} params.buttons - [{ id, title }, ...] (max 3)
+ * @param {string} params.phoneNumberId
+ * @param {string} params.accessToken
+ * @param {string} [params.header] - optional bold header text
+ * @param {string} [params.footer] - optional footer text
+ */
+export async function sendInteractiveButtons({ to, body, buttons, phoneNumberId, accessToken, header, footer }) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!phoneId || !token) throw new Error("WhatsApp phone number ID and access token are required");
+
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: body },
+      action: {
+        buttons: buttons.slice(0, 3).map(b => ({
+          type: "reply",
+          reply: { id: b.id, title: b.title.substring(0, 20) },
+        })),
+      },
+    },
+  };
+  if (header) payload.interactive.header = { type: "text", text: header };
+  if (footer) payload.interactive.footer = { text: footer };
+
+  const response = await fetch(`${WHATSAPP_API_URL}/${phoneId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Failed to send interactive buttons");
+  return data;
+}
+
+/**
+ * Send a list message (customer taps to expand a list of options).
+ * Good for product catalogs, category selection, etc.
+ *
+ * @param {Object} params
+ * @param {string} params.to
+ * @param {string} params.body
+ * @param {string} params.buttonText - text on the list button (e.g. "Choose product")
+ * @param {Array} params.sections - [{ title, rows: [{ id, title, description }] }]
+ * @param {string} params.phoneNumberId
+ * @param {string} params.accessToken
+ * @param {string} [params.header]
+ * @param {string} [params.footer]
+ */
+export async function sendListMessage({ to, body, buttonText, sections, phoneNumberId, accessToken, header, footer }) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!phoneId || !token) throw new Error("WhatsApp phone number ID and access token are required");
+
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      body: { text: body },
+      action: {
+        button: buttonText,
+        sections: sections.map(s => ({
+          title: s.title,
+          rows: s.rows.slice(0, 10).map(r => ({
+            id: r.id,
+            title: r.title.substring(0, 24),
+            description: (r.description || "").substring(0, 72),
+          })),
+        })),
+      },
+    },
+  };
+  if (header) payload.interactive.header = { type: "text", text: header };
+  if (footer) payload.interactive.footer = { text: footer };
+
+  const response = await fetch(`${WHATSAPP_API_URL}/${phoneId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Failed to send list message");
+  return data;
+}
+
+/**
+ * Set the persistent menu + ice breakers for a WhatsApp phone number.
+ * The menu is always visible to customers; ice breakers show when they open the chat.
+ *
+ * @param {Object} params
+ * @param {string} params.phoneNumberId
+ * @param {string} params.accessToken
+ * @param {Array} params.commands - [{ title, description }] (max 10)
+ */
+export async function setWhatsAppProfile({ phoneNumberId, accessToken, commands, businessName, businessDescription }) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!phoneId || !token) throw new Error("WhatsApp phone number ID and access token are required");
+
+  const profilePayload = {
+    messaging_product: "whatsapp",
+    ...(businessName ? { about: businessName.substring(0, 139) } : {}),
+    ...(businessDescription ? { description: businessDescription.substring(0, 512) } : {}),
+    ...(commands && commands.length > 0 ? {
+      vertical: "BUSINESS",
+      commands: commands.slice(0, 10).map(c => ({
+        title: c.title.substring(0, 25),
+        description: (c.description || "").substring(0, 50),
+      })),
+    } : {}),
+  };
+
+  const response = await fetch(`${WHATSAPP_API_URL}/${phoneId}/whatsapp_business_profile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(profilePayload),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Failed to set WhatsApp profile");
+  return data;
+}
