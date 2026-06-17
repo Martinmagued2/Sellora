@@ -118,7 +118,6 @@ export const ar = {
   footer_gdpr: "GDPR",
   footer_security: "الأمان",
   footer_copyright: "© 2026 سيلورا. جميع الحقوق محفوظة.",
-};
 
 // ═══ Dashboard translations (Arabic) ═══
 // Sidebar navigation
@@ -214,3 +213,4 @@ settings_policies: "السياسات",
 theme_dark: "الوضع الداكن",
 theme_light: "الوضع الفاتح",
 theme_toggle: "تبديل المظهر",
+};
