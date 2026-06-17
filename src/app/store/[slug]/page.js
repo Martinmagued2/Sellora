@@ -96,7 +96,9 @@ export default function StorefrontPage() {
       <div style={{ minHeight: "100vh", background: "#0a0b0f", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <div style={{ textAlign: "center", maxWidth: 400 }}>
           <Package size={48} color="rgba(255,255,255,0.3)" style={{ margin: "0 auto 16px" }} />
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Store not found</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
+            {error === "Store not found" ? "Store not found" : "Couldn't load store"}
+          </h1>
           <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>{error}</p>
         </div>
       </div>
@@ -121,8 +123,8 @@ export default function StorefrontPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <div>
-              {p.images && p.images[0] ? (
-                <img src={p.images[0]} alt={p.name} style={{ width: "100%", borderRadius: 12, aspectRatio: 1, objectFit: "cover" }} />
+              {p.image_urls && p.image_urls[0] ? (
+                <img src={p.image_urls[0]} alt={p.name} style={{ width: "100%", borderRadius: 12, aspectRatio: 1, objectFit: "cover" }} />
               ) : (
                 <div style={{
                   width: "100%", aspectRatio: 1, borderRadius: 12,
@@ -301,8 +303,8 @@ export default function StorefrontPage() {
                   e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
-                {p.images && p.images[0] ? (
-                  <img src={p.images[0]} alt={p.name} style={{ width: "100%", aspectRatio: 1, objectFit: "cover", borderRadius: 8, marginBottom: 10 }} />
+                {p.image_urls && p.image_urls[0] ? (
+                  <img src={p.image_urls[0]} alt={p.name} style={{ width: "100%", aspectRatio: 1, objectFit: "cover", borderRadius: 8, marginBottom: 10 }} />
                 ) : (
                   <div style={{
                     width: "100%", aspectRatio: 1, borderRadius: 8, marginBottom: 10,

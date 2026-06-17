@@ -54,7 +54,7 @@ export async function GET(req) {
     if (productId) {
       const { data: product, error: prodErr } = await admin
         .from("products")
-        .select("id, name, description, price, currency, stock, category, variants, images, status")
+        .select("id, name, description, price, currency, stock, category, variants, image_urls, status")
         .eq("id", productId)
         .eq("account_id", store.account_id)
         .eq("status", "active")
@@ -98,7 +98,7 @@ export async function GET(req) {
     // List view — return all active products for this store
     const { data: products, error: productsErr } = await admin
       .from("products")
-      .select("id, name, description, price, currency, stock, category, images, status")
+      .select("id, name, description, price, currency, stock, category, image_urls, status")
       .eq("account_id", store.account_id)
       .eq("status", "active")
       .order("created_at", { ascending: false })
