@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
-import { recomputeTotals } from "../route";
+import { recomputeTotals } from "@/lib/cart-utils";
 
 let _adminClient = null;
 function getAdminClient() {
