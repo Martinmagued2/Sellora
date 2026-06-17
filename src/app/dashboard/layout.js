@@ -52,6 +52,7 @@ import ToastProvider, { useToast } from "./components/ToastProvider";
 import ConfirmProvider from "./components/ConfirmProvider";
 import InstallPrompt from "./components/InstallPrompt";
 import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
+import PushSubscriptionManager from "./components/PushSubscriptionManager";
 import StoreSwitcher from "./components/StoreSwitcher";
 import BottomNav from "./components/BottomNav";
 import "./dashboard.css";
@@ -259,6 +260,7 @@ export default function DashboardLayout({ children }) {
     <ToastProvider>
     <ConfirmProvider>
     <ServiceWorkerRegistration />
+    <PushSubscriptionManager />
     <DashboardAnimations />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
       {/* Sidebar — only on desktop / tablet */}

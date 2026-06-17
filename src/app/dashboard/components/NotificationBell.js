@@ -489,6 +489,8 @@ export default function NotificationBell() {
                 padding: "8px 0",
               }}
             >
+              {/* Enable push notifications button */}
+              <EnablePushButton />
               <button
                 onClick={handleViewAll}
                 style={{
@@ -521,5 +523,109 @@ export default function NotificationBell() {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+/**
+ * EnablePushButton — shows a "Enable push notifications" button in the
+ * notification dropdown footer. When clicked, requests permission and
+ * subscribes the browser to web push.
+ *
+ * Hides itself if:
+ *   - Push is not supported in this browser
+ *   - Permission is already granted
+ *   - Push is not configured on the server (no VAPID key)
+ */
+function EnablePushButton() {
+  const [status, setStatus] = useState("idle"); // idle | checking | granted | denied | unsupported | not-configured
+  const [pushSupported, setPushSupported] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("PushManager" in window) || !("serviceWorker" in navigator)) {
+      setPushSupported(false);
+      setStatus("unsupported");
+      return;
+    }
+    // Check existing permission
+    if (Notification.permission === "granted") {
+      setStatus("granted");
+    }
+    // Check if push is configured on the server
+    fetch("/api/push/vapid-key")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.configured) setStatus("not-configured");
+      })
+      .catch(() => setStatus("not-configured"));
+  }, []);
+
+  const handleEnable = async () => {
+    setStatus("checking");
+    try {
+      const { requestPushPermissionAndSubscribe } = await import("./PushSubscriptionManager");
+      const ok = await requestPushPermissionAndSubscribe();
+      setStatus(ok ? "granted" : "denied");
+    } catch (e) {
+      setStatus("denied");
+    }
+  };
+
+  if (status === "granted") {
+    return (
+      <div style={{
+        padding: "8px 12px",
+        fontSize: 11,
+        color: "var(--accent-green)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+      }}>
+        <CheckCircle2 size={12} />
+        Push notifications enabled
+      </div>
+    );
+  }
+
+  if (status === "unsupported") return null;
+  if (status === "not-configured") return null;
+  if (status === "denied") {
+    return (
+      <div style={{
+        padding: "8px 12px",
+        fontSize: 11,
+        color: "var(--text-tertiary)",
+        textAlign: "center",
+      }}>
+        Notifications blocked — enable in browser settings
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleEnable}
+      disabled={status === "checking"}
+      style={{
+        width: "100%",
+        padding: "10px",
+        background: "var(--accent-gradient)",
+        border: "none",
+        cursor: status === "checking" ? "wait" : "pointer",
+        color: "#fff",
+        fontSize: 12,
+        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        marginBottom: 4,
+        opacity: status === "checking" ? 0.7 : 1,
+      }}
+    >
+      <Bell size={12} />
+      {status === "checking" ? "Enabling…" : "Enable push notifications"}
+    </button>
   );
 }

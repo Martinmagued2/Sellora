@@ -286,6 +286,40 @@ export async function processIncomingMessage({
       }).catch(err => console.error("Webhook dispatch failed:", err));
     }
 
+    // ─── 5.6 Fire push notification + DB notification to the merchant ───
+    // Best-effort: failures are swallowed so they never block the AI pipeline
+    (async () => {
+      try {
+        // Insert a notification row (powers the bell icon dropdown)
+        await getSupabase().from("notifications").insert({
+          account_id: account.id,
+          type: "new_message",
+          title: `New message from ${customer.name || "a customer"}`,
+          body: text ? text.substring(0, 100) : (mediaUrls.length > 0 ? "📷 Sent an image" : "New message"),
+          link: "/dashboard/conversations",
+          metadata: {
+            conversation_id: conversation.id,
+            customer_id: customer.id,
+            channel,
+            intent,
+          },
+        });
+
+        // Fire a web push notification to all subscribed devices
+        const { broadcastPushToAccount } = await import("@/lib/push/web-push");
+        await broadcastPushToAccount(getSupabase(), account.id, {
+          title: `💬 ${customer.name || "New message"}`,
+          body: text ? text.substring(0, 80) : "Sent an image",
+          url: "/dashboard/conversations",
+          tag: `conv-${conversation.id}`,
+          data: { conversationId: conversation.id },
+        });
+      } catch (pushErr) {
+        // Silent fail — push is best-effort
+        console.warn("[PROCESSOR] Push notification failed:", pushErr.message);
+      }
+    })();
+
     // ─── 6. Update conversation metadata ───
     const convUpdates = {
       last_message_at: new Date().toISOString(),
