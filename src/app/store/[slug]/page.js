@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Search, ShoppingBag, MessageCircle, Star, Phone,
-  ChevronRight, ArrowLeft, Package, Check, Heart, Share2, Truck, Shield,
+  Search, MessageCircle, Star,
+  ChevronRight, ArrowLeft, Package, Check, Share2, Truck, Shield,
 } from "lucide-react";
 
 // Brand icons (Instagram, Facebook) were removed from lucide-react in v1+.
@@ -27,21 +27,24 @@ function FacebookIcon({ size = 14, ...props }) {
   );
 }
 
-// Sellora logo mark — gradient "S" tile matching the brand
-function SelloraMark({ size = 40 }) {
+// Sellora logo — uses /public/logo.png (the actual brand asset)
+function SelloraMark({ size = 40, withGlow = true }) {
   return (
-    <div style={{
-      width: size, height: size, borderRadius: size * 0.28,
-      background: "linear-gradient(135deg, #5865F2 0%, #00D2FF 100%)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      boxShadow: "0 8px 24px -8px rgba(88, 101, 242, 0.5)",
-      flexShrink: 0,
-    }}>
-      <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        {/* Stylized "S" path */}
-        <path d="M19 8.5c0-2.5-2.5-4.5-6-4.5S7 6 7 8.5c0 1.8 1.4 3.1 4 3.7l2 .5c2.6.6 4 1.9 4 3.7 0 2.5-2.5 4.5-6 4.5s-6-2-6-4.5" />
-      </svg>
-    </div>
+    <img
+      src="/logo.png"
+      alt="Sellora"
+      width={size}
+      height={size}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        objectFit: "cover",
+        boxShadow: withGlow ? "0 8px 24px -8px rgba(88, 101, 242, 0.5)" : "none",
+        flexShrink: 0,
+        display: "block",
+      }}
+    />
   );
 }
 
@@ -58,6 +61,7 @@ export default function StorefrontPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState("all");
+  const [shareStatus, setShareStatus] = useState(null); // null | "sharing" | "copied" | "error"
 
   useEffect(() => {
     if (!slug) return;
@@ -92,6 +96,61 @@ export default function StorefrontPage() {
       ? `Hi! I'm interested in ${product.name} (${product.price} ${store?.currency || "EGP"}). Is it available?`
       : `Hi! I have a question about your store.`;
     return `https://wa.me/${(store?.whatsappNumber || "").replace(/[^\d]/g, "")}?text=${encodeURIComponent(msg)}`;
+  };
+
+  // ─── Share handler — uses Web Share API on mobile, falls back to clipboard ───
+  const handleShare = async () => {
+    if (!selectedProduct) return;
+    const p = selectedProduct.product;
+    const shareUrl = window.location.href;
+    const shareTitle = `${p.name} — ${store?.name || "Store"}`;
+    const shareText = `Check out ${p.name} (${p.price} ${p.currency || store?.currency || "EGP"}) at ${store?.name || "this store"}:`;
+
+    setShareStatus("sharing");
+
+    // Try native Web Share API first (works on most mobile browsers + desktop Safari)
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        setShareStatus(null); // User closed the share sheet — no need for confirmation
+        return;
+      } catch (err) {
+        // User cancelled (AbortError) — silently exit
+        if (err.name === "AbortError") {
+          setShareStatus(null);
+          return;
+        }
+        // Other errors fall through to clipboard fallback
+        console.warn("Web Share failed, falling back to clipboard:", err.message);
+      }
+    }
+
+    // Clipboard fallback
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        // Legacy fallback for older browsers
+        const textarea = document.createElement("textarea");
+        textarea.value = shareUrl;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setShareStatus("copied");
+      setTimeout(() => setShareStatus(null), 2500);
+    } catch (err) {
+      console.error("Share failed:", err);
+      setShareStatus("error");
+      setTimeout(() => setShareStatus(null), 2500);
+    }
   };
 
   const filtered = (products || []).filter((p) => {
@@ -232,15 +291,29 @@ export default function StorefrontPage() {
               )}
 
               {/* CTAs */}
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                 <a href={buildWhatsAppLink(p)} target="_blank" rel="noopener noreferrer" style={waBtnStyle}>
                   <MessageCircle size={16} /> Order on WhatsApp
                 </a>
                 <button
-                  onClick={() => { navigator.clipboard?.writeText(window.location.href); }}
-                  style={secondaryBtnStyle}
+                  onClick={handleShare}
+                  disabled={shareStatus === "sharing"}
+                  style={{
+                    ...secondaryBtnStyle,
+                    opacity: shareStatus === "sharing" ? 0.6 : 1,
+                    ...(shareStatus === "copied" ? { background: "rgba(59,165,92,0.15)", color: "#3BA55C", borderColor: "rgba(59,165,92,0.3)" } : {}),
+                    ...(shareStatus === "error" ? { background: "rgba(237,66,69,0.15)", color: "#ED4245", borderColor: "rgba(237,66,69,0.3)" } : {}),
+                  }}
                 >
-                  <Share2 size={14} /> Share
+                  {shareStatus === "sharing" ? (
+                    <><Share2 size={14} /> Sharing…</>
+                  ) : shareStatus === "copied" ? (
+                    <><Check size={14} /> Link copied!</>
+                  ) : shareStatus === "error" ? (
+                    <><Share2 size={14} /> Try again</>
+                  ) : (
+                    <><Share2 size={14} /> Share</>
+                  )}
                 </button>
               </div>
             </div>

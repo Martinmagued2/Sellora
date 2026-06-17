@@ -4,20 +4,24 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Star, Check, Send, Loader2 } from "lucide-react";
 
-// Sellora logo mark — gradient "S" tile matching the brand
-function SelloraMark({ size = 40 }) {
+// Sellora logo — uses /public/logo.png (the actual brand asset)
+function SelloraMark({ size = 40, withGlow = true }) {
   return (
-    <div style={{
-      width: size, height: size, borderRadius: size * 0.28,
-      background: "linear-gradient(135deg, #5865F2 0%, #00D2FF 100%)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      boxShadow: "0 8px 24px -8px rgba(88, 101, 242, 0.5)",
-      flexShrink: 0,
-    }}>
-      <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M19 8.5c0-2.5-2.5-4.5-6-4.5S7 6 7 8.5c0 1.8 1.4 3.1 4 3.7l2 .5c2.6.6 4 1.9 4 3.7 0 2.5-2.5 4.5-6 4.5s-6-2-6-4.5" />
-      </svg>
-    </div>
+    <img
+      src="/logo.png"
+      alt="Sellora"
+      width={size}
+      height={size}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size * 0.28,
+        objectFit: "cover",
+        boxShadow: withGlow ? "0 8px 24px -8px rgba(88, 101, 242, 0.5)" : "none",
+        flexShrink: 0,
+        display: "block",
+      }}
+    />
   );
 }
 

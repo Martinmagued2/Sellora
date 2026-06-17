@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, X, Smartphone } from "lucide-react";
+import { Download, X } from "lucide-react";
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -86,14 +86,20 @@ export default function InstallPrompt() {
           width: 48,
           height: 48,
           borderRadius: 14,
-          background: "var(--accent-gradient)",
+          overflow: "hidden",
+          flexShrink: 0,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          flexShrink: 0,
         }}
       >
-        <Smartphone size={24} style={{ color: "white" }} />
+        <img
+          src="/logo.png"
+          alt="Sellora"
+          width={48}
+          height={48}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
