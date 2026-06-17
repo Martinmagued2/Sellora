@@ -9,7 +9,7 @@ import {
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
   Megaphone, AlertTriangle, BellOff, Mic, MicOff, Image as ImageIcon,
-  ArrowLeft, Filter, Hand, ThumbsUp, ThumbsDown,
+  ArrowLeft, Filter, Hand, ThumbsUp, ThumbsDown, Pause, Play,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -1024,13 +1024,32 @@ export default function ConversationsPage() {
                 <button
                   onClick={handleToggleAi}
                   disabled={togglingAi}
-                  title={aiPausedForConv ? "Resume AI" : "Pause AI / Take Over"}
+                  title={aiPausedForConv ? "Resume AI" : "Pause AI"}
                   style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "4px 10px",
+                    borderRadius: 8,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    background: aiPausedForConv
+                      ? "rgba(59,165,92,0.15)"
+                      : "rgba(248,165,50,0.15)",
                     color: aiPausedForConv ? "var(--accent-green)" : "var(--accent-orange)",
+                    border: `1px solid ${aiPausedForConv ? "rgba(59,165,92,0.3)" : "rgba(248,165,50,0.3)"}`,
                     opacity: togglingAi ? 0.5 : 1,
+                    cursor: "pointer",
                   }}
                 >
-                  {togglingAi ? <Loader2 size={18} className="spin" /> : (aiPausedForConv ? <Bot size={18} /> : <Hand size={18} />)}
+                  {togglingAi ? (
+                    <Loader2 size={12} className="spin" />
+                  ) : aiPausedForConv ? (
+                    <Play size={12} />
+                  ) : (
+                    <Pause size={12} />
+                  )}
+                  <span>{aiPausedForConv ? "Resume" : "Pause AI"}</span>
                 </button>
                 <button onClick={() => setShowMobileStatusMenu(!showMobileStatusMenu)} title="Status">
                   <MoreVertical size={18} />
@@ -1860,6 +1879,38 @@ export default function ConversationsPage() {
                   style={{ position: "relative" }}
                 >
                   {summarizing ? <Loader2 size={16} className="spin" /> : <FileText size={16} />}
+                </button>
+                {/* Pause AI / Resume AI button */}
+                <button
+                  onClick={handleToggleAi}
+                  disabled={togglingAi}
+                  title={aiPausedForConv ? "Resume AI auto-replies" : "Pause AI — take over this conversation"}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    background: aiPausedForConv
+                      ? "rgba(59,165,92,0.15)"
+                      : "rgba(248,165,50,0.15)",
+                    color: aiPausedForConv ? "var(--accent-green)" : "var(--accent-orange)",
+                    border: `1px solid ${aiPausedForConv ? "rgba(59,165,92,0.3)" : "rgba(248,165,50,0.3)"}`,
+                    opacity: togglingAi ? 0.5 : 1,
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {togglingAi ? (
+                    <Loader2 size={13} className="spin" />
+                  ) : aiPausedForConv ? (
+                    <Play size={13} />
+                  ) : (
+                    <Pause size={13} />
+                  )}
+                  <span>{aiPausedForConv ? "Resume AI" : "Pause AI"}</span>
                 </button>
                 {/* Status selector */}
                 <select
