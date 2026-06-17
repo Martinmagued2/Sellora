@@ -3,6 +3,66 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { generateProductImage } from "@/lib/ai/image-generator";
 
+/**
+ * Format an order into a rich, human-readable response that the AI can
+ * include directly in its reply. This ensures the actual order details
+ * appear in the chat — not just "found it, click here".
+ */
+function formatOrderResponse(order) {
+  const statusEmojis = {
+    pending: "⏳",
+    confirmed: "✅",
+    shipped: "📦",
+    delivered: "✅",
+    cancelled: "❌",
+    returned: "↩️",
+  };
+  const paymentEmojis = {
+    paid: "💵",
+    unpaid: "⏳",
+    refunded: "💰",
+  };
+
+  const statusEmoji = statusEmojis[order.status] || "📋";
+  const paymentEmoji = paymentEmojis[order.payment_status] || "❓";
+  const currency = order.currency || "EGP";
+  const customer = order.customers || {};
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  let itemsText = "";
+  if (items.length > 0) {
+    itemsText = "\n\n📦 Items:";
+    items.forEach((item, i) => {
+      const name = item.name || "Item";
+      const qty = item.qty || 1;
+      const price = Number(item.price) || 0;
+      const variant = item.variant ? ` (${item.variant})` : "";
+      itemsText += `\n• ${name}${variant} × ${qty} — ${price.toLocaleString()} ${currency}`;
+    });
+  }
+
+  const orderDate = order.created_at
+    ? new Date(order.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+    : "Unknown";
+
+  const formattedResponse = `Here are the details for ${order.order_number}:
+
+👤 Customer: ${customer.name || "Unknown"}${customer.phone ? ` (${customer.phone})` : ""}
+📊 Status: ${statusEmoji} ${order.status || "Unknown"}
+💵 Payment: ${paymentEmoji} ${order.payment_status || "Unknown"}${order.payment_method ? ` via ${order.payment_method}` : ""}
+💰 Total: ${Number(order.total || 0).toLocaleString()} ${currency}${itemsText}
+${order.shipping_address ? `\n📍 Shipping: ${order.shipping_address}` : ""}
+${order.tracking_number ? `\n📮 Tracking: ${order.tracking_number}${order.carrier ? ` (${order.carrier})` : ""}` : ""}
+📅 Ordered: ${orderDate}`;
+
+  return {
+    success: true,
+    order,
+    formatted_response: formattedResponse,
+    _action: { type: "navigate", path: "/dashboard/orders", label: "View All Orders" },
+  };
+}
+
 export const createCopilotTools = (accountId) => {
   // Create Supabase client lazily inside the function to avoid build-time errors
   // (env vars are not available during `next build`)
@@ -1079,7 +1139,7 @@ export const createCopilotTools = (accountId) => {
     // ─── CUSTOMER TOOLS ───
 
     get_order_details: tool({
-      description: "Get detailed information about a specific order, including items, customer info, and payment details. Use when the seller asks about a specific order. Accepts either the order ID (UUID) or the human-readable order number (e.g. 'ORD-001016').",
+      description: "Get detailed information about a specific order, including items, customer info, and payment details. Use when the seller asks about a specific order. Accepts either the order ID (UUID) or the human-readable order number (e.g. 'ORD-001016'). ALWAYS write out the full order details in your response — do not just say 'found it' or show a link.",
       inputSchema: z.object({
         order_id: z.string().describe("The order ID (UUID) OR the order number (e.g. 'ORD-001016'). Either works."),
       }),
@@ -1089,13 +1149,12 @@ export const createCopilotTools = (accountId) => {
 
         let query = supabase
           .from("orders")
-          .select("id, order_number, total, status, items, payment_method, payment_status, shipping_address, tracking_number, carrier, created_at, customers(name, email, phone)")
+          .select("id, order_number, total, status, items, payment_method, payment_status, shipping_address, tracking_number, carrier, currency, created_at, customers(name, email, phone)")
           .eq("account_id", accountId);
 
         if (isUUID) {
           query = query.eq("id", order_id);
         } else {
-          // Treat as order_number — normalize to uppercase
           query = query.eq("order_number", order_id.toUpperCase().trim());
         }
 
@@ -1106,25 +1165,21 @@ export const createCopilotTools = (accountId) => {
           if (!isUUID) {
             const { data: fallback, error: fallbackErr } = await supabase
               .from("orders")
-              .select("id, order_number, total, status, items, payment_method, payment_status, shipping_address, tracking_number, carrier, created_at, customers(name, email, phone)")
+              .select("id, order_number, total, status, items, payment_method, payment_status, shipping_address, tracking_number, carrier, currency, created_at, customers(name, email, phone)")
               .eq("account_id", accountId)
               .ilike("order_number", order_id.trim())
               .single();
             if (!fallbackErr && fallback) {
-              return {
-                success: true,
-                order: fallback,
-                _action: { type: "navigate", path: "/dashboard/orders", label: "View All Orders" },
-              };
+              return formatOrderResponse(fallback);
             }
           }
-          return { success: false, error: `Order '${order_id}' not found. Make sure the order number is correct.` };
+          return {
+            success: false,
+            error: `Order '${order_id}' not found. Make sure the order number is correct.`,
+            suggestion: "Ask the seller to double-check the order number. You can also suggest they view all orders on the Orders page.",
+          };
         }
-        return {
-          success: true,
-          order: data,
-          _action: { type: "navigate", path: "/dashboard/orders", label: "View All Orders" },
-        };
+        return formatOrderResponse(data);
       },
     }),
 
