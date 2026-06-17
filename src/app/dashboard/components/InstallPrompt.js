@@ -46,6 +46,12 @@ export default function InstallPrompt() {
 
     if (outcome === "accepted") {
       setShowPrompt(false);
+      // Credit the account with 50 bonus AI replies
+      try {
+        await fetch("/api/onboarding/install-bonus", { method: "POST" });
+      } catch (e) {
+        // Silent fail — the user still installed the app
+      }
     }
 
     setDeferredPrompt(null);
@@ -104,10 +110,10 @@ export default function InstallPrompt() {
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: "var(--font-size-sm)", marginBottom: 2 }}>
-          Install Sellora
+          Install Sellora — get 50 free AI replies
         </div>
         <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", lineHeight: 1.4 }}>
-          Add to your home screen for quick access and push notifications
+          Add to your home screen for quick access + push notifications. We'll credit your account with 50 bonus AI replies this month. 🎁
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button

@@ -809,7 +809,26 @@ export default function ConversationsPage() {
       ) : (
         <>{msg.content}</>
       )}
-      <span className="msg-time">{formatTime(msg.created_at)}</span>
+      <span className="msg-time">
+        {formatTime(msg.created_at)}
+        {/* Read receipts for outgoing messages (WhatsApp-style double-tick) */}
+        {msg.direction === "outgoing" && msg.read_at && (
+          <span title={`Read ${new Date(msg.read_at).toLocaleString()}`} style={{ marginLeft: 3, color: "#4fc3f7", display: "inline-flex", verticalAlign: "middle" }}>
+            <svg width="14" height="14" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M1 6l3 3 6-6" />
+              <path d="M5 9l3 3 6-6" />
+            </svg>
+          </span>
+        )}
+        {msg.direction === "outgoing" && !msg.read_at && msg.delivered_at && (
+          <span title={`Delivered ${new Date(msg.delivered_at).toLocaleString()}`} style={{ marginLeft: 3, color: "var(--text-tertiary)", display: "inline-flex", verticalAlign: "middle" }}>
+            <svg width="14" height="14" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M1 6l3 3 6-6" />
+              <path d="M5 9l3 3 6-6" />
+            </svg>
+          </span>
+        )}
+      </span>
       {msg.is_ai && msg.direction === "outgoing" && (
         <div className="ai-feedback" style={{ display: "flex", gap: 4, marginTop: 4, opacity: 0.6 }}>
           <button

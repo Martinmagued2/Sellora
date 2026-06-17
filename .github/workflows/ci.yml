@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Run ESLint
+        run: bun run lint
+        continue-on-error: true
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: lint
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-key' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build Next.js
+        run: bun run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  migrations-check:
+    name: Validate SQL migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for duplicate migration numbers
+        run: |
+          FILES=$(ls supabase/migrations/*.sql 2>/dev/null | xargs -I{} basename {} | sort)
+          DUPES=$(echo "$FILES" | sed 's/_.*//' | sort | uniq -d)
+          if [ -n "$DUPES" ]; then
+            echo "ERROR: Duplicate migration prefixes: $DUPES"
+            exit 1
+          fi
+          echo "OK — no duplicate migration numbers"
+      - name: Verify single source of truth
+        run: |
+          if [ -d "src/app/api/db/migrations" ] && [ -n "$(ls -A src/app/api/db/migrations 2>/dev/null)" ]; then
+            echo "ERROR: src/app/api/db/migrations still contains files"
+            ls src/app/api/db/migrations/
+            exit 1
+          fi
+          echo "OK — single migration source"
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for committed secrets
+        run: |
+          if git ls-files | grep -E "^\.env$|^\.env\." | grep -v "\.env\.example"; then
+            echo "ERROR: .env file tracked in git"
+            exit 1
+          fi
+          if grep -rE "sk_(live|test)_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{36,}|AIza[0-9A-Za-z_-]{30,}" src/ --include="*.js" --include="*.jsx" 2>/dev/null; then
+            echo "ERROR: Hardcoded secret in source"
+            exit 1
+          fi
+          echo "OK — no secrets detected"

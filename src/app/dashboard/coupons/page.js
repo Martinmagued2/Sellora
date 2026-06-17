@@ -56,6 +56,7 @@ export default function CouponsPage() {
   const [form, setForm] = useState({
     code: "",
     type: "percentage",
+    subtype: "standard", // standard | bogo | tiered | first_order | customer_specific
     value: "",
     min_order_value: "",
     max_uses: "",
@@ -63,6 +64,14 @@ export default function CouponsPage() {
     expires_at: "",
     applies_to: "all",
     is_active: true,
+    // BOGO fields
+    bogo_buy_qty: 1,
+    bogo_get_qty: 1,
+    bogo_get_discount_percent: 100,
+    // Tiered fields (stored as JSON string in form, parsed on save)
+    tiered_rules_text: '[{"min": 500, "percent": 10}, {"min": 1000, "percent": 15}]',
+    // Customer-specific
+    target_customer_id: "",
   });
 
   const supabase = createClient();
@@ -543,6 +552,100 @@ export default function CouponsPage() {
                   </div>
                 </div>
 
+                {/* Smart Coupon Subtype selector (Pro+ feature) */}
+                {form.type === "percentage" && (
+                  <div style={{ marginBottom: "var(--space-md)" }}>
+                    <label style={{ display: "block", marginBottom: "var(--space-xs)", fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--text-secondary)" }}>
+                      Coupon Subtype <span style={{ color: "var(--accent-primary-light)", fontSize: 10 }}>(Pro+ feature)</span>
+                    </label>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {[
+                        { value: "standard", label: "Standard %" },
+                        { value: "bogo", label: "Buy X Get Y" },
+                        { value: "tiered", label: "Tiered %" },
+                        { value: "first_order", label: "First Order Only" },
+                        { value: "customer_specific", label: "Specific Customer" },
+                      ].map((s) => (
+                        <button
+                          key={s.value}
+                          type="button"
+                          onClick={() => setForm({ ...form, subtype: s.value })}
+                          style={{
+                            padding: "6px 12px", borderRadius: "var(--radius-full)",
+                            border: `1px solid ${form.subtype === s.value ? "var(--accent-secondary)" : "var(--border-subtle)"}`,
+                            background: form.subtype === s.value ? "rgba(0, 210, 255, 0.1)" : "var(--bg-glass)",
+                            color: form.subtype === s.value ? "var(--accent-secondary)" : "var(--text-secondary)",
+                            cursor: "pointer", fontSize: 11, fontWeight: 600,
+                          }}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* BOGO fields */}
+                    {form.subtype === "bogo" && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
+                        <div>
+                          <label style={fieldLabelStyle}>Buy Qty</label>
+                          <input type="number" min="1" value={form.bogo_buy_qty} onChange={(e) => setForm({ ...form, bogo_buy_qty: parseInt(e.target.value) || 1 })} style={inputStyle} />
+                        </div>
+                        <div>
+                          <label style={fieldLabelStyle}>Get Qty</label>
+                          <input type="number" min="1" value={form.bogo_get_qty} onChange={(e) => setForm({ ...form, bogo_get_qty: parseInt(e.target.value) || 1 })} style={inputStyle} />
+                        </div>
+                        <div>
+                          <label style={fieldLabelStyle}>Get % Off</label>
+                          <input type="number" min="1" max="100" value={form.bogo_get_discount_percent} onChange={(e) => setForm({ ...form, bogo_get_discount_percent: parseInt(e.target.value) || 100 })} style={inputStyle} />
+                        </div>
+                        <p style={{ gridColumn: "1/-1", fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>
+                          Customer buys {form.bogo_buy_qty}, gets {form.bogo_get_qty} at {form.bogo_get_discount_percent}% off (cheapest items discounted).
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Tiered fields */}
+                    {form.subtype === "tiered" && (
+                      <div style={{ marginTop: 10 }}>
+                        <label style={fieldLabelStyle}>Tiered Rules (JSON)</label>
+                        <textarea
+                          value={form.tiered_rules_text}
+                          onChange={(e) => setForm({ ...form, tiered_rules_text: e.target.value })}
+                          rows={3}
+                          style={{ ...inputStyle, fontFamily: "monospace", fontSize: 11 }}
+                          placeholder='[{"min": 500, "percent": 10}, {"min": 1000, "percent": 15}]'
+                        />
+                        <p style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
+                          Customer gets the highest matching % off based on their order total.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Customer-specific */}
+                    {form.subtype === "customer_specific" && (
+                      <div style={{ marginTop: 10 }}>
+                        <label style={fieldLabelStyle}>Target Customer ID (UUID)</label>
+                        <input
+                          type="text"
+                          value={form.target_customer_id}
+                          onChange={(e) => setForm({ ...form, target_customer_id: e.target.value })}
+                          style={inputStyle}
+                          placeholder="Paste customer UUID"
+                        />
+                        <p style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
+                          Only this customer can redeem the coupon. Find the UUID in the Customers page.
+                        </p>
+                      </div>
+                    )}
+
+                    {form.subtype === "first_order" && (
+                      <p style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 8, padding: 8, background: "var(--bg-glass)", borderRadius: 8 }}>
+                        💡 Only valid on a customer's first order. The system checks past orders automatically.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Value */}
                 {form.type !== "free_shipping" && (
                   <div className="form-group">
@@ -671,3 +774,23 @@ export default function CouponsPage() {
     </>
   );
 }
+
+// Styles for smart coupon subtype fields
+const fieldLabelStyle = {
+  display: "block",
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+  marginBottom: 4,
+};
+
+const inputStyle = {
+  width: "100%",
+  padding: "8px 10px",
+  borderRadius: 8,
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-medium)",
+  color: "var(--text-primary)",
+  fontSize: 13,
+  outline: "none",
+};

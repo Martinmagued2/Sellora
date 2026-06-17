@@ -3994,3 +3994,95 @@ html[data-theme="light"] .glassmorphism-card {
     height: 50px;
   }
 }
+
+/* ============================================================
+   LIGHT THEME — applied when [data-theme="light"] on <html>
+   ============================================================ */
+:root[data-theme="light"] {
+  --bg-primary: #f7f8fc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f3f9;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-card-hover: rgba(245, 247, 252, 1);
+  --bg-glass: rgba(0, 0, 0, 0.03);
+  --bg-glass-hover: rgba(0, 0, 0, 0.06);
+
+  --text-primary: #0d1117;
+  --text-secondary: #57606a;
+  --text-tertiary: #8b949e;
+
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-medium: rgba(0, 0, 0, 0.12);
+  --border-accent: rgba(88, 101, 242, 0.3);
+
+  /* Accent colors stay the same — they work on both backgrounds */
+  --accent-primary: #5865F2;
+  --accent-primary-light: #7E88F5;
+  --accent-secondary: #00A5CC;
+  --accent-secondary-violet: #5865F2;
+  --accent-green: #2D7D46;
+  --accent-green-dark: #1F5C32;
+  --accent-orange: #D88A1A;
+  --accent-pink: #C73785;
+  --accent-red: #C93A3D;
+
+  color-scheme: light;
+}
+
+:root[data-theme="light"] body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Invert box-shadows for light mode (less harsh) */
+:root[data-theme="light"] .copilot-fab,
+:root[data-theme="light"] .copilot-panel {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* Sidebar in light mode */
+:root[data-theme="light"] .dashboard-sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-subtle);
+}
+
+/* Chat messages — incoming bubbles in light mode */
+:root[data-theme="light"] .chat-msg.incoming .msg-bubble {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+:root[data-theme="light"] .chat-msg.outgoing .msg-bubble {
+  background: linear-gradient(135deg, #5865F2, #00D2FF) !important;
+  color: #fff !important;
+}
+
+:root[data-theme="light"] .chat-msg.ai-reply .msg-bubble {
+  background: linear-gradient(135deg, rgba(88,101,242,0.1), rgba(0,210,255,0.05)) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid rgba(88,101,242,0.2) !important;
+}
+
+/* Cards & inputs */
+:root[data-theme="light"] .product-card,
+:root[data-theme="light"] .stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+:root[data-theme="light"] .form-input,
+:root[data-theme="light"] input[type="text"],
+:root[data-theme="light"] input[type="email"],
+:root[data-theme="light"] input[type="number"],
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-medium);
+  color: var(--text-primary);
+}
+
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder {
+  color: var(--text-tertiary);
+}
