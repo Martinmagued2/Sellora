@@ -238,19 +238,20 @@ CREATE POLICY "Users can read own conversation_events"
   USING (account_id = auth.uid());
 
 -- ═══ 12. Backfill resolved_by for existing conversations ═══
--- A conversation is "ai_resolved" if it has AI messages but no human messages
+-- A conversation is "ai_resolved" if it has outgoing AI messages and
+-- NO outgoing human messages (i.e. outgoing messages where is_ai = FALSE).
 UPDATE conversations c
 SET resolved_by = 'ai'
 WHERE c.status = 'closed'
   AND c.resolved_by IS NULL
-  AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.is_ai = TRUE)
-  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.is_ai = FALSE AND m.sender_type = 'agent');
+  AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.is_ai = TRUE AND m.direction = 'outgoing')
+  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.is_ai = FALSE AND m.direction = 'outgoing');
 
 UPDATE conversations c
 SET resolved_by = 'human'
 WHERE c.status = 'closed'
   AND c.resolved_by IS NULL
-  AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.is_ai = FALSE AND m.sender_type = 'agent');
+  AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id AND m.is_ai = FALSE AND m.direction = 'outgoing');
 
 UPDATE conversations c
 SET resolved_by = 'mixed'
