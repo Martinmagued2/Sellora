@@ -1,13 +1,22 @@
-import * as Sentry from "@sentry/nextjs";
+// Edge runtime Sentry config — lighter weight, dynamic import.
 
-// Edge runtime Sentry config (lighter weight)
-export function registerEdgeSentry() {
+let _initialized = false;
+
+export async function registerEdgeSentry() {
+  if (_initialized) return;
+  _initialized = true;
+
   if (!process.env.NEXT_PUBLIC_SENTRY_DSN) return;
 
-  Sentry.init({
-    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    tracesSampleRate: 0.1,
-    environment: process.env.NODE_ENV,
-    sendDefaultPii: false,
-  });
+  try {
+    const Sentry = (await import("@sentry/nextjs")).default;
+    Sentry.init({
+      dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+      tracesSampleRate: 0.1,
+      environment: process.env.NODE_ENV,
+      sendDefaultPii: false,
+    });
+  } catch (e) {
+    // Package not installed — Sentry is disabled
+  }
 }
