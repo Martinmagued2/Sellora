@@ -63,7 +63,7 @@ export const PLAN_LIMITS = {
     custom_ai_personality: true,
     webhooks: true,
     data_retention_days: 180,     // 6 months
-    csv_export: false,
+    csv_export: true,
   },
 
   business: {

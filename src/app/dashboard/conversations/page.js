@@ -9,7 +9,7 @@ import {
   MapPin, Hash, Star, ArrowRight, Check, Loader2,
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
   Megaphone, AlertTriangle, BellOff, Mic, MicOff, Image as ImageIcon,
-  ArrowLeft, Filter,
+  ArrowLeft, Filter, Hand, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -394,6 +394,47 @@ export default function ConversationsPage() {
     setSummarizing(false);
   };
 
+  // ─── H2: Pause AI / Take Over toggle ───
+  const [aiPausedForConv, setAiPausedForConv] = useState(false);
+  const [togglingAi, setTogglingAi] = useState(false);
+
+  useEffect(() => {
+    if (activeConv) {
+      setAiPausedForConv(!!activeConv.ai_paused);
+    }
+  }, [activeConv?.id]);
+
+  const handleToggleAi = async () => {
+    if (!activeConv || togglingAi) return;
+    setTogglingAi(true);
+    try {
+      const action = aiPausedForConv ? "resume_ai" : "take_over";
+      const res = await fetch(`/api/conversations/${activeConv.id}/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (res.ok) {
+        setAiPausedForConv(!aiPausedForConv);
+      }
+    } catch (e) {
+      console.error("Toggle AI failed:", e);
+    } finally {
+      setTogglingAi(false);
+    }
+  };
+
+  // ─── H3: AI feedback (thumbs up/down) ───
+  const handleAiFeedback = async (messageId, rating) => {
+    try {
+      await fetch(`/api/messages/${messageId}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating }),
+      });
+    } catch (e) { /* ignore */ }
+  };
+
   // ─── Send product card into chat ───
   const handleSendProduct = async (product) => {
     if (!activeConv) return;
@@ -769,6 +810,24 @@ export default function ConversationsPage() {
         <>{msg.content}</>
       )}
       <span className="msg-time">{formatTime(msg.created_at)}</span>
+      {msg.is_ai && msg.direction === "outgoing" && (
+        <div className="ai-feedback" style={{ display: "flex", gap: 4, marginTop: 4, opacity: 0.6 }}>
+          <button
+            onClick={() => handleAiFeedback(msg.id, "up")}
+            title="Good reply"
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 2, color: "var(--text-tertiary)" }}
+          >
+            <ThumbsUp size={12} />
+          </button>
+          <button
+            onClick={() => handleAiFeedback(msg.id, "down")}
+            title="Bad reply"
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 2, color: "var(--text-tertiary)" }}
+          >
+            <ThumbsDown size={12} />
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -961,6 +1020,17 @@ export default function ConversationsPage() {
                 )}
                 <button onClick={handleSummarize} disabled={summarizing} title="Summarize">
                   {summarizing ? <Loader2 size={18} className="spin" /> : <FileText size={18} />}
+                </button>
+                <button
+                  onClick={handleToggleAi}
+                  disabled={togglingAi}
+                  title={aiPausedForConv ? "Resume AI" : "Pause AI / Take Over"}
+                  style={{
+                    color: aiPausedForConv ? "var(--accent-green)" : "var(--accent-orange)",
+                    opacity: togglingAi ? 0.5 : 1,
+                  }}
+                >
+                  {togglingAi ? <Loader2 size={18} className="spin" /> : (aiPausedForConv ? <Bot size={18} /> : <Hand size={18} />)}
                 </button>
                 <button onClick={() => setShowMobileStatusMenu(!showMobileStatusMenu)} title="Status">
                   <MoreVertical size={18} />

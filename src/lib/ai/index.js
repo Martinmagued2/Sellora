@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
 import { routeMessage } from "./router";
 import { createSalesTools, createSupportTools } from "./tools";
+import { createCartTools, createCustomerMemoryTools } from "./cart-tools";
 import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt, buildPersonalityFromSettings } from "./agents";
 import { getZAIConfig } from "./z-ai-config";
 import { buildFullProviderChain, recordKeyFailure, recordKeySuccess, getProviderChainSummary } from "./provider-chain";
@@ -147,6 +148,7 @@ export async function analyzeImage(imageUrl, context = "") {
 export async function generateAIReplyWithVision({
   accountId,
   customerId,
+  conversationId = null,
   customerMessage,
   customerName,
   personality,
@@ -176,6 +178,7 @@ export async function generateAIReplyWithVision({
     const result = await generateAIReply({
       accountId,
       customerId,
+      conversationId,
       customerMessage: enhancedMessage,
       customerName,
       personality,
@@ -251,6 +254,7 @@ function buildProviderChain() {
 export async function generateAIReply({
   accountId,
   customerId,
+  conversationId = null,
   customerMessage,
   customerName,
   personality,
@@ -269,6 +273,10 @@ export async function generateAIReply({
     let systemPrompt = "";
     let tools = {};
 
+    // Plan-gated: Pro+ gets cart + customer memory tools
+    const planLimits = (await import("@/lib/plan-limits")).getPlanLimits(plan);
+    const canUseAgentTools = planLimits.agent_tools === true || planLimits.agent_tools === -1;
+
     switch(intent) {
       case "support":
         systemPrompt = getSupportAgentPrompt(businessName, personality);
@@ -283,6 +291,20 @@ export async function generateAIReply({
         systemPrompt = getSalesAgentPrompt(businessName, country, personality);
         tools = createSalesTools(accountId, customerId);
         break;
+    }
+
+    // ─── B6: Customer memory tools (Pro+) ───
+    // AI can read/write per-customer preferences and memory
+    if (canUseAgentTools && customerId) {
+      const memoryTools = createCustomerMemoryTools(accountId, customerId);
+      tools = { ...tools, ...memoryTools };
+    }
+
+    // ─── H4: Cart tools (Pro+) ───
+    // AI can build multi-item carts and convert to orders
+    if (canUseAgentTools) {
+      const cartTools = createCartTools(accountId, customerId, conversationId);
+      tools = { ...tools, ...cartTools };
     }
 
     // 2.5. A/B Test: Check for running tests and assign variant

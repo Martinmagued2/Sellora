@@ -13,6 +13,14 @@ import { sendMessage } from "@/lib/channels/meta";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { dispatchWebhook } from "@/lib/webhooks";
+import {
+  isAiPaused,
+  showTypingIndicator,
+  humanReplyDelay,
+  escalateToHuman,
+  trackDeflection,
+  sendAiFailureFallback,
+} from "@/lib/ai/reply-helpers";
 
 // Service role client for server-side processing (lazy-initialized)
 let _supabase = null;
@@ -660,6 +668,23 @@ export async function processIncomingMessage({
     // AND FAQ hasn't already handled this message with a high-confidence match
     if (account.ai_enabled && (text || mediaUrls.length > 0) && !faqMatchedAndReplied) {
       try {
+        // ─── 10a. Check per-conversation AI pause (operator "Take over" / escalation) ───
+        const { paused, reason } = await isAiPaused(conversation.id);
+        if (paused) {
+          console.log(`[PROCESSOR] AI paused for conversation ${conversation.id}: ${reason}. Skipping AI reply.`);
+          // Record an event so the operator sees the customer tried to reach out
+          try {
+            await getSupabase().from("conversation_events").insert({
+              conversation_id: conversation.id,
+              account_id: account.id,
+              event_type: "ai_skipped_paused",
+              metadata: { reason },
+            });
+          } catch (e) { /* ignore */ }
+          // Do NOT send anything to the customer — the operator will reply manually
+          return;
+        }
+
         // Check daily AI rate limit per account (plan-aware)
         const planLimits = getPlanLimits(account.plan || "starter");
         const MAX_AI_PER_ACCOUNT_PER_DAY = planLimits.ai_replies_per_day;
@@ -709,39 +734,89 @@ export async function processIncomingMessage({
 
           const history = (recentMessages || []).reverse();
 
+          // ─── Step 9.5: Show typing indicator on customer's channel ───
+          // Best-effort: failures are swallowed inside the helper
+          const typingParams = {
+            channel,
+            recipientId: senderId,
+            phoneNumberId: account.whatsapp_phone_number_id,
+            accessToken: channel === "whatsapp" ? (account.whatsapp_access_token || accessToken) : accessToken,
+            pageId,
+          };
+          await showTypingIndicator(typingParams);
+
           // Use vision AI if customer sent images, otherwise standard AI reply
-          const aiResult = mediaUrls.length > 0
-            ? await generateAIReplyWithVision({
-                accountId: account.id,
-                customerId: customer.id,
-                customerMessage: text || "",
-                customerName: customer.name,
-                personality: account.ai_personality,
-                country: account.country,
-                businessName: account.business_name,
-                conversationHistory: history,
-                plan: account.plan,
-                mediaUrls,
-              })
-            : await generateAIReply({
-                accountId: account.id,
-                customerId: customer.id,
-                customerMessage: text,
-                customerName: customer.name,
-                personality: account.ai_personality,
-                country: account.country,
-                businessName: account.business_name,
-                conversationHistory: history,
-                plan: account.plan,
-              });
+          let aiResult;
+          let aiFailed = false;
+          try {
+            aiResult = mediaUrls.length > 0
+              ? await generateAIReplyWithVision({
+                  accountId: account.id,
+                  customerId: customer.id,
+                  conversationId: conversation.id,
+                  customerMessage: text || "",
+                  customerName: customer.name,
+                  personality: account.ai_personality,
+                  country: account.country,
+                  businessName: account.business_name,
+                  conversationHistory: history,
+                  plan: account.plan,
+                  mediaUrls,
+                })
+              : await generateAIReply({
+                  accountId: account.id,
+                  customerId: customer.id,
+                  conversationId: conversation.id,
+                  customerMessage: text,
+                  customerName: customer.name,
+                  personality: account.ai_personality,
+                  country: account.country,
+                  businessName: account.business_name,
+                  conversationHistory: history,
+                  plan: account.plan,
+                });
+          } catch (aiErr) {
+            console.error(`[PROCESSOR] AI generation threw: ${aiErr.message}`);
+            aiFailed = true;
+          }
+
+          // ─── B3: AI failure fallback → escalate to human ───
+          if (aiFailed || !aiResult || !aiResult.reply) {
+            console.error(`[PROCESSOR] All AI providers failed — escalating to human queue`);
+            await sendAiFailureFallback({
+              channel,
+              recipientId: senderId,
+              phoneNumberId: account.whatsapp_phone_number_id,
+              accessToken: channel === "whatsapp" ? (account.whatsapp_access_token || accessToken) : accessToken,
+              pageId,
+              businessName: account.business_name,
+            });
+            await escalateToHuman(
+              conversation.id,
+              aiFailed ? "AI generation threw an error" : "AI returned empty reply",
+              account.id
+            );
+            return;
+          }
 
           console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
 
-          // Defensive: ensure we always have a reply — never leave a customer with no response
-          if (aiResult && !aiResult.reply) {
-            console.error(`[PROCESSOR] AI returned null reply — using fallback. This should not happen after the generateAIReply fix.`);
-            aiResult.reply = `Thanks for reaching out! I'm experiencing some connectivity issues right now, but our team has been notified and will respond to you shortly.`;
+          // ─── B5: Auto-escalate on negative sentiment ───
+          // If the customer is clearly angry/frustrated, route to a human
+          if (aiResult?.sentiment === "negative" && aiResult?.intent === "complaint") {
+            console.log(`[PROCESSOR] Negative sentiment + complaint → escalating to human`);
+            // Still send the AI's reply (it might be a good de-escalation), but flag for human follow-up
+            await escalateToHuman(
+              conversation.id,
+              "Auto-escalated: negative sentiment + complaint intent",
+              account.id
+            );
           }
+
+          // ─── H1: Human-feeling reply delay (1.5–3s) ───
+          // Wait until the AI is done, then add a short throttle so the reply
+          // doesn't appear in <1s (feels robotic). Typing indicator continues during this delay.
+          await humanReplyDelay(aiResult.reply);
 
           if (aiResult && aiResult.reply) {
             const aiReply = aiResult.reply;
@@ -814,7 +889,7 @@ export async function processIncomingMessage({
             const responseTime = Math.round((Date.now() - (conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : Date.now())) / 1000);
 
             try {
-              await getSupabase().from("messages").insert({
+              const { data: insertedMsg } = await getSupabase().from("messages").insert({
                 conversation_id: conversation.id,
                 account_id: account.id,
                 direction: "outgoing",
@@ -825,7 +900,19 @@ export async function processIncomingMessage({
                 sentiment: aiResult.sentiment || null,
                 tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
                 delivery_status: deliverySuccess ? "delivered" : "failed",
-              });
+              }).select("id").single();
+
+              // ─── Track deflection: AI replied → record first_ai_reply_at if not set ───
+              if (insertedMsg?.id) {
+                await getSupabase()
+                  .from("conversations")
+                  .update({
+                    last_ai_message_id: insertedMsg.id,
+                    first_ai_reply_at: conversation.first_ai_reply_at ? undefined : new Date().toISOString(),
+                  })
+                  .eq("id", conversation.id);
+                await trackDeflection(conversation.id, "ai");
+              }
             } catch (dbErr) {
               console.error(`[PROCESSOR] Failed to store AI reply in database:`, dbErr.message);
             }

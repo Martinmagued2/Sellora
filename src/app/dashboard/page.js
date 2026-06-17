@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import InventoryAlerts from "@/app/dashboard/components/InventoryAlerts";
+import OnboardingChecklist from "@/app/dashboard/components/OnboardingChecklist";
 import { DashboardSkeleton } from "@/components/SkeletonLoader";
 
 export default function DashboardHome() {
@@ -124,6 +125,7 @@ export default function DashboardHome() {
 
   return (
     <>
+      <OnboardingChecklist />
       {stats.totalMessages === 0 && stats.totalOrders === 0 ? (
         <div style={{ maxWidth: 640, margin: "0 auto", marginTop: "var(--space-2xl)" }}>
           <div style={{ textAlign: "center", marginBottom: "var(--space-2xl)" }}>

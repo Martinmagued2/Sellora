@@ -182,3 +182,78 @@ Stage Summary:
 - Fixed 3 bugs in 2 files that together caused AI to not reply to customer messages
 - Files modified: src/lib/channels/processor.js, src/lib/ai/index.js
 - Syntax validation passed for both files
+
+---
+Task ID: 2
+Agent: Main Agent (Super Z)
+Task: Ship all P0/P1/P2 features from the audit — "do it all"
+
+Work Log:
+- Migration 040: Added 13 new schema objects/extensions
+  * conversations: ai_paused, ai_paused_until, assigned_to, snoozed_until, summary, resolved_by, first_ai_reply_at, first_human_reply_at
+  * conversation_notes (private operator notes, AI-hidden)
+  * ai_message_feedback (thumbs up/down on AI replies)
+  * customers: preferences JSONB, ai_memory, vip, lifetime_value
+  * pending_actions (for AI confirm-step)
+  * carts (multi-item chat orders)
+  * abandoned_carts: third_reminder_at, recovery_sequence_version, recovery_revenue
+  * product_reviews (post-delivery WhatsApp rating flow)
+  * coupons: subtype (bogo, tiered, first_order, customer_specific), bogo_*, tiered_rules, target_customer_id, auto_apply
+  * v_ai_deflection view (per-day deflection metrics)
+  * conversation_events (audit log)
+  * accounts: onboarding_steps, onboarding_completed_at
+  * order_post_delivery_events (dedupe review requests)
+  * Backfilled resolved_by for existing closed conversations
+- Migration 041: stores + banner_url, whatsapp_number, instagram_handle, facebook_page, theme, is_published + public read policies
+- src/lib/ai/reply-helpers.js (NEW): isAiPaused, showTypingIndicator, humanReplyDelay, escalateToHuman, trackDeflection, finalizeDeflection, sendAiFailureFallback
+- src/lib/channels/processor.js: wired in AI pause check, typing indicator, human reply throttle (1.5-3s), AI failure → escalate to human, negative sentiment → auto-escalate, deflection tracking on every AI message
+- src/lib/ai/index.js: generateAIReply + generateAIReplyWithVision now accept conversationId; cart + customer-memory tools auto-attached for Pro+ plans
+- src/lib/ai/cart-tools.js (NEW): createCartTools (get_or_create_cart, add_to_cart, remove_from_cart, get_cart, checkout_cart) + createCustomerMemoryTools (get_customer_preferences, save_customer_preference, append_customer_memory)
+- API routes added:
+  * POST /api/conversations/[id]/control (pause_ai, resume_ai, take_over, assign, unassign, snooze, unsnooze, close)
+  * GET/POST /api/conversations/[id]/notes (internal operator notes)
+  * POST /api/conversations/[id]/summary (AI summary with 6h cache)
+  * POST/GET /api/messages/[id]/feedback (thumbs up/down)
+  * GET /api/ai-feedback/stats (weekly review endpoint)
+  * POST/GET /api/carts + /api/carts/[id]/items + /api/carts/[id]/checkout (multi-item cart flow)
+  * POST /api/abandoned-carts/process-recovery (3-step cron: T+1h, T+24h w/ 5% coupon, T+72h w/ 10% coupon)
+  * GET/POST /api/reviews + PATCH /api/reviews/[id] (post-delivery reviews + moderation)
+  * POST /api/orders/process-post-delivery (cron: review requests + payment reminders)
+  * GET/POST /api/onboarding (5-step checklist with server-computed state)
+  * GET /api/export?type=orders|customers|... (CSV export, Pro+ gated)
+  * GET /api/analytics/deflection (AI deflection rate + cost savings)
+  * GET /api/analytics/channel-revenue (per-channel ROI)
+  * GET /api/store?slug= (public storefront API)
+  * POST /api/email/weekly-summary-cron (Monday 8am UTC email)
+- src/lib/plan-limits.js: flipped csv_export to true for Professional tier
+- src/lib/ai/index.js: import plan-limits dynamically to gate cart + memory tools behind agent_tools plan flag
+- UI components added:
+  * src/app/dashboard/components/OnboardingChecklist.js (5-step progress card on dashboard home)
+  * src/app/dashboard/reviews/page.js (review moderation dashboard)
+  * src/app/store/[slug]/page.js (public storefront with product grid, detail view, reviews, WhatsApp deep links)
+  * src/app/review/page.js (public star-rating submission page)
+- UI patches:
+  * dashboard/page.js: render OnboardingChecklist above stats
+  * dashboard/layout.js: added Reviews nav item with Star icon
+  * dashboard/products/page.js: added "Share to WhatsApp" button on each product card
+  * dashboard/conversations/page.js:
+    - Added Pause AI / Take Over toggle button in chat header (uses Bot / Hand icons)
+    - Added thumbs up/down buttons below every AI outgoing message
+    - Added state + handlers (handleToggleAi, handleAiFeedback)
+    - Imports extended: Hand, ThumbsUp, ThumbsDown
+- src/app/api/coupons/validate/route.js: extended to handle BOGO, tiered, first_order, customer_specific subtypes
+- next.config.mjs: added scaffolding for cron headers
+- vercel.json (NEW): 4 cron jobs (recovery, post-delivery, weekly email, scheduled campaigns)
+- Replaced the inline `const aiResult = await generateAIReply(...)` block in processor.js with try/catch + failure escalation + throttle + typing indicator + sentiment-based auto-escalation + deflection tracking
+- All new SQL is idempotent (IF NOT EXISTS / DROP IF EXISTS)
+- All new API routes use the shared getAuthUser helper + service-role client pattern
+
+Stage Summary:
+- 24+ new features shipped across Conversations, AI, Commerce, Analytics, Growth, Mobile categories
+- 2 SQL migrations (040, 041) — safe to run on existing data
+- 20+ new API routes
+- 4 new UI pages/components, 4 UI patches to existing pages
+- 1 new library (reply-helpers), 1 new library (cart-tools)
+- All new files parse-checked; JSX files use valid React patterns
+- E1 (Arabic dashboard + RTL) deferred — too large for one session, needs separate sprint
+- To activate: run `supabase db push` (or apply 040 + 041), set CRON_SECRET env var, deploy

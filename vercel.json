@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/abandoned-carts/process-recovery",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/orders/process-post-delivery",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/email/weekly-summary-cron",
+      "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/campaigns/process-scheduled",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

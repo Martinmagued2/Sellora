@@ -17,6 +17,7 @@ import {
   TrendingUp,
   Layers,
   Minus,
+  Share2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -667,6 +668,25 @@ export default function ProductsPage() {
                 <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: "var(--space-sm)" }}>
                   <button className="topbar-btn" title="View" onClick={() => setViewProduct(product)} style={{ width: 28, height: 28 }}>
                     <ImageIcon size={13} />
+                  </button>
+                  <button
+                    className="topbar-btn"
+                    title="Share to WhatsApp"
+                    onClick={() => {
+                      const supabase = createClient();
+                      // Look up the user's WhatsApp number (from account) and build wa.me link
+                      supabase?.auth.getUser().then(async ({ data: { user } }) => {
+                        if (!user) return;
+                        const acct = await supabase.from("accounts").select("whatsapp_phone_number_id, phone").eq("id", user.id).single();
+                        const phone = acct?.data?.phone || "";
+                        const msg = `Hi! I'm interested in ${product.name} (${product.price} EGP). Is it available?`;
+                        const url = `https://wa.me/${phone.replace(/[^\d]/g, "")}?text=${encodeURIComponent(msg)}`;
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      });
+                    }}
+                    style={{ width: 28, height: 28, color: "#25D366" }}
+                  >
+                    <Share2 size={13} />
                   </button>
                   <button className="topbar-btn" title="Edit" onClick={() => handleEdit(product)} style={{ width: 28, height: 28 }}>
                     <Edit size={13} />

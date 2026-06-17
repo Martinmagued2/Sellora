@@ -181,7 +181,69 @@ export async function POST(req) {
     let discountAmount = 0;
     const orderTotal = order_total ? parseFloat(order_total) : 0;
 
-    if (coupon.type === "percentage") {
+    // ─── Smart coupon subtypes (C7) ───
+    // Subtype 'first_order' — only valid if the customer has 0 past orders
+    if (coupon.subtype === "first_order" && body.customer_id) {
+      const { count: pastOrders } = await supabase
+        .from("orders")
+        .select("*", { count: "exact", head: true })
+        .eq("account_id", accountId)
+        .eq("customer_id", body.customer_id)
+        .neq("status", "cancelled");
+      if (pastOrders > 0) {
+        return NextResponse.json({
+          valid: false,
+          error: "This coupon is only valid on your first order",
+          coupon: { code: coupon.code, type: coupon.type, subtype: coupon.subtype },
+        });
+      }
+    }
+
+    // Subtype 'customer_specific' — only valid for the target customer
+    if (coupon.subtype === "customer_specific" && coupon.target_customer_id) {
+      if (body.customer_id !== coupon.target_customer_id) {
+        return NextResponse.json({
+          valid: false,
+          error: "This coupon is not available for your account",
+          coupon: { code: coupon.code, type: coupon.type, subtype: coupon.subtype },
+        });
+      }
+    }
+
+    // Subtype 'tiered' — pick the matching tier based on order total
+    if (coupon.subtype === "tiered" && coupon.tiered_rules) {
+      try {
+        const rules = Array.isArray(coupon.tiered_rules)
+          ? coupon.tiered_rules
+          : JSON.parse(coupon.tiered_rules);
+        // Find the highest tier the order qualifies for
+        const sortedRules = [...rules].sort((a, b) => (b.min || 0) - (a.min || 0));
+        const applicable = sortedRules.find((r) => orderTotal >= (r.min || 0));
+        if (!applicable) {
+          return NextResponse.json({
+            valid: false,
+            error: `Minimum order for this coupon is ${rules.sort((a,b) => (a.min||0) - (b.min||0))[0].min}`,
+            coupon: { code: coupon.code, type: coupon.type, subtype: coupon.subtype },
+          });
+        }
+        discountAmount = orderTotal * (applicable.percent / 100);
+      } catch (e) {
+        console.warn("[COUPON] tiered rule parse failed:", e.message);
+      }
+    } else if (coupon.subtype === "bogo" && body.items && Array.isArray(body.items)) {
+      // Subtype 'bogo' — buy X get Y at discount
+      // Simplified: applies the discount to the cheapest items in the cart
+      const buyQty = coupon.bogo_buy_qty || 1;
+      const getQty = coupon.bogo_get_qty || 1;
+      const discountPct = coupon.bogo_get_discount_percent || 100;
+      const totalQty = body.items.reduce((s, i) => s + (i.qty || 1), 0);
+      if (totalQty >= buyQty + getQty) {
+        // Find the cheapest items to discount (the "get" items)
+        const sortedItems = [...body.items].sort((a, b) => (a.price || 0) - (b.price || 0));
+        const cheapestPrice = sortedItems[0]?.price || 0;
+        discountAmount = cheapestPrice * getQty * (discountPct / 100);
+      }
+    } else if (coupon.type === "percentage") {
       discountAmount = orderTotal * (coupon.value / 100);
     } else if (coupon.type === "fixed") {
       discountAmount = parseFloat(coupon.value);
@@ -201,11 +263,19 @@ export async function POST(req) {
         id: coupon.id,
         code: coupon.code,
         type: coupon.type,
+        subtype: coupon.subtype || "standard",
         value: coupon.value,
         min_order_value: coupon.min_order_value,
         applies_to: coupon.applies_to,
         product_ids: coupon.product_ids,
         categories: coupon.categories,
+        // Smart coupon metadata
+        bogo: coupon.subtype === "bogo" ? {
+          buy_qty: coupon.bogo_buy_qty,
+          get_qty: coupon.bogo_get_qty,
+          discount_percent: coupon.bogo_get_discount_percent,
+        } : undefined,
+        tiered_rules: coupon.subtype === "tiered" ? coupon.tiered_rules : undefined,
       },
     });
   } catch (error) {
