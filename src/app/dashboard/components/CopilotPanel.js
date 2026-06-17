@@ -97,6 +97,33 @@ function getFallbackTextFromTools(toolInvs) {
         lines.push(`**Recent Sales:** ${output.sales?.length || 0} orders found`);
         if (output.sales?.slice(0, 3).forEach(s => lines.push(`  - Order #${s.order_number || s.id}: ${s.total} (${s.status})`)));
         break;
+      case 'get_order_details':
+        // If the tool returned a formatted_response, use it directly
+        if (output.formatted_response) {
+          lines.push(output.formatted_response);
+        } else if (output.success === false) {
+          lines.push(`❌ ${output.error || 'Order not found'}`);
+        } else if (output.order) {
+          // Fallback: format it here if the tool didn't
+          const o = output.order;
+          const statusEmojis = { pending: "⏳", confirmed: "✅", shipped: "📦", delivered: "✅", cancelled: "❌", returned: "↩️" };
+          const payEmojis = { paid: "💵", unpaid: "⏳", refunded: "💰" };
+          lines.push(`**Order ${o.order_number}:**`);
+          lines.push(`• Customer: ${o.customers?.name || 'Unknown'}${o.customers?.phone ? ` (${o.customers.phone})` : ''}`);
+          lines.push(`• Status: ${statusEmojis[o.status] || '📋'} ${o.status || 'Unknown'}`);
+          lines.push(`• Payment: ${payEmojis[o.payment_status] || '❓'} ${o.payment_status || 'Unknown'}`);
+          lines.push(`• Total: ${Number(o.total || 0).toLocaleString()} ${o.currency || 'EGP'}`);
+          if (Array.isArray(o.items) && o.items.length > 0) {
+            lines.push(`• **Items:**`);
+            o.items.forEach(item => {
+              lines.push(`  - ${item.name}${item.variant ? ` (${item.variant})` : ''} × ${item.qty} — ${item.price}`);
+            });
+          }
+          if (o.shipping_address) lines.push(`• Shipping: ${o.shipping_address}`);
+          if (o.tracking_number) lines.push(`• Tracking: ${o.tracking_number}${o.carrier ? ` (${o.carrier})` : ''}`);
+          if (o.created_at) lines.push(`• Ordered: ${new Date(o.created_at).toLocaleDateString()}`);
+        }
+        break;
       case 'compare_plans':
         if (output.plans) {
           const currentPlan = output.currentPlan || 'starter';
