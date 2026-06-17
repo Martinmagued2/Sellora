@@ -63,7 +63,7 @@ export async function POST(req) {
       .eq("status", "delivered")
       .gte("updated_at", sevenDaysAgo)
       .order("updated_at", { ascending: false })
-      .limit(100);
+      .limit(300);
 
     for (const order of deliveredOrders || []) {
       try {
@@ -153,7 +153,7 @@ export async function POST(req) {
       .not("payment_link", "is", null)
       .lt("updated_at", oneDayAgo)
       .order("updated_at", { ascending: false })
-      .limit(50);
+      .limit(200);
 
     for (const order of unpaidOrders || []) {
       try {

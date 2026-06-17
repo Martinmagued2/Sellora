@@ -158,7 +158,7 @@ export async function POST(req) {
       `)
       .eq("status", "abandoned")
       .order("abandoned_at", { ascending: false })
-      .limit(200);
+      .limit(500);
 
     for (const cart of abandonedCarts || []) {
       try {
