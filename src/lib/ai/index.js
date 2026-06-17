@@ -6,6 +6,7 @@ import { createCartTools, createCustomerMemoryTools } from "./cart-tools";
 import { getSalesAgentPrompt, getSupportAgentPrompt, getOrderTrackerAgentPrompt, buildPersonalityFromSettings } from "./agents";
 import { getZAIConfig } from "./z-ai-config";
 import { buildFullProviderChain, recordKeyFailure, recordKeySuccess, getProviderChainSummary } from "./provider-chain";
+import { getPlanLimits } from "@/lib/plan-limits";
 
 // Google instance for vision analysis (kept here since buildFullProviderChain handles chat providers)
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -274,7 +275,7 @@ export async function generateAIReply({
     let tools = {};
 
     // Plan-gated: Pro+ gets cart + customer memory tools
-    const planLimits = (await import("@/lib/plan-limits")).getPlanLimits(plan);
+    const planLimits = getPlanLimits(plan);
     const canUseAgentTools = planLimits.agent_tools === true || planLimits.agent_tools === -1;
 
     switch(intent) {
