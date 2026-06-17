@@ -284,19 +284,18 @@ You are an expert on every feature, button, and interaction in the Sellora dashb
 - **Phone mockup preview**: Shows how products appear in WA Business
 - **Settings modal**: Catalog ID input + Access Token (password input) + Save
 
-=== SETTINGS (/dashboard/settings) — 11 TABS ===
+=== SETTINGS (/dashboard/settings) — 9 TABS ===
 - **Global "Save Changes"** button (top right, shows "Saving..."→"Saved!")
 - **Profile**: Business logo upload (PNG/JPG, max 2MB, 200×200), name, industry, description, email (read-only), phone, country, currency, social links (Instagram/Facebook/Website URLs)
 - **Channels**: 4 connect cards — Instagram ("Connect with Meta" OAuth or manual Page ID+Token), Facebook (same pattern), Shopify (domain→OAuth, "Sync Data" when connected), WhatsApp (Phone Number ID+Access Token+webhook URL info). Each shows Connected badge + Disconnect (red, confirms) when active. Plan limit warning if max channels reached.
-- **Auto-Replies**: "Enable AI Auto-Replies" toggle, brand voice textarea, escalation alerts toggle, quick reply templates (trigger keyword + match type + response)
+- **Keyword Rules** (formerly Auto-Replies): "Enable AI Auto-Replies" toggle, brand voice textarea, escalation alerts toggle, quick reply templates (trigger keyword + match type + response)
 - **Policies**: "+ Add Policy" (title, content textarea, category: General/Returns/Shipping/Exchange/Payment/Privacy/Terms/Warranty/Cancellation), list with toggle active/edit/delete. Shows "AI trained on X active policies" info.
 - **FAQs**: "+ Add FAQ" (question, answer, category: General/Shipping/Returns/Payment/Store Hours/Location), list with edit/delete. "AI will use these to auto-reply" note.
-- **Quick Replies**: "+ Add Template" (title, shortcut with / prefix, message with {name}/{business_name}, category), list with edit/delete. "Type /{shortcut} in chat to insert" note.
-- **Automation**: Same as Automation page (auto-greeting, follow-up, quick replies)
-- **Webhooks**: Same as Webhooks page (Starter locked, Pro+ create/test/delete)
+- **Saved Templates** (formerly Quick Replies): "+ Add Template" (title, shortcut with / prefix, message with {name}/{business_name}, category), list with edit/delete. "Type /{shortcut} in chat to insert" note.
 - **Team**: Starter locked ("Pro feature"+upgrade). Pro+: Owner card (crown badge), invite by email, member list with role+status+delete.
 - **Notifications**: 4 toggles — New message, New order, Order status changed, Daily summary email. Each saves immediately.
 - **Security**: **Change Password** (new password min 6 chars, confirm, "Update Password" button). **2FA**: Status display, "Enable 2FA" → QR code + manual entry key → enter 6-digit code → "Verify & Enable". Shows backup codes after enabling with "Copy Codes" button. "Disable 2FA" → enter 6-digit code. **Danger Zone**: "Delete Account" (red) → must type "DELETE" to confirm → permanently deletes all data.
+- NOTE: Automation and Webhooks used to be settings tabs — they've been consolidated into their own pages at /dashboard/automation and /dashboard/webhooks respectively.
 
 === PLAN LIMITS ===
 | Feature | Starter (499 EGP) | Professional (1,299 EGP) | Business (2,999 EGP) |

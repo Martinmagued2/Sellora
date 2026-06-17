@@ -24,12 +24,10 @@ import SecurityTab from "./SecurityTab";
 const tabs = [
   { key: "profile", label: "Business Profile", icon: User },
   { key: "channels", label: "Connected Channels", icon: Smartphone },
-  { key: "autoreplies", label: "Auto-Replies", icon: Bot },
+  { key: "autoreplies", label: "Keyword Rules", icon: Bot },
   { key: "policies", label: "Business Policies", icon: Shield },
   { key: "faqs", label: "FAQ Knowledge Base", icon: HelpCircle },
-  { key: "quickreplies", label: "Quick Replies", icon: Zap },
-  { key: "automation", label: "Automation", icon: Clock },
-  { key: "webhooks", label: "Webhooks", icon: Webhook },
+  { key: "quickreplies", label: "Saved Templates", icon: Zap },
   { key: "team", label: "Team", icon: UsersRound },
   { key: "notifications", label: "Notifications", icon: Bell },
   { key: "security", label: "Security", icon: Shield },
@@ -359,8 +357,21 @@ function SettingsContent() {
           {activeTab === "policies" && <PoliciesTab {...tabProps} />}
           {activeTab === "faqs" && <FAQsTab {...tabProps} />}
           {activeTab === "quickreplies" && <QuickRepliesTab {...tabProps} />}
-          {activeTab === "automation" && <AutomationTab {...tabProps} />}
-          {activeTab === "webhooks" && <WebhooksTab {...tabProps} />}
+          {/* Removed: Automation tab → consolidated into /dashboard/automation */}
+          {/* Removed: Webhooks tab → consolidated into /dashboard/webhooks */}
+          {(activeTab === "automation" || activeTab === "webhooks") && (
+            <div style={{ padding: 40, textAlign: "center" }}>
+              <p style={{ color: "var(--text-secondary)", marginBottom: 16 }}>
+                This setting has moved to its own page for better organization.
+              </p>
+              <a
+                href={activeTab === "automation" ? "/dashboard/automation" : "/dashboard/webhooks"}
+                className="btn btn-primary"
+              >
+                Go to {activeTab === "automation" ? "Automation" : "Webhooks"} page
+              </a>
+            </div>
+          )}
           {activeTab === "team" && <TeamTab {...tabProps} />}
           {activeTab === "notifications" && <NotificationsTab {...tabProps} />}
           {activeTab === "security" && <SecurityTab {...tabProps} />}

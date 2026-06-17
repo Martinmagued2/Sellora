@@ -477,7 +477,7 @@ export default function DashboardLayout({ children }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)" }}>
                       <Bot size={14} /> Use the AI Copilot (purple button)
                     </div>
-                    <Link href="/dashboard/settings?tab=webhooks" onClick={() => setHelpOpen(false)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", textDecoration: "none" }}>
+                    <Link href="/dashboard/webhooks" onClick={() => setHelpOpen(false)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--text-secondary)", fontSize: "var(--font-size-sm)", textDecoration: "none" }}>
                       <Settings size={14} /> Webhook Integrations
                     </Link>
                   </div>
