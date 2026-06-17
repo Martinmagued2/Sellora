@@ -2880,6 +2880,26 @@ select.form-input {
   background: var(--bg-glass-hover);
 }
 
+/* AI toggle button — square with rounded corners, not circular.
+   Needs its own class because the default .mobile-chat-header-actions button
+   rule forces border-radius: 50% which squashes pill buttons. */
+.mobile-chat-header-actions .mobile-ai-toggle {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.mobile-chat-header-actions .mobile-ai-toggle:active {
+  transform: scale(0.95);
+}
+
 .mobile-chat-messages {
   flex: 1;
   overflow-y: auto;

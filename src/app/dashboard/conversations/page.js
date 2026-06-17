@@ -1018,38 +1018,31 @@ export default function ConversationsPage() {
                     🤖
                   </span>
                 )}
-                <button onClick={handleSummarize} disabled={summarizing} title="Summarize">
-                  {summarizing ? <Loader2 size={18} className="spin" /> : <FileText size={18} />}
-                </button>
+                {/* AI status badge — compact, fits the 38px action slot */}
                 <button
                   onClick={handleToggleAi}
                   disabled={togglingAi}
-                  title={aiPausedForConv ? "Resume AI" : "Pause AI"}
+                  title={aiPausedForConv ? "Resume AI auto-replies" : "Pause AI — take over"}
+                  className="mobile-ai-toggle"
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "4px 10px",
-                    borderRadius: 8,
-                    fontSize: 11,
-                    fontWeight: 700,
                     background: aiPausedForConv
-                      ? "rgba(59,165,92,0.15)"
-                      : "rgba(248,165,50,0.15)",
+                      ? "rgba(59,165,92,0.18)"
+                      : "rgba(248,165,50,0.18)",
                     color: aiPausedForConv ? "var(--accent-green)" : "var(--accent-orange)",
-                    border: `1px solid ${aiPausedForConv ? "rgba(59,165,92,0.3)" : "rgba(248,165,50,0.3)"}`,
+                    border: `1px solid ${aiPausedForConv ? "rgba(59,165,92,0.4)" : "rgba(248,165,50,0.4)"}`,
                     opacity: togglingAi ? 0.5 : 1,
-                    cursor: "pointer",
                   }}
                 >
                   {togglingAi ? (
-                    <Loader2 size={12} className="spin" />
+                    <Loader2 size={16} className="spin" />
                   ) : aiPausedForConv ? (
-                    <Play size={12} />
+                    <Play size={16} />
                   ) : (
-                    <Pause size={12} />
+                    <Pause size={16} />
                   )}
-                  <span>{aiPausedForConv ? "Resume" : "Pause AI"}</span>
+                </button>
+                <button onClick={handleSummarize} disabled={summarizing} title="Summarize">
+                  {summarizing ? <Loader2 size={18} className="spin" /> : <FileText size={18} />}
                 </button>
                 <button onClick={() => setShowMobileStatusMenu(!showMobileStatusMenu)} title="Status">
                   <MoreVertical size={18} />
