@@ -63,6 +63,28 @@ export default function StorefrontPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [shareStatus, setShareStatus] = useState(null); // null | "sharing" | "copied" | "error"
 
+  // Dynamic SEO meta tags
+  useEffect(() => {
+    if (!slug) return;
+    fetch(`/api/seo/store?slug=${encodeURIComponent(slug)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        document.title = data.title;
+        setMetaTag("description", data.description);
+        setMetaProp("og:title", data.title);
+        setMetaProp("og:description", data.description);
+        setMetaProp("og:url", data.url);
+        setMetaProp("og:type", data.type);
+        setMetaProp("og:site_name", data.siteName);
+        if (data.image) setMetaProp("og:image", data.image);
+        setMetaProp("twitter:card", "summary_large_image");
+        setMetaProp("twitter:title", data.title);
+        setMetaProp("twitter:description", data.description);
+      })
+      .catch(() => {});
+  }, [slug]);
+
   useEffect(() => {
     if (!slug) return;
     fetch(`/api/store?slug=${encodeURIComponent(slug)}`)
@@ -924,4 +946,17 @@ if (typeof window !== "undefined" && !window.__selloraStoreStyleInjected) {
   `;
   document.head.appendChild(style);
   window.__selloraStoreStyleInjected = true;
+}
+
+// SEO helper functions
+function setMetaTag(name, content) {
+  let el = document.querySelector(`meta[name="${name}"]`);
+  if (!el) { el = document.createElement("meta"); el.setAttribute("name", name); document.head.appendChild(el); }
+  el.setAttribute("content", content);
+}
+
+function setMetaProp(property, content) {
+  let el = document.querySelector(`meta[property="${property}"]`);
+  if (!el) { el = document.createElement("meta"); el.setAttribute("property", property); document.head.appendChild(el); }
+  el.setAttribute("content", content);
 }

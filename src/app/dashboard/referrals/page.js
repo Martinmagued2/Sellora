@@ -115,6 +115,11 @@ export default function ReferralsPage() {
       case "whatsapp":
         window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`, "_blank");
         break;
+      case "instagram":
+        // Instagram doesn't support direct URL sharing — copy to clipboard + open Instagram
+        navigator.clipboard?.writeText(text + " " + url).catch(() => {});
+        window.open("https://www.instagram.com/", "_blank");
+        break;
       case "facebook":
         window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`, "_blank");
         break;

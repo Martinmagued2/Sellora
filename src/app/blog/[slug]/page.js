@@ -14,12 +14,24 @@ export default function BlogPostPage() {
 
   useEffect(() => {
     if (!slug) return;
-    fetch(`/api/blog/${slug}`)
-      .then(r => {
-        if (!r.ok) throw new Error("Post not found");
-        return r.json();
+    // Fetch blog post + SEO metadata
+    Promise.all([
+      fetch(`/api/blog/${slug}`).then(r => r.ok ? r.json() : Promise.reject(new Error("Not found"))),
+      fetch(`/api/seo/blog?slug=${slug}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ])
+      .then(([postData, seoData]) => {
+        setPost(postData.post);
+        if (seoData) {
+          document.title = seoData.title;
+          setMeta("description", seoData.description);
+          setOg("og:title", seoData.title);
+          setOg("og:description", seoData.description);
+          setOg("og:type", seoData.type);
+          if (seoData.image) setOg("og:image", seoData.image);
+          setMeta("twitter:card", "summary_large_image");
+          setMeta("twitter:title", seoData.title);
+        }
       })
-      .then(data => setPost(data.post))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [slug]);
@@ -125,4 +137,16 @@ export default function BlogPostPage() {
       </div>
     </div>
   );
+}
+
+// SEO helpers
+function setMeta(name, content) {
+  let el = document.querySelector(`meta[name="${name}"]`);
+  if (!el) { el = document.createElement("meta"); el.setAttribute("name", name); document.head.appendChild(el); }
+  el.setAttribute("content", content);
+}
+function setOg(property, content) {
+  let el = document.querySelector(`meta[property="${property}"]`);
+  if (!el) { el = document.createElement("meta"); el.setAttribute("property", property); document.head.appendChild(el); }
+  el.setAttribute("content", content);
 }

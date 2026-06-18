@@ -10,6 +10,8 @@ export default function BlogPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    // SEO
+    document.title = "Sellora Blog — Guides for MENA Sellers";
     fetch("/api/blog?limit=50")
       .then(r => r.json())
       .then(d => setPosts(d.posts || []))
