@@ -13,6 +13,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/email-drip",
+      "schedule": "0 4 * * *"
+    },
+    {
       "path": "/api/email/weekly-summary-cron",
       "schedule": "0 8 * * 1"
     },
