@@ -61,6 +61,7 @@ import CommandPalette from "./components/CommandPalette";
 import ThemeToggle from "./components/ThemeToggle";
 import QuickActionsFAB from "./components/QuickActionsFAB";
 import KeyboardShortcutsHelp from "./components/KeyboardShortcutsHelp";
+import { ActionToastContainer } from "./components/ActionToast";
 import "./dashboard.css";
 
 // Highlight matching search text
@@ -288,6 +289,7 @@ export default function DashboardLayout({ children }) {
     <CommandPalette />
     <KeyboardShortcutsHelp />
     <QuickActionsFAB />
+    <ActionToastContainer />
     <DashboardAnimations />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
       {/* Sidebar — only on desktop / tablet */}

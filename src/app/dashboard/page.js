@@ -12,11 +12,14 @@ import InventoryAlerts from "@/app/dashboard/components/InventoryAlerts";
 import OnboardingChecklist from "@/app/dashboard/components/OnboardingChecklist";
 import AnimatedStatCard from "@/app/dashboard/components/AnimatedStatCard";
 import EmptyState from "@/app/dashboard/components/EmptyState";
+import SmartGreeting from "@/app/dashboard/components/SmartGreeting";
+import MilestoneTracker from "@/app/dashboard/components/MilestoneTracker";
 import { DashboardSkeleton } from "@/components/SkeletonLoader";
 
 export default function DashboardHome() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -24,6 +27,7 @@ export default function DashboardHome() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUser(user);
 
       // First get user's conversation IDs (needed to filter messages)
       const { data: userConvs } = await supabase
@@ -91,6 +95,7 @@ export default function DashboardHome() {
         pendingRevenue,
         totalOrders: orders.length,
         totalCustomers: customersRes.count || 0,
+        totalProducts: 0, // will be fetched separately if needed
         totalConversations: totalConvs,
         activeConversations: activeConvsCount,
         totalMessages,
@@ -128,6 +133,8 @@ export default function DashboardHome() {
   return (
     <>
       <OnboardingChecklist />
+      <MilestoneTracker stats={stats} />
+      <SmartGreeting user={user} stats={stats} />
       {stats.totalMessages === 0 && stats.totalOrders === 0 ? (
         <div style={{ maxWidth: 640, margin: "0 auto", marginTop: "var(--space-2xl)" }}>
           <div style={{ textAlign: "center", marginBottom: "var(--space-2xl)" }}>
