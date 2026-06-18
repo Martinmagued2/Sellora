@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { PageSkeleton } from "@/components/SkeletonLoader";
+import { LineChart, DonutChart, BarChart, GaugeChart } from "../components/Charts";
 
 function TrendArrow({ value }) {
   if (value == null || value === 0) return null;
@@ -593,6 +594,18 @@ export default function AnalyticsPage() {
               </span>
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+              {/* Funnel Bar Chart */}
+              {funnelData && (
+                <div style={{ marginBottom: 20 }}>
+                  <BarChart data={[
+                    { label: "Messages", value: funnelData.steps?.messages || 0, color: "#5865F2" },
+                    { label: "Conversations", value: funnelData.steps?.conversations || 0, color: "#7E88F5" },
+                    { label: "Products Sent", value: funnelData.steps?.productsSent || 0, color: "#00D2FF" },
+                    { label: "Orders Created", value: funnelData.steps?.ordersCreated || 0, color: "#F8A532" },
+                    { label: "Orders Paid", value: funnelData.steps?.ordersPaid || 0, color: "#3BA55C" },
+                  ]} />
+                </div>
+              )}
               {funnelData ? (
                 <>
                   {/* Funnel Steps with Drop-off */}
@@ -1030,6 +1043,20 @@ export default function AnalyticsPage() {
               </span>
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+              {/* Revenue Chart */}
+              {sales && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue Trend</div>
+                  <LineChart data={sales.dailyRevenue || []} color="#3BA55C" height={100} label="Revenue" />
+                </div>
+              )}
+              {/* Channel Distribution */}
+              {sales && sales.channelData && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Channel Distribution</div>
+                  <DonutChart data={sales.channelData || []} />
+                </div>
+              )}
               {customerData ? (
                 <>
                   {/* Customer KPIs */}
@@ -1186,6 +1213,12 @@ export default function AnalyticsPage() {
               </span>
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+              {/* AI Deflection Gauge */}
+              {aiData && (
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+                  <GaugeChart value={Math.round(parseFloat(aiData.aiPct || 0))} label="AI Resolution Rate" color="#00D2FF" />
+                </div>
+              )}
               {aiData ? (
                 <>
                   {/* AI Performance KPIs */}
