@@ -7,6 +7,40 @@ import {
   Check, X, ChevronRight, PartyPopper,
 } from "lucide-react";
 
+// Confetti pieces rendered when onboarding completes
+function ConfettiBurst() {
+  const colors = ["#5865F2", "#00D2FF", "#F8A532", "#3BA55C", "#EB459E"];
+  const pieces = Array.from({ length: 40 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    delay: Math.random() * 0.5,
+    duration: 2 + Math.random() * 2,
+    color: colors[i % colors.length],
+    size: 6 + Math.random() * 6,
+    rotate: Math.random() * 360,
+  }));
+  return (
+    <>
+      {pieces.map(p => (
+        <div
+          key={p.id}
+          className="confetti-piece"
+          style={{
+            left: `${p.left}%`,
+            background: p.color,
+            width: p.size,
+            height: p.size,
+            borderRadius: p.id % 2 === 0 ? "50%" : "2px",
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            transform: `rotate(${p.rotate}deg)`,
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
 const STEP_ICONS = {
   whatsapp: MessageSquare,
   product: Package,
@@ -77,6 +111,8 @@ export default function OnboardingChecklist({ onClose }) {
       >
         <X size={16} />
       </button>
+
+      {celebrating && <ConfettiBurst />}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         {celebrating ? <PartyPopper size={20} color="var(--accent-primary)" /> : null}

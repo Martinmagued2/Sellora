@@ -256,6 +256,40 @@ export default function BillingPage() {
             })}
           </div>
 
+          {/* Plan Comparison Table */}
+          <div className="dashboard-panel" style={{ marginBottom: "var(--space-2xl)", overflowX: "auto" }}>
+            <div className="dashboard-panel-header">
+              <h3>Plan Comparison</h3>
+            </div>
+            <div className="dashboard-panel-body" style={{ padding: "var(--space-lg)" }}>
+              <table className="billing-comparison-table">
+                <thead>
+                  <tr>
+                    <th>Feature</th>
+                    <th>Starter (999 EGP)</th>
+                    <th>Professional (2,499 EGP)</th>
+                    <th>Business (5,999 EGP)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Connected Channels</td><td>1</td><td>2</td><td>3 (All)</td></tr>
+                  <tr><td>Products</td><td>25</td><td>✓ Unlimited</td><td>✓ Unlimited</td></tr>
+                  <tr><td>AI Replies/Day</td><td>50 (Fast AI)</td><td>500 (Smart AI)</td><td>✓ Unlimited (Premium)</td></tr>
+                  <tr><td>Conversations/Month</td><td>100</td><td>1,000</td><td>✓ Unlimited</td></tr>
+                  <tr><td>Message History</td><td>30 days</td><td>6 months</td><td>✓ Unlimited</td></tr>
+                  <tr><td>Analytics</td><td>Basic</td><td>✓ Full Dashboard</td><td>✓ Full + CSV Export</td></tr>
+                  <tr><td>AI Cart & Orders</td><td className="x-icon">✗</td><td className="check-icon">✓</td><td className="check-icon">✓</td></tr>
+                  <tr><td>Webhook Integrations</td><td className="x-icon">✗</td><td className="check-icon">✓</td><td className="check-icon">✓</td></tr>
+                  <tr><td>Team Members</td><td>1 (Owner)</td><td>3</td><td>✓ Unlimited</td></tr>
+                  <tr><td>Broadcast Campaigns</td><td className="x-icon">✗</td><td>5/month</td><td>✓ Unlimited</td></tr>
+                  <tr><td>Flow Builder</td><td className="x-icon">✗</td><td className="check-icon">✓</td><td className="check-icon">✓</td></tr>
+                  <tr><td>Public Storefront</td><td className="check-icon">✓</td><td className="check-icon">✓</td><td className="check-icon">✓</td></tr>
+                  <tr><td>Support</td><td>Email</td><td>Priority</td><td>Dedicated</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Egyptian Payment Methods Coming Soon */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-lg)", marginBottom: "var(--space-2xl)" }}>
             <div className="dashboard-panel">

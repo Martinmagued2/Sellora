@@ -17,6 +17,7 @@ import { useDevice } from "@/lib/use-device";
 import RecommendationsCard from "../components/RecommendationsCard";
 import VoiceRecorder from "../components/VoiceRecorder";
 import ImageUploader from "../components/ImageUploader";
+import EmptyState from "../components/EmptyState";
 
 // ─── Intent badge config ───
 const INTENT_CONFIG = {
@@ -1728,12 +1729,16 @@ export default function ConversationsPage() {
           {loading ? (
             <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>Loading...</div>
           ) : filteredConvs.length === 0 ? (
-            <div style={{ padding: "var(--space-xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>No conversations found</div>
-          ) : filteredConvs.map((conv) => (
+            <EmptyState type="conversations" title="No conversations yet" description="When customers message your WhatsApp, Instagram, or Facebook, their conversations will appear here." />
+          ) : filteredConvs.map((conv) => {
+            const channelColors = { whatsapp: "#25D366", instagram: "#E1306C", facebook: "#1877F2" };
+            const channelColor = channelColors[conv.channel] || "#5865F2";
+            return (
             <div
               key={conv.id}
               className={`conv-item ${activeConv?.id === conv.id ? "active" : ""}`}
               onClick={() => { setActiveConv(conv); setSimulatorMode(false); setMobileChatOpen(true); }}
+              style={{ borderLeft: `3px solid ${channelColor}`, }}
             >
               {/* Avatar */}
               <div className="conv-avatar" style={{ background: conv.customer?.profile_pic_url ? "transparent" : "var(--accent-gradient)", position: "relative" }}>
@@ -1795,10 +1800,15 @@ export default function ConversationsPage() {
               </div>
 
               {conv.unread_count > 0 && (
-                <span className="conv-unread">{conv.unread_count}</span>
+                <span className="conv-unread" style={{ animation: "pulse-badge 2s ease-in-out infinite" }}>{conv.unread_count}</span>
+              )}
+              {/* AI status indicator */}
+              {conv.ai_paused && (
+                <span title="AI paused" style={{ position: "absolute", top: 8, right: 8, fontSize: 10, padding: "2px 6px", borderRadius: 8, background: "rgba(248,165,50,0.15)", color: "var(--accent-orange)", fontWeight: 600 }}>PAUSED</span>
               )}
             </div>
-          ))}
+          );
+          })}
         </div>
       </div>
 

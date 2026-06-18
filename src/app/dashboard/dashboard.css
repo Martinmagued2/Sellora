@@ -6700,3 +6700,102 @@ select.form-input {
     width: 100%;
   }
 }
+
+/* ═══ Conversation list enhancements ═══ */
+@keyframes pulse-badge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 101, 242, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(88, 101, 242, 0); }
+}
+
+.conv-item {
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.conv-item:hover {
+  background: var(--bg-glass-hover) !important;
+}
+
+/* Channel-colored left borders */
+.conv-item[style*="25D366"] { border-left: 3px solid #25D366 !important; }
+.conv-item[style*="E1306C"] { border-left: 3px solid #E1306C !important; }
+.conv-item[style*="1877F2"] { border-left: 3px solid #1877F2 !important; }
+
+/* ═══ Mobile bottom nav active indicator ═══ */
+.bottom-nav-item.active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent-gradient);
+}
+
+.bottom-nav-item {
+  position: relative;
+}
+
+/* ═══ Onboarding checklist confetti ═══ */
+@keyframes confetti-fall {
+  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+}
+
+.confetti-piece {
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  z-index: 10000;
+  pointer-events: none;
+  animation: confetti-fall 3s ease-out forwards;
+}
+
+/* ═══ Billing comparison table ═══ */
+.billing-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-xl);
+  font-size: var(--font-size-sm);
+}
+
+.billing-comparison-table th {
+  padding: var(--space-md);
+  text-align: center;
+  border-bottom: 2px solid var(--border-medium);
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.billing-comparison-table td {
+  padding: var(--space-sm) var(--space-md);
+  text-align: center;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+}
+
+.billing-comparison-table td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.billing-comparison-table .check-icon {
+  color: var(--accent-green);
+}
+
+.billing-comparison-table .x-icon {
+  color: var(--text-tertiary);
+  opacity: 0.4;
+}
+
+/* ═══ Search results highlighting ═══ */
+.search-result-highlight {
+  background: rgba(88, 101, 242, 0.2);
+  color: var(--accent-primary-light);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 600;
+}

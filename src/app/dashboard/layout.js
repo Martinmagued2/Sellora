@@ -61,6 +61,22 @@ import CommandPalette from "./components/CommandPalette";
 import ThemeToggle from "./components/ThemeToggle";
 import "./dashboard.css";
 
+// Highlight matching search text
+function highlightText(text, query) {
+  if (!query || !text) return text;
+  const q = query.toLowerCase();
+  const t = String(text);
+  const idx = t.toLowerCase().indexOf(q);
+  if (idx === -1) return t;
+  return (
+    <>
+      {t.slice(0, idx)}
+      <span className="search-result-highlight">{t.slice(idx, idx + q.length)}</span>
+      {t.slice(idx + q.length)}
+    </>
+  );
+}
+
 const sidebarLinks = [
   {
     section: "Main",
@@ -474,15 +490,15 @@ export default function DashboardLayout({ children }) {
                   borderTop: "none", maxHeight: 320, overflowY: "auto"
                 }}>
                   {searchResults.length === 0 ? (
-                    <div style={{ padding: "16px", color: "var(--text-tertiary)", fontSize: "var(--font-size-sm)" }}>No results found</div>
+                    <div style={{ padding: 16, color: "var(--text-tertiary)", fontSize: 13 }}>No results found</div>
                   ) : searchResults.map((r, i) => (
                     <button key={i} onClick={() => { router.push(r.href); setShowSearch(false); setSearchQuery(""); }} style={{
                       display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 16px",
                       background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)",
-                      textAlign: "left", fontSize: "var(--font-size-sm)"
+                      textAlign: "left", fontSize: 13,
                     }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-primary)", minWidth: 80 }}>{r.type}</span>
-                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{highlightText(r.label, searchQuery)}</span>
                       <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{r.sub}</span>
                     </button>
                   ))}
@@ -598,7 +614,7 @@ export default function DashboardLayout({ children }) {
                   textAlign: "left", fontSize: "var(--font-size-sm)"
                 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent-primary)", minWidth: 80 }}>{r.type}</span>
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{highlightText(r.label, searchQuery)}</span>
                   <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{r.sub}</span>
                 </button>
               ))}
