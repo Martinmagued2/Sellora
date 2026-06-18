@@ -32,6 +32,7 @@ import {
   Target,
   Webhook,
   Zap,
+  ChevronDown,
   Sparkles,
   Gift,
   Download,
@@ -56,6 +57,8 @@ import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
 import PushSubscriptionManager from "./components/PushSubscriptionManager";
 import StoreSwitcher from "./components/StoreSwitcher";
 import BottomNav from "./components/BottomNav";
+import CommandPalette from "./components/CommandPalette";
+import ThemeToggle from "./components/ThemeToggle";
 import "./dashboard.css";
 
 const sidebarLinks = [
@@ -131,6 +134,7 @@ export default function DashboardLayout({ children }) {
   const toast = useToast();
   const { isMobile } = useDevice();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState({});
   const [user, setUser] = useState(null);
   const [accountStatus, setAccountStatus] = useState(null);
   const { isAdmin: isAdminUser } = useAdminAuth();
@@ -263,6 +267,7 @@ export default function DashboardLayout({ children }) {
     <ConfirmProvider>
     <ServiceWorkerRegistration />
     <PushSubscriptionManager />
+    <CommandPalette />
     <DashboardAnimations />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
       {/* Sidebar — only on desktop / tablet */}
@@ -284,31 +289,58 @@ export default function DashboardLayout({ children }) {
           </div>
 
           <nav className="sidebar-nav">
-            {sidebarLinks.map((section, i) => (
+            {sidebarLinks.map((section, i) => {
+              const isCollapsed = collapsedSections[section.section];
+              const hasActiveLink = section.links.some(l => pathname === l.href);
+              return (
               <div className="sidebar-section" key={i}>
-                <div className="sidebar-section-title">{section.section}</div>
-                {section.links.map((link) => {
-                  const Icon = link.icon;
-                  const isActive = pathname === link.href;
-                  return (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className={`sidebar-link ${isActive ? "active" : ""}`}
-                      onClick={() => setSidebarOpen(false)}
-                    >
-                      <span className="sidebar-link-icon">
-                        <Icon size={18} />
-                      </span>
-                      {link.label}
-                      {link.badgeKey && sidebarBadges[link.badgeKey] > 0 && (
-                        <span className="sidebar-link-badge">{sidebarBadges[link.badgeKey]}</span>
-                      )}
-                    </Link>
-                  );
-                })}
+                <button
+                  onClick={() => setCollapsedSections(prev => ({ ...prev, [section.section]: !prev[section.section] }))}
+                  className="sidebar-section-title"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    cursor: "pointer", background: "none", border: "none",
+                    width: "100%", textAlign: "left", padding: "8px 12px",
+                    color: "var(--text-tertiary)", fontSize: 10, fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: 1,
+                  }}
+                >
+                  <span>{section.section}</span>
+                  <ChevronDown
+                    size={12}
+                    style={{
+                      transition: "transform 0.2s ease",
+                      transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                    }}
+                  />
+                </button>
+                {!isCollapsed && (
+                  <>
+                    {section.links.map((link) => {
+                      const Icon = link.icon;
+                      const isActive = pathname === link.href;
+                      return (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          className={`sidebar-link ${isActive ? "active" : ""}`}
+                          onClick={() => setSidebarOpen(false)}
+                        >
+                          <span className="sidebar-link-icon">
+                            <Icon size={18} />
+                          </span>
+                          {link.label}
+                          {link.badgeKey && sidebarBadges[link.badgeKey] > 0 && (
+                            <span className="sidebar-link-badge">{sidebarBadges[link.badgeKey]}</span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </>
+                )}
               </div>
-            ))}
+              );
+            })}
             {/* Admin Panel Link - only visible to admin users */}
             {isAdminUser && (
               <div className="sidebar-section">
@@ -338,6 +370,9 @@ export default function DashboardLayout({ children }) {
                 <div className="sidebar-user-plan">
                   {user?.email || "Free Trial"}
                 </div>
+              </div>
+              <div style={{ marginLeft: "auto" }}>
+                <ThemeToggle />
               </div>
             </div>
             <button
@@ -419,12 +454,18 @@ export default function DashboardLayout({ children }) {
               <input
                 type="text"
                 className="topbar-search-input"
-                placeholder="Search conversations, orders, products..."
+                placeholder="Search... (Press ⌘K for commands)"
                 id="dashboard-search"
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setShowSearch(true); }}
                 onFocus={() => setShowSearch(true)}
               />
+              <kbd style={{
+                position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                padding: "2px 6px", borderRadius: 4, fontSize: 10,
+                background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)",
+                pointerEvents: "none",
+              }}>⌘K</kbd>
               {showSearch && searchQuery.trim() && (
                 <div style={{
                   position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100,
