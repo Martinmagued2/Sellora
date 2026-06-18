@@ -59,7 +59,6 @@ import StoreSwitcher from "./components/StoreSwitcher";
 import BottomNav from "./components/BottomNav";
 import CommandPalette from "./components/CommandPalette";
 import ThemeToggle from "./components/ThemeToggle";
-import QuickActionsFAB from "./components/QuickActionsFAB";
 import KeyboardShortcutsHelp from "./components/KeyboardShortcutsHelp";
 import { ActionToastContainer } from "./components/ActionToast";
 import "./dashboard.css";
@@ -288,7 +287,6 @@ export default function DashboardLayout({ children }) {
     <PushSubscriptionManager />
     <CommandPalette />
     <KeyboardShortcutsHelp />
-    <QuickActionsFAB />
     <ActionToastContainer />
     <DashboardAnimations />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>

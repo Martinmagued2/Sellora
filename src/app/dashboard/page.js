@@ -14,6 +14,8 @@ import AnimatedStatCard from "@/app/dashboard/components/AnimatedStatCard";
 import EmptyState from "@/app/dashboard/components/EmptyState";
 import SmartGreeting from "@/app/dashboard/components/SmartGreeting";
 import MilestoneTracker from "@/app/dashboard/components/MilestoneTracker";
+import LiveActivityFeed from "@/app/dashboard/components/LiveActivityFeed";
+import QuickStatsBar from "@/app/dashboard/components/QuickStatsBar";
 import { DashboardSkeleton } from "@/components/SkeletonLoader";
 
 export default function DashboardHome() {
@@ -135,6 +137,7 @@ export default function DashboardHome() {
       <OnboardingChecklist />
       <MilestoneTracker stats={stats} />
       <SmartGreeting user={user} stats={stats} />
+      {stats && stats.totalMessages > 0 && <QuickStatsBar stats={stats} />}
       {stats.totalMessages === 0 && stats.totalOrders === 0 ? (
         <div style={{ maxWidth: 640, margin: "0 auto", marginTop: "var(--space-2xl)" }}>
           <div style={{ textAlign: "center", marginBottom: "var(--space-2xl)" }}>
@@ -241,6 +244,11 @@ export default function DashboardHome() {
 
       {/* ═══ Inventory Alerts ═══ */}
       <InventoryAlerts />
+
+      {/* ═══ Live Activity Feed ═══ */}
+      <div style={{ marginBottom: "var(--space-xl)" }}>
+        <LiveActivityFeed limit={8} />
+      </div>
 
       {/* ═══ Middle Row: Order Pipeline + Channel Split ═══ */}
       <div className="dashboard-grid" style={{ marginTop: "var(--space-lg)" }}>
