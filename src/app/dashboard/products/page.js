@@ -602,7 +602,7 @@ export default function ProductsPage() {
       ) : (
         <div className="products-grid">
           {products.map((product) => (
-            <div key={product.id} className="product-card">
+            <div key={product.id} className="product-card" onMouseEnter={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 1; }} onMouseLeave={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 0; }}>
               <div className="product-card-image">
                 {product.image_urls && product.image_urls.length > 0 ? (
                   <img
@@ -665,7 +665,9 @@ export default function ProductsPage() {
                     {product.stock === 0 ? "Out of stock" : `${product.stock} in stock`}
                   </span>
                 </div>
-                <div style={{ display: "flex", gap: "var(--space-xs)", marginTop: "var(--space-sm)" }}>
+                <div className="product-card-actions" style={{ display: "flex", gap: "var(--space-xs)", marginTop: "var(--space-sm)", opacity: 0, transition: "opacity 0.2s ease" }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                >
                   <button className="topbar-btn" title="View" onClick={() => setViewProduct(product)} style={{ width: 28, height: 28 }}>
                     <ImageIcon size={13} />
                   </button>

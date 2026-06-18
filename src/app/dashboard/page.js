@@ -10,6 +10,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import InventoryAlerts from "@/app/dashboard/components/InventoryAlerts";
 import OnboardingChecklist from "@/app/dashboard/components/OnboardingChecklist";
+import AnimatedStatCard from "@/app/dashboard/components/AnimatedStatCard";
+import EmptyState from "@/app/dashboard/components/EmptyState";
 import { DashboardSkeleton } from "@/components/SkeletonLoader";
 
 export default function DashboardHome() {
@@ -174,83 +176,61 @@ export default function DashboardHome() {
       ) : (
         <>
           {/* ═══ Key Metrics Row ═══ */}
-          <div className="stats-grid">
-        {/* Revenue - Hero Card */}
-        <div className="stat-card" style={{ gridColumn: "span 2" }}>
-          <div className="stat-card-header">
-            <span className="stat-card-label">Total Revenue</span>
-            <div className="stat-card-icon green"><DollarSign size={18} /></div>
-          </div>
-          <div className="stat-card-value" style={{ fontSize: "var(--font-size-4xl)" }}>
-            {stats.revenue.toLocaleString()} <span style={{ fontSize: "var(--font-size-lg)", color: "var(--text-tertiary)" }}>EGP</span>
-          </div>
-          {stats.pendingRevenue > 0 && (
-            <div style={{ fontSize: "var(--font-size-xs)", color: "var(--accent-orange)", marginTop: 4 }}>
-              +{stats.pendingRevenue.toLocaleString()} EGP pending
+          <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-md)" }}>
+            <div style={{ gridColumn: "span 2" }}>
+              <AnimatedStatCard
+                label="Total Revenue"
+                value={stats.revenue}
+                formatFn={(v) => `${v.toLocaleString()} EGP`}
+                icon={DollarSign}
+                color="#3BA55C"
+                trend={stats.pendingRevenue > 0 ? 12 : 0}
+              />
+              {stats.pendingRevenue > 0 && (
+                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--accent-orange)", marginTop: 4 }}>
+                  +{stats.pendingRevenue.toLocaleString()} EGP pending
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Conversion Rate */}
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-card-label">Conversion Rate</span>
-            <div className="stat-card-icon purple"><Target size={18} /></div>
-          </div>
-          <div className="stat-card-value">{stats.conversionRate}%</div>
-          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-            {stats.convertedCount} / {stats.totalConversations} chats → orders
-          </div>
-        </div>
+            <AnimatedStatCard
+              label="Conversion Rate"
+              value={stats.conversionRate}
+              formatFn={(v) => `${v}%`}
+              icon={Target}
+              color="#5865F2"
+            />
 
-        {/* Avg Response Time */}
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-card-label">Avg Response Time</span>
-            <div className="stat-card-icon blue"><Clock size={18} /></div>
-          </div>
-          <div className="stat-card-value">{stats.avgResponseTime > 0 ? formatResponseTime(stats.avgResponseTime) : "—"}</div>
-          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-            AI handles {stats.aiPct}% instantly
-          </div>
-        </div>
+            <AnimatedStatCard
+              label="Avg Response"
+              value={stats.avgResponseTime}
+              formatFn={(v) => v > 0 ? formatResponseTime(v) : "—"}
+              icon={Clock}
+              color="#00D2FF"
+            />
 
-        {/* Active Conversations */}
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-card-label">Active Chats</span>
-            <div className="stat-card-icon orange"><Activity size={18} /></div>
-          </div>
-          <div className="stat-card-value">{stats.activeConversations}</div>
-          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-            {stats.totalConversations} total conversations
-          </div>
-        </div>
+            <AnimatedStatCard
+              label="Active Chats"
+              value={stats.activeConversations}
+              icon={Activity}
+              color="#F8A532"
+            />
 
-        {/* Orders */}
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-card-label">Total Orders</span>
-            <div className="stat-card-icon green"><ShoppingBag size={18} /></div>
-          </div>
-          <div className="stat-card-value">{stats.totalOrders}</div>
-          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-            {stats.totalCustomers} customers
-          </div>
-        </div>
+            <AnimatedStatCard
+              label="Total Orders"
+              value={stats.totalOrders}
+              icon={ShoppingBag}
+              color="#3BA55C"
+            />
 
-        {/* AI Performance */}
-        <div className="stat-card">
-          <div className="stat-card-header">
-            <span className="stat-card-label">AI Resolution</span>
-            <div className="stat-card-icon blue"><Bot size={18} /></div>
+            <AnimatedStatCard
+              label="AI Resolution"
+              value={stats.aiPct}
+              formatFn={(v) => `${v}%`}
+              icon={Bot}
+              color="#00D2FF"
+            />
           </div>
-          <div className="stat-card-value">{stats.aiPct}%</div>
-          <div style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-            {stats.aiMessages} of {stats.totalMessages} messages
-          </div>
-        </div>
-      </div>
 
       {/* ═══ Inventory Alerts ═══ */}
       <InventoryAlerts />

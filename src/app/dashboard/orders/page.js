@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
 import { useToast } from "../components/ToastProvider";
 import { PageSkeleton } from "@/components/SkeletonLoader";
+import StatusPipeline from "../components/StatusPipeline";
+import EmptyState from "../components/EmptyState";
 
 const statusColors = {
   pending: "pending", confirmed: "confirmed", shipped: "active",
@@ -148,25 +150,11 @@ export default function OrdersPage() {
                     </td>
                     <td style={{ fontWeight: 700 }}>{order.total?.toLocaleString()} {order.currency}</td>
                     <td>
-                      <div style={{ position: "relative", display: "inline-block" }}>
-                        <select
-                          className={`status-badge ${statusColors[order.status] || ""}`}
-                          value={order.status}
-                          onChange={(e) => updateStatus(order.id, e.target.value)}
-                          style={{
-                            appearance: "none", cursor: "pointer", border: "none",
-                            background: "inherit", color: "inherit", font: "inherit",
-                            padding: "4px 20px 4px 10px", borderRadius: 20,
-                          }}
-                        >
-                          {["pending", "confirmed", "shipped", "delivered", "cancelled"].map((s) => (
-                            <option key={s} value={s} style={{ background: "#1a1a2e", color: "white" }}>
-                              {s.charAt(0).toUpperCase() + s.slice(1)}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown size={10} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-                      </div>
+                      <StatusPipeline
+                        status={order.status}
+                        size="sm"
+                        onAdvance={(newStatus) => updateStatus(order.id, newStatus)}
+                      />
                     </td>
                     <td>
                       <span className={`channel-badge ${order.channel}`}>
@@ -195,7 +183,7 @@ export default function OrdersPage() {
                   </tr>
                 ))}
                 {orders.length === 0 && (
-                  <tr><td colSpan="8" style={{ textAlign: "center", padding: "var(--space-2xl)", color: "var(--text-tertiary)" }}>No orders found</td></tr>
+                  <tr><td colSpan="8"><EmptyState type="orders" title="No orders yet" description="Your first order will appear here once a customer places one." /></td></tr>
                 )}
               </tbody>
             </table>

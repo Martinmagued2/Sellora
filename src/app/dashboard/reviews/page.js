@@ -6,6 +6,7 @@ import {
   TrendingUp, AlertCircle,
 } from "lucide-react";
 import { useToast } from "../components/ToastProvider";
+import EmptyState from "../components/EmptyState";
 
 export default function ReviewsPage() {
   const { toast } = useToast();
@@ -116,10 +117,7 @@ export default function ReviewsPage() {
 
       {/* Reviews list */}
       {reviews.length === 0 ? (
-        <div style={{ padding: 60, textAlign: "center", color: "var(--text-tertiary)" }}>
-          <MessageSquare size={48} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
-          <p>No reviews yet. Reviews appear here automatically after customers receive their orders.</p>
-        </div>
+        <EmptyState type="reviews" title="No reviews yet" description="Reviews appear here automatically after customers receive their orders and submit ratings." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {reviews.map((r) => (
