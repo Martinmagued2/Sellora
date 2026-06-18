@@ -19,9 +19,6 @@ export default function QuickStatsBar({ stats }) {
 
   const items = [
     { label: "Active Chats", value: stats.activeConversations || 0, icon: MessageCircle, color: "#00D2FF", path: "/dashboard/conversations" },
-    { label: "Orders", value: stats.totalOrders || 0, icon: ShoppingBag, color: "#F8A532", path: "/dashboard/orders" },
-    { label: "AI Resolution", value: `${stats.aiPct || 0}%`, icon: Bot, color: "#3BA55C", path: "/dashboard/analytics" },
-    { label: "Revenue", value: `${(stats.revenue || 0).toLocaleString()}`, suffix: " EGP", icon: DollarSign, color: "#3BA55C", path: "/dashboard/analytics" },
   ];
 
   return (

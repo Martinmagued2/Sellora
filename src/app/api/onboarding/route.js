@@ -96,10 +96,16 @@ async function computeStepState(admin, userId) {
     .eq("is_ai", true);
 
   // 5. invite_teammate
-  const { count: teamCount } = await admin
-    .from("team_members")
-    .select("*", { count: "exact", head: true })
-    .eq("account_id", userId);
+  let teamCount = 0;
+  try {
+    const { count } = await admin
+      .from("team_members")
+      .select("*", { count: "exact", head: true })
+      .eq("account_id", userId);
+    teamCount = count || 0;
+  } catch (e) {
+    // team_members table might not exist — default to 0
+  }
 
   return {
     connect_whatsapp: account?.whatsapp_connected === true,
