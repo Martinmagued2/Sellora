@@ -59,6 +59,8 @@ import StoreSwitcher from "./components/StoreSwitcher";
 import BottomNav from "./components/BottomNav";
 import CommandPalette from "./components/CommandPalette";
 import ThemeToggle from "./components/ThemeToggle";
+import QuickActionsFAB from "./components/QuickActionsFAB";
+import KeyboardShortcutsHelp from "./components/KeyboardShortcutsHelp";
 import "./dashboard.css";
 
 // Highlight matching search text
@@ -284,6 +286,8 @@ export default function DashboardLayout({ children }) {
     <ServiceWorkerRegistration />
     <PushSubscriptionManager />
     <CommandPalette />
+    <KeyboardShortcutsHelp />
+    <QuickActionsFAB />
     <DashboardAnimations />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
       {/* Sidebar — only on desktop / tablet */}

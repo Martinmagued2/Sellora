@@ -63,7 +63,7 @@ export default function StorefrontPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [shareStatus, setShareStatus] = useState(null); // null | "sharing" | "copied" | "error"
 
-  // Dynamic SEO meta tags
+  // Dynamic SEO meta tags + JSON-LD structured data
   useEffect(() => {
     if (!slug) return;
     fetch(`/api/seo/store?slug=${encodeURIComponent(slug)}`)
@@ -81,6 +81,22 @@ export default function StorefrontPage() {
         setMetaProp("twitter:card", "summary_large_image");
         setMetaProp("twitter:title", data.title);
         setMetaProp("twitter:description", data.description);
+
+        // JSON-LD structured data for Google rich results
+        const existing = document.getElementById("store-jsonld");
+        if (existing) existing.remove();
+        const script = document.createElement("script");
+        script.id = "store-jsonld";
+        script.type = "application/ld+json";
+        script.textContent = JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Store",
+          name: data.title.split(" —")[0],
+          description: data.description,
+          url: data.url,
+          image: data.image || undefined,
+        });
+        document.head.appendChild(script);
       })
       .catch(() => {});
   }, [slug]);
