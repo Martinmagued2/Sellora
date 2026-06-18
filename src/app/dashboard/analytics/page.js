@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { PageSkeleton } from "@/components/SkeletonLoader";
-import { LineChart, DonutChart, BarChart, GaugeChart } from "../components/Charts";
+import { LineChart, DonutChart, BarChart as FunnelBarChart, GaugeChart } from "../components/Charts";
 
 function TrendArrow({ value }) {
   if (value == null || value === 0) return null;
@@ -597,7 +597,7 @@ export default function AnalyticsPage() {
               {/* Funnel Bar Chart */}
               {funnelData && (
                 <div style={{ marginBottom: 20 }}>
-                  <BarChart data={[
+                  <FunnelBarChart data={[
                     { label: "Messages", value: funnelData.steps?.messages || 0, color: "#5865F2" },
                     { label: "Conversations", value: funnelData.steps?.conversations || 0, color: "#7E88F5" },
                     { label: "Products Sent", value: funnelData.steps?.productsSent || 0, color: "#00D2FF" },
