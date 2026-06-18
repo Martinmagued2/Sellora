@@ -18,6 +18,7 @@ import RecommendationsCard from "../components/RecommendationsCard";
 import VoiceRecorder from "../components/VoiceRecorder";
 import ImageUploader from "../components/ImageUploader";
 import EmptyState from "../components/EmptyState";
+import ConversationSearch from "../components/ConversationSearch";
 
 // ─── Intent badge config ───
 const INTENT_CONFIG = {
@@ -398,6 +399,7 @@ export default function ConversationsPage() {
   // ─── H2: Pause AI / Take Over toggle ───
   const [aiPausedForConv, setAiPausedForConv] = useState(false);
   const [togglingAi, setTogglingAi] = useState(false);
+  const [showConvSearch, setShowConvSearch] = useState(false);
 
   useEffect(() => {
     if (activeConv) {
@@ -1061,6 +1063,9 @@ export default function ConversationsPage() {
                     <Pause size={16} />
                   )}
                 </button>
+                <button onClick={() => setShowConvSearch(!showConvSearch)} title="Search in conversation">
+                  <Search size={18} />
+                </button>
                 <button onClick={handleSummarize} disabled={summarizing} title="Summarize">
                   {summarizing ? <Loader2 size={18} className="spin" /> : <FileText size={18} />}
                 </button>
@@ -1087,6 +1092,17 @@ export default function ConversationsPage() {
                 </div>
               )}
             </div>
+
+            {/* In-thread search */}
+            <ConversationSearch
+              messages={messages}
+              isOpen={showConvSearch}
+              onClose={() => setShowConvSearch(false)}
+              onJumpTo={(msgId) => {
+                const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+            />
 
             {/* Messages */}
             <div className="mobile-chat-messages">
@@ -1825,6 +1841,15 @@ export default function ConversationsPage() {
                 </div>
               </div>
             </div>
+            <ConversationSearch
+              messages={messages}
+              isOpen={showConvSearch}
+              onClose={() => setShowConvSearch(false)}
+              onJumpTo={(msgId) => {
+                const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+            />
             <div className="chat-messages">
               <div className="chat-msg ai-reply"><span className="ai-label"><Bot size={12} /> Sellora AI</span><div className="msg-bubble">Hi! Ask me about your inventory, prices, or try to buy something!</div></div>
               {simMessages.map((msg) => (
@@ -1892,6 +1917,14 @@ export default function ConversationsPage() {
                     <AlertTriangle size={12} /> AI Escalated — Needs Human
                   </span>
                 )}
+                {/* Search in conversation */}
+                <button
+                  className="topbar-btn"
+                  title="Search in conversation"
+                  onClick={() => setShowConvSearch(!showConvSearch)}
+                >
+                  <Search size={16} />
+                </button>
                 {/* Summarize button */}
                 <button
                   className="topbar-btn"

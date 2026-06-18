@@ -248,26 +248,9 @@ export default function StorefrontPage() {
           </button>
 
           <div style={productDetailGridStyle} className="sellora-store-detail-grid">
-            {/* Product image */}
+            {/* Product image gallery */}
             <div>
-              <div style={productImageLargeStyle}>
-                {p.image_urls && p.image_urls[0] ? (
-                  <img src={p.image_urls[0]} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <div style={noImageStyle}>
-                    <Package size={56} color="rgba(255,255,255,0.15)" />
-                  </div>
-                )}
-              </div>
-              {p.image_urls && p.image_urls.length > 1 && (
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  {p.image_urls.slice(0, 4).map((url, i) => (
-                    <div key={i} style={thumbStyle}>
-                      <img src={url} alt={`${p.name} ${i+1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ProductGallery images={p.image_urls || []} name={p.name} noImageStyle={noImageStyle} productImageLargeStyle={productImageLargeStyle} thumbStyle={thumbStyle} />
             </div>
 
             {/* Product info */}
@@ -975,4 +958,135 @@ function setMetaProp(property, content) {
   let el = document.querySelector(`meta[property="${property}"]`);
   if (!el) { el = document.createElement("meta"); el.setAttribute("property", property); document.head.appendChild(el); }
   el.setAttribute("content", content);
+}
+
+// ─── Product Image Gallery — swipeable on mobile, click-to-change on desktop ───
+function ProductGallery({ images, name, noImageStyle, productImageLargeStyle, thumbStyle }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [touchStart, setTouchStart] = useState(null);
+
+  if (!images || images.length === 0) {
+    return (
+      <div style={productImageLargeStyle}>
+        <div style={noImageStyle}>
+          <Package size={56} color="rgba(255,255,255,0.15)" />
+        </div>
+      </div>
+    );
+  }
+
+  if (images.length === 1) {
+    return (
+      <div style={productImageLargeStyle}>
+        <img src={images[0]} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      </div>
+    );
+  }
+
+  const handleTouchStart = (e) => {
+    setTouchStart(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStart === null) return;
+    const touchEnd = e.changedTouches[0].clientX;
+    const diff = touchStart - touchEnd;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        // Swipe left → next
+        setActiveIdx(prev => Math.min(prev + 1, images.length - 1));
+      } else {
+        // Swipe right → prev
+        setActiveIdx(prev => Math.max(prev - 1, 0));
+      }
+    }
+    setTouchStart(null);
+  };
+
+  return (
+    <div>
+      {/* Main image with swipe support */}
+      <div
+        style={productImageLargeStyle}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <img
+          src={images[activeIdx]}
+          alt={`${name} ${activeIdx + 1}`}
+          style={{ width: "100%", height: "100%", objectFit: "cover", transition: "opacity 0.2s ease" }}
+        />
+        {/* Image counter */}
+        <div style={{
+          position: "absolute", bottom: 10, right: 10,
+          padding: "3px 10px", borderRadius: 12,
+          background: "rgba(0,0,0,0.6)", color: "#fff",
+          fontSize: 11, fontWeight: 600, backdropFilter: "blur(4px)",
+        }}>
+          {activeIdx + 1} / {images.length}
+        </div>
+        {/* Nav arrows (desktop) */}
+        {activeIdx > 0 && (
+          <button
+            onClick={() => setActiveIdx(prev => prev - 1)}
+            style={{
+              position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
+              width: 36, height: 36, borderRadius: "50%",
+              background: "rgba(0,0,0,0.5)", border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", backdropFilter: "blur(4px)",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+        )}
+        {activeIdx < images.length - 1 && (
+          <button
+            onClick={() => setActiveIdx(prev => prev + 1)}
+            style={{
+              position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+              width: 36, height: 36, borderRadius: "50%",
+              background: "rgba(0,0,0,0.5)", border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", backdropFilter: "blur(4px)",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+          </button>
+        )}
+        {/* Dots indicator */}
+        <div style={{
+          position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
+          display: "flex", gap: 4,
+        }}>
+          {images.map((_, i) => (
+            <div key={i} style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: i === activeIdx ? "#fff" : "rgba(255,255,255,0.3)",
+              transition: "background 0.2s ease",
+            }} />
+          ))}
+        </div>
+      </div>
+
+      {/* Thumbnails */}
+      <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto" }}>
+        {images.map((url, i) => (
+          <button
+            key={i}
+            onClick={() => setActiveIdx(i)}
+            style={{
+              ...thumbStyle,
+              border: i === activeIdx ? "2px solid #5865F2" : thumbStyle.border,
+              opacity: i === activeIdx ? 1 : 0.5,
+              cursor: "pointer", transition: "all 0.15s ease",
+              flexShrink: 0,
+            }}
+          >
+            <img src={url} alt={`${name} ${i+1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }

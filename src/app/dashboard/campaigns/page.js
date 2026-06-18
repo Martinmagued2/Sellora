@@ -8,6 +8,7 @@ import {
   MessageCircle, X, Loader2, Calendar, Filter, Check, Zap,
   Copy, AlertCircle, ChevronDown, ChevronUp, Globe, Camera, MessageSquare,
 } from "lucide-react";
+import WhatsAppPreview from "../components/WhatsAppPreview";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
 import { useConfirm } from "../components/ConfirmProvider";
@@ -592,16 +593,25 @@ export default function CampaignsPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Message Template</label>
-                  <textarea
-                    className="form-input form-textarea"
-                    placeholder="Write your broadcast message here..."
-                    value={newCampaign.message}
-                    onChange={(e) => setNewCampaign({ ...newCampaign, message: e.target.value })}
-                    rows={4}
-                  />
-                  <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
-                    Use {"{name}"} to personalize with the customer&apos;s name, {"{business_name}"} for your store name
-                  </p>
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 250 }}>
+                      <textarea
+                        className="form-input form-textarea"
+                        placeholder="Write your broadcast message here..."
+                        value={newCampaign.message}
+                        onChange={(e) => setNewCampaign({ ...newCampaign, message: e.target.value })}
+                        rows={4}
+                      />
+                      <p style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)", marginTop: 4 }}>
+                        Use {"{name}"} to personalize with the customer&apos;s name, {"{business_name}"} for your store name
+                      </p>
+                    </div>
+                    {/* WhatsApp live preview */}
+                    <div style={{ display: "none", "@media (min-width: 768px)": { display: "block" } }} className="wa-preview-wrapper">
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Live Preview</div>
+                      <WhatsAppPreview message={newCampaign.message} businessName="My Store" />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Audience Filtering */}
