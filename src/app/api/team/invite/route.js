@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendTeamInviteEmail, isEmailConfigured } from "@/lib/email";
 import { NextResponse } from "next/server";
-import { verifyAdmin } from "@/lib/admin-auth";
+import { getAuthUser } from "@/lib/auth-helper";
 
 let _supabaseAdmin = null;
 function getSupabaseAdmin() {
@@ -15,10 +15,28 @@ function getSupabaseAdmin() {
 }
 
 export async function POST(req) {
-  // 🔒 CRITICAL: Require admin auth — anyone could send team invites
-  const { isAdmin } = await verifyAdmin(req);
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  // Auth: the account OWNER or an ADMIN can invite team members
+  const user = await getAuthUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data: account } = await supabase
+    .from("accounts")
+    .select("id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!account) {
+    return NextResponse.json({ error: "Account not found" }, { status: 404 });
+  }
+
+  // Allow owner (role is null/undefined/owner) OR admin
+  const isOwner = !account.role || account.role === "owner";
+  const isAdmin = account.role === "admin";
+  if (!isOwner && !isAdmin) {
+    return NextResponse.json({ error: "Only the account owner or admin can invite team members" }, { status: 403 });
   }
 
   try {
