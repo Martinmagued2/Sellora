@@ -1359,6 +1359,7 @@ export default function Home() {
             </div>
           </div>
           <div className="footer-extra-links">
+            <a href="/setup-guide" onClick={preventNav}>Setup Guide</a>
             <a href="/help" onClick={preventNav}>Help Center</a>
             <a href="/blog" onClick={preventNav}>Blog</a>
             <a href="/affiliates" onClick={preventNav}>Affiliates</a>
