@@ -7,7 +7,7 @@ import {
   ArrowUpRight, ArrowDownRight, Activity, Download, Lock,
   ChevronRight, Calendar, RefreshCw, Sparkles, AlertTriangle,
   Heart, Meh, Frown, Flame, Package, CreditCard, Smartphone,
-  FileText, Loader2, BarChart, PieChart, Camera, Globe
+  FileText, Loader2, PieChart, Camera, Globe
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
@@ -1044,20 +1044,20 @@ export default function AnalyticsPage() {
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
               {/* Revenue Trend */}
-              {sales && sales.dailyRevenue && (
+              {salesData && salesData.dailyRevenue && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue Trend</div>
-                  <LineChart data={sales.dailyRevenue.map(d => ({ label: d.date?.slice(5) || "", value: d.revenue || 0 }))} color="#3BA55C" height={100} label="Revenue" />
+                  <LineChart data={salesData.dailyRevenue.map(d => ({ label: d.date?.slice(5) || "", value: d.revenue || 0 }))} color="#3BA55C" height={100} label="Revenue" />
                 </div>
               )}
               {/* Channel Distribution */}
-              {sales && sales.channelRevenue && (
+              {salesData && salesData.channelRevenue && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Channel Distribution (Revenue)</div>
                   <DonutChart data={[
-                    { label: "WhatsApp", value: sales.channelRevenue.whatsapp || 0, color: "#25D366" },
-                    { label: "Instagram", value: sales.channelRevenue.instagram || 0, color: "#E1306C" },
-                    { label: "Facebook", value: sales.channelRevenue.facebook || 0, color: "#1877F2" },
+                    { label: "WhatsApp", value: salesData.channelRevenue.whatsapp || 0, color: "#25D366" },
+                    { label: "Instagram", value: salesData.channelRevenue.instagram || 0, color: "#E1306C" },
+                    { label: "Facebook", value: salesData.channelRevenue.facebook || 0, color: "#1877F2" },
                   ].filter(d => d.value > 0)} />
                 </div>
               )}
