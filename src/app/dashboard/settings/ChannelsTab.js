@@ -258,11 +258,15 @@ export default function ChannelsTab({
                     setShopifySyncing(true);
                     try {
                       const res = await fetch('/api/integrations/shopify/sync', { method: 'POST' });
-                      const data = await res.json();
-                      if (data.error) throw new Error(data.error);
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok || data.error) throw new Error(data.error || `Sync failed (HTTP ${res.status})`);
                       toast.success(`Synced ${data.syncedProducts} products and ${data.syncedOrders} orders`);
-                    } catch(e) { toast.error(e.message); }
-                    finally { setShopifySyncing(false); }
+                    } catch(e) {
+                      console.error('[ChannelsTab] Shopify sync failed:', e);
+                      toast.error(e.message || 'Failed to sync Shopify');
+                    } finally {
+                      setShopifySyncing(false);
+                    }
                   }}>
                     {shopifySyncing ? 'Syncing...' : 'Sync Data'}
                   </button>
