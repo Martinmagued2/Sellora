@@ -7,7 +7,11 @@ function validateShopifyDomain(shopDomain) {
 export async function fetchShopifyProducts(shopDomain, accessToken) {
   validateShopifyDomain(shopDomain);
 
-  const res = await fetch(`https://${shopDomain}/admin/api/2024-04/products.json`, {
+  // Fetch ALL products regardless of status or publication.
+  // Shopify's products.json defaults to status=active + published_status=published,
+  // which silently returns [] for development stores where products haven't been
+  // published to the Online Store channel.
+  const res = await fetch(`https://${shopDomain}/admin/api/2024-04/products.json?limit=250&status=any&published_status=any`, {
     headers: {
       'X-Shopify-Access-Token': accessToken,
       'Content-Type': 'application/json'
@@ -21,7 +25,7 @@ export async function fetchShopifyProducts(shopDomain, accessToken) {
   }
 
   const data = await res.json();
-  return data.products;
+  return data.products || [];
 }
 
 export async function fetchShopifyOrders(shopDomain, accessToken) {
