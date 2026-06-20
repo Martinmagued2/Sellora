@@ -79,10 +79,9 @@ export default function ChannelsTab({
                   if (!(await confirmAction('Disconnect Instagram? You will stop receiving Instagram messages.'))) return;
                   setIgDisconnecting(true);
                   try {
-                    const { error } = await supabase.from('accounts')
-                      .update({ instagram_connected: false, instagram_page_id: null, instagram_access_token: null })
-                      .eq('id', account.id);
-                    if (error) throw new Error(error.message || 'Supabase update failed');
+                    const res = await fetch('/api/channels/disconnect?channel=instagram', { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || `Disconnect failed (HTTP ${res.status})`);
                     setAccount(prev => ({ ...prev, instagram_connected: false, instagram_page_id: null, instagram_access_token: null }));
                     toast.success('Instagram disconnected successfully');
                   } catch (e) {
@@ -169,10 +168,9 @@ export default function ChannelsTab({
                   if (!(await confirmAction('Disconnect Facebook? You will stop receiving Facebook messages.'))) return;
                   setFbDisconnecting(true);
                   try {
-                    const { error } = await supabase.from('accounts')
-                      .update({ facebook_connected: false, facebook_page_id: null, facebook_access_token: null })
-                      .eq('id', account.id);
-                    if (error) throw new Error(error.message || 'Supabase update failed');
+                    const res = await fetch('/api/channels/disconnect?channel=facebook', { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || `Disconnect failed (HTTP ${res.status})`);
                     setAccount(prev => ({ ...prev, facebook_connected: false, facebook_page_id: null, facebook_access_token: null }));
                     toast.success('Facebook disconnected successfully');
                   } catch (e) {
@@ -272,7 +270,7 @@ export default function ChannelsTab({
                     if (!(await confirmAction('Are you sure you want to disconnect Shopify? Your products and orders will remain in Sellora but will no longer sync.'))) return;
                     setShopifyDisconnecting(true);
                     try {
-                      const res = await fetch('/api/integrations/shopify/disconnect', { method: 'POST' });
+                      const res = await fetch('/api/channels/disconnect?channel=shopify', { method: 'POST' });
                       const data = await res.json().catch(() => ({}));
                       if (!res.ok || data.error) {
                         throw new Error(data.error || `Disconnect failed (HTTP ${res.status})`);
@@ -340,10 +338,9 @@ export default function ChannelsTab({
                   if (!(await confirmAction('Disconnect WhatsApp? You will stop receiving WhatsApp messages.'))) return;
                   setWaDisconnecting(true);
                   try {
-                    const { error } = await supabase.from('accounts')
-                      .update({ whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null })
-                      .eq('id', account.id);
-                    if (error) throw new Error(error.message || 'Supabase update failed');
+                    const res = await fetch('/api/channels/disconnect?channel=whatsapp', { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || `Disconnect failed (HTTP ${res.status})`);
                     setAccount(prev => ({ ...prev, whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }));
                     toast.success('WhatsApp disconnected successfully');
                   } catch (e) {
