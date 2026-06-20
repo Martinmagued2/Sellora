@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { MessageCircle, Globe, Check, Plus, X, Link as LinkIcon, Loader2 } from "lucide-react";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useToast } from "../components/ToastProvider";
@@ -16,6 +17,9 @@ export default function ChannelsTab({
 }) {
   const toast = useToast();
   const confirmAction = useConfirm();
+  const [igDisconnecting, setIgDisconnecting] = useState(false);
+  const [fbDisconnecting, setFbDisconnecting] = useState(false);
+  const [waDisconnecting, setWaDisconnecting] = useState(false);
   const planLimits = getPlanLimits(account.plan || "starter");
   const connectedChannels = (account.instagram_connected ? 1 : 0) + (account.facebook_connected ? 1 : 0) + (account.whatsapp_connected ? 1 : 0);
   const limitReached = planLimits.channels !== -1 && connectedChannels >= planLimits.channels;
@@ -71,11 +75,23 @@ export default function ChannelsTab({
                 <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
                   <Check size={16} /> Connected
                 </button>
-                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={igDisconnecting} onClick={async () => {
                   if (!(await confirmAction('Disconnect Instagram? You will stop receiving Instagram messages.'))) return;
-                  await supabase.from('accounts').update({ instagram_connected: false, instagram_page_id: null, instagram_access_token: null }).eq('id', account.id);
-                  setAccount(prev => ({ ...prev, instagram_connected: false, instagram_page_id: null, instagram_access_token: null }));
-                }}>Disconnect</button>
+                  setIgDisconnecting(true);
+                  try {
+                    const { error } = await supabase.from('accounts')
+                      .update({ instagram_connected: false, instagram_page_id: null, instagram_access_token: null })
+                      .eq('id', account.id);
+                    if (error) throw new Error(error.message || 'Supabase update failed');
+                    setAccount(prev => ({ ...prev, instagram_connected: false, instagram_page_id: null, instagram_access_token: null }));
+                    toast.success('Instagram disconnected successfully');
+                  } catch (e) {
+                    console.error('[ChannelsTab] Instagram disconnect failed:', e);
+                    toast.error(e.message || 'Failed to disconnect Instagram');
+                  } finally {
+                    setIgDisconnecting(false);
+                  }
+                }}>{igDisconnecting ? 'Disconnecting…' : 'Disconnect'}</button>
               </div>
             ) : limitReached ? (
               <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => router.push('/dashboard/billing')}>
@@ -149,11 +165,23 @@ export default function ChannelsTab({
                 <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
                   <Check size={16} /> Connected
                 </button>
-                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={fbDisconnecting} onClick={async () => {
                   if (!(await confirmAction('Disconnect Facebook? You will stop receiving Facebook messages.'))) return;
-                  await supabase.from('accounts').update({ facebook_connected: false, facebook_page_id: null, facebook_access_token: null }).eq('id', account.id);
-                  setAccount(prev => ({ ...prev, facebook_connected: false, facebook_page_id: null, facebook_access_token: null }));
-                }}>Disconnect</button>
+                  setFbDisconnecting(true);
+                  try {
+                    const { error } = await supabase.from('accounts')
+                      .update({ facebook_connected: false, facebook_page_id: null, facebook_access_token: null })
+                      .eq('id', account.id);
+                    if (error) throw new Error(error.message || 'Supabase update failed');
+                    setAccount(prev => ({ ...prev, facebook_connected: false, facebook_page_id: null, facebook_access_token: null }));
+                    toast.success('Facebook disconnected successfully');
+                  } catch (e) {
+                    console.error('[ChannelsTab] Facebook disconnect failed:', e);
+                    toast.error(e.message || 'Failed to disconnect Facebook');
+                  } finally {
+                    setFbDisconnecting(false);
+                  }
+                }}>{fbDisconnecting ? 'Disconnecting…' : 'Disconnect'}</button>
               </div>
             ) : limitReached ? (
               <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => router.push('/dashboard/billing')}>
@@ -308,11 +336,23 @@ export default function ChannelsTab({
                   <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 10, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4 }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'}</code></div>
                   <div><strong>Verify Token:</strong> Set via WHATSAPP_WEBHOOK_VERIFY_TOKEN env var</div>
                 </div>
-                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={waDisconnecting} onClick={async () => {
                   if (!(await confirmAction('Disconnect WhatsApp? You will stop receiving WhatsApp messages.'))) return;
-                  await supabase.from('accounts').update({ whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }).eq('id', account.id);
-                  setAccount(prev => ({ ...prev, whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }));
-                }}>Disconnect</button>
+                  setWaDisconnecting(true);
+                  try {
+                    const { error } = await supabase.from('accounts')
+                      .update({ whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null })
+                      .eq('id', account.id);
+                    if (error) throw new Error(error.message || 'Supabase update failed');
+                    setAccount(prev => ({ ...prev, whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }));
+                    toast.success('WhatsApp disconnected successfully');
+                  } catch (e) {
+                    console.error('[ChannelsTab] WhatsApp disconnect failed:', e);
+                    toast.error(e.message || 'Failed to disconnect WhatsApp');
+                  } finally {
+                    setWaDisconnecting(false);
+                  }
+                }}>{waDisconnecting ? 'Disconnecting…' : 'Disconnect'}</button>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
