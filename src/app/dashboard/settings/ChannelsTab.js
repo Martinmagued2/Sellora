@@ -19,6 +19,8 @@ export default function ChannelsTab({
   const planLimits = getPlanLimits(account.plan || "starter");
   const connectedChannels = (account.instagram_connected ? 1 : 0) + (account.facebook_connected ? 1 : 0) + (account.whatsapp_connected ? 1 : 0);
   const limitReached = planLimits.channels !== -1 && connectedChannels >= planLimits.channels;
+  // Shopify is an integration, not a messaging channel — don't gate it by channel limit
+  const shopifyLimitReached = false;
 
   return (
     <div className="dashboard-panel">
@@ -251,10 +253,6 @@ export default function ChannelsTab({
                   </button>
                 </div>
               </div>
-            ) : limitReached ? (
-              <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => router.push('/dashboard/billing')}>
-                Upgrade to Connect
-              </button>
             ) : (
               <div>
                 <input type="text" className="form-input" placeholder="your-shop.myshopify.com" value={shopifyDomain} onChange={(e) => setShopifyDomain(e.target.value)} style={{ marginBottom: 8 }} />
