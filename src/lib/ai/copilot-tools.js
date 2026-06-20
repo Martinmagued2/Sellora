@@ -1821,5 +1821,96 @@ export const createCopilotTools = (accountId) => {
         };
       },
     }),
+
+    create_order: tool({
+      description: "Create a new order for a customer. Use when the seller asks to create an order, e.g. 'Create an order for Ahmed buying 2 red shirts, COD'. Finds the customer by name, finds the product by name, creates the order, and optionally sends a confirmation message via WhatsApp.",
+      inputSchema: z.object({
+        customer_name: z.string().describe("The customer's name (e.g. 'Martin Saleh')"),
+        items: z.array(z.object({
+          product_name: z.string().describe("Product name to search for (e.g. 'Bed', 'Red Shirt')"),
+          quantity: z.coerce.number().positive().default(1).describe("Quantity to order"),
+        })).describe("Array of items to order"),
+        payment_method: z.enum(["cod", "vodafone_cash", "instapay", "card"]).default("cod").describe("Payment method"),
+        shipping_address: z.string().optional().describe("Shipping address (optional)"),
+        send_confirmation: z.boolean().default(true).describe("Whether to send a WhatsApp confirmation message to the customer"),
+      }),
+      execute: async ({ customer_name, items, payment_method, shipping_address, send_confirmation }) => {
+        try {
+          const { data: customer } = await supabase
+            .from("customers")
+            .select("id, name, phone, channel")
+            .eq("account_id", accountId)
+            .ilike("name", `%${customer_name}%`)
+            .limit(1)
+            .single();
+
+          if (!customer) {
+            return { success: false, error: `Customer '${customer_name}' not found. Ask the seller to check the name.` };
+          }
+
+          const orderItems = [];
+          let total = 0;
+
+          for (const item of items) {
+            const { data: product } = await supabase
+              .from("products")
+              .select("id, name, price, stock, category")
+              .eq("account_id", accountId)
+              .ilike("name", `%${item.product_name}%`)
+              .limit(1)
+              .single();
+
+            if (!product) return { success: false, error: `Product '${item.product_name}' not found.` };
+            if (product.stock < item.quantity) return { success: false, error: `Only ${product.stock} ${product.name} in stock.` };
+
+            orderItems.push({ item_id: crypto.randomUUID(), product_id: product.id, name: product.name, price: parseFloat(product.price), qty: item.quantity, category: product.category, added_at: new Date().toISOString() });
+            total += parseFloat(product.price) * item.quantity;
+          }
+
+          const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+          const { data: order } = await supabase.from("orders").insert({
+            account_id: accountId, customer_id: customer.id, order_number: orderNumber,
+            items: orderItems, subtotal: total, shipping_cost: 0, total, currency: "EGP",
+            status: "pending", channel: customer.channel || "whatsapp",
+            payment_method, payment_status: "unpaid",
+            shipping_address: shipping_address || null,
+            notes: `Created by AI Copilot for ${customer.name}`,
+          }).select("*").single();
+
+          if (!order) return { success: false, error: "Failed to create order" };
+
+          for (const item of orderItems) {
+            const { data: p } = await supabase.from("products").select("stock").eq("id", item.product_id).single();
+            if (p && Number(p.stock) >= item.qty) await supabase.from("products").update({ stock: Number(p.stock) - item.qty }).eq("id", item.product_id);
+          }
+
+          let confirmationSent = false;
+          if (send_confirmation && customer.phone) {
+            try {
+              const { data: acct } = await supabase.from("accounts").select("whatsapp_access_token, whatsapp_phone_number_id, whatsapp_connected").eq("id", accountId).single();
+              if (acct?.whatsapp_connected && acct?.whatsapp_access_token) {
+                const itemsList = orderItems.map(i => `\u2022 ${i.name} \u00d7 ${i.qty} \u2014 ${i.price} EGP`).join("\n");
+                const msg = `\u2705 Order Confirmation\n\nHi ${customer.name}! Your order has been created.\n\n\ud83d\udce6 Order: ${orderNumber}\n\nItems:\n${itemsList}\n\n\ud83d\udcb2 Total: ${total} EGP\n\ud83d\udcb5 Payment: ${payment_method.toUpperCase()}\n\nWe'll process your order shortly. Thank you! \ud83d\ude4f`;
+                const { sendWhatsAppMessage } = await import("@/lib/whatsapp");
+                await sendWhatsAppMessage({ to: customer.phone, message: msg, phoneNumberId: acct.whatsapp_phone_number_id, accessToken: acct.whatsapp_access_token });
+                confirmationSent = true;
+              }
+            } catch (e) { console.warn("[COPILOT] WA confirm failed:", e.message); }
+          }
+
+          const itemsText = orderItems.map(i => `\u2022 ${i.name} \u00d7 ${i.qty} \u2014 ${i.price} EGP`).join("\n");
+          return {
+            success: true,
+            order_id: order.id,
+            order_number: orderNumber,
+            formatted_response: `\u2705 Order created!\n\n\ud83d\udccb Order: ${orderNumber}\n\ud83d\udc64 Customer: ${customer.name}${customer.phone ? ` (${customer.phone})` : ""}\n\ud83d\udce6 Items:\n${itemsText}\n\n\ud83d\udcb2 Total: ${total} EGP\n\ud83d\udcb5 Payment: ${payment_method.toUpperCase()}\n\ud83d\udcca Status: Pending${confirmationSent ? "\n\ud83d\udcf1 WhatsApp confirmation sent!" : "\n\u26a0\ufe0f WhatsApp not connected - no confirmation sent"}`,
+            _action: { type: "navigate", path: "/dashboard/orders", label: "View Order" },
+          };
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      },
+    }),
   };
 };
