@@ -303,13 +303,93 @@ export default function ChannelsTab({
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {/* WhatsApp Embedded Signup (1-click) */}
+                <button
+                  className="btn btn-primary"
+                  style={{ width: "100%", background: "#25D366", borderColor: "#25D366", fontSize: 13, fontWeight: 700, padding: "12px 16px" }}
+                  onClick={async () => {
+                    // Load Facebook SDK if not already loaded
+                    if (!window.FB) {
+                      const script = document.createElement('script');
+                      script.src = "https://connect.facebook.net/en_US/sdk.js";
+                      script.async = true;
+                      script.defer = true;
+                      script.crossOrigin = "anonymous";
+                      document.head.appendChild(script);
+                      await new Promise(resolve => { script.onload = resolve; });
+                    }
+
+                    // Fetch app config
+                    const configRes = await fetch("/api/auth/wa-embedded");
+                    const config = await configRes.json();
+
+                    if (!config.appId) {
+                      toast.error("WhatsApp Embedded Signup not configured. Use manual setup below.");
+                      setShowManualWA(true);
+                      return;
+                    }
+
+                    // Initialize FB SDK
+                    window.FB.init({
+                      appId: config.appId,
+                      cookie: true,
+                      xfbml: true,
+                      version: "v21.0",
+                    });
+
+                    // Launch Embedded Signup
+                    window.FB.login(function(response) {
+                      if (response.authResponse) {
+                        const code = response.code;
+
+                        // Exchange the code for credentials (server-side)
+                        fetch("/api/auth/wa-embedded", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ code, redirectUri: window.location.origin + "/dashboard/settings?tab=channels" }),
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                          if (data.success) {
+                            setAccount(prev => ({ ...prev, whatsapp_connected: true, whatsapp_phone_number_id: data.phoneNumberId, whatsapp_access_token: data.accessToken }));
+                            setMetaStatus({ type: 'success', platform: 'whatsapp', message: 'WhatsApp connected successfully! 🎉' });
+                          } else {
+                            toast.error(data.error || 'Connection failed');
+                          }
+                        })
+                        .catch(() => toast.error('Connection failed. Try manual setup.'));
+                      } else {
+                        toast.info('WhatsApp connection cancelled');
+                      }
+                    }, {
+                      config_id: config.configId || undefined,
+                      response_type: "code",
+                      override_default_response_type: true,
+                      extras: {
+                        feature: "whatsapp_embedded_signup",
+                        setup: {},
+                      },
+                    });
+                  }}
+                >
+                  <MessageCircle size={16} /> Connect WhatsApp (1-Click)
+                </button>
+
+                {/* Divider */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0" }}>
+                  <div style={{ flex: 1, height: 1, background: "var(--border-subtle)" }} />
+                  <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>OR</span>
+                  <div style={{ flex: 1, height: 1, background: "var(--border-subtle)" }} />
+                </div>
+
+                {/* Manual fallback */}
                 <button className="btn btn-secondary" style={{ width: "100%", fontSize: 12 }} onClick={() => setShowManualWA(!showManualWA)}>
-                  <LinkIcon size={14} /> Enter WhatsApp Credentials
+                  <LinkIcon size={14} /> Enter Manually
                 </button>
                 {showManualWA && (
                   <div style={{ textAlign: "left", padding: "8px 0", display: "flex", flexDirection: "column", gap: 6 }}>
                     <p style={{ fontSize: 11, color: "var(--text-tertiary)", margin: 0 }}>
-                      Get these from Meta Dashboard → WhatsApp → Phone Numbers → Settings
+                      Get these from Meta Dashboard → WhatsApp → API Setup
                     </p>
                     <input type="text" className="form-input" placeholder="Phone Number ID" value={manualWA.phoneNumberId} onChange={(e) => setManualWA({ ...manualWA, phoneNumberId: e.target.value })} style={{ fontSize: 12 }} />
                     <input type="text" className="form-input" placeholder="Access Token" value={manualWA.accessToken} onChange={(e) => setManualWA({ ...manualWA, accessToken: e.target.value })} style={{ fontSize: 12 }} />
@@ -332,12 +412,11 @@ export default function ChannelsTab({
                     }}>
                       {manualWASaving ? 'Saving...' : 'Save & Connect'}
                     </button>
+                    <a href="/setup-guide" target="_blank" style={{ fontSize: 11, color: "var(--accent-primary-light)", textAlign: "center", marginTop: 4 }}>
+                      Need help? Read the setup guide →
+                    </a>
                   </div>
                 )}
-                <div style={{ fontSize: 10, color: "var(--text-tertiary)", padding: "8px 12px", background: "var(--bg-glass)", borderRadius: 8, textAlign: "left" }}>
-                  <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 9, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4 }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'}</code></div>
-                  <div><strong>Note:</strong> Configure webhook in Meta Dashboard with this URL</div>
-                </div>
               </div>
             )}
           </div>
