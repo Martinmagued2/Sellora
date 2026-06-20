@@ -89,17 +89,26 @@ export async function GET(req) {
     out.productCount = await shopifyGet(account.shopify_shop_domain, token, 'products/count.json');
 
     // 3. First 5 products (any status) — validates data
-    out.productsSample = await shopifyGet(account.shopify_shop_domain, token, 'products.json?limit=5&status=any');
+    // Use the EXACT same query as fetchShopifyProducts so we see what sync sees
+    out.productsSample = await shopifyGet(account.shopify_shop_domain, token, 'products.json?limit=250&status=any&published_status=any');
+
+    // 3a. Also try without published_status to prove the difference
+    out.productsSampleOldQuery = await shopifyGet(account.shopify_shop_domain, token, 'products.json?limit=5&status=any');
 
     // 4. Order count — validates read_orders scope
     out.orderCount = await shopifyGet(account.shopify_shop_domain, token, 'orders/count.json?status=any');
 
     // Diagnostic summary
+    const newQueryProducts = Array.isArray(out.productsSample.body?.products) ? out.productsSample.body.products : null;
+    const oldQueryProducts = Array.isArray(out.productsSampleOldQuery.body?.products) ? out.productsSampleOldQuery.body.products : null;
     out.summary = {
       tokenValid: out.shopInfo.ok,
       shopName: out.shopInfo.body?.shop?.name || null,
       productCountValue: typeof out.productCount.body === 'number' ? out.productCount.body : (out.productCount.body?.count ?? null),
       orderCountValue: typeof out.orderCount.body === 'number' ? out.orderCount.body : (out.orderCount.body?.count ?? null),
+      productsReturnedNewQuery: newQueryProducts?.length ?? null,
+      productsReturnedOldQuery: oldQueryProducts?.length ?? null,
+      newQueryFixWorked: (newQueryProducts?.length || 0) > (oldQueryProducts?.length || 0),
       productsApiStatus: out.productsSample.status,
       productCountApiStatus: out.productCount.status,
       shopApiStatus: out.shopInfo.status,
