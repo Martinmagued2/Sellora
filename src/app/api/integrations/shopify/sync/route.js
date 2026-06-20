@@ -105,29 +105,34 @@ export async function POST(req) {
     // 5. Sync products
     let syncedProducts = 0;
     let productErrors = 0;
+    const productErrorSamples = [];
     for (const p of products) {
-      try {
-        await adminClient.from('products').upsert({
-          account_id: account.id,
-          name: p.title,
-          description: p.body_html?.replace(/<[^>]+>/g, '') || '',
-          price: p.variants?.[0]?.price || 0,
-          stock: p.variants?.[0]?.inventory_quantity || 0,
-          category: p.product_type || 'General',
-          status: p.status === 'active' ? 'active' : 'draft',
-          image_urls: p.images?.map(img => img.src) || [],
-          shopify_id: p.id?.toString() || null
-        }, { onConflict: 'account_id, shopify_id' });
-        syncedProducts++;
-      } catch (e) {
+      const { error: upsertErr } = await adminClient.from('products').upsert({
+        account_id: account.id,
+        name: p.title,
+        description: p.body_html?.replace(/<[^>]+>/g, '') || '',
+        price: p.variants?.[0]?.price || 0,
+        stock: p.variants?.[0]?.inventory_quantity || 0,
+        category: p.product_type || 'General',
+        status: p.status === 'active' ? 'active' : 'draft',
+        image_urls: p.images?.map(img => img.src) || [],
+        shopify_id: p.id?.toString() || null
+      }, { onConflict: 'account_id, shopify_id' });
+
+      if (upsertErr) {
         productErrors++;
-        if (productErrors <= 3) console.error('[shopify/sync] product upsert failed:', e.message);
+        if (productErrorSamples.length < 3) productErrorSamples.push(`${p.title}: ${upsertErr.message}`);
+        console.error('[shopify/sync] product upsert failed:', p.title, upsertErr.message);
+      } else {
+        syncedProducts++;
       }
     }
     log.push(`products_synced=${syncedProducts}/${products.length} errors=${productErrors}`);
+    if (productErrorSamples.length) log.push(`product_error_samples=${JSON.stringify(productErrorSamples)}`);
 
     // 6. Sync orders
     let syncedOrders = 0;
+    let orderErrors = 0;
     for (const o of orders) {
       if (!o.id) continue;
       const { data: existing } = await adminClient.from('orders')
@@ -137,26 +142,27 @@ export async function POST(req) {
         .maybeSingle();
       if (existing) continue;
 
-      try {
-        await adminClient.from('orders').insert({
-          account_id: account.id,
-          order_number: o.order_number || o.name || `SH-${o.id}`,
-          status: o.financial_status === 'paid' ? 'delivered' : o.fulfillment_status || 'pending',
-          total: parseFloat(o.total_price || 0),
-          currency: o.currency || 'EGP',
-          payment_method: o.gateway || 'shopify',
-          payment_status: o.financial_status || 'pending',
-          shopify_order_id: o.id.toString(),
-          items: (o.line_items || []).map(li => ({
-            name: li.title, quantity: li.quantity, price: parseFloat(li.price || 0)
-          }))
-        });
+      const { error: orderInsertErr } = await adminClient.from('orders').insert({
+        account_id: account.id,
+        order_number: o.order_number || o.name || `SH-${o.id}`,
+        status: o.financial_status === 'paid' ? 'delivered' : o.fulfillment_status || 'pending',
+        total: parseFloat(o.total_price || 0),
+        currency: o.currency || 'EGP',
+        payment_method: o.gateway || 'shopify',
+        payment_status: o.financial_status || 'pending',
+        shopify_order_id: o.id.toString(),
+        items: (o.line_items || []).map(li => ({
+          name: li.title, quantity: li.quantity, price: parseFloat(li.price || 0)
+        }))
+      });
+      if (orderInsertErr) {
+        orderErrors++;
+        console.error('[shopify/sync] order insert failed:', orderInsertErr.message);
+      } else {
         syncedOrders++;
-      } catch (e) {
-        console.error('[shopify/sync] order insert failed:', e.message);
       }
     }
-    log.push(`orders_synced=${syncedOrders}/${orders.length}`);
+    log.push(`orders_synced=${syncedOrders}/${orders.length} errors=${orderErrors}`);
 
     // 7. Register webhooks (best-effort, never blocks sync)
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

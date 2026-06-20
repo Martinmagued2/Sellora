@@ -520,3 +520,20 @@ WHERE c.status = 'closed' AND c.resolved_by IS NULL;
 
 -- Done!
 SELECT 'Production setup complete!' as status;
+
+-- ============================================
+-- Migration 047: Shopify products sync fix
+-- ============================================
+-- Adds shopify_id column + unique constraint to products table so the
+-- Shopify sync route's upsert(..., { onConflict: 'account_id, shopify_id' })
+-- actually works. Without this, every sync silently failed.
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS shopify_id TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS products_account_id_shopify_id_key
+  ON products(account_id, shopify_id)
+  WHERE shopify_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_products_shopify_id
+  ON products(shopify_id)
+  WHERE shopify_id IS NOT NULL;
