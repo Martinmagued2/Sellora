@@ -241,15 +241,30 @@ export default function ChannelsTab({
                     {shopifySyncing ? 'Syncing...' : 'Sync Data'}
                   </button>
                   <button className="btn btn-secondary btn-sm" style={{ flex: 1, color: "var(--accent-red)" }} disabled={shopifyDisconnecting} onClick={async () => {
-                    if (!(await confirmAction('Are you sure you want to disconnect Shopify?'))) return;
+                    if (!(await confirmAction('Are you sure you want to disconnect Shopify? Your products and orders will remain in Sellora but will no longer sync.'))) return;
                     setShopifyDisconnecting(true);
                     try {
                       const res = await fetch('/api/integrations/shopify/disconnect', { method: 'POST' });
-                      if (res.ok) window.location.reload();
-                    } catch(e) {}
-                    finally { setShopifyDisconnecting(false); }
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok || data.error) {
+                        throw new Error(data.error || `Disconnect failed (HTTP ${res.status})`);
+                      }
+                      // Update local account state so UI flips to "Connect" instantly
+                      // — no full page reload needed.
+                      setAccount((prev) => ({
+                        ...prev,
+                        shopify_installed: false,
+                        shopify_shop_domain: null,
+                      }));
+                      toast.success('Shopify disconnected successfully');
+                    } catch(e) {
+                      console.error('[ChannelsTab] Shopify disconnect failed:', e);
+                      toast.error(e.message || 'Failed to disconnect Shopify');
+                    } finally {
+                      setShopifyDisconnecting(false);
+                    }
                   }}>
-                    Disconnect
+                    {shopifyDisconnecting ? 'Disconnecting…' : 'Disconnect'}
                   </button>
                 </div>
               </div>
