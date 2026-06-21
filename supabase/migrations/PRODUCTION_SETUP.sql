@@ -711,3 +711,48 @@ CREATE POLICY "Users can manage own payment_recoveries" ON payment_recoveries
 ALTER TABLE vip_customers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own vip_customers" ON vip_customers
   FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+
+-- ============================================
+-- Migration 050: Lifecycle + AI automation suite
+-- ============================================
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS birthday_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS birthday_discount_percent integer DEFAULT 20;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS birthday_message_template text;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS welcome_series_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS welcome_discount_percent integer DEFAULT 10;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reorder_reminders_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reorder_reminder_days integer DEFAULT 25;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reorder_message_template text;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS review_optimization_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS segment_auto_update_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS smart_routing_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS routing_rules jsonb DEFAULT '[]';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS faq_auto_generate_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS negative_review_response_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS negative_review_message_template text;
+
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS birthday date;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS first_order_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS birthday_rewards (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL, discount_code text, discount_percent integer, message_sent text, sent_at timestamptz DEFAULT now(), created_at timestamptz DEFAULT now(), UNIQUE(account_id, customer_id, sent_at));
+CREATE TABLE IF NOT EXISTS welcome_series (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL, step integer NOT NULL, message_sent text, discount_code text, sent_at timestamptz DEFAULT now(), converted boolean DEFAULT false, converted_order_id uuid REFERENCES orders(id), created_at timestamptz DEFAULT now(), UNIQUE(account_id, customer_id, step));
+CREATE TABLE IF NOT EXISTS reorder_reminders (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL, order_id uuid REFERENCES orders(id) ON DELETE CASCADE NOT NULL, product_name text, message_sent text, sent_at timestamptz DEFAULT now(), converted boolean DEFAULT false, converted_order_id uuid REFERENCES orders(id), created_at timestamptz DEFAULT now(), UNIQUE(account_id, order_id));
+CREATE TABLE IF NOT EXISTS review_requests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, order_id uuid REFERENCES orders(id) ON DELETE CASCADE NOT NULL, customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL, scheduled_for timestamptz, sent_at timestamptz, responded_at timestamptz, rating integer, status text DEFAULT 'scheduled', created_at timestamptz DEFAULT now(), UNIQUE(account_id, order_id));
+CREATE TABLE IF NOT EXISTS routing_assignments (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, conversation_id uuid REFERENCES conversations(id) ON DELETE CASCADE NOT NULL, assigned_to uuid, assigned_by text, rule_matched text, assigned_at timestamptz DEFAULT now(), created_at timestamptz DEFAULT now());
+CREATE TABLE IF NOT EXISTS faq_drafts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, question text NOT NULL, answer text NOT NULL, source_conversation_ids uuid[] DEFAULT '{}', frequency integer DEFAULT 1, status text DEFAULT 'draft', generated_at timestamptz DEFAULT now(), reviewed_at timestamptz, reviewed_by uuid, created_at timestamptz DEFAULT now());
+CREATE TABLE IF NOT EXISTS negative_review_responses (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, review_id uuid REFERENCES reviews(id) ON DELETE CASCADE NOT NULL, customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL, draft_response text, sent_at timestamptz, status text DEFAULT 'draft', created_at timestamptz DEFAULT now(), UNIQUE(account_id, review_id));
+
+ALTER TABLE birthday_rewards ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own birthday_rewards" ON birthday_rewards FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE welcome_series ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own welcome_series" ON welcome_series FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE reorder_reminders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own reorder_reminders" ON reorder_reminders FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE review_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own review_requests" ON review_requests FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE routing_assignments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own routing_assignments" ON routing_assignments FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE faq_drafts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own faq_drafts" ON faq_drafts FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE negative_review_responses ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own negative_review_responses" ON negative_review_responses FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
