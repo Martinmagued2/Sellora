@@ -96,19 +96,17 @@ export default function OrdersPage() {
   const sendReviewRequest = async (orderId) => {
     setSendingReview(orderId);
     try {
-      const res = await fetch("/api/orders/send-review-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success("Review request sent to customer via " + (viewOrder?.channel || "their channel"));
-      } else {
-        toast.error(data.error || "Failed to send review request");
-      }
+      // Build the review URL — customer's first product in the order
+      const APP_URL = window.location.origin;
+      const firstItem = (viewOrder?.items || [])[0];
+      const productId = firstItem?.product_id || firstItem?.id || "";
+      const reviewUrl = `${APP_URL}/review?order=${orderId}&product=${productId}`;
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(reviewUrl);
+      toast.success("Review link copied to clipboard!\n\nPaste it into your chat with the customer.");
     } catch (err) {
-      toast.error("Error: " + err.message);
+      toast.error("Failed to copy link: " + err.message);
     }
     setSendingReview(null);
   };
@@ -308,7 +306,7 @@ export default function OrdersPage() {
               {viewOrder.status === "delivered" && (
                 <button className="btn btn-secondary" onClick={() => sendReviewRequest(viewOrder.id)} disabled={sendingReview === viewOrder.id} style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: 6 }}>
                   {sendingReview === viewOrder.id ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Star size={14} />}
-                  {sendingReview === viewOrder.id ? "Sending..." : "Request Review"}
+                  {sendingReview === viewOrder.id ? "Copying..." : "Copy Review Link"}
                 </button>
               )}
               <button className="btn btn-secondary" onClick={() => setViewOrder(null)}>Close</button>
