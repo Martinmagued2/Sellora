@@ -47,13 +47,24 @@ const FROM_DEFAULT = rawFromEmail.includes("<")
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || `https://${process.env.VERCEL_URL || "sellora-ruby.vercel.app"}`;
 
 // ────────────────────────────────────────────────────────
+//  PII masking helper for logs
+// ────────────────────────────────────────────────────────
+function maskEmail(email) {
+  if (!email || typeof email !== "string") return "***";
+  const [local, domain] = email.split("@");
+  if (!domain) return "***";
+  return `${local.substring(0, 2)}***@${domain}`;
+}
+
+// ────────────────────────────────────────────────────────
 //  Core send helper
 // ────────────────────────────────────────────────────────
 async function send({ to, subject, html, replyTo, from }) {
   const resend = getResend();
   if (!resend) {
     console.warn("[EMAIL] RESEND_API_KEY not configured — email skipped.");
-    console.warn(`[EMAIL] Would send to ${to}: ${subject}`);
+    // 🔒 SECURITY: mask recipient email in logs (PII)
+    console.warn(`[EMAIL] Would send to ${maskEmail(to)}: ${subject}`);
     return { success: false, error: "RESEND_API_KEY not configured" };
   }
 
@@ -71,7 +82,8 @@ async function send({ to, subject, html, replyTo, from }) {
       return { success: false, error: error.message || error };
     }
 
-    console.log(`[EMAIL] Sent to ${to} — id=${data?.id}`);
+    // 🔒 SECURITY: mask recipient email in logs (PII)
+    console.log(`[EMAIL] Sent to ${maskEmail(to)} — id=${data?.id}`);
     return { success: true, messageId: data?.id };
   } catch (err) {
     console.error("[EMAIL] Exception:", err.message);

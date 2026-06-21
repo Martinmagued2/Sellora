@@ -10,6 +10,15 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Missing shop parameter (e.g. your-shop.myshopify.com)' }, { status: 400 });
     }
 
+    // 🔒 SECURITY: Validate shop domain format to prevent open redirect / SSRF.
+    // Previous code reflected `shop` directly into the OAuth redirect URL — an
+    // attacker could craft `?shop=evil.com/path%23` to phish a logged-in merchant.
+    if (!/^[a-z0-9][a-z0-9-]{0,62}\.myshopify\.com$/i.test(shop)) {
+      return NextResponse.json({
+        error: 'Invalid shop domain. Must be in the format "your-shop.myshopify.com" (lowercase letters, digits, hyphens only).',
+      }, { status: 400 });
+    }
+
     const clientId = process.env.SHOPIFY_API_KEY;
     const scopes = process.env.SHOPIFY_SCOPES || 'read_products,write_products,read_orders';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || `${req.headers.get('x-forwarded-proto') || 'https'}://${req.headers.get('host')}`;

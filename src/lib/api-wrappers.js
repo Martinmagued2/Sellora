@@ -42,9 +42,10 @@ export function withAuth(handler, opts = {}) {
       const handlerCtx = { user, admin, userId: user.id };
 
       if (opts.loadAccount) {
+        const { SAFE_ACCOUNT_FIELDS } = await import("@/lib/safe-fields");
         const { data: account, error } = await admin
           .from("accounts")
-          .select("*")
+          .select(SAFE_ACCOUNT_FIELDS)
           .eq("id", user.id)
           .single();
         if (error || !account) {

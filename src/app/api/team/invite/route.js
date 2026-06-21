@@ -40,10 +40,19 @@ export async function POST(req) {
   }
 
   try {
-    const { email, accountId, businessName } = await req.json();
+    const { email, businessName } = await req.json();
+    // 🔒 SECURITY: Use user.id (authenticated) instead of body-supplied accountId
+    // — previous code allowed any owner/admin to invite to ANY account (IDOR)
+    const accountId = user.id;
 
-    if (!email || !accountId) {
-      return NextResponse.json({ error: "Email and Account ID are required" }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    }
+
+    // 🔒 SECURITY: Validate email format + length
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email) || email.length > 254) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
     }
 
     if (!isEmailConfigured()) {

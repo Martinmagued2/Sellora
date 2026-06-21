@@ -75,7 +75,8 @@ export async function GET(req) {
       shop,
       tokenPresent: true,
       tokenLength: token.length,
-      tokenPrefix: token.substring(0, 6) + "...",
+      // 🔒 SECURITY: Removed tokenPrefix — leaking first 6 chars of an access token
+      // aids brute-force attacks when combined with key-length info.
       shopInfo: testRes.ok ? { name: testBody.shop?.name, plan: testBody.shop?.plan_name } : null,
       shopApiStatus: testStatus,
       productsApiStatus: productsRes.status,
@@ -91,6 +92,8 @@ export async function GET(req) {
         : `Products API returned ${productsRes.status}. Check the error above.`,
     });
   } catch (e) {
-    return NextResponse.json({ error: "Server error", message: e.message }, { status: 500 });
+    // 🔒 SECURITY: Don't leak error message to client (could expose internal paths)
+    console.error('[debug/shopify-test]', e);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

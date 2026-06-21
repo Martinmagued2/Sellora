@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/auth-helper";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -19,7 +20,6 @@ function getSupabase() {
  * List abandoned carts for an account with optional filters.
  *
  * Query params:
- *   - account_id (required)
  *   - status: filter by status (abandoned, reminded, recovered, expired)
  *   - date_from: filter by abandoned_at >= date
  *   - date_to: filter by abandoned_at <= date
@@ -28,17 +28,22 @@ function getSupabase() {
  */
 export async function GET(request) {
   try {
+    // 🔒 SECURITY: Auth required — was previously public (IDOR + PII leak of customer
+    // names, emails, phones for any account_id supplied in query string)
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const accountId = searchParams.get("account_id");
+    // 🔒 SECURITY: Always use the authenticated user's account_id, ignore any
+    // account_id passed in the query string (IDOR fix)
+    const accountId = user.id;
     const status = searchParams.get("status");
     const dateFrom = searchParams.get("date_from");
     const dateTo = searchParams.get("date_to");
     const page = parseInt(searchParams.get("page") || "1", 10);
-    const limit = parseInt(searchParams.get("limit") || "50", 10);
-
-    if (!accountId) {
-      return NextResponse.json({ error: "account_id is required" }, { status: 400 });
-    }
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
 
     const supabase = getSupabase();
     const offset = (page - 1) * limit;

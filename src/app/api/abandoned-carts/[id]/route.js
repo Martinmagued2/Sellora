@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/auth-helper";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -18,16 +19,27 @@ function getSupabase() {
  *
  * Update cart status (mark as reminded, recovered, expired).
  *
- * Body: { status, account_id, recovery_order_id?, coupon_code? }
+ * Body: { status, recovery_order_id?, coupon_code? }
+ * 🔒 SECURITY: account_id is no longer accepted from the body — the
+ * authenticated user's id is used instead (IDOR fix).
  */
 export async function PATCH(request, { params }) {
   try {
+    // 🔒 SECURITY: Auth required — was previously public (anyone could update any
+    // cart's status, e.g. mark as "recovered" for fraud)
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = params;
     const body = await request.json();
-    const { status, account_id, recovery_order_id, coupon_code } = body;
+    const { status, recovery_order_id, coupon_code } = body;
+    // 🔒 SECURITY: Always use authenticated user's id, ignore body account_id
+    const account_id = user.id;
 
-    if (!id || !status || !account_id) {
-      return NextResponse.json({ error: "id, status, and account_id are required" }, { status: 400 });
+    if (!id || !status) {
+      return NextResponse.json({ error: "id and status are required" }, { status: 400 });
     }
 
     const validStatuses = ["abandoned", "reminded", "recovered", "expired"];
@@ -98,16 +110,26 @@ export async function PATCH(request, { params }) {
  *
  * Send a reminder message for a specific abandoned cart.
  *
- * Body: { account_id, message?, include_discount?, discount_percent? }
+ * Body: { message?, include_discount?, discount_percent? }
+ * 🔒 SECURITY: account_id no longer accepted from body — authenticated user's id used.
  */
 export async function POST(request, { params }) {
   try {
+    // 🔒 SECURITY: Auth required — was previously public (anyone could send WhatsApp
+    // reminders on any account's behalf using that account's tokens)
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = params;
     const body = await request.json();
-    const { account_id, message, include_discount = false, discount_percent } = body;
+    const { message, include_discount = false, discount_percent } = body;
+    // 🔒 SECURITY: Always use authenticated user's id
+    const account_id = user.id;
 
-    if (!id || !account_id) {
-      return NextResponse.json({ error: "id and account_id are required" }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
 
     const supabase = getSupabase();

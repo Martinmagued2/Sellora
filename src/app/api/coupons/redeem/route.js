@@ -203,6 +203,9 @@ export async function POST(req) {
 
     // ─── Step 6: Update the order with coupon info if order_id provided ───
     if (order_id) {
+      // 🔒 SECURITY: Filter by account_id to prevent IDOR — previously the update
+      // matched any order by id, allowing a user to apply their coupon to someone
+      // else's order and reduce its total.
       await supabase
         .from("orders")
         .update({
@@ -212,7 +215,8 @@ export async function POST(req) {
           subtotal: orderTotal > 0 ? orderTotal + discountAmount : null,
           total: orderTotal > 0 ? Math.max(0, orderTotal - discountAmount) : null,
         })
-        .eq("id", order_id);
+        .eq("id", order_id)
+        .eq("account_id", accountId);  // 🔒 IDOR fix
     }
 
     // ─── Step 7: Return success ───

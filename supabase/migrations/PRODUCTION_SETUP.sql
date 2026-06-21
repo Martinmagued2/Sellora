@@ -537,3 +537,84 @@ CREATE UNIQUE INDEX IF NOT EXISTS products_account_id_shopify_id_key
 CREATE INDEX IF NOT EXISTS idx_products_shopify_id
   ON products(shopify_id)
   WHERE shopify_id IS NOT NULL;
+
+-- ============================================
+-- Migration 048: Security RLS fixes
+-- ============================================
+-- Fixes critical RLS gaps:
+-- - notifications table had USING(true) policy (open to anon)
+-- - affiliate_clicks / affiliate_orders had no RLS at all
+-- - wa_template_library / newsletter_subscribers had no RLS at all
+-- - blog_posts was missing owner INSERT/UPDATE/DELETE policies
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Service role full access" ON notifications;
+CREATE POLICY "Service role full access" ON notifications
+  FOR ALL TO authenticated, anon, service_role
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Users can read own notifications" ON notifications;
+CREATE POLICY "Users can read own notifications" ON notifications
+  FOR SELECT TO authenticated USING (account_id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can update own notifications" ON notifications;
+CREATE POLICY "Users can update own notifications" ON notifications
+  FOR UPDATE TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can delete own notifications" ON notifications;
+CREATE POLICY "Users can delete own notifications" ON notifications
+  FOR DELETE TO authenticated USING (account_id = auth.uid());
+
+ALTER TABLE affiliate_clicks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own affiliate_clicks" ON affiliate_clicks;
+CREATE POLICY "Users can manage own affiliate_clicks" ON affiliate_clicks
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+DROP POLICY IF EXISTS "Public can insert affiliate clicks" ON affiliate_clicks;
+CREATE POLICY "Public can insert affiliate clicks" ON affiliate_clicks
+  FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+ALTER TABLE affiliate_orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage own affiliate_orders" ON affiliate_orders;
+CREATE POLICY IF EXISTS "Users can manage own affiliate_orders" ON affiliate_orders
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+
+ALTER TABLE wa_template_library ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can read wa_template_library" ON wa_template_library;
+CREATE POLICY IF EXISTS "Public can read wa_template_library" ON wa_template_library
+  FOR SELECT TO authenticated, anon USING (true);
+
+ALTER TABLE newsletter_subscribers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can subscribe" ON newsletter_subscribers;
+CREATE POLICY IF EXISTS "Anyone can subscribe" ON newsletter_subscribers
+  FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+ALTER TABLE blog_posts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public can read published blog_posts" ON blog_posts;
+CREATE POLICY IF EXISTS "Public can read published blog_posts" ON blog_posts
+  FOR SELECT TO authenticated, anon USING (status = 'published');
+DROP POLICY IF EXISTS "Users can manage own blog_posts" ON blog_posts;
+CREATE POLICY IF EXISTS "Users can manage own blog_posts" ON blog_posts
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+
+-- Verify all sensitive tables have RLS enabled
+ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE account_webhooks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_base ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE abandoned_carts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stores ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE loyalty_points ENABLE ROW LEVEL SECURITY;
+ALTER TABLE loyalty_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE affiliates ENABLE ROW LEVEL SECURITY;

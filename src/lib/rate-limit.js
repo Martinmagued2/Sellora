@@ -2,11 +2,18 @@
  * Rate Limiter — In-memory with configurable windows
  *
  * Supports multiple rate limit tiers:
- *   - auth:     5 requests / 15 minutes  (login, signup, password reset)
- *   - api:      30 requests / 1 minute   (general API endpoints)
- *   - webhook:  60 requests / 1 minute   (incoming webhooks from Meta/Stripe)
- *   - admin:    10 requests / 5 minutes   (admin-only endpoints)
- *   - email:    5 requests / 5 minutes   (email sending endpoints)
+ *   - auth:        5 requests / 15 minutes  (login, signup, password reset)
+ *   - api:         30 requests / 1 minute   (general API endpoints)
+ *   - api_read:    60 requests / 1 minute   (GET endpoints — more lenient)
+ *   - webhook:     60 requests / 1 minute   (incoming webhooks from Meta/Stripe)
+ *   - admin:       10 requests / 5 minutes  (admin-only endpoints)
+ *   - email:       5 requests / 5 minutes   (email sending endpoints)
+ *   - ai:          10 requests / 1 minute   (per-user — AI text generation)
+ *   - ai_image:    3 requests / 1 minute    (per-user — image generation)
+ *   - messaging:   10 requests / 1 minute   (per-user — WhatsApp/IG/FB sends)
+ *   - broadcast:   3 requests / 5 minutes   (per-user — campaign fan-out)
+ *   - public_spam: 5 requests / 10 minutes  (per-IP — newsletter, reviews, csat)
+ *   - payment:     5 requests / 1 minute    (per-user — checkout attempts)
  *
  * Note: In a serverless/multi-instance environment, this is local to the instance.
  * For true global rate limiting, use Upstash Redis or similar.
@@ -18,12 +25,21 @@ const rateLimits = new Map();
 //  Preset configurations
 // ────────────────────────────────────────────────────────
 export const RATE_LIMITS = {
-  auth:     { limit: 5,  windowMs: 15 * 60 * 1000 },  // 5 / 15 min
-  api:      { limit: 30, windowMs: 60 * 1000 },        // 30 / 1 min
-  api_read: { limit: 60, windowMs: 60 * 1000 },        // 60 / 1 min (GET endpoints — more lenient)
-  webhook:  { limit: 60, windowMs: 60 * 1000 },        // 60 / 1 min
-  admin:    { limit: 10, windowMs: 5 * 60 * 1000 },    // 10 / 5 min
-  email:    { limit: 5,  windowMs: 5 * 60 * 1000 },    // 5 / 5 min
+  auth:        { limit: 5,  windowMs: 15 * 60 * 1000 },  // 5 / 15 min
+  api:         { limit: 30, windowMs: 60 * 1000 },        // 30 / 1 min
+  api_read:    { limit: 60, windowMs: 60 * 1000 },        // 60 / 1 min (GET endpoints — more lenient)
+  webhook:     { limit: 60, windowMs: 60 * 1000 },        // 60 / 1 min
+  admin:       { limit: 10, windowMs: 5 * 60 * 1000 },    // 10 / 5 min
+  email:       { limit: 5,  windowMs: 5 * 60 * 1000 },    // 5 / 5 min
+  // 🔒 SECURITY: AI cost-abuse tiers — applied per-user
+  ai:          { limit: 10, windowMs: 60 * 1000 },        // 10 / min (Groq/Gemini/OpenAI calls)
+  ai_image:    { limit: 3,  windowMs: 60 * 1000 },        // 3 / min (image generation — expensive)
+  // 🔒 SECURITY: Messaging tiers — applied per-user
+  messaging:   { limit: 10, windowMs: 60 * 1000 },        // 10 / min (WhatsApp/IG/FB sends)
+  broadcast:   { limit: 3,  windowMs: 5 * 60 * 1000 },    // 3 / 5 min (campaign/broadcast fan-out)
+  // 🔒 SECURITY: Public spam-prone endpoints — applied per-IP
+  public_spam: { limit: 5,  windowMs: 10 * 60 * 1000 },   // 5 / 10 min (newsletter, reviews, csat)
+  payment:     { limit: 5,  windowMs: 60 * 1000 },        // 5 / min (checkout attempts)
 };
 
 /**

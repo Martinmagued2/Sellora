@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/auth-helper";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -21,21 +22,45 @@ function getSupabase() {
  * in the last N hours.
  *
  * Body: {
- *   account_id (required),
+ *   account_id (optional — defaults to authenticated user, or all accounts for cron),
  *   hours? (default: 2) - hours of inactivity before marking as abandoned
  * }
+ *
+ * 🔒 SECURITY: Accepts either:
+ *   - Authorization: Bearer <CRON_SECRET> (for cron — processes ALL accounts)
+ *   - Authenticated user session (for manual triggers — only their account)
  */
 export async function POST(request) {
   try {
-    const body = await request.json();
-    const { account_id, hours = 2 } = body;
+    // 🔒 SECURITY: Auth required — was previously public (anyone could insert fake
+    // abandoned cart rows for any account_id)
+    const authHeader = request.headers.get("authorization");
+    const cronSecret = process.env.CRON_SECRET;
+    const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
 
-    if (!account_id) {
-      return NextResponse.json({ error: "account_id is required" }, { status: 400 });
+    let accountId;
+    if (isCron) {
+      // Cron can target any account_id (supplied in body)
+      const body = await request.json();
+      accountId = body.account_id;
+      if (!accountId) {
+        return NextResponse.json({ error: "account_id is required for cron calls" }, { status: 400 });
+      }
+    } else {
+      // Manual call — must be authenticated, ignore body account_id
+      const user = await getAuthUser(request);
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      accountId = user.id;
     }
 
+    const body = isCron ? null : await request.json().catch(() => ({}));
+    const { hours = 2 } = body || {};
+    const safeHours = Math.min(Math.max(Number(hours) || 2, 1), 168); // 1h..7d
+
     const supabase = getSupabase();
-    const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const cutoffTime = new Date(Date.now() - safeHours * 60 * 60 * 1000).toISOString();
 
     // Find conversations where:
     // 1. Customer expressed purchase intent (products were discussed)
@@ -54,7 +79,7 @@ export async function POST(request) {
         created_at,
         customer:customers(id, name, email, phone, channel, platform_id)
       `)
-      .eq("account_id", account_id)
+      .eq("account_id", accountId)
       .in("status", ["new", "open", "in_progress", "waiting_customer"])
       .lt("last_message_at", cutoffTime);
 
@@ -71,7 +96,7 @@ export async function POST(request) {
     const { data: existingCarts } = await supabase
       .from("abandoned_carts")
       .select("conversation_id")
-      .eq("account_id", account_id);
+      .eq("account_id", accountId);
 
     const existingConvIds = new Set((existingCarts || []).map(c => c.conversation_id).filter(Boolean));
 
@@ -81,7 +106,7 @@ export async function POST(request) {
     const { data: recentOrders } = await supabase
       .from("orders")
       .select("customer_id, created_at")
-      .eq("account_id", account_id)
+      .eq("account_id", accountId)
       .in("customer_id", customerIds)
       .gte("created_at", cutoffTime);
 
@@ -121,7 +146,7 @@ export async function POST(request) {
       const { data: newCart, error: insertError } = await supabase
         .from("abandoned_carts")
         .insert({
-          account_id,
+          account_id: accountId,
           customer_id: conv.customer_id,
           conversation_id: conv.id,
           channel: conv.channel,
