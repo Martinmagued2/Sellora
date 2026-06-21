@@ -7,25 +7,65 @@ function validateShopifyDomain(shopDomain) {
 export async function fetchShopifyProducts(shopDomain, accessToken) {
   validateShopifyDomain(shopDomain);
 
-  // Fetch ALL products regardless of status or publication.
-  // Shopify's products.json defaults to status=active + published_status=published,
-  // which silently returns [] for development stores where products haven't been
-  // published to the Online Store channel.
-  const res = await fetch(`https://${shopDomain}/admin/api/2024-04/products.json?limit=250&status=any&published_status=any`, {
-    headers: {
-      'X-Shopify-Access-Token': accessToken,
-      'Content-Type': 'application/json'
-    }
-  });
+  // Shopify's `status=any` parameter is buggy on dev stores — it silently
+  // returns [] even when count.json reports 2 products. The fix: fetch each
+  // status individually (active, draft, archived) and combine the results.
+  // This is a documented Shopify REST API quirk.
+  const STATUSES = ['active', 'draft', 'archived'];
+  const allProducts = [];
 
-  if (!res.ok) {
-    const errBody = await res.text();
-    console.error('[Shopify] Products fetch failed:', res.status, errBody.substring(0, 200));
-    throw new Error(`Failed to fetch Shopify products (status ${res.status})`);
+  for (const status of STATUSES) {
+    // Paginate up to 250 products per status (Shopify's max page size)
+    let pageInfo = null;
+    let safety = 0;
+    while (safety++ < 20) {
+      const url = new URL(`https://${shopDomain}/admin/api/2024-04/products.json`);
+      url.searchParams.set('limit', '250');
+      url.searchParams.set('status', status);
+      url.searchParams.set('published_status', 'any');
+      if (pageInfo) url.searchParams.set('page_info', pageInfo);
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        console.error(`[Shopify] Products fetch failed (status=${status}):`, res.status, errBody.substring(0, 200));
+        throw new Error(`Failed to fetch Shopify products (status ${res.status})`);
+      }
+
+      const data = await res.json();
+      if (Array.isArray(data.products)) {
+        allProducts.push(...data.products);
+      }
+
+      // Follow Link header for pagination (Shopify uses cursor-based pagination)
+      const linkHeader = res.headers.get('link') || '';
+      const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+      if (nextMatch) {
+        // Extract page_info from the next URL
+        const nextUrl = new URL(nextMatch[1]);
+        pageInfo = nextUrl.searchParams.get('page_info');
+      } else {
+        break;
+      }
+    }
   }
 
-  const data = await res.json();
-  return data.products || [];
+  // Dedupe by product ID (a product shouldn't appear in multiple statuses, but just in case)
+  const seen = new Set();
+  const deduped = allProducts.filter(p => {
+    const id = String(p.id);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  return deduped;
 }
 
 export async function fetchShopifyOrders(shopDomain, accessToken) {
