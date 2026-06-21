@@ -102,10 +102,22 @@ export async function POST(request) {
     }
 
     // Verify TOTP code with replay protection
-    const result = verifyTOTP(account.totp_secret, code, 1, account.last_totp_time_step);
+    // 🔒 FIX: window=2 (±60 seconds) for better clock skew tolerance
+    const result = verifyTOTP(account.totp_secret, code, 2, account.last_totp_time_step);
 
     if (!result.valid) {
-      return NextResponse.json({ error: "Invalid verification code" }, { status: 400 });
+      // 🔒 DIAGNOSTIC: log enough to debug without exposing the secret
+      const currentTimeStep = Math.floor(Date.now() / 1000 / 30);
+      console.warn("[2FA Verify] Failed", {
+        userId: targetUserId.slice(0, 8),
+        hasSecret: !!account.totp_secret,
+        secretFormat: account.totp_secret?.startsWith("enc:v1:") ? "encrypted" : "plaintext",
+        codeLength: code.length,
+        currentTimeStep,
+        lastUsedTimeStep: account.last_totp_time_step,
+        // Don't log the actual code or secret — just metadata
+      });
+      return NextResponse.json({ error: "Invalid verification code. Make sure your device clock is accurate and try the latest code from your authenticator app." }, { status: 400 });
     }
 
     // Update the last used time step for replay protection
