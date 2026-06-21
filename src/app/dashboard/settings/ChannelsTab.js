@@ -260,7 +260,18 @@ export default function ChannelsTab({
                       const res = await fetch('/api/integrations/shopify/sync', { method: 'POST' });
                       const data = await res.json().catch(() => ({}));
                       if (!res.ok || data.error) throw new Error(data.error || `Sync failed (HTTP ${res.status})`);
+                      // If 0 products synced but log shows we fetched >0, surface the upsert errors
+                      if (data.syncedProducts === 0 && Array.isArray(data.log)) {
+                        const fetchedLine = data.log.find(l => l.startsWith('products_fetched='));
+                        const errorLine = data.log.find(l => l.startsWith('product_error_samples='));
+                        const fetchedCount = fetchedLine ? fetchedLine.split('=')[1] : '?';
+                        if (fetchedCount !== '0' && fetchedCount !== '?') {
+                          const errSample = errorLine ? errorLine.replace('product_error_samples=', '') : '';
+                          throw new Error(`Fetched ${fetchedCount} products from Shopify but 0 synced. DB upsert errors: ${errSample || 'unknown'}`);
+                        }
+                      }
                       toast.success(`Synced ${data.syncedProducts} products and ${data.syncedOrders} orders`);
+                      console.log('[Shopify sync] full response:', data);
                     } catch(e) {
                       console.error('[ChannelsTab] Shopify sync failed:', e);
                       toast.error(e.message || 'Failed to sync Shopify');
