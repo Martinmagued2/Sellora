@@ -203,3 +203,48 @@ CREATE POLICY "Users can manage own customer_send_times" ON customer_send_times
 ALTER TABLE drip_campaign_steps ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own drip_campaign_steps" ON drip_campaign_steps
   FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+
+-- ============================================
+-- 3. Price Drop Alerts (bonus — last remaining automation)
+-- ============================================
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS price_drop_alerts_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS price_drop_discount_enabled boolean DEFAULT true;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS price_drop_message_template text DEFAULT 'Great news {name}! {product} just dropped from {old_price} to {new_price} {currency}. Grab yours now: {store_url}';
+
+CREATE TABLE IF NOT EXISTS price_drop_alerts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
+  product_id uuid REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+  old_price numeric NOT NULL,
+  new_price numeric NOT NULL,
+  message_sent text,
+  sent_at timestamptz DEFAULT now(),
+  converted boolean DEFAULT false,
+  converted_order_id uuid REFERENCES orders(id),
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(account_id, customer_id, product_id, sent_at)
+);
+CREATE INDEX IF NOT EXISTS idx_pricedrop_account ON price_drop_alerts(account_id);
+
+ALTER TABLE price_drop_alerts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own price_drop_alerts" ON price_drop_alerts
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+
+-- Track products customers have shown interest in (for price drop alerts)
+CREATE TABLE IF NOT EXISTS product_interest (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
+  product_id uuid REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+  conversation_id uuid REFERENCES conversations(id) ON DELETE SET NULL,
+  source text DEFAULT 'conversation' CHECK (source IN ('conversation', 'cart', 'wishlist', 'viewed')),
+  price_at_interest numeric,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(account_id, customer_id, product_id)
+);
+CREATE INDEX IF NOT EXISTS idx_product_interest_product ON product_interest(product_id);
+
+ALTER TABLE product_interest ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own product_interest" ON product_interest
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());

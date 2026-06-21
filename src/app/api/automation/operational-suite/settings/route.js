@@ -18,6 +18,7 @@ const ALLOWED = {
   recommendations: ['product_recommendations_enabled'],
   send_time: ['send_time_optimization_enabled'],
   drip: ['extended_drip_enabled'],
+  price_drop: ['price_drop_alerts_enabled', 'price_drop_message_template'],
 };
 
 export async function PUT(req) {

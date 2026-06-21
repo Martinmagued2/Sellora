@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, Truck, Package, RefreshCw, AlertTriangle, Sparkles, Clock, Zap, Save } from "lucide-react";
+import { Loader2, Truck, Package, RefreshCw, AlertTriangle, Sparkles, Clock, Zap, Save, TrendingDown } from "lucide-react";
 import { useToast } from "../components/ToastProvider";
 
 const OPERATIONAL_AUTOMATIONS = [
   { id: 'failover', icon: RefreshCw, color: '#e17055', title: 'Channel Failover', desc: 'If WhatsApp message fails, auto-retry via SMS, then email. Ensures critical messages always reach customers.' },
   { id: 'inventory', icon: Package, color: '#fdcb6e', title: 'Inventory Auto-Reorder', desc: 'When stock hits a threshold, auto-create a reorder alert and notify you. Prevents stockouts.' },
   { id: 'carrier', icon: Truck, color: '#0984e3', title: 'Carrier Status Sync', desc: 'Auto-fetch shipping status from Aramex/Bosta/Mylerz every 2 hours → update order status → notify customer at each milestone.' },
+  { id: 'price_drop', icon: TrendingDown, color: '#00cec9', title: 'Price Drop Alerts', desc: 'When a product\'s price drops 10%+, auto-notify customers who asked about it but didn\'t buy. "Great news — [Product] just dropped from 500 to 350 EGP!"' },
 ];
 
 const AI_AUTOMATIONS = [
@@ -134,6 +135,20 @@ export default function OperationalAutomationsPage() {
           onToggle={(enabled) => save('carrier', { carrier_sync_enabled: enabled })}
           onSave={() => {}}
           note="Syncs every 2 hours. Supports Aramex, Bosta, Mylerz. Set carrier API keys in Vercel env vars (CARRIER_ARAMEX_API_KEY, CARRIER_BOSTA_API_KEY, CARRIER_MYLERZ_API_KEY). Auto-messages customers at each shipping milestone."
+        />
+
+        {/* Price Drop Alerts */}
+        <AutomationCard
+          config={OPERATIONAL_AUTOMATIONS[3]}
+          enabled={settings.price_drop_alerts_enabled}
+          stats={stats?.priceDrop}
+          fields={[
+            { key: 'price_drop_message_template', label: 'Message template', type: 'textarea', value: settings.price_drop_message_template, placeholder: 'Use {name}, {product}, {old_price}, {new_price}, {currency}, {store_url}' },
+          ]}
+          saving={saving === 'price_drop'}
+          onToggle={(enabled) => save('price_drop', { price_drop_alerts_enabled: enabled })}
+          onSave={(fields) => save('price_drop', fields)}
+          note="When you lower a product's price by 10%+, customers who asked about it (in any conversation) get an automatic notification. Tracked via the product_interest table — interest is recorded when AI shares a product card or a customer mentions a product."
         />
       </div>
 

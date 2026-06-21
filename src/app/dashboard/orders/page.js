@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote, Link2, Loader2, Truck } from "lucide-react";
+import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote, Link2, Loader2, Truck, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
 import { useToast } from "../components/ToastProvider";
@@ -29,6 +29,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [viewOrder, setViewOrder] = useState(null);
   const [generatingLink, setGeneratingLink] = useState(null); // order ID being generated
+  const [sendingReview, setSendingReview] = useState(null); // order ID being sent review request
 
   const { currentStoreId } = useCurrentStore();
   const toast = useToast();
@@ -90,6 +91,26 @@ export default function OrdersPage() {
       toast.error("Error: " + err.message);
     }
     setGeneratingLink(null);
+  };
+
+  const sendReviewRequest = async (orderId) => {
+    setSendingReview(orderId);
+    try {
+      const res = await fetch("/api/orders/send-review-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success("Review request sent to customer via " + (viewOrder?.channel || "their channel"));
+      } else {
+        toast.error(data.error || "Failed to send review request");
+      }
+    } catch (err) {
+      toast.error("Error: " + err.message);
+    }
+    setSendingReview(null);
   };
 
   const formatDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -282,6 +303,12 @@ export default function OrdersPage() {
                 <button className="btn btn-secondary" onClick={() => generatePaymentLink(viewOrder.id)} disabled={generatingLink === viewOrder.id} style={{ marginRight: "auto" }}>
                   {generatingLink === viewOrder.id ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Link2 size={14} />}
                   {viewOrder.payment_link ? "Copy Payment Link" : "Generate Payment Link"}
+                </button>
+              )}
+              {viewOrder.status === "delivered" && (
+                <button className="btn btn-secondary" onClick={() => sendReviewRequest(viewOrder.id)} disabled={sendingReview === viewOrder.id} style={{ marginRight: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+                  {sendingReview === viewOrder.id ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Star size={14} />}
+                  {sendingReview === viewOrder.id ? "Sending..." : "Request Review"}
                 </button>
               )}
               <button className="btn btn-secondary" onClick={() => setViewOrder(null)}>Close</button>

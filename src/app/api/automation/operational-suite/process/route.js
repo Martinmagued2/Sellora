@@ -20,6 +20,7 @@ export async function POST(req) {
     inventory: { alerts: 0, errors: 0 },
     carrier: { synced: 0, errors: 0 },
     failover: { retried: 0, errors: 0 },
+    priceDrop: { sent: 0, errors: 0 },
   };
 
   const db = admin();
@@ -151,6 +152,78 @@ export async function POST(req) {
       }
     }
   } catch (e) { results.carrier.errors++; }
+
+  // ─── 3. PRICE DROP ALERTS ───
+  // Find products whose price has dropped, notify customers who showed interest
+  try {
+    const { data: accounts } = await db.from('accounts')
+      .select('id, business_name, price_drop_alerts_enabled, price_drop_message_template, currency')
+      .eq('price_drop_alerts_enabled', true);
+
+    for (const account of accounts || []) {
+      try {
+        // Find products with a recorded price_at_interest higher than current price
+        const { data: interests } = await db.from('product_interest')
+          .select(`
+            id, customer_id, product_id, price_at_interest,
+            customer:customers(id, name, channel),
+            product:products(id, name, price, stock)
+          `)
+          .eq('account_id', account.id)
+          .limit(200);
+
+        for (const interest of (interests || [])) {
+          if (!interest.product || !interest.customer) continue;
+          const currentPrice = parseFloat(interest.product.price || 0);
+          const oldPrice = parseFloat(interest.price_at_interest || 0);
+          // Only alert if price dropped by at least 10%
+          if (oldPrice <= 0 || currentPrice >= oldPrice * 0.9) continue;
+          // Skip out of stock
+          if (interest.product.stock <= 0) continue;
+
+          // Check if we already sent a price drop alert for this product+customer recently
+          const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          const { data: existing } = await db.from('price_drop_alerts')
+            .select('id').eq('customer_id', interest.customer_id)
+            .eq('product_id', interest.product_id)
+            .gte('sent_at', oneWeekAgo).maybeSingle();
+          if (existing) continue;
+
+          const message = (account.price_drop_message_template || '')
+            .replace('{name}', interest.customer.name || 'there')
+            .replace('{product}', interest.product.name)
+            .replace('{old_price}', oldPrice.toFixed(2))
+            .replace('{new_price}', currentPrice.toFixed(2))
+            .replace('{currency}', account.currency || 'EGP')
+            .replace('{store_url}', process.env.NEXT_PUBLIC_APP_URL || '');
+
+          // Find conversation
+          const { data: conv } = await db.from('conversations')
+            .select('id, channel').eq('customer_id', interest.customer_id).eq('account_id', account.id)
+            .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
+          if (!conv) continue;
+
+          try {
+            const sendRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/messages/send`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ conversationId: conv.id, content: message, type: 'text', channel: conv.channel }),
+            });
+            if (!sendRes.ok) continue;
+          } catch (e) { continue; }
+
+          await db.from('price_drop_alerts').insert({
+            account_id: account.id, customer_id: interest.customer_id,
+            product_id: interest.product_id, old_price: oldPrice, new_price: currentPrice,
+            message_sent: message,
+          });
+          results.priceDrop.sent++;
+        }
+      } catch (e) {
+        console.error('[operational] price drop error', account.id, e.message);
+        results.priceDrop.errors++;
+      }
+    }
+  } catch (e) { results.priceDrop.errors++; }
 
   return NextResponse.json({ success: true, results, ts: new Date().toISOString() });
 }
