@@ -107,24 +107,110 @@ export async function POST(req) {
     let productErrors = 0;
     const productErrorSamples = [];
     for (const p of products) {
-      const { error: upsertErr } = await adminClient.from('products').upsert({
+      const shopifyId = p.id?.toString() || null;
+
+      // Build the product payload
+      const productPayload = {
         account_id: account.id,
         name: p.title,
         description: p.body_html?.replace(/<[^>]+>/g, '') || '',
-        price: p.variants?.[0]?.price || 0,
+        price: parseFloat(p.variants?.[0]?.price || 0) || 0,
         stock: p.variants?.[0]?.inventory_quantity || 0,
         category: p.product_type || 'General',
         status: p.status === 'active' ? 'active' : 'draft',
         image_urls: p.images?.map(img => img.src) || [],
-        shopify_id: p.id?.toString() || null
-      }, { onConflict: 'account_id, shopify_id' });
+        shopify_id: shopifyId,
+      };
+
+      // Manual check-then-upsert: doesn't depend on a unique constraint existing
+      // on (account_id, shopify_id). The migration to add that constraint may
+      // not have been run on the user's Supabase project yet.
+      let upsertErr = null;
+      try {
+        if (shopifyId) {
+          // Check if a product with this shopify_id already exists for this account
+          const { data: existing, error: selectErr } = await adminClient
+            .from('products')
+            .select('id')
+            .eq('account_id', account.id)
+            .eq('shopify_id', shopifyId)
+            .maybeSingle();
+
+          if (selectErr) {
+            // If shopify_id column doesn't exist (migration not run), fall back
+            // to matching by name within this account.
+            if (selectErr.message?.includes('shopify_id')) {
+              const { data: existingByName, error: nameErr } = await adminClient
+                .from('products')
+                .select('id')
+                .eq('account_id', account.id)
+                .eq('name', p.title)
+                .maybeSingle();
+              if (nameErr) throw nameErr;
+              if (existingByName) {
+                // Update by id (without shopify_id, since column doesn't exist)
+                const { error: updateErr } = await adminClient
+                  .from('products')
+                  .update({
+                    name: p.title,
+                    description: productPayload.description,
+                    price: productPayload.price,
+                    stock: productPayload.stock,
+                    category: productPayload.category,
+                    status: productPayload.status,
+                    image_urls: productPayload.image_urls,
+                  })
+                  .eq('id', existingByName.id);
+                if (updateErr) throw updateErr;
+                syncedProducts++;
+                continue;
+              }
+              // Insert without shopify_id (column doesn't exist)
+              const { error: insertErr } = await adminClient
+                .from('products')
+                .insert({
+                  account_id: account.id,
+                  name: p.title,
+                  description: productPayload.description,
+                  price: productPayload.price,
+                  stock: productPayload.stock,
+                  category: productPayload.category,
+                  status: productPayload.status,
+                  image_urls: productPayload.image_urls,
+                });
+              if (insertErr) throw insertErr;
+              syncedProducts++;
+              continue;
+            }
+            throw selectErr;
+          }
+
+          if (existing) {
+            // Update existing product
+            const { error: updateErr } = await adminClient
+              .from('products')
+              .update(productPayload)
+              .eq('id', existing.id);
+            if (updateErr) throw updateErr;
+            syncedProducts++;
+            continue;
+          }
+        }
+
+        // Insert new product
+        const { error: insertErr } = await adminClient
+          .from('products')
+          .insert(productPayload);
+        if (insertErr) throw insertErr;
+        syncedProducts++;
+      } catch (e) {
+        upsertErr = e;
+      }
 
       if (upsertErr) {
         productErrors++;
         if (productErrorSamples.length < 3) productErrorSamples.push(`${p.title}: ${upsertErr.message}`);
         console.error('[shopify/sync] product upsert failed:', p.title, upsertErr.message);
-      } else {
-        syncedProducts++;
       }
     }
     log.push(`products_synced=${syncedProducts}/${products.length} errors=${productErrors}`);
@@ -135,29 +221,63 @@ export async function POST(req) {
     let orderErrors = 0;
     for (const o of orders) {
       if (!o.id) continue;
-      const { data: existing } = await adminClient.from('orders')
+      const shopifyOrderId = o.id.toString();
+
+      // Check if order already synced (try shopify_order_id, fall back to order_number)
+      let existing = null;
+      const { data: existingBySid, error: sidErr } = await adminClient.from('orders')
         .select('id')
         .eq('account_id', account.id)
-        .eq('shopify_order_id', o.id.toString())
+        .eq('shopify_order_id', shopifyOrderId)
         .maybeSingle();
+
+      if (sidErr && sidErr.message?.includes('shopify_order_id')) {
+        // Column doesn't exist — try by order_number
+        const { data: existingByNum } = await adminClient.from('orders')
+          .select('id')
+          .eq('account_id', account.id)
+          .eq('order_number', o.order_number || o.name || `SH-${o.id}`)
+          .maybeSingle();
+        existing = existingByNum;
+      } else if (!sidErr) {
+        existing = existingBySid;
+      } else {
+        console.error('[shopify/sync] order select failed:', sidErr.message);
+        orderErrors++;
+        continue;
+      }
+
       if (existing) continue;
 
-      const { error: orderInsertErr } = await adminClient.from('orders').insert({
+      const orderPayload = {
         account_id: account.id,
         order_number: o.order_number || o.name || `SH-${o.id}`,
         status: o.financial_status === 'paid' ? 'delivered' : o.fulfillment_status || 'pending',
-        total: parseFloat(o.total_price || 0),
+        total: parseFloat(o.total_price || 0) || 0,
         currency: o.currency || 'EGP',
         payment_method: o.gateway || 'shopify',
         payment_status: o.financial_status || 'pending',
-        shopify_order_id: o.id.toString(),
         items: (o.line_items || []).map(li => ({
           name: li.title, quantity: li.quantity, price: parseFloat(li.price || 0)
-        }))
+        })),
+      };
+
+      // Only add shopify_order_id if column exists (try insert, fallback without)
+      const { error: orderInsertErr } = await adminClient.from('orders').insert({
+        ...orderPayload,
+        shopify_order_id: shopifyOrderId,
       });
-      if (orderInsertErr) {
+
+      let finalErr = orderInsertErr;
+      if (finalErr && finalErr.message?.includes('shopify_order_id')) {
+        // Retry without shopify_order_id (column doesn't exist)
+        const { error: retryErr } = await adminClient.from('orders').insert(orderPayload);
+        finalErr = retryErr;
+      }
+
+      if (finalErr) {
         orderErrors++;
-        console.error('[shopify/sync] order insert failed:', orderInsertErr.message);
+        console.error('[shopify/sync] order insert failed:', finalErr.message);
       } else {
         syncedOrders++;
       }
