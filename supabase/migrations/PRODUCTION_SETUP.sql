@@ -576,25 +576,25 @@ CREATE POLICY "Public can insert affiliate clicks" ON affiliate_clicks
 
 ALTER TABLE affiliate_orders ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can manage own affiliate_orders" ON affiliate_orders;
-CREATE POLICY IF EXISTS "Users can manage own affiliate_orders" ON affiliate_orders
+CREATE POLICY "Users can manage own affiliate_orders" ON affiliate_orders
   FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
 
 ALTER TABLE wa_template_library ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can read wa_template_library" ON wa_template_library;
-CREATE POLICY IF EXISTS "Public can read wa_template_library" ON wa_template_library
+CREATE POLICY "Public can read wa_template_library" ON wa_template_library
   FOR SELECT TO authenticated, anon USING (true);
 
 ALTER TABLE newsletter_subscribers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can subscribe" ON newsletter_subscribers;
-CREATE POLICY IF EXISTS "Anyone can subscribe" ON newsletter_subscribers
+CREATE POLICY "Anyone can subscribe" ON newsletter_subscribers
   FOR INSERT TO anon, authenticated WITH CHECK (true);
 
 ALTER TABLE blog_posts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public can read published blog_posts" ON blog_posts;
-CREATE POLICY IF EXISTS "Public can read published blog_posts" ON blog_posts
+CREATE POLICY "Public can read published blog_posts" ON blog_posts
   FOR SELECT TO authenticated, anon USING (status = 'published');
 DROP POLICY IF EXISTS "Users can manage own blog_posts" ON blog_posts;
-CREATE POLICY IF EXISTS "Users can manage own blog_posts" ON blog_posts
+CREATE POLICY "Users can manage own blog_posts" ON blog_posts
   FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
 
 -- Verify all sensitive tables have RLS enabled
