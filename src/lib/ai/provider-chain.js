@@ -425,28 +425,38 @@ export function buildRoutingProviderChain() {
 
 /**
  * Build the streaming provider chain for Copilot/Agent.
- * Same providers but in a different order optimized for streaming UX:
- * Groq first (fastest streaming) → Google → NVIDIA → OpenAI
+ *
+ * Provider order is CRITICAL for agentic tool use:
+ * 1. Google Gemini 2.0 Flash — best at multi-step tool use + synthesis
+ * 2. Groq Llama 4 Scout — fast streaming but weaker at following up after tools
+ * 3. NVIDIA NIM — strong models but slower streaming
+ * 4. VectorEngine — premium
+ * 5. OpenAI — last resort (paid)
+ *
+ * Previous order had Groq first — but Llama 4 Scout (17B) struggles with
+ * multi-step agentic tasks: it calls a tool, gets the result, then stops
+ * without synthesizing a final answer. Gemini 2.0 Flash reliably follows
+ * up with a comprehensive text response after tool calls complete.
  */
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // Groq first (fastest for streaming)
-  providers.push(...buildGroqProviders());
-
-  // Google Gemini (fast streaming)
+  // 1. Google Gemini FIRST — best at multi-step tool use + synthesis
   providers.push(...buildGoogleProviders());
 
-  // NVIDIA (good but can be slower)
+  // 2. Groq (fast streaming, fallback)
+  providers.push(...buildGroqProviders());
+
+  // 3. NVIDIA (good but can be slower)
   providers.push(...buildNvidiaProviders());
 
-  // VectorEngine (premium)
+  // 4. VectorEngine (premium)
   providers.push(...buildVectorEngineProviders());
 
-  // OpenAI last
+  // 5. OpenAI last
   providers.push(...buildOpenAIProviders());
 
-  console.log(`[ProviderChain] Built streaming chain (copilot): ${providers.length} provider(s) total`);
+  console.log(`[ProviderChain] Built streaming chain (copilot): ${providers.length} provider(s) total [${providers.map(p => p.name).slice(0, 4).join(', ')}...]`);
   return providers;
 }
 
