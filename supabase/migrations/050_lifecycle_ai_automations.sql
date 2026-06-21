@@ -155,10 +155,12 @@ CREATE INDEX IF NOT EXISTS idx_faq_drafts_account ON faq_drafts(account_id, stat
 -- ============================================
 -- 8. Negative review responses
 -- ============================================
+-- 🔧 FIX: references 'product_reviews' table (not 'reviews') — the actual
+-- table name created in migration 040.
 CREATE TABLE IF NOT EXISTS negative_review_responses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
-  review_id uuid REFERENCES reviews(id) ON DELETE CASCADE NOT NULL,
+  review_id uuid REFERENCES product_reviews(id) ON DELETE CASCADE NOT NULL,
   customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
   draft_response text,
   sent_at timestamptz,

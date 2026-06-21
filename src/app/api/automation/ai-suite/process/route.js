@@ -164,7 +164,8 @@ ${conversationTexts}`;
     for (const account of accounts || []) {
       try {
         // Find 1-2 star reviews without a response
-        const { data: reviews } = await db.from('reviews')
+        // 🔧 FIX: table name is 'product_reviews' (not 'reviews')
+        const { data: reviews } = await db.from('product_reviews')
           .select('id, customer_id, rating, title, body, created_at, customer:customers(name, channel)')
           .eq('account_id', account.id)
           .in('rating', [1, 2])
