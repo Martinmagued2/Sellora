@@ -95,6 +95,51 @@ export async function GET(req) {
     // 3a. Also try without published_status to prove the difference
     out.productsSampleOldQuery = await shopifyGet(account.shopify_shop_domain, token, 'products.json?limit=5&status=any');
 
+    // 3b. Try each status individually — Shopify's `status=any` sometimes misses archived
+    out.productsActive = await shopifyGet(account.shopify_shop_domain, token, 'products.json?limit=250&status=active');
+    out.productsDraft = await shopifyGet(account.shopify_shop_domain, token, 'products.json?limit=250&status=draft');
+    out.productsArchived = await shopifyGet(account.shopify_shop_domain, token, 'products.json?limit=250&status=archived');
+
+    // 3c. Try GraphQL Admin API — bypasses REST quirks entirely
+    try {
+      const gqlRes = await fetch(`https://${account.shopify_shop_domain}/admin/api/2024-04/graphql.json`, {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: `{
+            products(first: 250) {
+              edges {
+                node {
+                  id
+                  title
+                  status
+                  productType
+                  vendor
+                  publishedOnChannel(publicationId: null)
+                  onlineStoreUrl
+                  variants(first: 1) { edges { node { price inventoryQuantity } } }
+                }
+              }
+            }
+          }`,
+        }),
+      });
+      const gqlText = await gqlRes.text();
+      let gqlParsed = null;
+      try { gqlParsed = JSON.parse(gqlText); } catch {}
+      out.graphqlProducts = {
+        status: gqlRes.status,
+        ok: gqlRes.ok,
+        body: gqlParsed || gqlText.substring(0, 2000),
+        count: gqlParsed?.data?.products?.edges?.length ?? null,
+      };
+    } catch (gqlErr) {
+      out.graphqlProducts = { error: gqlErr.message };
+    }
+
     // 4. Order count — validates read_orders scope
     out.orderCount = await shopifyGet(account.shopify_shop_domain, token, 'orders/count.json?status=any');
 
@@ -108,12 +153,22 @@ export async function GET(req) {
       orderCountValue: typeof out.orderCount.body === 'number' ? out.orderCount.body : (out.orderCount.body?.count ?? null),
       productsReturnedNewQuery: newQueryProducts?.length ?? null,
       productsReturnedOldQuery: oldQueryProducts?.length ?? null,
+      productsActive: Array.isArray(out.productsActive.body?.products) ? out.productsActive.body.products.length : null,
+      productsDraft: Array.isArray(out.productsDraft.body?.products) ? out.productsDraft.body.products.length : null,
+      productsArchived: Array.isArray(out.productsArchived.body?.products) ? out.productsArchived.body.products.length : null,
+      graphqlProductsCount: out.graphqlProducts?.count ?? null,
+      graphqlErrors: out.graphqlProducts?.body?.errors || null,
       newQueryFixWorked: (newQueryProducts?.length || 0) > (oldQueryProducts?.length || 0),
       productsApiStatus: out.productsSample.status,
       productCountApiStatus: out.productCount.status,
       shopApiStatus: out.shopInfo.status,
       hasReadProductsScope: out.productCount.status === 200,
       hasReadOrdersScope: out.orderCount.status === 200,
+      recommendation: out.graphqlProducts?.count > 0
+        ? 'GraphQL works. Switch sync route to GraphQL.'
+        : (out.productCount.body?.count === 0
+            ? 'Shopify store genuinely has no products. Add products in Shopify admin.'
+            : 'Count says 2 but REST returns 0. Check productsSample.body for errors. May need to log into Shopify admin to see product states.'),
     };
 
     return NextResponse.json(out);
