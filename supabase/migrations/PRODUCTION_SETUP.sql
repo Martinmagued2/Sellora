@@ -618,3 +618,96 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE loyalty_points ENABLE ROW LEVEL SECURITY;
 ALTER TABLE loyalty_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE affiliates ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- Migration 049: Revenue automation suite
+-- ============================================
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS winback_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS winback_days_threshold integer DEFAULT 60;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS winback_discount_percent integer DEFAULT 10;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS winback_message_template text;
+
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS back_in_stock_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS back_in_stock_message_template text;
+
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS upsell_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS upsell_delay_days integer DEFAULT 3;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS upsell_discount_percent integer DEFAULT 15;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS upsell_message_template text;
+
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS payment_recovery_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS payment_recovery_discount_percent integer DEFAULT 5;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS payment_recovery_message_template text;
+
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vip_enabled boolean DEFAULT false;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vip_threshold numeric DEFAULT 5000;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS vip_welcome_message text;
+
+CREATE TABLE IF NOT EXISTS win_back_campaigns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
+  days_dormant integer NOT NULL,
+  discount_code text, discount_percent integer,
+  message_sent text, status text DEFAULT 'sent',
+  sent_at timestamptz DEFAULT now(), recovered_at timestamptz,
+  recovered_order_id uuid, created_at timestamptz DEFAULT now(),
+  UNIQUE(account_id, customer_id)
+);
+
+CREATE TABLE IF NOT EXISTS back_in_stock_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
+  product_id uuid REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+  conversation_id uuid, notified boolean DEFAULT false,
+  notified_at timestamptz, created_at timestamptz DEFAULT now(),
+  UNIQUE(account_id, customer_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS upsell_flows (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
+  order_id uuid REFERENCES orders(id) ON DELETE CASCADE NOT NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
+  suggested_products jsonb DEFAULT '[]', discount_code text,
+  discount_percent integer, message_sent text, status text DEFAULT 'sent',
+  sent_at timestamptz DEFAULT now(), converted_at timestamptz,
+  converted_order_id uuid, created_at timestamptz DEFAULT now(),
+  UNIQUE(account_id, order_id)
+);
+
+CREATE TABLE IF NOT EXISTS payment_recoveries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
+  order_id uuid REFERENCES orders(id) ON DELETE CASCADE NOT NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
+  discount_code text, discount_percent integer, message_sent text,
+  attempts integer DEFAULT 1, status text DEFAULT 'sent',
+  sent_at timestamptz DEFAULT now(), recovered_at timestamptz,
+  created_at timestamptz DEFAULT now(), UNIQUE(account_id, order_id)
+);
+
+CREATE TABLE IF NOT EXISTS vip_customers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid REFERENCES accounts(id) ON DELETE CASCADE NOT NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
+  total_spent numeric NOT NULL, tagged_at timestamptz DEFAULT now(),
+  welcome_sent_at timestamptz, UNIQUE(account_id, customer_id)
+);
+
+ALTER TABLE win_back_campaigns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own win_back_campaigns" ON win_back_campaigns
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE back_in_stock_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own back_in_stock_requests" ON back_in_stock_requests
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE upsell_flows ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own upsell_flows" ON upsell_flows
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE payment_recoveries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own payment_recoveries" ON payment_recoveries
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());
+ALTER TABLE vip_customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own vip_customers" ON vip_customers
+  FOR ALL TO authenticated USING (account_id = auth.uid()) WITH CHECK (account_id = auth.uid());

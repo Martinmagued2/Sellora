@@ -40,6 +40,7 @@ import {
   Smartphone,
   Store,
   Truck,
+  Rocket,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
@@ -102,6 +103,7 @@ const sidebarLinks = [
       { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
       { href: "/dashboard/webhooks", icon: Webhook, label: "Webhooks" },
       { href: "/dashboard/automation", icon: Bot, label: "Automation" },
+      { href: "/dashboard/revenue-automations", icon: Rocket, label: "Revenue Suite" },
       { href: "/dashboard/flows", icon: Zap, label: "Flow Builder" },
       { href: "/dashboard/ai-personality", icon: Sparkles, label: "AI Personality" },
       { href: "/dashboard/ab-tests", icon: FlaskConical, label: "A/B Tests" },
@@ -136,6 +138,7 @@ const pageTitles = {
   "/dashboard/settings": "Settings",
   "/dashboard/billing": "Billing",
   "/dashboard/automation": "Automation",
+  "/dashboard/revenue-automations": "Revenue Automations",
   "/dashboard/abandoned-carts": "Abandoned Carts",
   "/dashboard/webhooks": "Webhooks",
   "/dashboard/ai-personality": "AI Personality",

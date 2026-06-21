@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyTOTP, calculateTOTP, decryptSecret } from "@/lib/totp";
+import { getAuthUser } from "@/lib/auth-helper";
 
 // GET /api/auth/2fa/diagnose
 // Diagnostic endpoint for troubleshooting "always incorrect" TOTP codes.
-// Requires authentication. Returns what the server's TOTP calculation
-// produces vs what the user should be entering — WITHOUT exposing the secret.
+// Accepts EITHER Bearer token OR cookie-based session auth (same as other routes).
+// Returns what the server's TOTP calculation produces vs what the user should
+// be entering — WITHOUT exposing the secret.
 
 let _supabase = null;
 function getSupabase() {
@@ -22,18 +24,13 @@ export async function GET(request) {
   const diag = { ts: new Date().toISOString() };
 
   try {
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ ...diag, error: "Not authenticated" }, { status: 401 });
+    // 🔒 Use getAuthUser which accepts BOTH Bearer token AND cookie session
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ ...diag, error: "Not authenticated — log in to the dashboard first" }, { status: 401 });
     }
 
     const supabase = getSupabase();
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ ...diag, error: "Invalid auth" }, { status: 401 });
-    }
-
     const { data: account, error: accountError } = await supabase
       .from("accounts")
       .select("totp_secret, totp_enabled, last_totp_time_step, email")
