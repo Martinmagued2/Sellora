@@ -5,6 +5,7 @@ import { processIncomingMessage } from "@/lib/channels/processor";
 import { createClient } from "@supabase/supabase-js";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
+import { notify } from "@/lib/notifications";
 import crypto from 'crypto';
 
 let _supabase = null;
@@ -157,6 +158,18 @@ export async function POST(request) {
       });
 
       console.log(`[FB-WEBHOOK] Processed message from ${event.senderId}: "${event.text?.substring(0, 50)}..."`);
+
+      // 🔔 Fire notification (best-effort, non-blocking)
+      const customerName = profile?.name || event.senderId || "Unknown";
+      const messagePreview = (event.text || "").slice(0, 100);
+      notify(account.id, {
+        category: "messages",
+        type: "new_message",
+        title: `New Facebook message from ${customerName}`,
+        message: messagePreview,
+        priority: "normal",
+        actionUrl: "/dashboard/conversations",
+      }).catch(() => {});
 
     } catch (err) {
       console.error("[FB-WEBHOOK] Error processing Facebook message:", err.message);

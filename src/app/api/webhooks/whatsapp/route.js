@@ -5,6 +5,7 @@ import { parseWebhookMessage, markMessageAsRead } from "@/lib/whatsapp";
 import { processIncomingMessage } from "@/lib/channels/processor";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
+import { notify } from "@/lib/notifications";
 import crypto from 'crypto';
 
 // Service role client for webhook processing (lazy-initialized)
@@ -146,6 +147,20 @@ export async function POST(request) {
     });
 
     console.log(`[WA-WEBHOOK] Successfully processed message from ${message.from}`);
+
+    // 🔔 Fire notification (best-effort, non-blocking) — only if we found an account
+    if (accountId) {
+      const customerName = message.contactName || message.from || "Unknown";
+      const messagePreview = (message.text || "").slice(0, 100);
+      notify(accountId, {
+        category: "messages",
+        type: "new_message",
+        title: `New WhatsApp message from ${customerName}`,
+        message: messagePreview,
+        priority: "normal",
+        actionUrl: "/dashboard/conversations",
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error("[WA-WEBHOOK] Error processing WhatsApp message:", err.message);
     console.error("[WA-WEBHOOK] Stack:", err.stack);

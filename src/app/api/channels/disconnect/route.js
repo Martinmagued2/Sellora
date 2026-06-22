@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
+import { notify } from '@/lib/notifications';
 
 // Disconnect any messaging channel (instagram | facebook | whatsapp) server-side.
 // This is more reliable than the client-side supabase.update() call because:
@@ -14,6 +15,14 @@ const PAYLOADS = {
   facebook:  { facebook_connected: false,  facebook_page_id: null,  facebook_access_token: null },
   whatsapp:  { whatsapp_connected: false,  whatsapp_phone_number_id: null, whatsapp_access_token: null },
   shopify:   { shopify_installed: false,   shopify_shop_domain: null, shopify_access_token: null },
+};
+
+// Display label for each channel in notifications
+const CHANNEL_LABELS = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  whatsapp: "WhatsApp",
+  shopify: "Shopify",
 };
 
 export async function POST(req) {
@@ -49,6 +58,17 @@ export async function POST(req) {
       .select('id');
 
     if (!clientErr && (clientData?.length ?? 0) > 0) {
+      // 🔔 Fire notification (best-effort, non-blocking)
+      const channelLabel = CHANNEL_LABELS[channel] || channel;
+      notify(user.id, {
+        category: "channels",
+        type: "channel_disconnected",
+        title: `${channelLabel} disconnected`,
+        message: `Your ${channelLabel} channel has been disconnected. Reconnect it to resume receiving messages.`,
+        priority: "high",
+        actionUrl: "/dashboard/settings?tab=channels",
+      }).catch(() => {});
+
       return NextResponse.json({ success: true, channel, method: 'client_anon' });
     }
 
@@ -77,6 +97,17 @@ export async function POST(req) {
         { status: 404 }
       );
     }
+
+    // 🔔 Fire notification (best-effort, non-blocking)
+    const channelLabel = CHANNEL_LABELS[channel] || channel;
+    notify(user.id, {
+      category: "channels",
+      type: "channel_disconnected",
+      title: `${channelLabel} disconnected`,
+      message: `Your ${channelLabel} channel has been disconnected. Reconnect it to resume receiving messages.`,
+      priority: "high",
+      actionUrl: "/dashboard/settings?tab=channels",
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

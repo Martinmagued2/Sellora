@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendTeamInviteEmail, isEmailConfigured } from "@/lib/email";
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth-helper";
+import { notify } from "@/lib/notifications";
 
 let _supabaseAdmin = null;
 function getSupabaseAdmin() {
@@ -93,6 +94,19 @@ export async function POST(req) {
        console.error("Resend error:", result.error);
        return NextResponse.json({ error: "Failed to send email. Ensure you have a verified domain on Resend if sending to external addresses." }, { status: 500 });
     }
+
+    // 🔔 Fire notification (best-effort, non-blocking)
+    notify(accountId, {
+      category: "team",
+      type: "team_invite_sent",
+      title: `Team invite sent to ${email}`,
+      message: `You invited ${email} to join your team as an agent.`,
+      priority: "normal",
+      actionUrl: "/dashboard/settings?tab=team",
+      related_id: newMember?.id,
+      related_type: "team_member",
+      data: { invited_email: email },
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, member: newMember });
 

@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { decryptShopifyToken } from '@/lib/shopify';
 import { fetchShopifyProducts, fetchShopifyOrders, registerShopifyWebhooks } from '@/lib/shopify-api';
+import { notify } from '@/lib/notifications';
 
 export async function POST(req) {
   const log = []; // diagnostic log, returned in the response so the toast can show real cause
@@ -288,6 +289,16 @@ export async function POST(req) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     await registerShopifyWebhooks(account.shopify_shop_domain, accessToken, appUrl)
       .catch(e => console.warn('[shopify/sync] webhook reg failed:', e.message));
+
+    // 🔔 Fire notification (best-effort, non-blocking)
+    notify(user.id, {
+      category: "automation",
+      type: "shopify_sync_complete",
+      title: `Shopify sync complete`,
+      message: `Synced ${syncedProducts} products and ${syncedOrders} orders`,
+      priority: "low",
+      actionUrl: "/dashboard/products",
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

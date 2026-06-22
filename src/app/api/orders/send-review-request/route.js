@@ -74,10 +74,25 @@ export async function POST(req) {
 
     const account = Array.isArray(order.account) ? order.account[0] : order.account;
     const customer = Array.isArray(order.customer) ? order.customer[0] : order.customer;
-    const recipientId = customer?.phone || customer?.platform_id;
+
+    // 🔒 FIX: recipient ID must match the channel:
+    // - WhatsApp → phone number (E.164 format, e.g. "201234567890")
+    // - Instagram/Facebook → platform_id (Meta-scoped user ID, e.g. "17841234567890")
+    // Previous code used phone for all channels, causing Meta API error #100:
+    // "Param recipient[id] must be a valid ID string"
+    let recipientId;
+    if (order.channel === 'whatsapp') {
+      recipientId = customer?.phone;
+    } else {
+      // Instagram or Facebook — must use platform_id
+      recipientId = customer?.platform_id;
+    }
 
     if (!recipientId) {
-      return NextResponse.json({ error: 'Customer has no phone or platform ID — cannot send message' }, { status: 400 });
+      const needed = order.channel === 'whatsapp' ? 'phone number' : 'platform ID (Instagram/Facebook user ID)';
+      return NextResponse.json({
+        error: `Customer has no ${needed} on file. Ask them to message you first via ${order.channel} so their platform ID is captured, or enrich their profile manually.`,
+      }, { status: 400 });
     }
 
     let sent = false;

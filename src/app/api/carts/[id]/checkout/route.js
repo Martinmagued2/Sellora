@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
+import { notify } from "@/lib/notifications";
 
 let _adminClient = null;
 function getAdminClient() {
@@ -138,6 +139,31 @@ export async function POST(req, { params }) {
         console.warn("[CART-CHECKOUT] customer update failed:", e.message);
       }
     }
+
+    // 🔔 Fire notification (best-effort, non-blocking)
+    let customerName = "A customer";
+    if (cart.customer_id) {
+      try {
+        const { data: cust } = await admin
+          .from("customers")
+          .select("name, full_name, first_name")
+          .eq("id", cart.customer_id)
+          .maybeSingle();
+        if (cust) customerName = cust.name || cust.full_name || cust.first_name || customerName;
+      } catch (_) { /* best-effort */ }
+    }
+    notify(user.id, {
+      category: "orders",
+      type: "new_order",
+      title: `New order #${order.order_number}!`,
+      message: `${customerName} placed an order for ${cart.total} ${cart.currency || "EGP"}`,
+      priority: "high",
+      actionUrl: "/dashboard/orders",
+      actionLabel: "View Order",
+      related_id: order.id,
+      related_type: "order",
+      data: { order_number: order.order_number, total: cart.total, currency: cart.currency || "EGP" },
+    }).catch(() => {});
 
     return NextResponse.json({ order, cart: { ...cart, status: "converted" } });
   } catch (err) {

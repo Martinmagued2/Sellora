@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth-helper";
+import { notify } from "@/lib/notifications";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -173,6 +174,18 @@ export async function POST(request) {
         value: cartValue,
         status: "created",
       });
+    }
+
+    // 🔔 Fire notification (best-effort, non-blocking) — only if any carts were detected
+    if (detected > 0) {
+      notify(accountId, {
+        category: "automation",
+        type: "abandoned_cart_detected",
+        title: `${detected} new abandoned cart(s) detected`,
+        message: `${detected} cart(s) are waiting to be recovered. Send a reminder to win them back.`,
+        priority: "normal",
+        actionUrl: "/dashboard/abandoned-carts",
+      }).catch(() => {});
     }
 
     return NextResponse.json({

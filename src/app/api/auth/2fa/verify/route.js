@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyTOTP, generateBackupCodes, decryptSecret } from "@/lib/totp";
+import { notify } from "@/lib/notifications";
 import crypto from "crypto";
 
 // Lazy Supabase admin client (server-side only)
@@ -136,6 +137,15 @@ export async function POST(request) {
         .from("accounts")
         .update(updateData)
         .eq("id", targetUserId);
+
+      // 🔔 Fire notification (best-effort, non-blocking)
+      notify(targetUserId, {
+        category: "security",
+        type: "2fa_enabled",
+        title: `2FA enabled on your account`,
+        message: `Two-factor authentication is now active. You'll need your authenticator app to log in.`,
+        priority: "high",
+      }).catch(() => {});
 
       return NextResponse.json({
         verified: true,

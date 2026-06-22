@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from 'crypto';
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { notify } from "@/lib/notifications";
 
 let _supabaseAdmin = null;
 function getSupabaseAdmin() {
@@ -156,6 +157,19 @@ export async function POST(req) {
         console.log(`[PAYMOB_WEBHOOK] Payment ${merchantOrderId} already processed by concurrent webhook`);
         return NextResponse.json({ message: "Already processed" }, { status: 200 });
       }
+
+      // 🔔 Fire payment_failed notification (best-effort, non-blocking)
+      const failedAmount = paymentRecord.amount || (transaction.amount_cents ? (parseInt(transaction.amount_cents, 10) / 100) : 0);
+      const failedCurrency = transaction.currency || paymentRecord.currency || "EGP";
+      notify(paymentRecord.account_id, {
+        category: "payments",
+        type: "payment_failed",
+        title: `Payment failed: ${failedAmount} ${failedCurrency}`,
+        message: `Payment for order ${merchantOrderId || ""} failed`.trim(),
+        priority: "urgent",
+        actionUrl: "/dashboard/orders",
+      }).catch(() => {});
+
       return NextResponse.json({ message: "Payment failed logged" });
     }
 
@@ -231,6 +245,19 @@ export async function POST(req) {
       }
 
       console.log(`[PAYMOB_WEBHOOK_COMPLETE] Order payment processed for ${merchantOrderId}`);
+
+      // 🔔 Fire payment_received notification (best-effort, non-blocking)
+      const orderPayAmount = paymentRecord.amount || (transaction.amount_cents ? (parseInt(transaction.amount_cents, 10) / 100) : 0);
+      const orderPayCurrency = transaction.currency || paymentRecord.currency || "EGP";
+      notify(paymentRecord.account_id, {
+        category: "payments",
+        type: "payment_received",
+        title: `Payment received: ${orderPayAmount} ${orderPayCurrency}`,
+        message: `Order #${orderNumber || merchantOrderId || ""} has been paid`,
+        priority: "high",
+        actionUrl: "/dashboard/orders",
+      }).catch(() => {});
+
       return NextResponse.json({ message: "Order payment processed" });
     }
 
@@ -305,6 +332,19 @@ export async function POST(req) {
     }
 
     console.log(`[PAYMOB_WEBHOOK_COMPLETE] Subscription extended by ${addedDays} days for account ${paymentRecord.account_id}`);
+
+    // 🔔 Fire payment_received notification for subscription (best-effort, non-blocking)
+    const subPayAmount = paymentRecord.amount || (transaction.amount_cents ? (parseInt(transaction.amount_cents, 10) / 100) : 0);
+    const subPayCurrency = transaction.currency || paymentRecord.currency || "EGP";
+    notify(paymentRecord.account_id, {
+      category: "payments",
+      type: "payment_received",
+      title: `Payment received: ${subPayAmount} ${subPayCurrency}`,
+      message: `Your ${paymentRecord.plan_purchased || "subscription"} plan has been extended by ${addedDays} days`,
+      priority: "high",
+      actionUrl: "/dashboard/orders",
+    }).catch(() => {});
+
     return NextResponse.json({ message: "Webhook processed completely" });
 
   } catch (error) {

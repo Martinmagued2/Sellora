@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateDiscountCode } from '@/lib/automation/helpers';
+import { notify } from '@/lib/notifications';
 
 // Unified revenue automation processor.
 // Runs daily via cron. Processes all 5 automations for all accounts that have
@@ -237,6 +238,15 @@ async function processWinBack(db, account) {
       status: 'sent',
     });
     sent++;
+  }
+
+  if (sent > 0) {
+    notify(account.id, {
+      category: "automation", type: "winback_sent", priority: "normal",
+      title: `${sent} win-back message(s) sent`,
+      message: `Dormant customers received "we miss you" offers with ${account.winback_discount_percent}% discount codes.`,
+      actionUrl: "/dashboard/revenue-automations",
+    }).catch(() => {});
   }
 
   return sent;
@@ -572,6 +582,15 @@ async function processVIP(db, account) {
         .update({ tags: ['vip'] })
         .eq('id', customer.id);
     }
+  }
+
+  if (tagged > 0) {
+    notify(account.id, {
+      category: "customers", type: "vip_tagged", priority: "high",
+      title: `${tagged} new VIP customer(s)! 🌟`,
+      message: `${tagged} customer(s) crossed the ${account.vip_threshold} EGP threshold and were tagged as VIP.`,
+      actionUrl: "/dashboard/customers?tab=vip",
+    }).catch(() => {});
   }
 
   return tagged;
