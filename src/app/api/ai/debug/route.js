@@ -89,7 +89,7 @@ export async function POST(req) {
       const startTime = Date.now();
       const groqProvider = createGroq();
       const result = await generateText({
-        model: groqProvider("meta-llama/llama-4-scout-17b-16e-instruct"),
+        model: groqProvider("qwen-qwq-32b"),
         prompt: "Say 'Groq works!' in exactly 3 words.",
         maxTokens: 20,
       });

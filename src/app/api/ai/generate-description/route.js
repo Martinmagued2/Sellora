@@ -36,7 +36,7 @@ function buildProviderChain() {
 
   if (process.env.GROQ_API_KEY) {
     const groqProvider = createGroq();
-    providers.push({ name: 'groq', model: groqProvider("meta-llama/llama-4-scout-17b-16e-instruct") });
+    providers.push({ name: 'groq', model: groqProvider("qwen-qwq-32b") });
   }
 
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
