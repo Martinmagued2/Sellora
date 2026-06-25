@@ -25,6 +25,8 @@ import { useCurrentStore } from "@/lib/store-context";
 import { useToast } from "../components/ToastProvider";
 import { useConfirm } from "../components/ConfirmProvider";
 import { PageSkeleton } from "@/components/SkeletonLoader";
+import TiltCard3D from "../components/TiltCard3D";
+import Product360Viewer from "../components/Product360Viewer";
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -602,7 +604,8 @@ export default function ProductsPage() {
       ) : (
         <div className="products-grid">
           {products.map((product) => (
-            <div key={product.id} className="product-card" onMouseEnter={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 1; }} onMouseLeave={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 0; }}>
+            <TiltCard3D key={product.id} maxTilt={5} scale={1.03}>
+            <div className="product-card" onMouseEnter={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 1; }} onMouseLeave={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 0; }}>
               <div className="product-card-image">
                 {product.image_urls && product.image_urls.length > 0 ? (
                   <img
@@ -699,6 +702,7 @@ export default function ProductsPage() {
                 </div>
               </div>
             </div>
+            </TiltCard3D>
           ))}
         </div>
       )}
@@ -823,8 +827,17 @@ export default function ProductsPage() {
               <button className="modal-close" onClick={() => setViewProduct(null)}><X size={18} /></button>
             </div>
             <div className="modal-body">
-              {/* Product image */}
-              {viewProduct.image_urls && viewProduct.image_urls.length > 0 && (
+              {/* Product image — 360° viewer if multiple images, otherwise static */}
+              {viewProduct.image_urls && viewProduct.image_urls.length > 1 && (
+                <div style={{ marginBottom: "var(--space-lg)" }}>
+                  <Product360Viewer
+                    images={viewProduct.image_urls}
+                    productName={viewProduct.name}
+                    autoRotate={false}
+                  />
+                </div>
+              )}
+              {viewProduct.image_urls && viewProduct.image_urls.length === 1 && (
                 <div style={{ marginBottom: "var(--space-lg)", borderRadius: "var(--radius-md)", overflow: "hidden", height: 200 }}>
                   <img src={viewProduct.image_urls[0]} alt={viewProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>

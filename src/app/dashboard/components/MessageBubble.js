@@ -3,6 +3,7 @@
 import {
   Bot, Camera, Check, Loader2, ThumbsUp, ThumbsDown,
 } from "lucide-react";
+import TiltCard3D from "./TiltCard3D";
 
 /**
  * MessageBubble — renders a single chat message with all the bells:
@@ -42,6 +43,7 @@ export default function MessageBubble({
       key={msg.id}
       className={`chat-msg ${isOutgoing ? (isAI ? "ai-reply" : "outgoing") : "incoming"}`}
     >
+      <TiltCard3D maxTilt={3} scale={1.01} glare={false}>
       {isAI && <span className="ai-label"><Bot size={10} /> AI Auto-Reply</span>}
 
       {/* Sentiment badge on incoming */}
@@ -147,6 +149,7 @@ export default function MessageBubble({
           </button>
         </div>
       )}
+      </TiltCard3D>
     </div>
   );
 }
