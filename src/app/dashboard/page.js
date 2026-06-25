@@ -16,6 +16,7 @@ import SmartGreeting from "@/app/dashboard/components/SmartGreeting";
 import MilestoneTracker from "@/app/dashboard/components/MilestoneTracker";
 import LiveActivityFeed from "@/app/dashboard/components/LiveActivityFeed";
 import QuickStatsBar from "@/app/dashboard/components/QuickStatsBar";
+import Dashboard3DWidget from "@/app/dashboard/components/Dashboard3DWidget";
 import { DashboardSkeleton } from "@/components/SkeletonLoader";
 
 export default function DashboardHome() {
@@ -185,6 +186,15 @@ export default function DashboardHome() {
         </div>
       ) : (
         <>
+          {/* ═══ 3D Revenue Widget ═══ */}
+          <div style={{ marginBottom: "var(--space-lg)" }}>
+            <Dashboard3DWidget
+              statValue={`${(stats.revenue || 0).toLocaleString()} EGP`}
+              statLabel="Total Revenue"
+              color="#6c5ce7"
+            />
+          </div>
+
           {/* ═══ Key Metrics Row ═══ */}
           <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-md)" }}>
             <div style={{ gridColumn: "span 2" }}>
