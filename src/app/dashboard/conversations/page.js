@@ -55,8 +55,6 @@ export default function ConversationsPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
-  const [customerTyping, setCustomerTyping] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const typingTimeoutRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -314,75 +312,6 @@ export default function ConversationsPage() {
       if (channel) supabase.removeChannel(channel);
     };
   }, [fetchConversations]);
-
-  // ─── Real-time: Typing indicator subscription ───
-  useEffect(() => {
-    if (!activeConv) return;
-
-    const channel = supabase
-      .channel(`typing:${activeConv.id}`)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "typing_indicators",
-        filter: `conversation_id=eq.${activeConv.id}`,
-      }, (payload) => {
-        // Check if the typing indicator is from the customer (not us)
-        if (payload.new?.is_customer) {
-          setCustomerTyping(true);
-        }
-        if (payload.eventType === "DELETE") {
-          setCustomerTyping(false);
-        }
-      })
-      .subscribe();
-
-    // Poll typing status every 2 seconds (fallback for realtime misses)
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/conversations/${activeConv.id}/typing`);
-        if (res.ok) {
-          const data = await res.json();
-          setCustomerTyping(data.customerTyping);
-        }
-      } catch (e) {}
-    }, 2000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
-      setCustomerTyping(false);
-    };
-  }, [activeConv]);
-
-  // ─── Broadcast typing status when user types ───
-  const broadcastTyping = (typing) => {
-    if (!activeConv) return;
-
-    if (typing && !isTyping) {
-      setIsTyping(true);
-      fetch(`/api/conversations/${activeConv.id}/typing`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isTyping: true, isCustomer: false }),
-      }).catch(() => {});
-    }
-
-    // Clear previous timeout
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-    // Set new timeout — stop typing after 3 seconds of no input
-    typingTimeoutRef.current = setTimeout(() => {
-      if (isTyping) {
-        setIsTyping(false);
-        fetch(`/api/conversations/${activeConv.id}/typing`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isTyping: false, isCustomer: false }),
-        }).catch(() => {});
-      }
-    }, 3000);
-  };
 
   // ─── Send media (audio/image) ───
   const handleSendMedia = async (file, type) => {
@@ -1243,22 +1172,6 @@ export default function ConversationsPage() {
                 </div>
               )}
               {messages.map(renderMessage)}
-              {/* Typing indicator */}
-              {customerTyping && (
-                <div className="chat-msg incoming" style={{ opacity: 0.7 }}>
-                  <div className="msg-bubble" style={{ display: "flex", gap: 4, padding: "10px 14px" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite' }} />
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite 0.2s' }} />
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite 0.4s' }} />
-                    <style>{`
-                      @keyframes typing-bounce {
-                        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-                        30% { transform: translateY(-6px); opacity: 1; }
-                      }
-                    `}</style>
-                  </div>
-                </div>
-              )}
               {/* Upload progress */}
               {uploadingMedia && (
                 <div className="chat-msg outgoing" style={{ opacity: 0.6 }}>
@@ -1300,7 +1213,6 @@ export default function ConversationsPage() {
                   onChange={(e) => {
                     const val = e.target.value;
                     setNewMsg(val);
-                    broadcastTyping(true);
                     if (val.startsWith("/")) {
                       const query = val.slice(1).toLowerCase();
                       const matches = quickReplies.filter(qr =>
@@ -2191,22 +2103,6 @@ export default function ConversationsPage() {
                 </div>
               )}
               {messages.map(renderMessage)}
-              {/* Typing indicator (desktop) */}
-              {customerTyping && (
-                <div className="chat-msg incoming" style={{ opacity: 0.7 }}>
-                  <div className="msg-bubble" style={{ display: "flex", gap: 4, padding: "10px 14px" }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite' }} />
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite 0.2s' }} />
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite 0.4s' }} />
-                    <style>{`
-                      @keyframes typing-bounce {
-                        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-                        30% { transform: translateY(-6px); opacity: 1; }
-                      }
-                    `}</style>
-                  </div>
-                </div>
-              )}
               {uploadingMedia && (
                 <div className="chat-msg outgoing" style={{ opacity: 0.6 }}>
                   <div className="msg-bubble">Uploading media...</div>
