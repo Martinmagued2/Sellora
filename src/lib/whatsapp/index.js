@@ -192,6 +192,45 @@ export async function sendImageMessage({ to, imageUrl, caption, phoneNumberId, a
 }
 
 /**
+ * Send a media message (audio or image) via WhatsApp
+ * Unified function for the send-media API endpoint.
+ */
+export async function sendWhatsAppMedia({ to, type, mediaUrl, caption, phoneNumberId, accessToken }) {
+  const phoneId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+
+  const mediaObject = type === 'audio'
+    ? { audio: { link: mediaUrl } }
+    : { image: { link: mediaUrl, caption: caption || undefined } };
+
+  const response = await fetch(
+    `${WHATSAPP_API_URL}/${phoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: type === 'audio' ? 'audio' : 'image',
+        ...mediaObject,
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Failed to send media message");
+  }
+
+  return data;
+}
+
+/**
  * Send a document message via WhatsApp
  */
 export async function sendDocumentMessage({ to, documentUrl, filename, caption, phoneNumberId, accessToken }) {

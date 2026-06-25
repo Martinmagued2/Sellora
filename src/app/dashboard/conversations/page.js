@@ -55,6 +55,12 @@ export default function ConversationsPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [customerTyping, setCustomerTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const typingTimeoutRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const audioInputRef = useRef(null);
 
   // Right panel
   const [customerInfo, setCustomerInfo] = useState(null);
@@ -308,6 +314,123 @@ export default function ConversationsPage() {
       if (channel) supabase.removeChannel(channel);
     };
   }, [fetchConversations]);
+
+  // ─── Real-time: Typing indicator subscription ───
+  useEffect(() => {
+    if (!activeConv) return;
+
+    const channel = supabase
+      .channel(`typing:${activeConv.id}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "typing_indicators",
+        filter: `conversation_id=eq.${activeConv.id}`,
+      }, (payload) => {
+        // Check if the typing indicator is from the customer (not us)
+        if (payload.new?.is_customer) {
+          setCustomerTyping(true);
+        }
+        if (payload.eventType === "DELETE") {
+          setCustomerTyping(false);
+        }
+      })
+      .subscribe();
+
+    // Poll typing status every 2 seconds (fallback for realtime misses)
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/conversations/${activeConv.id}/typing`);
+        if (res.ok) {
+          const data = await res.json();
+          setCustomerTyping(data.customerTyping);
+        }
+      } catch (e) {}
+    }, 2000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+      setCustomerTyping(false);
+    };
+  }, [activeConv]);
+
+  // ─── Broadcast typing status when user types ───
+  const broadcastTyping = (typing) => {
+    if (!activeConv) return;
+
+    if (typing && !isTyping) {
+      setIsTyping(true);
+      fetch(`/api/conversations/${activeConv.id}/typing`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isTyping: true, isCustomer: false }),
+      }).catch(() => {});
+    }
+
+    // Clear previous timeout
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    // Set new timeout — stop typing after 3 seconds of no input
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTyping) {
+        setIsTyping(false);
+        fetch(`/api/conversations/${activeConv.id}/typing`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isTyping: false, isCustomer: false }),
+        }).catch(() => {});
+      }
+    }, 3000);
+  };
+
+  // ─── Send media (audio/image) ───
+  const handleSendMedia = async (file, type) => {
+    if (!activeConv || uploadingMedia) return;
+    setUploadingMedia(true);
+    setSendError("");
+
+    try {
+      const formData = new FormData();
+      formData.append('conversationId', activeConv.id);
+      formData.append('type', type);
+      formData.append('file', file);
+
+      const res = await fetch('/api/messages/send-media', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send media');
+
+      // Add the new message to the list immediately
+      if (data.message) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === data.message.id)) return prev;
+          return [...prev, data.message];
+        });
+      }
+
+      await fetchConversations();
+    } catch (err) {
+      setSendError(err.message);
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleSendMedia(file, 'image');
+    e.target.value = ''; // reset input
+  };
+
+  const handleAudioSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleSendMedia(file, 'audio');
+    e.target.value = '';
+  };
 
   // ─── Send message ───
   const handleSend = async (e) => {
@@ -1120,6 +1243,28 @@ export default function ConversationsPage() {
                 </div>
               )}
               {messages.map(renderMessage)}
+              {/* Typing indicator */}
+              {customerTyping && (
+                <div className="chat-msg incoming" style={{ opacity: 0.7 }}>
+                  <div className="msg-bubble" style={{ display: "flex", gap: 4, padding: "10px 14px" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite' }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite 0.2s' }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite 0.4s' }} />
+                    <style>{`
+                      @keyframes typing-bounce {
+                        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+                        30% { transform: translateY(-6px); opacity: 1; }
+                      }
+                    `}</style>
+                  </div>
+                </div>
+              )}
+              {/* Upload progress */}
+              {uploadingMedia && (
+                <div className="chat-msg outgoing" style={{ opacity: 0.6 }}>
+                  <div className="msg-bubble">Uploading media...</div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -1155,6 +1300,7 @@ export default function ConversationsPage() {
                   onChange={(e) => {
                     const val = e.target.value;
                     setNewMsg(val);
+                    broadcastTyping(true);
                     if (val.startsWith("/")) {
                       const query = val.slice(1).toLowerCase();
                       const matches = quickReplies.filter(qr =>
@@ -1200,6 +1346,42 @@ export default function ConversationsPage() {
                   compact
                   onTranscribe={(text) => { setNewMsg(text); }}
                   disabled={sending}
+                />
+                {/* Photo upload button */}
+                <button
+                  type="button"
+                  className="topbar-btn"
+                  title="Send photo"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  style={{ width: 36, height: 36, flexShrink: 0, position: 'relative' }}
+                >
+                  {uploadingMedia ? <Loader2 size={14} className="spin" /> : <Camera size={15} />}
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleImageSelect}
+                  style={{ display: 'none' }}
+                />
+                {/* Audio upload button */}
+                <button
+                  type="button"
+                  className="topbar-btn"
+                  title="Send audio"
+                  onClick={() => audioInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  style={{ width: 36, height: 36, flexShrink: 0 }}
+                >
+                  <Mic size={15} />
+                </button>
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept="audio/webm,audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/m4a"
+                  onChange={handleAudioSelect}
+                  style={{ display: 'none' }}
                 />
                 <ImageUploader
                   compact
@@ -2009,6 +2191,27 @@ export default function ConversationsPage() {
                 </div>
               )}
               {messages.map(renderMessage)}
+              {/* Typing indicator (desktop) */}
+              {customerTyping && (
+                <div className="chat-msg incoming" style={{ opacity: 0.7 }}>
+                  <div className="msg-bubble" style={{ display: "flex", gap: 4, padding: "10px 14px" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite' }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite 0.2s' }} />
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--text-tertiary)', animation: 'typing-bounce 1.4s infinite 0.4s' }} />
+                    <style>{`
+                      @keyframes typing-bounce {
+                        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+                        30% { transform: translateY(-6px); opacity: 1; }
+                      }
+                    `}</style>
+                  </div>
+                </div>
+              )}
+              {uploadingMedia && (
+                <div className="chat-msg outgoing" style={{ opacity: 0.6 }}>
+                  <div className="msg-bubble">Uploading media...</div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -2270,6 +2473,28 @@ export default function ConversationsPage() {
                     disabled={sending}
                   />
                 </div>
+                {/* Photo upload button (direct send) */}
+                <button
+                  type="button"
+                  className="topbar-btn"
+                  title="Send photo"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  style={{ width: 36, height: 36, flexShrink: 0 }}
+                >
+                  {uploadingMedia ? <Loader2 size={14} className="spin" /> : <Camera size={15} />}
+                </button>
+                {/* Audio upload button (direct send) */}
+                <button
+                  type="button"
+                  className="topbar-btn"
+                  title="Send audio file"
+                  onClick={() => audioInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  style={{ width: 36, height: 36, flexShrink: 0 }}
+                >
+                  <Mic size={15} />
+                </button>
                 <button type="submit" className="chat-send-btn" disabled={!newMsg.trim() || sending} id="chat-send"><Send size={18} /></button>
               </div>
             </form>
