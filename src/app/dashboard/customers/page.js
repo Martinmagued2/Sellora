@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
+import CustomerCRMPanel from "../components/CustomerCRMPanel";
 import { useToast } from "../components/ToastProvider";
 import { PageSkeleton } from "@/components/SkeletonLoader";
 
@@ -429,6 +430,14 @@ export default function CustomersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ═══ Customer CRM Panel (full CRM view with timeline, notes, tasks) ═══ */}
+      {activeCustomer && (
+        <CustomerCRMPanel
+          customer={activeCustomer}
+          onClose={() => setActiveCustomer(null)}
+        />
       )}
     </div>
   );
