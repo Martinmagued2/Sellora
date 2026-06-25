@@ -133,17 +133,58 @@ export async function POST(request) {
     // Process through the shared pipeline — handles EVERYTHING:
     // account lookup, customer upsert, conversation, message storage,
     // auto-greeting, FAQ, keyword auto-reply, and AI auto-reply
+    //
+    // 🔧 FIX: If the message has media (image/audio/video), download it
+    // from WhatsApp and upload to Supabase Storage so it's accessible.
+    let mediaUrls = [];
+    let mediaType = null;
+    if (message.mediaId && waAccessToken) {
+      try {
+        const { downloadWhatsAppMedia } = await import("@/lib/whatsapp");
+        const { buffer, mimeType } = await downloadWhatsAppMedia({
+          mediaId: message.mediaId,
+          accessToken: waAccessToken,
+        });
+
+        // Upload to Supabase Storage
+        const ext = mimeType.split("/")[1] || "bin";
+        const fileName = `inbound/${accountId}/${Date.now()}-${message.messageId}.${ext}`;
+        const { data: uploadData, error: uploadError } = await getSupabase()
+          .storage.from("message-media")
+          .upload(fileName, buffer, { contentType: mimeType, upsert: false });
+
+        if (!uploadError) {
+          const { data: urlData } = getSupabase().storage.from("message-media").getPublicUrl(fileName);
+          mediaUrls = [urlData.publicUrl];
+          mediaType = message.mediaType;
+        }
+      } catch (mediaErr) {
+        console.warn("[WA-WEBHOOK] Media download failed:", mediaErr.message);
+      }
+    }
+
+    // Set customer typing indicator to false (they just sent a message)
+    if (accountId) {
+      try {
+        await getSupabase().from("typing_indicators")
+          .delete()
+          .eq("account_id", accountId)
+          .eq("is_customer", true);
+      } catch (e) {}
+    }
+
     await processIncomingMessage({
       senderId: message.from,
       senderName: message.contactName || null,
       senderProfilePic: null,
       text: message.text,
-      mediaUrls: [],
+      mediaUrls,
+      mediaType,
       channel: "whatsapp",
       pageId: message.phoneNumberId,
       platformMessageId: message.messageId,
       accessToken: waAccessToken,
-      accountId: accountId, // Pass accountId to avoid duplicate lookup in processor
+      accountId: accountId,
     });
 
     console.log(`[WA-WEBHOOK] Successfully processed message from ${message.from}`);

@@ -88,6 +88,7 @@ export async function processIncomingMessage({
   senderProfilePic,
   text,
   mediaUrls = [],
+  mediaType = null,
   channel,
   pageId,
   platformMessageId,
@@ -247,7 +248,8 @@ export async function processIncomingMessage({
     }
 
     // ─── 5. Store the incoming message ───
-    const messageType = mediaUrls.length > 0 ? "image" : "text";
+    // 🔧 FIX: use mediaType from webhook (image/audio/video) instead of always "image"
+    const messageType = mediaUrls.length > 0 ? (mediaType || "image") : "text";
     const { error: insertError } = await getSupabase().from("messages").insert({
       conversation_id: conversation.id,
       account_id: account.id,
@@ -255,6 +257,8 @@ export async function processIncomingMessage({
       content: text,
       type: messageType,
       media_urls: mediaUrls.length > 0 ? mediaUrls : null,
+      media_url: mediaUrls.length > 0 ? mediaUrls[0] : null,
+      media_type: mediaType || null,
       platform_message_id: platformMessageId,
       intent: intent,
       sentiment: sentiment,

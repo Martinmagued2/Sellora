@@ -315,6 +315,32 @@ export async function markMessageAsRead({ messageId, phoneNumberId, accessToken 
 }
 
 /**
+ * Download media (image/audio/video) from WhatsApp by media ID.
+ * Returns a Buffer of the media content.
+ * The media URL expires after 5 minutes, so download immediately.
+ */
+export async function downloadWhatsAppMedia({ mediaId, accessToken }) {
+  const token = accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!token) throw new Error("WhatsApp access token required");
+
+  // Step 1: Get the media URL
+  const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const metaData = await metaRes.json();
+  if (!metaData.url) throw new Error("Failed to get media URL from WhatsApp");
+
+  // Step 2: Download the actual media
+  const mediaRes = await fetch(metaData.url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!mediaRes.ok) throw new Error("Failed to download media");
+
+  const buffer = Buffer.from(await mediaRes.arrayBuffer());
+  return { buffer, mimeType: metaData.mime_type || "application/octet-stream" };
+}
+
+/**
  * Parse incoming webhook payload from WhatsApp
  */
 export function parseWebhookMessage(body) {
@@ -327,12 +353,47 @@ export function parseWebhookMessage(body) {
   const message = value.messages[0];
   const contact = value.contacts?.[0];
 
+  // Extract text + media from any message type
+  let text = null;
+  let mediaUrl = null;
+  let mediaType = null;
+  let mediaId = null;
+
+  if (message.type === "text" && message.text?.body) {
+    text = message.text.body;
+  } else if (message.type === "image" && message.image) {
+    mediaType = "image";
+    mediaId = message.image.id;
+    text = message.image.caption || "📷 Photo";
+  } else if (message.type === "audio" && message.audio) {
+    mediaType = "audio";
+    mediaId = message.audio.id;
+    text = "🎤 Voice message";
+  } else if (message.type === "video" && message.video) {
+    mediaType = "video";
+    mediaId = message.video.id;
+    text = message.video.caption || "🎬 Video";
+  } else if (message.type === "document" && message.document) {
+    mediaType = "document";
+    mediaId = message.document.id;
+    text = message.document.caption || `📄 ${message.document.filename || "Document"}`;
+  } else if (message.type === "button" && message.button?.text) {
+    text = message.button.text;
+  } else if (message.type === "interactive" && message.interactive?.button_reply?.text) {
+    text = message.interactive.button_reply.text;
+  } else if (message.type === "interactive" && message.interactive?.list_reply?.title) {
+    text = message.interactive.list_reply.title;
+  }
+
   return {
     messageId: message.id,
     from: message.from,
     timestamp: message.timestamp,
     type: message.type,
-    text: message.text?.body || null,
+    text,
+    mediaUrl,
+    mediaType,
+    mediaId, // WhatsApp media ID — need to fetch the actual URL via API
     contactName: contact?.profile?.name || null,
     phoneNumberId: value.metadata?.phone_number_id,
   };
