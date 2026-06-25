@@ -67,7 +67,7 @@ export async function POST(request) {
 
     if (process.env.GROQ_API_KEY) {
       const groqProvider = createGroq();
-      providers.push({ name: "groq", model: groqProvider("qwen-qwq-32b") });
+      providers.push({ name: "groq", model: groqProvider("llama-3.3-70b-versatile") });
     }
 
     if (process.env.GOOGLE_GENERATIVE_AI_API_KEY && google) {

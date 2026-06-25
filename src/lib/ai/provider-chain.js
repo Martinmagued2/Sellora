@@ -173,9 +173,10 @@ export function buildGroqProviders(opts = {}) {
   if (keys.length === 0) return providers;
   
   // Model selection based on use case:
-  // - Default (Copilot): Qwen3 32B (smartest) → Llama 3.3 70B (fallback)
-  //   (Llama 4 Scout 17B was deprecated by Groq on 2026-06-25, decommission
-  //    on 2026-07-17. Replaced with Qwen3 32B — Groq's recommended successor.)
+  // - Default (Copilot): Llama 3.3 70B (smartest available on free tier) → Llama 3.1 8B (fallback)
+  //   (Llama 4 Scout 17B deprecated by Groq 2026-06-25. Qwen3 32B hit quota
+  //    limits on free tier — switched to Llama 3.3 70B which has higher
+  //    free-tier rate limits and is still supported.)
   // - Lightweight (auto-replies): Llama 3.1 8B (fast, cheap) → Mixtral (fallback)
   // - Routing only: Llama 3.1 8B + Gemma 2 (cheapest, fastest)
   let primaryModels;
@@ -185,12 +186,13 @@ export function buildGroqProviders(opts = {}) {
     // Auto-replies: fast & cheap to conserve rate limits for Copilot
     primaryModels = [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "mixtral-8x7b-32768", name: "groq-mixtral" }];
   } else {
-    // Copilot: smartest model first
-    // Qwen3 32B is Groq's recommended replacement for Llama 4 Scout 17B.
-    // Fallback to Llama 3.3 70B (still supported, very capable).
+    // Copilot: Llama 3.3 70B is the best free-tier model on Groq.
+    // Qwen3 32B and GPT-OSS have quota limits on the free tier that get
+    // exhausted quickly. Llama 3.3 70B has generous free limits and is
+    // very capable for agentic tool use.
     primaryModels = [
-      { id: "qwen-qwq-32b", name: "groq-qwen32b" },
       { id: "llama-3.3-70b-versatile", name: "groq-llama70b" },
+      { id: "llama-3.1-8b-instant", name: "groq-llama8b" },
     ];
   }
   

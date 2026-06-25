@@ -90,7 +90,7 @@ export async function GET() {
       const groqProvider = createGroq();
       const startTime = Date.now();
       const result = await generateText({
-        model: groqProvider("qwen-qwq-32b"),
+        model: groqProvider("llama-3.3-70b-versatile"),
         prompt: "Say OK",
         maxTokens: 5,
       });

@@ -105,8 +105,8 @@ export const PLAN_LIMITS = {
 export const AI_MODELS = {
   fast: {
     provider: "groq",
-    model: "qwen-qwq-32b",
-    label: "Groq (Qwen3 32B)",
+    model: "llama-3.3-70b-versatile",
+    label: "Groq (Llama 3.3 70B)",
   },
   smart: {
     provider: "google",

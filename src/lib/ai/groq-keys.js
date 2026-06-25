@@ -19,7 +19,6 @@ import { createOpenAI } from "@ai-sdk/openai";
 
 // Available Groq models to rotate through
 const GROQ_MODELS = [
-  { id: "qwen-qwq-32b", name: "Qwen3 32B", tier: "free" },
   { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", tier: "free" },
   { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant", tier: "free" },
   { id: "gemma2-9b-it", name: "Gemma 2 9B", tier: "free" },
@@ -74,7 +73,7 @@ export function collectGroqKeys() {
  * @param {string} fastModel - The fast/cheap Groq model ID (default: llama-3.1-8b-instant)
  * @returns {Array<{name: string, model: object}>} Provider entries for the chain
  */
-export function buildGroqProviders(primaryModel = "qwen-qwq-32b", fastModel = "llama-3.1-8b-instant") {
+export function buildGroqProviders(primaryModel = "llama-3.3-70b-versatile", fastModel = "llama-3.1-8b-instant") {
   const keys = collectGroqKeys();
   const providers = [];
 
