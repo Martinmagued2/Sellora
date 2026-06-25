@@ -7,6 +7,7 @@ import {
   Trophy, Star, Zap, Users, ShoppingBag, MessageCircle,
   Bot, Crown, X, Package,
 } from "lucide-react";
+import { useDevice } from "@/lib/use-device";
 
 /**
  * MilestoneTracker — silently monitors the owner's achievements and
@@ -50,6 +51,7 @@ export default function MilestoneTracker({ stats }) {
   const [activeMilestone, setActiveMilestone] = useState(null);
   const [dismissedMilestones, setDismissedMilestones] = useState(new Set());
   const [streakDays, setStreakDays] = useState(0);
+  const { isMobile } = useDevice();
 
   // Load dismissed milestones from localStorage
   useEffect(() => {
@@ -138,27 +140,23 @@ export default function MilestoneTracker({ stats }) {
   return (
     <AnimatePresence>
       <motion.div
-        className="milestone-popup"
         initial={{ opacity: 0, y: -60, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -60, scale: 0.9 }}
         transition={{ type: "spring", stiffness: 300, damping: 25 }}
         style={{
           position: "fixed", top: 20,
-          // 🔧 FIX: Account for the 260px sidebar on desktop.
-          // Center the popup relative to the CONTENT AREA, not the viewport.
-          // On mobile (≤768px) the CSS override below resets to 50% (no sidebar).
-          left: "calc(50% + 130px)", /* 50% + half of 260px sidebar */
+          // 🔧 FIX: On desktop, account for the 260px sidebar by shifting
+          // the center point right by 130px (half the sidebar width).
+          // On mobile, there's no sidebar, so use plain 50%.
+          // Using JS state (isMobile) instead of CSS media query because
+          // inline styles can't be overridden by <style> tags.
+          left: isMobile ? "50%" : "calc(50% + 130px)",
           transform: "translateX(-50%)",
           zIndex: 10000,
           maxWidth: 440, width: "calc(100% - 40px)",
         }}
       >
-        <style>{`
-          @media (max-width: 768px) {
-            .milestone-popup { left: 50% !important; }
-          }
-        `}</style>
         <div style={{
           display: "flex", alignItems: "center", gap: 14,
           padding: "16px 20px",
