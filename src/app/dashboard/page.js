@@ -139,7 +139,7 @@ export default function DashboardHome() {
       <SmartGreeting user={user} stats={stats} />
       {stats && stats.totalMessages > 0 && <QuickStatsBar stats={stats} />}
       {stats.totalMessages === 0 && stats.totalOrders === 0 ? (
-        <div style={{ maxWidth: 640, margin: "0 auto", marginTop: "var(--space-2xl)" }}>
+        <div style={{ marginTop: "var(--space-2xl)" }}>
           <div style={{ textAlign: "center", marginBottom: "var(--space-2xl)" }}>
             <img src="/logo.png" alt="Sellora" style={{ width: 48, height: 48, borderRadius: 12, marginBottom: "var(--space-md)" }} />
             <h1 style={{ fontSize: "var(--font-size-3xl)", fontWeight: 800, marginBottom: "var(--space-xs)" }}>Welcome to Sellora</h1>
