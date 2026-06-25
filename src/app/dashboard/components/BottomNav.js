@@ -30,6 +30,7 @@ import {
   LogOut,
   Shield,
   Star,
+  Rocket,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
@@ -56,6 +57,9 @@ const moreNavItems = [
     { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
     { href: "/dashboard/webhooks", icon: Webhook, label: "Webhooks" },
     { href: "/dashboard/automation", icon: Bot, label: "Automation" },
+    { href: "/dashboard/revenue-automations", icon: Rocket, label: "Revenue Suite" },
+    { href: "/dashboard/lifecycle-automations", icon: Sparkles, label: "Lifecycle & AI" },
+    { href: "/dashboard/operational-automations", icon: Truck, label: "Operational & Advanced" },
     { href: "/dashboard/ai-personality", icon: Sparkles, label: "AI Personality" },
     { href: "/dashboard/ab-tests", icon: FlaskConical, label: "A/B Tests" },
     { href: "/dashboard/reviews", icon: Star, label: "Reviews" },
