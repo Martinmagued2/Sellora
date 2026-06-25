@@ -138,17 +138,27 @@ export default function MilestoneTracker({ stats }) {
   return (
     <AnimatePresence>
       <motion.div
+        className="milestone-popup"
         initial={{ opacity: 0, y: -60, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -60, scale: 0.9 }}
         transition={{ type: "spring", stiffness: 300, damping: 25 }}
         style={{
-          position: "fixed", top: 20, left: "50%",
+          position: "fixed", top: 20,
+          // 🔧 FIX: Account for the 260px sidebar on desktop.
+          // Center the popup relative to the CONTENT AREA, not the viewport.
+          // On mobile (≤768px) the CSS override below resets to 50% (no sidebar).
+          left: "calc(50% + 130px)", /* 50% + half of 260px sidebar */
           transform: "translateX(-50%)",
           zIndex: 10000,
           maxWidth: 440, width: "calc(100% - 40px)",
         }}
       >
+        <style>{`
+          @media (max-width: 768px) {
+            .milestone-popup { left: 50% !important; }
+          }
+        `}</style>
         <div style={{
           display: "flex", alignItems: "center", gap: 14,
           padding: "16px 20px",
