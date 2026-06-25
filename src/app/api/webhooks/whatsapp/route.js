@@ -163,15 +163,38 @@ export async function POST(request) {
       }
     }
 
-    // Set customer typing indicator to false (they just sent a message)
+    // 🔧 FIX: Set customer typing indicator BEFORE storing the message.
+    // This makes the typing bubble appear briefly, then transitions to the
+    // actual message when it's stored (real-time INSERT on messages table).
+    // Meta doesn't send typing webhooks, so we simulate it:
+    // set typing=true 1.5s before the message appears.
     if (accountId) {
       try {
-        await getSupabase().from("typing_indicators")
-          .delete()
-          .eq("account_id", accountId)
-          .eq("is_customer", true);
+        // Find the conversation for this customer
+        const { data: customer } = await getSupabase().from("customers")
+          .select("id").eq("phone", message.from).eq("account_id", accountId).maybeSingle();
+
+        if (customer) {
+          const { data: conv } = await getSupabase().from("conversations")
+            .select("id").eq("customer_id", customer.id).eq("account_id", accountId)
+            .order("last_message_at", { ascending: false }).limit(1).maybeSingle();
+
+          if (conv) {
+            // Set typing indicator
+            await getSupabase().from("typing_indicators").upsert({
+              account_id: accountId,
+              conversation_id: conv.id,
+              is_customer: true,
+              is_team_member: false,
+              created_at: new Date().toISOString(),
+            }, { onConflict: 'conversation_id,is_customer' });
+          }
+        }
       } catch (e) {}
     }
+
+    // Small delay so the typing bubble is visible before the message appears
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     await processIncomingMessage({
       senderId: message.from,
@@ -188,6 +211,16 @@ export async function POST(request) {
     });
 
     console.log(`[WA-WEBHOOK] Successfully processed message from ${message.from}`);
+
+    // 🔧 FIX: Clear customer typing indicator (message has arrived)
+    if (accountId) {
+      try {
+        await getSupabase().from("typing_indicators")
+          .delete()
+          .eq("account_id", accountId)
+          .eq("is_customer", true);
+      } catch (e) {}
+    }
 
     // 🔔 Fire notification (best-effort, non-blocking) — only if we found an account
     if (accountId) {

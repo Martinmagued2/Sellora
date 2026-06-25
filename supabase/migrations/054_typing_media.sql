@@ -48,3 +48,11 @@ CREATE POLICY "Anyone can insert typing" ON typing_indicators
 
 -- Enable realtime on typing_indicators
 ALTER PUBLICATION supabase_realtime ADD TABLE typing_indicators;
+
+-- Add unique constraint for upsert (one customer typing per conversation)
+DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS typing_indicators_conv_customer_key
+    ON typing_indicators(conversation_id, is_customer)
+    WHERE is_customer = true;
+EXCEPTION WHEN duplicate_table THEN NULL;
+END $$;

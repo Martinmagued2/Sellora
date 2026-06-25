@@ -140,10 +140,27 @@ export async function POST(request) {
         .map((a) => a.payload?.url)
         .filter(Boolean);
 
-      // Process through the shared pipeline — ALWAYS, even without token
-      // When accessToken is null, the processor will still store the message and generate
-      // an AI reply, but won't be able to deliver it to FB. The reply is saved in DB.
-      // Pass accountId so processor uses the correct account (handles duplicate page_ids)
+      // 🔧 Set customer typing indicator BEFORE storing the message
+      try {
+        const { data: customer } = await getSupabase().from("customers")
+          .select("id").eq("platform_id", event.senderId).eq("account_id", account.id).maybeSingle();
+        if (customer) {
+          const { data: conv } = await getSupabase().from("conversations")
+            .select("id").eq("customer_id", customer.id).eq("account_id", account.id)
+            .order("last_message_at", { ascending: false }).limit(1).maybeSingle();
+          if (conv) {
+            await getSupabase().from("typing_indicators").upsert({
+              account_id: account.id, conversation_id: conv.id,
+              is_customer: true, is_team_member: false, created_at: new Date().toISOString(),
+            }, { onConflict: 'conversation_id,is_customer' });
+          }
+        }
+      } catch (e) {}
+
+      // Small delay so typing bubble is visible
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Process through the shared pipeline
       await processIncomingMessage({
         senderId: event.senderId,
         senderName: profile?.name || null,
@@ -156,6 +173,12 @@ export async function POST(request) {
         accessToken: account.facebook_access_token || null,
         accountId: account.id,
       });
+
+      // 🔧 Clear customer typing indicator (message arrived)
+      try {
+        await getSupabase().from("typing_indicators")
+          .delete().eq("account_id", account.id).eq("is_customer", true);
+      } catch (e) {}
 
       console.log(`[FB-WEBHOOK] Processed message from ${event.senderId}: "${event.text?.substring(0, 50)}..."`);
 
