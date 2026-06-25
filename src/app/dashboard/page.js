@@ -17,6 +17,9 @@ import MilestoneTracker from "@/app/dashboard/components/MilestoneTracker";
 import LiveActivityFeed from "@/app/dashboard/components/LiveActivityFeed";
 import QuickStatsBar from "@/app/dashboard/components/QuickStatsBar";
 import Dashboard3DWidget from "@/app/dashboard/components/Dashboard3DWidget";
+import CustomerGlobe3D from "@/app/dashboard/components/CustomerGlobe3D";
+import OrderPipeline3D from "@/app/dashboard/components/OrderPipeline3D";
+import PromoBanner3D from "@/app/dashboard/components/PromoBanner3D";
 import { DashboardSkeleton } from "@/components/SkeletonLoader";
 
 export default function DashboardHome() {
@@ -194,6 +197,33 @@ export default function DashboardHome() {
               color="#6c5ce7"
             />
           </div>
+
+          {/* ═══ 3D Globe + Pipeline Grid ═══ */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-md)", marginBottom: "var(--space-lg)" }}>
+            <CustomerGlobe3D customers={[]} height={260} />
+            <OrderPipeline3D
+              orderCounts={{
+                pending: stats.pendingOrders || 0,
+                confirmed: stats.confirmedOrders || 0,
+                shipped: stats.shippedOrders || 0,
+                delivered: stats.deliveredOrders || 0,
+              }}
+              height={260}
+            />
+          </div>
+
+          {/* ═══ 3D Promo Banner ═══ */}
+          {stats.totalOrders < 10 && (
+            <div style={{ marginBottom: "var(--space-lg)" }}>
+              <PromoBanner3D
+                title="Upgrade to Pro"
+                subtitle="Unlock unlimited AI replies + advanced automations"
+                color="#6c5ce7"
+                ribbonColor="#f8a532"
+                height={140}
+              />
+            </div>
+          )}
 
           {/* ═══ Key Metrics Row ═══ */}
           <div className="stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-md)" }}>

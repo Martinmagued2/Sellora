@@ -15,6 +15,7 @@ import { getPlanLimits } from "@/lib/plan-limits";
 import { PageSkeleton } from "@/components/SkeletonLoader";
 import { generateAnalyticsPDF } from "@/lib/pdf-export";
 import { LineChart, DonutChart, BarChart as FunnelBarChart, GaugeChart } from "../components/Charts";
+import Funnel3D from "../components/Funnel3D";
 
 function TrendArrow({ value }) {
   if (value == null || value === 0) return null;
@@ -619,6 +620,25 @@ export default function AnalyticsPage() {
               </span>
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
+              {/* 3D Interactive Funnel */}
+              {funnelData && (
+                <div style={{ marginBottom: 24 }}>
+                  <Funnel3D
+                    stages={[
+                      { label: "Messages", value: funnelData.steps?.messages || 0, color: "#5865F2", rate: "100%" },
+                      { label: "Conversations", value: funnelData.steps?.conversations || 0, color: "#7E88F5", rate: `${funnelData.conversion?.messageToConv || 0}%` },
+                      { label: "Products Sent", value: funnelData.steps?.productsSent || 0, color: "#00D2FF", rate: `${funnelData.conversion?.convToProduct || 0}%` },
+                      { label: "Orders", value: funnelData.steps?.ordersCreated || 0, color: "#F8A532", rate: `${funnelData.conversion?.productToOrder || 0}%` },
+                      { label: "Paid", value: funnelData.steps?.ordersPaid || 0, color: "#3BA55C", rate: `${funnelData.conversion?.overallConversion || 0}%` },
+                    ]}
+                    height={320}
+                  />
+                  <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
+                    🖱️ Drag to rotate the 3D funnel
+                  </div>
+                </div>
+              )}
+
               {/* Funnel Bar Chart */}
               {funnelData && (
                 <div style={{ marginBottom: 20 }}>

@@ -19,6 +19,7 @@ import MagneticButton from "@/components/MagneticButton";
 
 /* Dynamic import for 3D hero scene (SSR safe) */
 const HeroScene3D = lazy(() => import("./components/HeroScene3D"));
+const ParticleField3D = lazy(() => import("@/app/dashboard/components/ParticleField3D"));
 
 /* ============================================
    PARTICLE CANVAS — UPGRADED
@@ -919,6 +920,11 @@ export default function Home() {
         {/* 3D Hero Scene */}
         <Suspense fallback={null}>
           <HeroScene3D />
+        </Suspense>
+
+        {/* 3D Particle Field — 2000 floating particles */}
+        <Suspense fallback={null}>
+          <ParticleField3D count={1500} color="#6c5ce7" height={600} />
         </Suspense>
 
         {/* Floating notification elements */}
