@@ -35,6 +35,8 @@ const CHANNEL_ICON = {
   instagram: <Camera size={14} />,
   facebook: <Globe size={14} />,
   whatsapp: <MessageSquare size={14} />,
+  telegram: <Send size={14} />,
+  email: <Mail size={14} />,
 };
 
 const STATUS_OPTIONS = [
@@ -961,6 +963,8 @@ export default function ConversationsPage() {
                 { value: "instagram", label: "📷 IG" },
                 { value: "facebook", label: "🌐 FB" },
                 { value: "whatsapp", label: "📱 WA" },
+                { value: "telegram", label: "✈️ TG" },
+                { value: "email", label: "📧 Email" },
               ].map((ch) => (
                 <button
                   key={ch.value}
@@ -1066,7 +1070,7 @@ export default function ConversationsPage() {
                   <div className="mobile-chat-header-name">{activeConv.customer?.name}</div>
                   <div className="mobile-chat-header-channel">
                     {CHANNEL_ICON[activeConv.channel]}
-                    {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : "WhatsApp"}
+                    {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : activeConv.channel === "telegram" ? "Telegram" : activeConv.channel === "email" ? "Email" : "WhatsApp"}
                   </div>
                 </div>
               </div>
@@ -1841,7 +1845,7 @@ export default function ConversationsPage() {
           ) : filteredConvs.length === 0 ? (
             <EmptyState type="conversations" title="No conversations yet" description="When customers message your WhatsApp, Instagram, or Facebook, their conversations will appear here." />
           ) : filteredConvs.map((conv) => {
-            const channelColors = { whatsapp: "#25D366", instagram: "#E1306C", facebook: "#1877F2" };
+            const channelColors = { whatsapp: "#25D366", instagram: "#E1306C", facebook: "#1877F2", telegram: "#0088cc", email: "#6c5ce7" };
             const channelColor = channelColors[conv.channel] || "#5865F2";
             return (
             <div
@@ -1980,7 +1984,7 @@ export default function ConversationsPage() {
                 <div>
                   <div className="chat-header-name">{activeConv.customer?.name}</div>
                   <div className="chat-header-status" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {CHANNEL_ICON[activeConv.channel]} {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : "WhatsApp"}
+                    {CHANNEL_ICON[activeConv.channel]} {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : activeConv.channel === "telegram" ? "Telegram" : activeConv.channel === "email" ? "Email" : "WhatsApp"}
                     <span style={{ color: "var(--text-tertiary)" }}>•</span>
                     {activeConv.customer?.phone || activeConv.customer?.platform_id?.slice(0, 8) + "..."}
                   </div>

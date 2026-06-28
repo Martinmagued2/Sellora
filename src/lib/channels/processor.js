@@ -471,39 +471,14 @@ export async function processIncomingMessage({
         // Send greeting via the appropriate channel (best-effort)
         let greetingDelivered = false;
         try {
-          if (channel === "whatsapp") {
-            const waAccessToken = account.whatsapp_access_token || null;
-            await sendWhatsAppMessage({
-              to: senderId,
-              message: greetingMessage,
-              phoneNumberId: account.whatsapp_phone_number_id,
-              accessToken: waAccessToken,
-            });
-            greetingDelivered = true;
-          } else {
-            // For IG/FB: try provided token, then look up from accounts table
-            let greetToken = accessToken;
-            let greetPageId = pageId;
-            if (!greetToken) {
-              const resolved = await resolveChannelToken(account.id, channel);
-              greetToken = resolved.accessToken;
-              greetPageId = resolved.pageId || pageId;
-            }
-            if (greetToken && greetPageId) {
-              await sendMessage({
-                recipientId: senderId,
-                message: greetingMessage,
-                pageId: greetPageId,
-                accessToken: greetToken,
-              });
-              greetingDelivered = true;
-            } else {
-              console.warn(`[PROCESSOR] No ${channel} token for greeting delivery — greeting stored but NOT sent`);
-            }
+          greetingDelivered = await sendChannelReply({
+            channel, senderId, message: greetingMessage, account, accessToken, pageId,
+          });
+          if (!greetingDelivered) {
+            console.warn(`[PROCESSOR] No ${channel} token for greeting delivery — greeting stored but NOT sent`);
           }
         } catch (deliveryErr) {
           console.warn(`[PROCESSOR] Greeting delivery failed for ${channel}:`, deliveryErr.message);
-          // Continue to store the greeting in DB even if delivery failed
         }
 
         // Store the greeting message (always, even if delivery failed)
@@ -610,35 +585,9 @@ export async function processIncomingMessage({
             // Send the FAQ answer via the appropriate channel (best-effort)
             let faqDelivered = false;
             try {
-              if (channel === "whatsapp") {
-                const waAccessToken = account.whatsapp_access_token || null;
-                await sendWhatsAppMessage({
-                  to: senderId,
-                  message: bestMatch.answer,
-                  phoneNumberId: account.whatsapp_phone_number_id,
-                  accessToken: waAccessToken,
-                });
-                faqDelivered = true;
-              } else {
-                let faqToken = accessToken;
-                let faqPageId = pageId;
-                if (!faqToken) {
-                  const resolved = await resolveChannelToken(account.id, channel);
-                  faqToken = resolved.accessToken;
-                  faqPageId = resolved.pageId || pageId;
-                }
-                if (faqToken && faqPageId) {
-                  await sendMessage({
-                    recipientId: senderId,
-                    message: bestMatch.answer,
-                    pageId: faqPageId,
-                    accessToken: faqToken,
-                  });
-                  faqDelivered = true;
-                } else {
-                  console.warn(`[PROCESSOR] No ${channel} token for FAQ reply delivery — reply stored but NOT sent`);
-                }
-              }
+              faqDelivered = await sendChannelReply({
+                channel, senderId, message: bestMatch.answer, account, accessToken, pageId,
+              });
             } catch (deliveryErr) {
               console.warn(`[PROCESSOR] FAQ reply delivery failed for ${channel}:`, deliveryErr.message);
             }
@@ -702,35 +651,9 @@ export async function processIncomingMessage({
           // Send the auto-reply via the appropriate channel (best-effort)
           let keywordDelivered = false;
           try {
-            if (channel === "whatsapp") {
-              const waAccessToken = account.whatsapp_access_token || null;
-              await sendWhatsAppMessage({
-                to: senderId,
-                message: matchedReply.response,
-                phoneNumberId: account.whatsapp_phone_number_id,
-                accessToken: waAccessToken,
-              });
-              keywordDelivered = true;
-            } else {
-              let kwToken = accessToken;
-              let kwPageId = pageId;
-              if (!kwToken) {
-                const resolved = await resolveChannelToken(account.id, channel);
-                kwToken = resolved.accessToken;
-                kwPageId = resolved.pageId || pageId;
-              }
-              if (kwToken && kwPageId) {
-                await sendMessage({
-                  recipientId: senderId,
-                  message: matchedReply.response,
-                  pageId: kwPageId,
-                  accessToken: kwToken,
-                });
-                keywordDelivered = true;
-              } else {
-                console.warn(`[PROCESSOR] No ${channel} token for keyword reply delivery — reply stored but NOT sent`);
-              }
-            }
+            keywordDelivered = await sendChannelReply({
+              channel, senderId, message: matchedReply.response, account, accessToken, pageId,
+            });
           } catch (deliveryErr) {
             console.warn(`[PROCESSOR] Keyword reply delivery failed for ${channel}:`, deliveryErr.message);
           }
@@ -935,54 +858,11 @@ export async function processIncomingMessage({
             // The business owner can still see the AI reply in the conversations page.
             let deliverySuccess = false;
             try {
-              if (channel === "whatsapp") {
-                // Use the account's WhatsApp token if available, otherwise fall back to env var
-                const waAccessToken = account.whatsapp_access_token || null;
-                await sendWhatsAppMessage({
-                  to: senderId,
-                  message: aiReply,
-                  phoneNumberId: account.whatsapp_phone_number_id,
-                  accessToken: waAccessToken,
-                });
-                deliverySuccess = true;
-              } else {
-                // For Instagram/Facebook: try the provided accessToken first.
-                // If not provided (webhook handler couldn't find it), look it up
-                // from the accounts table directly — the token may have been stored
-                // but the webhook handler didn't have it in its initial query.
-                let effectiveAccessToken = accessToken;
-                let effectivePageId = pageId;
-
-                if (!effectiveAccessToken) {
-                  console.log(`[PROCESSOR] No accessToken passed for ${channel}, looking up from accounts table...`);
-                  const tokenColumn = channel === "instagram" ? "instagram_access_token" : "facebook_access_token";
-                  const pageIdColumn = channel === "instagram" ? "instagram_page_id" : "facebook_page_id";
-                  const { data: tokenData } = await getSupabase()
-                    .from("accounts")
-                    .select(`${tokenColumn}, ${pageIdColumn}`)
-                    .eq("id", account.id)
-                    .single();
-                  if (tokenData?.[tokenColumn]) {
-                    effectiveAccessToken = tokenData[tokenColumn];
-                    effectivePageId = tokenData[pageIdColumn] || pageId;
-                    console.log(`[PROCESSOR] Found ${channel} access token in accounts table, will attempt delivery`);
-                  } else {
-                    console.warn(`[PROCESSOR] No ${channel} access token found in accounts table for account ${account.id}`);
-                  }
-                }
-
-                if (effectiveAccessToken && effectivePageId) {
-                  await sendMessage({
-                    recipientId: senderId,
-                    message: aiReply,
-                    pageId: effectivePageId,
-                    accessToken: effectiveAccessToken,
-                  });
-                  deliverySuccess = true;
-                } else {
-                  console.warn(`[PROCESSOR] No access token available for ${channel} — AI reply stored but NOT delivered to customer`);
-                  console.warn(`[PROCESSOR] HINT: Re-connect ${channel} in Settings to refresh the access token`);
-                }
+              deliverySuccess = await sendChannelReply({
+                channel, senderId, message: aiReply, account, accessToken, pageId,
+              });
+              if (!deliverySuccess) {
+                console.warn(`[PROCESSOR] No token available for ${channel} — AI reply stored but NOT delivered to customer`);
               }
             } catch (deliveryErr) {
               console.error(`[PROCESSOR] AI reply delivery failed for ${channel}:`, deliveryErr.message);
