@@ -445,6 +445,15 @@ export async function processIncomingMessage({
     if (account.auto_greeting && isNewCustomer && text) {
       try {
         // Determine greeting message based on channel
+        // 🔧 FIX: Use store name instead of business_name for greetings
+        let storeNameForGreeting = account.business_name;
+        try {
+          const { data: storeForGreeting } = await getSupabase().from("stores")
+            .select("name").eq("account_id", account.id).eq("is_active", true)
+            .limit(1).maybeSingle();
+          if (storeForGreeting?.name) storeNameForGreeting = storeForGreeting.name;
+        } catch (e) {}
+
         let greetingMessage;
         if (account.greeting_per_channel) {
           // Use channel-specific greeting
@@ -461,7 +470,7 @@ export async function processIncomingMessage({
         }
 
         greetingMessage = greetingMessage
-          .replace(/\{business_name\}/g, account.business_name || "our store")
+          .replace(/\{business_name\}/g, storeNameForGreeting || "our store")
           .replace(/\{name\}/g, customer.name || "there");
 
         // Apply greeting delay if configured
@@ -779,6 +788,15 @@ export async function processIncomingMessage({
 
           // Use vision AI if customer sent images, otherwise standard AI reply
           let aiResult;
+          // 🔧 FIX: Use store name (from stores table) instead of business_name
+          let storeName = account.business_name;
+          try {
+            const { data: store } = await getSupabase().from("stores")
+              .select("name").eq("account_id", account.id).eq("is_active", true)
+              .limit(1).maybeSingle();
+            if (store?.name) storeName = store.name;
+          } catch (e) {}
+
           let aiFailed = false;
           try {
             aiResult = mediaUrls.length > 0
@@ -790,7 +808,7 @@ export async function processIncomingMessage({
                   customerName: customer.name,
                   personality: account.ai_personality,
                   country: account.country,
-                  businessName: account.business_name,
+                  businessName: storeName,
                   conversationHistory: history,
                   plan: account.plan,
                   mediaUrls,
@@ -803,7 +821,7 @@ export async function processIncomingMessage({
                   customerName: customer.name,
                   personality: account.ai_personality,
                   country: account.country,
-                  businessName: account.business_name,
+                  businessName: storeName,
                   conversationHistory: history,
                   plan: account.plan,
                 });
@@ -821,7 +839,7 @@ export async function processIncomingMessage({
               phoneNumberId: account.whatsapp_phone_number_id,
               accessToken: channel === "whatsapp" ? (account.whatsapp_access_token || accessToken) : accessToken,
               pageId,
-              businessName: account.business_name,
+              businessName: storeName,
             });
             await escalateToHuman(
               conversation.id,
