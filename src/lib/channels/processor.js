@@ -166,9 +166,9 @@ export async function processIncomingMessage({
     if (providedAccountId) {
       const { data: directAccount, error: directError } = await getSupabase()
         .from("accounts")
-        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, telegram_bot_token, telegram_connected, email_channel_enabled, email_inbound_address, notify_escalations, auto_greeting, auto_greeting_message, greeting_per_channel, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, ai_escalation_keywords, notify_escalations, auto_follow_up_enabled")
         .eq("id", providedAccountId)
-        .single();
+        .maybeSingle();
 
       if (directError || !directAccount) {
         console.error(`[PROCESSOR] Account lookup by ID failed for ${providedAccountId}:`, directError?.message);
@@ -179,7 +179,7 @@ export async function processIncomingMessage({
       // No accountId provided — look up by page ID (handle duplicates gracefully)
       const { data: accounts, error: accountError } = await getSupabase()
         .from("accounts")
-        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, telegram_bot_token, telegram_connected, email_channel_enabled, email_inbound_address, notify_escalations, auto_greeting, auto_greeting_message, greeting_per_channel, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, ai_escalation_keywords, notify_escalations, auto_follow_up_enabled")
         .eq(pageColumn, pageId);
 
       if (accountError || !accounts || accounts.length === 0) {
