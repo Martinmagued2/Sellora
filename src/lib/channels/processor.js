@@ -452,6 +452,8 @@ export async function processIncomingMessage({
             instagram: account.instagram_greeting,
             facebook: account.facebook_greeting,
             whatsapp: account.whatsapp_greeting,
+            telegram: account.auto_greeting_message, // Telegram uses the default greeting
+            email: account.auto_greeting_message, // Email uses the default greeting
           };
           greetingMessage = channelGreetings[channel] || account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?";
         } else {

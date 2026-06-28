@@ -371,7 +371,7 @@ export default function ConversationsPage() {
     setSendError("");
 
     try {
-      if (activeConv.channel === "whatsapp" || activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+      if (activeConv.channel === "whatsapp" || activeConv.channel === "instagram" || activeConv.channel === "facebook" || activeConv.channel === "telegram" || activeConv.channel === "email") {
         // Send via the API route — it handles channel delivery AND DB save
         const res = await fetch("/api/messages/send", {
           method: "POST",
@@ -402,7 +402,7 @@ export default function ConversationsPage() {
       }
 
       // Only update conversation locally for non-API paths (API route already does it)
-      if (activeConv.channel !== "whatsapp" && activeConv.channel !== "instagram" && activeConv.channel !== "facebook") {
+      if (activeConv.channel !== "whatsapp" && activeConv.channel !== "instagram" && activeConv.channel !== "facebook" && activeConv.channel !== "telegram" && activeConv.channel !== "email") {
         await supabase.from("conversations")
           .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
           .eq("id", activeConv.id);
