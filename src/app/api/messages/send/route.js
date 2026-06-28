@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendMessage, sendProductCard } from "@/lib/channels/meta";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendTelegramMessage } from "@/lib/telegram";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import crypto from "crypto";
@@ -161,6 +162,109 @@ export async function POST(request) {
         success: true,
         messageId: sendResult?.messages?.[0]?.id,
       });
+    }
+
+    // ─── Telegram Channel ───
+    if (effectiveChannel === "telegram") {
+      const { data: account, error: accountError } = await supabase
+        .from("accounts")
+        .select("telegram_bot_token, telegram_connected")
+        .eq("id", account_id)
+        .maybeSingle();
+
+      if (accountError || !account) {
+        return NextResponse.json({ error: "Account not found" }, { status: 404 });
+      }
+
+      if (!account.telegram_connected || !account.telegram_bot_token) {
+        return NextResponse.json({ error: "Telegram not connected" }, { status: 400 });
+      }
+
+      // For Telegram, recipientId is the chat_id (stored as platform_id on customer)
+      const chatId = customer?.platform_id;
+      if (!chatId) {
+        return NextResponse.json({ error: "Customer has no Telegram chat ID" }, { status: 400 });
+      }
+
+      // Send via Telegram Bot API
+      const sendResult = await sendTelegramMessage({
+        botToken: account.telegram_bot_token,
+        chatId,
+        text: content,
+      });
+
+      // Save the outgoing message
+      const { error: insertError } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        account_id,
+        direction: "outgoing",
+        content,
+        type,
+        is_ai: false,
+      });
+
+      if (insertError) {
+        console.error("[MSG-SEND] Failed to save Telegram message:", insertError);
+      }
+
+      // Update conversation
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_at: new Date().toISOString(),
+          status: "waiting_customer",
+        })
+        .eq("id", conversationId);
+
+      return NextResponse.json({
+        success: true,
+        messageId: sendResult?.result?.message_id?.toString(),
+      });
+    }
+
+    // ─── Email Channel ───
+    if (effectiveChannel === "email") {
+      const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
+      if (!isEmailConfigured()) {
+        return NextResponse.json({ error: "Email not configured" }, { status: 400 });
+      }
+
+      const customerEmail = customer?.platform_id; // email address stored as platform_id
+      if (!customerEmail || !customerEmail.includes("@")) {
+        return NextResponse.json({ error: "Customer has no email address" }, { status: 400 });
+      }
+
+      await sendCustomEmail({
+        to: customerEmail,
+        subject: "Re: Your message",
+        html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <p style="font-size: 15px; line-height: 1.6; color: #374151; white-space: pre-wrap;">${content}</p>
+        </div>`,
+      });
+
+      // Save the outgoing message
+      const { error: insertError } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        account_id,
+        direction: "outgoing",
+        content,
+        type,
+        is_ai: false,
+      });
+
+      if (insertError) {
+        console.error("[MSG-SEND] Failed to save email message:", insertError);
+      }
+
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_at: new Date().toISOString(),
+          status: "waiting_customer",
+        })
+        .eq("id", conversationId);
+
+      return NextResponse.json({ success: true });
     }
 
     // ─── Instagram / Facebook Channel ───

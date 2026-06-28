@@ -447,9 +447,26 @@ export async function generateAIReply({
     
     formattedMessages.push({ role: "user", content: customerMessage });
 
-    const storeUrl = process.env.NEXT_PUBLIC_APP_URL
-      ? `${process.env.NEXT_PUBLIC_APP_URL}/store/${businessName.toLowerCase().replace(/\s+/g, "-")}`
-      : "https://sellora-ruby.vercel.app";
+    // Get the actual store slug from the stores table
+    let storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellora-ruby.vercel.app";
+    try {
+      const { data: store } = await getSupabase()
+        .from("stores")
+        .select("slug")
+        .eq("account_id", accountId)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      if (store?.slug) {
+        storeUrl = `${storeUrl}/store/${store.slug}`;
+      } else {
+        // No store found — use business name as slug
+        storeUrl = `${storeUrl}/store/${businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+      }
+    } catch (e) {
+      // Fallback — use business name
+      storeUrl = `${storeUrl}/store/${businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+    }
     const fullSystemPrompt = systemPrompt + productContext + policyContext + `\n\nSTORE URL: Share this link with customers when they want to browse: ${storeUrl}\n`;
 
     // 5. Try providers with robust fallback
