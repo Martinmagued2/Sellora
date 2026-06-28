@@ -447,7 +447,10 @@ export async function generateAIReply({
     
     formattedMessages.push({ role: "user", content: customerMessage });
 
-    const fullSystemPrompt = systemPrompt + productContext + policyContext;
+    const storeUrl = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/store/${businessName.toLowerCase().replace(/\s+/g, "-")}`
+      : "https://sellora-ruby.vercel.app";
+    const fullSystemPrompt = systemPrompt + productContext + policyContext + `\n\nSTORE URL: Share this link with customers when they want to browse: ${storeUrl}\n`;
 
     // 5. Try providers with robust fallback
     const providerChain = buildProviderChain();

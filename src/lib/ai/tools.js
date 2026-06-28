@@ -580,20 +580,23 @@ export const createSalesTools = (accountId, customerId) => {
     }),
 
     create_order: tool({
-      description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price.",
+      description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price. Include the customer's name, phone, and email if collected.",
       inputSchema: z.object({
         items: z.array(z.object({
           productId: z.string().optional().describe("Product ID"),
           product_id: z.string().optional().describe("Alternative product ID"),
           quantity: z.coerce.number().positive().describe("Quantity of items"),
         })),
-        shippingAddress: z.string().optional().describe("Customer's shipping address"),
+        shippingAddress: z.string().optional().describe("Customer's shipping address (include street, building, apartment, city)"),
         shipping_address: z.string().optional().describe("Alternative shipping address parameter"),
         paymentMethod: z.enum(["cod", "vodafone_cash", "instapay"]).optional().describe("Payment method"),
         payment_method: z.enum(["cod", "vodafone_cash", "instapay"]).optional().describe("Alternative payment method parameter"),
         coupon_code: z.string().optional().describe("Coupon code to apply to this order (optional)"),
+        customer_name: z.string().optional().describe("Customer's full name (if collected during ordering)"),
+        customer_phone: z.string().optional().describe("Customer's phone number (if collected during ordering)"),
+        customer_email: z.string().optional().describe("Customer's email address (if collected during ordering)"),
       }),
-      execute: async ({ items, shippingAddress, shipping_address, paymentMethod, payment_method, coupon_code }) => {
+      execute: async ({ items, shippingAddress, shipping_address, paymentMethod, payment_method, coupon_code, customer_name, customer_phone, customer_email }) => {
         const finalShippingAddress = shippingAddress || shipping_address || "Address needed";
         const finalPaymentMethod = paymentMethod || payment_method || "cod";
 
@@ -692,6 +695,15 @@ export const createSalesTools = (accountId, customerId) => {
           }
         }
 
+        // 2b. Update customer info if provided
+        if (customer_name || customer_phone || customer_email) {
+          const customerUpdates = {};
+          if (customer_name) customerUpdates.name = customer_name;
+          if (customer_phone) customerUpdates.phone = customer_phone;
+          if (customer_email) customerUpdates.email = customer_email;
+          await getSupabase().from("customers").update(customerUpdates).eq("id", customerId);
+        }
+
         // 3. Insert Order
         const { data: order, error } = await getSupabase()
           .from("orders")
@@ -707,13 +719,16 @@ export const createSalesTools = (accountId, customerId) => {
             status: "pending",
             payment_method: finalPaymentMethod,
             shipping_address: finalShippingAddress,
+            customer_name: customer_name || null,
+            customer_phone: customer_phone || null,
+            customer_email: customer_email || null,
             source: "ai_agent"
           })
-          .select("order_number")
-          .single();
+          .select("id, order_number")
+          .maybeSingle();
 
-        if (error) {
-          return { success: false, error: "Failed to create order" };
+        if (error || !order) {
+          return { success: false, error: "Failed to create order: " + (error?.message || "unknown") };
         }
 
         // 4. Decrement stock for each item
@@ -736,13 +751,17 @@ export const createSalesTools = (accountId, customerId) => {
           });
         }
 
-        const result = { 
-          success: true, 
-          message: "Order created successfully", 
+        const result = {
+          success: true,
+          message: `✅ Order created! Order number: ${order.order_number}`,
           order_number: order.order_number,
+          order_id: order.id,
           subtotal: subtotal,
           total,
           currency,
+          items: dbItems,
+          payment_method: finalPaymentMethod,
+          shipping_address: finalShippingAddress,
         };
 
         if (discountAmount > 0) {
