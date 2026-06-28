@@ -230,12 +230,12 @@ export async function processIncomingMessage({
       .select("*")
       .eq("account_id", account.id)
       .eq("platform_id", senderId)
-      .single();
+      .maybeSingle();
 
     const isNewCustomer = !customer;
 
     if (!customer) {
-      const { data: newCustomer } = await getSupabase()
+      const { data: newCustomer, error: custInsertErr } = await getSupabase()
         .from("customers")
         .insert({
           account_id: account.id,
@@ -249,8 +249,12 @@ export async function processIncomingMessage({
           is_returning: false,
         })
         .select()
-        .single();
+        .maybeSingle();
 
+      if (custInsertErr || !newCustomer) {
+        console.error(`[PROCESSOR] Failed to create customer for ${channel} ${senderId}:`, custInsertErr?.message);
+        return;
+      }
       customer = newCustomer;
     } else {
       // Update profile pic and name if we have newer data
@@ -277,21 +281,25 @@ export async function processIncomingMessage({
       .in("status", ["new", "open", "in_progress", "waiting_customer"])
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!conversation) {
-      const { data: newConv } = await getSupabase()
+      const { data: newConv, error: convInsertErr } = await getSupabase()
         .from("conversations")
         .insert({
           account_id: account.id,
           customer_id: customer.id,
           channel: channel,
           status: "new",
-          platform_thread_id: senderId, // Thread is per-user on IG/FB
+          platform_thread_id: senderId,
         })
         .select()
-        .single();
+        .maybeSingle();
 
+      if (convInsertErr || !newConv) {
+        console.error(`[PROCESSOR] Failed to create conversation:`, convInsertErr?.message);
+        return;
+      }
       conversation = newConv;
     }
 
