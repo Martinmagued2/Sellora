@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { generateAIReply, generateAIReplyWithVision, analyzeIntent } from "@/lib/ai";
 import { sendMessage } from "@/lib/channels/meta";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendTelegramMessage } from "@/lib/telegram";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { dispatchWebhook } from "@/lib/webhooks";
 import {
@@ -69,6 +70,66 @@ async function resolveChannelToken(accountId, channel) {
 }
 
 /**
+ * Unified reply sender — handles all 5 channels.
+ * @param {Object} params
+ * @param {string} params.channel - whatsapp|instagram|facebook|telegram|email
+ * @param {string} params.senderId - recipient ID (phone/chatId/platformId/email)
+ * @param {string} params.message - text to send
+ * @param {Object} params.account - full account row
+ * @param {string} [params.accessToken] - optional pre-resolved token
+ * @param {string} [params.pageId] - optional pre-resolved page ID
+ * @returns {Promise<boolean>} true if delivered
+ */
+async function sendChannelReply({ channel, senderId, message, account, accessToken, pageId }) {
+  try {
+    if (channel === "whatsapp") {
+      const waToken = account.whatsapp_access_token || accessToken;
+      const waPhoneId = account.whatsapp_phone_number_id || pageId;
+      if (!waToken || !waPhoneId) return false;
+      await sendWhatsAppMessage({ to: senderId, message, phoneNumberId: waPhoneId, accessToken: waToken });
+      return true;
+    }
+    if (channel === "telegram") {
+      const botToken = account.telegram_bot_token || accessToken;
+      if (!botToken) return false;
+      await sendTelegramMessage({ botToken, chatId: senderId, text: message });
+      return true;
+    }
+    if (channel === "email") {
+      // Use Resend to send email reply
+      const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
+      if (!isEmailConfigured()) return false;
+      await sendCustomEmail({
+        to: senderId, // email address
+        subject: "Re: Your message",
+        html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <p style="font-size: 15px; line-height: 1.6; color: #374151; white-space: pre-wrap;">${message}</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #9ca3af;">Sent from Sellora</p>
+        </div>`,
+      });
+      return true;
+    }
+    // Instagram + Facebook (Meta)
+    let metaToken = accessToken;
+    let metaPageId = pageId;
+    if (!metaToken) {
+      const resolved = await resolveChannelToken(account.id, channel);
+      metaToken = resolved.accessToken;
+      metaPageId = resolved.pageId || pageId;
+    }
+    if (metaToken && metaPageId) {
+      await sendMessage({ recipientId: senderId, message, pageId: metaPageId, accessToken: metaToken });
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn(`[PROCESSOR] Failed to send ${channel} reply:`, e.message);
+    return false;
+  }
+}
+
+/**
  * Process an incoming message from any channel
  * 
  * @param {Object} params
@@ -97,7 +158,7 @@ export async function processIncomingMessage({
 }) {
   try {
     // ─── 1. Find the account that owns this page ───
-    const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : "facebook_page_id";
+    const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : channel === "telegram" ? "telegram_bot_token" : channel === "email" ? "email_inbound_address" : "facebook_page_id";
 
     // Step 1a: Fetch core columns that MUST exist
     // If accountId was provided (from webhook handler that already resolved duplicates), use it directly

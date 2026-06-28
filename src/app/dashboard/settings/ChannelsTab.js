@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Globe, Check, Plus, X, Link as LinkIcon, Loader2 } from "lucide-react";
+import { MessageCircle, Globe, Check, Plus, X, Link as LinkIcon, Loader2, Send, Mail } from "lucide-react";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useToast } from "../components/ToastProvider";
 import { useConfirm } from "../components/ConfirmProvider";
@@ -20,6 +20,10 @@ export default function ChannelsTab({
   const [igDisconnecting, setIgDisconnecting] = useState(false);
   const [fbDisconnecting, setFbDisconnecting] = useState(false);
   const [waDisconnecting, setWaDisconnecting] = useState(false);
+  const [telegramToken, setTelegramToken] = useState("");
+  const [telegramConnecting, setTelegramConnecting] = useState(false);
+  const [emailAddress, setEmailAddress] = useState("");
+  const [emailConnecting, setEmailConnecting] = useState(false);
   const planLimits = getPlanLimits(account.plan || "starter");
   const connectedChannels = (account.instagram_connected ? 1 : 0) + (account.facebook_connected ? 1 : 0) + (account.whatsapp_connected ? 1 : 0);
   const limitReached = planLimits.channels !== -1 && connectedChannels >= planLimits.channels;
@@ -482,6 +486,119 @@ export default function ChannelsTab({
                     </a>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ═══ Telegram Connect Card ═══ */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-lg)", marginTop: "var(--space-xl)" }}>
+          {/* Telegram */}
+          <div style={{
+            padding: "var(--space-xl)", background: "var(--bg-card)",
+            border: account.telegram_connected ? "1px solid var(--accent-green)" : "1px solid var(--border-medium)",
+            borderRadius: "var(--radius-xl)", textAlign: "center",
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 16, margin: "0 auto var(--space-md)",
+              background: "#0088cc", color: "white", display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              <Send size={28} />
+            </div>
+            <h3 style={{ fontWeight: 600, marginBottom: 4 }}>Connect Telegram</h3>
+            <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 12 }}>Telegram Bot integration</p>
+
+            {account.telegram_connected ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
+                  <Check size={16} /> Connected @{account.telegram_bot_username || "bot"}
+                </button>
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)" }} onClick={async () => {
+                  if (!(await confirmAction('Disconnect Telegram?'))) return;
+                  try {
+                    await fetch('/api/telegram/disconnect', { method: 'POST' });
+                    setAccount(prev => ({ ...prev, telegram_connected: false, telegram_bot_token: null, telegram_bot_username: null }));
+                    toast.success('Telegram disconnected');
+                  } catch (e) { toast.error(e.message); }
+                }}>Disconnect</button>
+              </div>
+            ) : (
+              <div>
+                <input type="text" className="form-input" placeholder="Bot token from @BotFather" value={telegramToken || ''} onChange={(e) => setTelegramToken(e.target.value)} style={{ marginBottom: 8, fontSize: 12 }} />
+                <button className="btn btn-primary" style={{ width: "100%" }} disabled={!telegramToken || telegramConnecting} onClick={async () => {
+                  setTelegramConnecting(true);
+                  try {
+                    const res = await fetch('/api/telegram/connect', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ botToken: telegramToken }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error);
+                    setAccount(prev => ({ ...prev, telegram_connected: true, telegram_bot_username: data.botUsername }));
+                    toast.success(`Telegram bot @${data.botUsername} connected!`);
+                  } catch (e) { toast.error(e.message); }
+                  finally { setTelegramConnecting(false); }
+                }}>
+                  {telegramConnecting ? 'Connecting...' : 'Connect Bot'}
+                </button>
+                <a href="https://t.me/BotFather" target="_blank" style={{ fontSize: 11, color: "var(--accent-primary-light)", textAlign: "center", marginTop: 4, display: "block" }}>
+                  Create a bot with @BotFather →
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Email */}
+          <div style={{
+            padding: "var(--space-xl)", background: "var(--bg-card)",
+            border: account.email_channel_enabled ? "1px solid var(--accent-green)" : "1px solid var(--border-medium)",
+            borderRadius: "var(--radius-xl)", textAlign: "center",
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 16, margin: "0 auto var(--space-md)",
+              background: "#6c5ce7", color: "white", display: "flex", alignItems: "center", justifyContent: "center"
+            }}>
+              <Mail size={28} />
+            </div>
+            <h3 style={{ fontWeight: 600, marginBottom: 4 }}>Connect Email</h3>
+            <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 12 }}>Receive customer emails in your inbox</p>
+
+            {account.email_channel_enabled ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
+                  <Check size={16} /> {account.email_inbound_address || "Email connected"}
+                </button>
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)" }} onClick={async () => {
+                  if (!(await confirmAction('Disconnect Email?'))) return;
+                  try {
+                    await fetch('/api/email/connect', { method: 'DELETE' });
+                    setAccount(prev => ({ ...prev, email_channel_enabled: false, email_inbound_address: null }));
+                    toast.success('Email channel disabled');
+                  } catch (e) { toast.error(e.message); }
+                }}>Disconnect</button>
+              </div>
+            ) : (
+              <div>
+                <input type="email" className="form-input" placeholder="support@yourstore.com" value={emailAddress || ''} onChange={(e) => setEmailAddress(e.target.value)} style={{ marginBottom: 8, fontSize: 12 }} />
+                <button className="btn btn-primary" style={{ width: "100%" }} disabled={!emailAddress || emailConnecting} onClick={async () => {
+                  setEmailConnecting(true);
+                  try {
+                    const res = await fetch('/api/email/connect', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ inboundAddress: emailAddress }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error);
+                    setAccount(prev => ({ ...prev, email_channel_enabled: true, email_inbound_address: emailAddress }));
+                    toast.success('Email channel enabled!');
+                  } catch (e) { toast.error(e.message); }
+                  finally { setEmailConnecting(false); }
+                }}>
+                  {emailConnecting ? 'Enabling...' : 'Enable Email'}
+                </button>
+                <p style={{ fontSize: 10, color: "var(--text-tertiary)", textAlign: "center", marginTop: 4 }}>
+                  Forward emails to the Sellora webhook to receive them in your inbox
+                </p>
               </div>
             )}
           </div>
