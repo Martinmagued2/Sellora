@@ -451,11 +451,11 @@ export function buildRoutingProviderChain() {
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // 1. NVIDIA DeepSeek V4 Flash — primary (fast + thinking mode + great at tool use)
-  providers.push(...buildNvidiaProviders());
-
-  // 2. Google Gemini — fallback (best at multi-step tool use + synthesis)
+  // 1. Google Gemini — best at multi-step tool use + fast streaming for Copilot
   providers.push(...buildGoogleProviders());
+
+  // 2. NVIDIA DeepSeek V4 Pro — high quality but can be slower with 29 tools
+  providers.push(...buildNvidiaProviders());
 
   // 3. Groq (fast streaming, fallback)
   providers.push(...buildGroqProviders());
