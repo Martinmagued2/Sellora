@@ -80,7 +80,6 @@ export default function ChannelsTab({
                   <Check size={16} /> Connected
                 </button>
                 <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={igDisconnecting} onClick={async () => {
-                  if (!(await confirmAction('Disconnect Instagram? You will stop receiving Instagram messages.'))) return;
                   setIgDisconnecting(true);
                   try {
                     const res = await fetch('/api/channels/disconnect?channel=instagram', { method: 'POST' });
@@ -169,7 +168,6 @@ export default function ChannelsTab({
                   <Check size={16} /> Connected
                 </button>
                 <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={fbDisconnecting} onClick={async () => {
-                  if (!(await confirmAction('Disconnect Facebook? You will stop receiving Facebook messages.'))) return;
                   setFbDisconnecting(true);
                   try {
                     const res = await fetch('/api/channels/disconnect?channel=facebook', { method: 'POST' });
@@ -286,7 +284,6 @@ export default function ChannelsTab({
                     {shopifySyncing ? 'Syncing...' : 'Sync Data'}
                   </button>
                   <button className="btn btn-secondary btn-sm" style={{ flex: 1, color: "var(--accent-red)" }} disabled={shopifyDisconnecting} onClick={async () => {
-                    if (!(await confirmAction('Are you sure you want to disconnect Shopify? Your products and orders will remain in Sellora but will no longer sync.'))) return;
                     setShopifyDisconnecting(true);
                     try {
                       const res = await fetch('/api/channels/disconnect?channel=shopify', { method: 'POST' });
@@ -354,7 +351,6 @@ export default function ChannelsTab({
                   <div><strong>Verify Token:</strong> Set via WHATSAPP_WEBHOOK_VERIFY_TOKEN env var</div>
                 </div>
                 <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={waDisconnecting} onClick={async () => {
-                  if (!(await confirmAction('Disconnect WhatsApp? You will stop receiving WhatsApp messages.'))) return;
                   setWaDisconnecting(true);
                   try {
                     const res = await fetch('/api/channels/disconnect?channel=whatsapp', { method: 'POST' });
@@ -514,7 +510,6 @@ export default function ChannelsTab({
                   <Check size={16} /> Connected @{account.telegram_bot_username || "bot"}
                 </button>
                 <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)" }} disabled={telegramConnecting} onClick={async () => {
-                  if (!(await confirmAction('Disconnect Telegram?'))) return;
                   setTelegramConnecting(true);
                   try {
                     const res = await fetch('/api/telegram/disconnect', { method: 'POST' });
@@ -577,7 +572,6 @@ export default function ChannelsTab({
                   <Check size={16} /> {account.email_inbound_address || "Email connected"}
                 </button>
                 <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)" }} disabled={emailConnecting} onClick={async () => {
-                  if (!(await confirmAction('Disconnect Email?'))) return;
                   setEmailConnecting(true);
                   try {
                     const res = await fetch('/api/email/connect', { method: 'DELETE' });
