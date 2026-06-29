@@ -513,14 +513,22 @@ export default function ChannelsTab({
                 <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
                   <Check size={16} /> Connected @{account.telegram_bot_username || "bot"}
                 </button>
-                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)" }} onClick={async () => {
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)" }} disabled={telegramConnecting} onClick={async () => {
                   if (!(await confirmAction('Disconnect Telegram?'))) return;
+                  setTelegramConnecting(true);
                   try {
-                    await fetch('/api/telegram/disconnect', { method: 'POST' });
+                    const res = await fetch('/api/telegram/disconnect', { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || `Failed (HTTP ${res.status})`);
                     setAccount(prev => ({ ...prev, telegram_connected: false, telegram_bot_token: null, telegram_bot_username: null }));
                     toast.success('Telegram disconnected');
-                  } catch (e) { toast.error(e.message); }
-                }}>Disconnect</button>
+                  } catch (e) {
+                    console.error('[ChannelsTab] Telegram disconnect failed:', e);
+                    toast.error(e.message || 'Failed to disconnect Telegram');
+                  } finally {
+                    setTelegramConnecting(false);
+                  }
+                }}>{telegramConnecting ? 'Disconnecting…' : 'Disconnect'}</button>
               </div>
             ) : (
               <div>
@@ -568,14 +576,22 @@ export default function ChannelsTab({
                 <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
                   <Check size={16} /> {account.email_inbound_address || "Email connected"}
                 </button>
-                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)" }} onClick={async () => {
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)" }} disabled={emailConnecting} onClick={async () => {
                   if (!(await confirmAction('Disconnect Email?'))) return;
+                  setEmailConnecting(true);
                   try {
-                    await fetch('/api/email/connect', { method: 'DELETE' });
+                    const res = await fetch('/api/email/connect', { method: 'DELETE' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.error) throw new Error(data.error || `Failed (HTTP ${res.status})`);
                     setAccount(prev => ({ ...prev, email_channel_enabled: false, email_inbound_address: null }));
                     toast.success('Email channel disabled');
-                  } catch (e) { toast.error(e.message); }
-                }}>Disconnect</button>
+                  } catch (e) {
+                    console.error('[ChannelsTab] Email disconnect failed:', e);
+                    toast.error(e.message || 'Failed to disconnect Email');
+                  } finally {
+                    setEmailConnecting(false);
+                  }
+                }}>{emailConnecting ? 'Disconnecting…' : 'Disconnect'}</button>
               </div>
             ) : (
               <div>
