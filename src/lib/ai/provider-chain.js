@@ -241,11 +241,11 @@ export function buildNvidiaProviders() {
   if (keys.length === 0) return providers;
 
   const nvidiaModels = [
-    { id: "deepseek-ai/deepseek-v4-flash", name: "nvidia-deepseek-v4" },
+    { id: "deepseek-ai/deepseek-v4-pro", name: "nvidia-deepseek-v4-pro" },
+    { id: "deepseek-ai/deepseek-v4-flash", name: "nvidia-deepseek-v4-flash" },
     { id: "meta/llama-3.3-70b-instruct", name: "nvidia-llama33" },
     { id: "nvidia/llama-3.1-nemotron-70b-instruct", name: "nvidia-nemotron" },
     { id: "mistralai/mistral-large-2-instruct", name: "nvidia-mistral" },
-    { id: "deepseek-ai/deepseek-r1", name: "nvidia-deepseek" },
   ];
 
   keys.forEach((key, keyIndex) => {
