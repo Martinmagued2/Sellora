@@ -439,8 +439,8 @@ export async function generateAIReply({
       console.warn("[generateAIReply] Failed to fetch policies for context:", e.message);
     }
 
-    // 4. Format History
-    const formattedMessages = conversationHistory.slice(-6).map((msg) => ({
+    // 4. Format History — use last 15 messages for multi-step order flow context
+    const formattedMessages = conversationHistory.slice(-15).map((msg) => ({
       role: msg.direction === "incoming" ? "user" : "assistant",
       content: msg.content,
     }));
