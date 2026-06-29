@@ -21,6 +21,7 @@ import {
   escalateToHuman,
   trackDeflection,
   sendAiFailureFallback,
+  ESCALATION_CUSTOMER_MESSAGE,
 } from "@/lib/ai/reply-helpers";
 
 // Service role client for server-side processing (lazy-initialized)
@@ -191,7 +192,7 @@ export async function processIncomingMessage({
     if (providedAccountId) {
       const { data: directAccount, error: directError } = await getSupabase()
         .from("accounts")
-        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, telegram_bot_token, telegram_connected, email_channel_enabled, email_inbound_address, notify_escalations, auto_greeting, auto_greeting_message, greeting_per_channel, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, ai_escalation_keywords, notify_escalations, auto_follow_up_enabled")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, telegram_bot_token, telegram_connected, email_channel_enabled, email_inbound_address, notify_escalations, auto_greeting, auto_greeting_message, greeting_per_channel, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, ai_escalation_keywords, notify_escalations, auto_follow_up_enabled, ai_confidence_threshold, ai_preview_mode, ai_high_value_threshold, ai_sla_hours")
         .eq("id", providedAccountId)
         .maybeSingle();
 
@@ -204,7 +205,7 @@ export async function processIncomingMessage({
       // No accountId provided — look up by page ID (handle duplicates gracefully)
       const { data: accounts, error: accountError } = await getSupabase()
         .from("accounts")
-        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, telegram_bot_token, telegram_connected, email_channel_enabled, email_inbound_address, notify_escalations, auto_greeting, auto_greeting_message, greeting_per_channel, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, ai_escalation_keywords, notify_escalations, auto_follow_up_enabled")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, telegram_bot_token, telegram_connected, email_channel_enabled, email_inbound_address, notify_escalations, auto_greeting, auto_greeting_message, greeting_per_channel, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, ai_escalation_keywords, notify_escalations, auto_follow_up_enabled, ai_confidence_threshold, ai_preview_mode, ai_high_value_threshold, ai_sla_hours")
         .eq(pageColumn, pageId);
 
       if (accountError || !accounts || accounts.length === 0) {
@@ -822,6 +823,18 @@ export async function processIncomingMessage({
             if (store?.name) storeName = store.name;
           } catch (e) {}
 
+          // ─── Channel info for human-handoff customer messages ───
+          // When AI escalates to a human, we send the customer a friendly
+          // "I've connected you with our team" message. escalateToHuman()
+          // needs the channel info to deliver that message.
+          const escalationChannelInfo = {
+            channel,
+            recipientId: senderId,
+            phoneNumberId: account.whatsapp_phone_number_id,
+            accessToken: channel === "whatsapp" ? (account.whatsapp_access_token || accessToken) : accessToken,
+            pageId,
+          };
+
           let aiFailed = false;
           try {
             aiResult = mediaUrls.length > 0
@@ -866,62 +879,102 @@ export async function processIncomingMessage({
               pageId,
               businessName: storeName,
             });
+            // ─── Human Handoff: pass channelInfo so the customer gets the
+            // "I've connected you with our team 🙏" message, and set SLA deadline.
             await escalateToHuman(
               conversation.id,
               aiFailed ? "AI generation threw an error" : "AI returned empty reply",
-              account.id
+              account.id,
+              { channelInfo: escalationChannelInfo }
             );
             return;
           }
 
-          console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
+          console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}, confidence=${aiResult?.confidenceScore}, finishReason=${aiResult?.finishReason}, needsHumanReview=${aiResult?.needsHumanReview}, previewMode=${account.ai_preview_mode}`);
 
           // ─── B5: Auto-escalate on negative sentiment ───
           // If the customer is clearly angry/frustrated, route to a human
           if (aiResult?.sentiment === "negative" && aiResult?.intent === "complaint") {
             console.log(`[PROCESSOR] Negative sentiment + complaint → escalating to human`);
-            // Still send the AI's reply (it might be a good de-escalation), but flag for human follow-up
+            // Still send the AI's reply (it might be a good de-escalation), but flag for human follow-up.
+            // ─── Human Handoff: pass channelInfo so the customer gets the
+            // escalation message AND SLA deadline is set. We DON'T double-send
+            // here (sendCustomerMessage=false) because the AI's reply is still
+            // going out below — the escalation notification + SLA are still set.
             await escalateToHuman(
               conversation.id,
               "Auto-escalated: negative sentiment + complaint intent",
-              account.id
+              account.id,
+              { sendCustomerMessage: false, channelInfo: escalationChannelInfo }
+            );
+          }
+
+          // ─── AI Safety: Decide whether to hold the reply for human review ───
+          // Two conditions trigger a hold:
+          //   1. Preview mode is ON (account.ai_preview_mode) — ALL AI replies
+          //      are held for owner approval.
+          //   2. Confidence threshold not met (aiResult.needsHumanReview) —
+          //      the AI provider's finish_reason suggests the reply may be
+          //      truncated/filtered, so we hold it for review.
+          //
+          // When held, the reply is saved to the messages table with
+          // approval_status='pending' and is NOT delivered to the customer.
+          // The dashboard shows a "Review AI Reply" banner; the owner can
+          // approve (delivers the message) or reject (discards).
+          const previewModeEnabled = !!account.ai_preview_mode;
+          const confidenceBelowThreshold = !!aiResult?.needsHumanReview;
+          const holdForReview = previewModeEnabled || confidenceBelowThreshold;
+
+          if (holdForReview) {
+            console.log(
+              `[PROCESSOR] AI Safety: holding AI reply for human review (previewMode=${previewModeEnabled}, confidenceBelowThreshold=${confidenceBelowThreshold}, confidence=${aiResult?.confidenceScore}, threshold=${account.ai_confidence_threshold})`
             );
           }
 
           // ─── H1: Human-feeling reply delay (1.5–3s) ───
           // Wait until the AI is done, then add a short throttle so the reply
           // doesn't appear in <1s (feels robotic). Typing indicator continues during this delay.
-          await humanReplyDelay(aiResult.reply);
+          // Skipped when holding for review — the customer isn't getting the
+          // reply immediately anyway.
+          if (!holdForReview) {
+            await humanReplyDelay(aiResult.reply);
+          }
 
           if (aiResult && aiResult.reply) {
             const aiReply = aiResult.reply;
             console.log(`[PROCESSOR] AI reply generated (${aiReply.length} chars): "${aiReply.substring(0, 80)}..."`);
 
             // ─── Step 10a: Send AI reply via Meta/WhatsApp (best-effort) ───
-            // This is wrapped in its own try/catch because Meta delivery failure
-            // should NOT prevent the AI reply from being stored in the database.
-            // The business owner can still see the AI reply in the conversations page.
+            // SKIPPED when holding for review — the reply is saved with
+            // approval_status='pending' and the owner decides whether to send.
             let deliverySuccess = false;
-            try {
-              deliverySuccess = await sendChannelReply({
-                channel, senderId, message: aiReply, account, accessToken, pageId,
-              });
-              if (!deliverySuccess) {
-                console.warn(`[PROCESSOR] No token available for ${channel} — AI reply stored but NOT delivered to customer`);
+            if (!holdForReview) {
+              try {
+                deliverySuccess = await sendChannelReply({
+                  channel, senderId, message: aiReply, account, accessToken, pageId,
+                });
+                if (!deliverySuccess) {
+                  console.warn(`[PROCESSOR] No token available for ${channel} — AI reply stored but NOT delivered to customer`);
+                }
+              } catch (deliveryErr) {
+                console.error(`[PROCESSOR] AI reply delivery failed for ${channel}:`, deliveryErr.message);
+                console.error(`[PROCESSOR] AI reply is still saved to database but customer did NOT receive it on ${channel}`);
+                // Continue to store the AI reply in DB even if delivery failed
               }
-            } catch (deliveryErr) {
-              console.error(`[PROCESSOR] AI reply delivery failed for ${channel}:`, deliveryErr.message);
-              console.error(`[PROCESSOR] AI reply is still saved to database but customer did NOT receive it on ${channel}`);
-              // Continue to store the AI reply in DB even if delivery failed
             }
 
             // ─── Step 10b: ALWAYS store AI reply in database ───
             // This must happen regardless of whether Meta delivery succeeded.
             // Otherwise, AI replies are lost when delivery fails.
+            //
+            // When holdForReview is true, the message is stored with
+            // approval_status='pending' instead of being sent. The dashboard
+            // shows a "Review AI Reply" banner for conversations with pending
+            // replies; the owner can approve (sends the message) or reject.
             const responseTime = Math.round((Date.now() - (conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : Date.now())) / 1000);
 
             try {
-              const { data: insertedMsg } = await getSupabase().from("messages").insert({
+              const insertPayload = {
                 conversation_id: conversation.id,
                 account_id: account.id,
                 direction: "outgoing",
@@ -931,11 +984,20 @@ export async function processIncomingMessage({
                 response_time_seconds: responseTime,
                 sentiment: aiResult.sentiment || null,
                 tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
-                delivery_status: deliverySuccess ? "delivered" : "failed",
-              }).select("id").single();
+                delivery_status: holdForReview ? "pending" : (deliverySuccess ? "delivered" : "failed"),
+              };
+
+              // ─── AI Safety: mark the message as pending approval ───
+              if (holdForReview) {
+                insertPayload.approval_status = "pending";
+              }
+
+              const { data: insertedMsg } = await getSupabase().from("messages").insert(insertPayload).select("id").single();
 
               // ─── Track deflection: AI replied → record first_ai_reply_at if not set ───
-              if (insertedMsg?.id) {
+              // Only count as a deflection if the reply was actually sent
+              // (not held for review).
+              if (insertedMsg?.id && !holdForReview) {
                 await getSupabase()
                   .from("conversations")
                   .update({
@@ -974,14 +1036,35 @@ export async function processIncomingMessage({
                 .eq("id", conversation.id);
             }
 
-            console.log(`[PROCESSOR] AI auto-reply generated and ${deliverySuccess ? 'delivered' : 'saved (delivery failed)'} for conversation ${conversation.id}`);
+            console.log(`[PROCESSOR] AI auto-reply generated and ${holdForReview ? 'held for review' : (deliverySuccess ? 'delivered' : 'saved (delivery failed)')} for conversation ${conversation.id}`);
 
             // ─── Step 10c: Handle AI Escalation (notify owner) ───
             if (aiResult.needsHumanAttention && aiResult.escalationReason) {
               try {
                 console.log(`[PROCESSOR] AI ESCALATION detected for conversation ${conversation.id}: ${aiResult.escalationReason}`);
 
-                // 1. Update conversation status to "needs_attention" and add escalation tag
+                // 1. Update conversation status to "needs_attention" and add escalation tag.
+                // ─── Human Handoff: also set SLA deadline + bump priority ───
+                // SLA window comes from account.ai_sla_hours (default 4h).
+                const slaHours = account.ai_sla_hours || 4;
+                const slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000).toISOString();
+
+                // Fetch current priority so we don't downgrade an 'urgent' conv
+                let currentPriority = "normal";
+                try {
+                  const { data: convRow } = await getSupabase()
+                    .from("conversations")
+                    .select("priority")
+                    .eq("id", conversation.id)
+                    .single();
+                  if (convRow?.priority) currentPriority = convRow.priority;
+                } catch (e) { /* column may not exist yet */ }
+                const PRIORITY_RANK = { low: 0, normal: 1, high: 2, urgent: 3 };
+                const newPriority =
+                  PRIORITY_RANK[currentPriority] >= PRIORITY_RANK.high
+                    ? currentPriority
+                    : "high";
+
                 const currentTags = conversation.tags || [];
                 const escalationTag = "escalated:ai";
                 const reasonTag = `escalation:${aiResult.escalationReason.substring(0, 50)}`;
@@ -992,8 +1075,53 @@ export async function processIncomingMessage({
                   .update({
                     status: "needs_attention",
                     tags: newTags,
+                    // ─── Human Handoff: SLA deadline + priority bump ───
+                    sla_deadline: slaDeadline,
+                    priority: newPriority,
                   })
                   .eq("id", conversation.id);
+
+                console.log(`[PROCESSOR] Conversation ${conversation.id} marked needs_attention (SLA: ${slaHours}h → ${slaDeadline}, priority: ${newPriority})`);
+
+                // 1b. ─── Human Handoff: send the customer a friendly message ───
+                // "Thanks for your message! I've connected you with our team
+                //  who will reply shortly. Your request is important to us 🙏"
+                //
+                // Best-effort — channel delivery failures don't block the escalation.
+                // We DON'T send this if the AI's reply is already being held for
+                // review (the customer hasn't received anything yet, and we want
+                // the operator to decide what to send).
+                if (!holdForReview) {
+                  try {
+                    if (channel === "whatsapp") {
+                      const { sendWhatsAppMessage } = await import("@/lib/whatsapp");
+                      await sendWhatsAppMessage({
+                        to: senderId,
+                        message: ESCALATION_CUSTOMER_MESSAGE,
+                        phoneNumberId: account.whatsapp_phone_number_id,
+                        accessToken: account.whatsapp_access_token || accessToken,
+                      });
+                    } else if (channel === "telegram" && account.telegram_bot_token) {
+                      const { sendTelegramMessage } = await import("@/lib/telegram");
+                      await sendTelegramMessage({
+                        botToken: account.telegram_bot_token,
+                        chatId: senderId,
+                        text: ESCALATION_CUSTOMER_MESSAGE,
+                      });
+                    } else {
+                      const { sendMessage } = await import("@/lib/channels/meta");
+                      await sendMessage({
+                        recipientId: senderId,
+                        message: ESCALATION_CUSTOMER_MESSAGE,
+                        pageId,
+                        accessToken,
+                      });
+                    }
+                    console.log(`[PROCESSOR] Sent escalation customer message to ${senderId} on ${channel}`);
+                  } catch (custMsgErr) {
+                    console.warn(`[PROCESSOR] Failed to send escalation customer message:`, custMsgErr.message);
+                  }
+                }
 
                 // 2. Store escalation notification for the owner (resilient to missing table)
                 try {
@@ -1012,6 +1140,9 @@ export async function processIncomingMessage({
                       ai_reply_preview: aiReply?.substring(0, 200),
                       intent: aiResult.intent,
                       sentiment: aiResult.sentiment,
+                      sla_deadline: slaDeadline,
+                      sla_hours: slaHours,
+                      priority: newPriority,
                     },
                     read: false,
                   });

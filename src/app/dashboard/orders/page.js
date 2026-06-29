@@ -61,7 +61,31 @@ export default function OrdersPage() {
   const updateStatus = async (id, newStatus) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("orders").update({ status: newStatus }).eq("id", id).eq("account_id", user.id);
+    // Route through the auto-update API so loyalty points + WhatsApp
+    // notifications are triggered when the order is marked as "delivered".
+    try {
+      const res = await fetch("/api/orders/auto-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: id, newStatus }),
+      });
+      if (!res.ok) throw new Error("Auto-update failed");
+      const data = await res.json();
+      // Show a toast when loyalty points are awarded for a delivery
+      if (newStatus === "delivered" && data?.loyalty?.awarded) {
+        const pts = data.loyalty.points;
+        const upgraded = data.loyalty.tierUpgraded;
+        const newTier = data.loyalty.newTier;
+        toast.success(
+          `Order marked as delivered. +${pts} loyalty pts awarded!${
+            upgraded && newTier ? ` 🎉 Customer upgraded to ${newTier} tier!` : ""
+          }`
+        );
+      }
+    } catch (e) {
+      // Fallback to a direct update if the auto-update route fails
+      await supabase.from("orders").update({ status: newStatus }).eq("id", id).eq("account_id", user.id);
+    }
     fetchOrders();
   };
 

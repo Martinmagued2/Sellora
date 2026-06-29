@@ -28,6 +28,7 @@ export default function CustomerCRMPanel({ customer, onClose }) {
   const [tasks, setTasks] = useState([]);
   const [healthScore, setHealthScore] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [loyalty, setLoyalty] = useState(null);
   const [newNote, setNewNote] = useState("");
   const [newTask, setNewTask] = useState({ title: "", description: "", due_date: "", priority: "normal" });
   const [animatedScore, setAnimatedScore] = useState(0);
@@ -58,18 +59,20 @@ export default function CustomerCRMPanel({ customer, onClose }) {
   }, [healthScore]);
 
   const loadAll = async () => {
-    const [timelineRes, notesRes, tasksRes, healthRes, ordersRes] = await Promise.all([
+    const [timelineRes, notesRes, tasksRes, healthRes, ordersRes, loyaltyRes] = await Promise.all([
       fetch(`/api/customers/${customer.id}/timeline`).then(r => r.json()).catch(() => ({ events: [] })),
       fetch(`/api/customers/${customer.id}/notes`).then(r => r.json()).catch(() => ({ notes: [] })),
       fetch(`/api/customers/${customer.id}/tasks`).then(r => r.json()).catch(() => ({ tasks: [] })),
       fetch(`/api/customers/${customer.id}/health-score`, { method: 'POST' }).then(r => r.json()).catch(() => ({})),
       fetch(`/api/customers/${customer.id}/orders`).then(r => r.json()).catch(() => ({ orders: [] })),
+      fetch(`/api/loyalty?customer_id=${customer.id}`).then(r => r.json()).catch(() => null),
     ]);
     setTimeline(timelineRes.events || []);
     setNotes(notesRes.notes || []);
     setTasks(tasksRes.tasks || []);
     if (healthRes.score !== undefined) setHealthScore(healthRes);
     setOrders(ordersRes.orders || []);
+    if (loyaltyRes && (loyaltyRes.account || loyaltyRes.tiers)) setLoyalty(loyaltyRes);
   };
 
   const saveProfile = async () => {
@@ -165,6 +168,7 @@ export default function CustomerCRMPanel({ customer, onClose }) {
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
+    { id: 'loyalty', label: 'Loyalty', icon: Award },
     { id: 'timeline', label: 'Timeline', icon: Clock },
     { id: 'notes', label: 'Notes', icon: StickyNote },
     { id: 'tasks', label: 'Tasks', icon: CheckCircle2 },
@@ -213,9 +217,27 @@ export default function CustomerCRMPanel({ customer, onClose }) {
               {(customer.name || customer.email || '?')[0].toUpperCase()}
             </motion.div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>{customer.name || 'Unnamed'}</div>
+              <div style={{ fontWeight: 800, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {customer.name || 'Unnamed'}
+                {loyalty?.current_tier_row && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                    background: `${loyalty.current_tier_row.color}22`,
+                    color: loyalty.current_tier_row.color,
+                    border: `1px solid ${loyalty.current_tier_row.color}44`,
+                    textTransform: 'capitalize',
+                  }}>
+                    <span>{loyalty.current_tier_row.icon || '🏆'}</span>
+                    {loyalty.current_tier_row.display_name || loyalty.current_tier_row.name}
+                  </span>
+                )}
+              </div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <ShoppingBag size={11} /> {customer.total_orders || 0} orders · {(customer.total_spent || 0).toLocaleString()} EGP
+                {loyalty?.current_points > 0 && (
+                  <><span style={{ margin: '0 2px' }}>·</span><Zap size={11} /> {loyalty.current_points} pts</>
+                )}
               </div>
             </div>
           </div>
@@ -426,6 +448,11 @@ export default function CustomerCRMPanel({ customer, onClose }) {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* LOYALTY */}
+            {activeTab === 'loyalty' && (
+              <LoyaltyTab loyalty={loyalty} />
             )}
 
             {/* TIMELINE */}
@@ -693,5 +720,322 @@ function TimelineEvent({ event, delay = 0 }) {
         </div>
       </div>
     </motion.div>
+  );
+}
+
+// ─── Loyalty Tab ───
+function LoyaltyTab({ loyalty }) {
+  if (!loyalty) {
+    return <EmptyState icon={Award} title="Loyalty data unavailable" />;
+  }
+
+  const {
+    account,
+    tiers = [],
+    current_tier_row,
+    next_tier,
+    progress_pct = 0,
+    points_to_next,
+    current_points = 0,
+    lifetime_points = 0,
+    transactions = [],
+    recent_upgrades = [],
+  } = loyalty;
+
+  // No tiers configured at all
+  if (!tiers || tiers.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{
+          padding: 16, borderRadius: 12, background: 'var(--bg-glass)',
+          border: '1px solid var(--border-subtle)', textAlign: 'center',
+        }}>
+          <Award size={28} style={{ opacity: 0.3, margin: '0 auto 8px' }} />
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Loyalty tiers not configured</div>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+            Set up Bronze, Silver, Gold, and Platinum tiers from your account settings to start rewarding loyal customers.
+          </div>
+        </div>
+        {account && (
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+          }}>
+            <MiniStat icon={Zap} label="Current" value={current_points} color="#F8A532" />
+            <MiniStat icon={TrendingUp} label="Lifetime" value={lifetime_points} color="#3BA55C" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const tierColor = current_tier_row?.color || '#8E9297';
+  const perks = Array.isArray(current_tier_row?.perks) ? current_tier_row.perks : [];
+  const isMaxTier = !next_tier;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* ─── Current Tier Card ─── */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{
+          padding: 18, borderRadius: 16,
+          background: `linear-gradient(135deg, ${tierColor}1A, ${tierColor}05)`,
+          border: `1px solid ${tierColor}44`,
+          position: 'relative', overflow: 'hidden',
+        }}
+      >
+        {/* Decorative orb */}
+        <div style={{
+          position: 'absolute', top: -30, right: -30, width: 120, height: 120,
+          borderRadius: '50%', background: `${tierColor}22`, filter: 'blur(40px)',
+        }} />
+        <div style={{ position: 'relative' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+            Current Tier
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: 14,
+              background: `${tierColor}22`, color: tierColor,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 24, border: `1px solid ${tierColor}44`,
+            }}>
+              {current_tier_row?.icon || '🏆'}
+            </div>
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: tierColor, lineHeight: 1 }}>
+                {current_tier_row?.display_name || (current_tier_row?.name || '—')}
+              </div>
+              {current_tier_row?.discount_percent > 0 && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, fontWeight: 600 }}>
+                  {current_tier_row.discount_percent}% off every order
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Points balance */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            <div style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--bg-glass)' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>Current</div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{current_points.toLocaleString()} pts</div>
+            </div>
+            <div style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--bg-glass)' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>Lifetime</div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{lifetime_points.toLocaleString()} pts</div>
+            </div>
+          </div>
+
+          {/* Progress to next tier */}
+          {isMaxTier ? (
+            <div style={{
+              padding: '10px 12px', borderRadius: 10,
+              background: `${tierColor}1A`, border: `1px solid ${tierColor}33`,
+              textAlign: 'center', fontSize: 12, fontWeight: 700, color: tierColor,
+            }}>
+              🎉 Highest tier reached — enjoy your top-tier perks!
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                  Progress to {next_tier.display_name || next_tier.name}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  {progress_pct}%
+                </span>
+              </div>
+              <div style={{
+                height: 8, borderRadius: 4, background: 'var(--bg-glass)',
+                overflow: 'hidden', position: 'relative',
+              }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress_pct}%` }}
+                  transition={{ duration: 1, ease: 'easeOut' }}
+                  style={{
+                    height: '100%',
+                    background: `linear-gradient(90deg, ${tierColor}, ${next_tier.color})`,
+                    borderRadius: 4,
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Zap size={11} />
+                {points_to_next > 0
+                  ? `${points_to_next.toLocaleString()} more pts to reach ${next_tier.display_name || next_tier.name} (${next_tier.discount_percent}% off)`
+                  : `Ready to upgrade to ${next_tier.display_name || next_tier.name}!`}
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* ─── Tier ladder ─── */}
+      <div>
+        <h4 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 1, marginBottom: 10 }}>Tier Ladder</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {tiers.map((t, i) => {
+            const isCurrent = current_tier_row?.id === t.id;
+            const isUnlocked = lifetime_points >= t.points_threshold;
+            return (
+              <motion.div
+                key={t.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 10px', borderRadius: 10,
+                  background: isCurrent ? `${t.color}15` : 'var(--bg-glass)',
+                  border: isCurrent ? `1px solid ${t.color}55` : '1px solid var(--border-subtle)',
+                  opacity: isUnlocked ? 1 : 0.55,
+                }}
+              >
+                <div style={{
+                  width: 28, height: 28, borderRadius: 8,
+                  background: `${t.color}22`, color: t.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, flexShrink: 0,
+                }}>
+                  {t.icon || '🏆'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {t.display_name || t.name}
+                    {isCurrent && (
+                      <span style={{
+                        fontSize: 9, padding: '1px 6px', borderRadius: 6,
+                        background: `${t.color}22`, color: t.color, fontWeight: 700,
+                      }}>CURRENT</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                    {t.points_threshold.toLocaleString()}+ pts · {t.discount_percent}% off
+                  </div>
+                </div>
+                {isUnlocked ? (
+                  <CheckCircle2 size={16} style={{ color: t.color }} />
+                ) : (
+                  <Circle size={16} style={{ color: 'var(--text-tertiary)' }} />
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─── Perks ─── */}
+      {perks.length > 0 && (
+        <div>
+          <h4 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 1, marginBottom: 10 }}>
+            {current_tier_row?.display_name} Perks
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {perks.map((p, i) => {
+              const label = typeof p === 'string' ? p : (p.label || p.value || '');
+              const value = typeof p === 'string' ? null : p.value;
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 12px', borderRadius: 10,
+                    background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <Heart size={12} style={{ color: tierColor }} />
+                  <div style={{ fontSize: 12 }}>
+                    <span style={{ fontWeight: 600 }}>{label}</span>
+                    {value && <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>· {value}</span>}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Recent upgrades ─── */}
+      {recent_upgrades.length > 0 && (
+        <div>
+          <h4 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 1, marginBottom: 10 }}>Tier Upgrades</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {recent_upgrades.map((u, i) => (
+              <div key={u.id || i} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 12px', borderRadius: 10,
+                background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)',
+                fontSize: 12,
+              }}>
+                <span style={{ fontSize: 16 }}>🎉</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>
+                    {u.previous_tier ? `${u.previous_tier} → ` : ''}{u.new_tier}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                    {new Date(u.created_at).toLocaleDateString()} · {u.points_at_upgrade.toLocaleString()} pts
+                    {u.message_sent && <span> · 📨 congrats sent</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Recent transactions ─── */}
+      {transactions.length > 0 && (
+        <div>
+          <h4 style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 1, marginBottom: 10 }}>Recent Activity</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {transactions.slice(0, 8).map((tx, i) => {
+              const isEarn = tx.points > 0;
+              return (
+                <motion.div
+                  key={tx.id || i}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px', borderRadius: 10,
+                    background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8,
+                    background: isEarn ? 'rgba(59,165,92,0.12)' : 'rgba(248,165,50,0.12)',
+                    color: isEarn ? '#3BA55C' : '#F8A532',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {isEarn ? <TrendingUp size={14} /> : <Award size={14} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'capitalize' }}>
+                      {tx.reason === 'purchase' ? 'Order delivered' : tx.reason}
+                      {tx.order_id && <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}> · #{tx.order_id.slice(0, 8)}</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                      {new Date(tx.created_at).toLocaleDateString()} · Balance: {tx.balance_after?.toLocaleString?.() ?? tx.balance_after} pts
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize: 13, fontWeight: 800,
+                    color: isEarn ? '#3BA55C' : '#F8A532',
+                  }}>
+                    {isEarn ? '+' : ''}{tx.points}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

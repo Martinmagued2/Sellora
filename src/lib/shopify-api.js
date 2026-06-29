@@ -1,4 +1,4 @@
-function validateShopifyDomain(shopDomain) {
+export function validateShopifyDomain(shopDomain) {
   if (!/^[a-z0-9][a-z0-9\-]*\.myshopify\.com$/i.test(shopDomain)) {
     throw new Error('Invalid Shopify domain format');
   }

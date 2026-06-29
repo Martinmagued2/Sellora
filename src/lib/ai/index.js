@@ -290,7 +290,9 @@ export async function generateAIReply({
       case "sales":
       default:
         systemPrompt = getSalesAgentPrompt(businessName, country, personality);
-        tools = createSalesTools(accountId, customerId);
+        // Pass conversationId so the create_order tool can save high-value
+        // orders as pending_actions linked to this conversation.
+        tools = createSalesTools(accountId, customerId, { conversationId });
         break;
     }
 
@@ -361,14 +363,25 @@ export async function generateAIReply({
     // 3. Fetch and embed product catalog directly in the system prompt
     // This ensures the AI can answer product questions even if tool calls fail
     let productContext = "";
+    let aiSafetySettings = { confidenceThreshold: 70, previewMode: false };
     try {
       const { data: accountData } = await getSupabase()
         .from("accounts")
-        .select("currency, ai_name, ai_avatar, ai_personality_type, ai_custom_description, ai_formality, ai_enthusiasm, ai_verbosity, ai_empathy, ai_max_response_length, ai_auto_suggest_products, ai_escalation_keywords, ai_forbidden_topics, ai_personality")
+        .select("currency, ai_name, ai_avatar, ai_personality_type, ai_custom_description, ai_formality, ai_enthusiasm, ai_verbosity, ai_empathy, ai_max_response_length, ai_auto_suggest_products, ai_escalation_keywords, ai_forbidden_topics, ai_personality, ai_confidence_threshold, ai_preview_mode, ai_high_value_threshold")
         .eq("id", accountId)
         .single();
       
       const currency = accountData?.currency || "EGP";
+
+      // ─── AI Safety: capture confidence threshold + preview mode + high-value threshold ───
+      // These are used by the channel processor to decide whether to hold a reply
+      // for human review (preview mode or low confidence) and by the create_order
+      // tool to decide whether to require approval on high-value orders.
+      aiSafetySettings = {
+        confidenceThreshold: accountData?.ai_confidence_threshold ?? 70,
+        previewMode: !!accountData?.ai_preview_mode,
+        highValueThreshold: accountData?.ai_high_value_threshold ?? 1000,
+      };
 
       // Use structured personality settings if available, otherwise fall back to simple text
       let effectivePersonality = personality;
@@ -473,6 +486,7 @@ export async function generateAIReply({
     const providerChain = buildProviderChain();
     let text = "";
     let toolCalls = null;
+    let finishReason = null;
     let lastError = null;
 
     if (providerChain.length === 0) {
@@ -495,6 +509,7 @@ export async function generateAIReply({
         });
         text = result.text;
         toolCalls = result.toolCalls;
+        finishReason = result.finishReason;
         if (text && text.trim()) {
           // ✅ Success — record it so this key stays healthy
           if (provider._provider !== undefined) recordKeySuccess(provider._provider, provider._keyIndex);
@@ -517,6 +532,7 @@ export async function generateAIReply({
           maxSteps: 1,
         });
         text = result.text;
+        finishReason = result.finishReason;
         if (text && text.trim()) {
           // ✅ Success
           if (provider._provider !== undefined) recordKeySuccess(provider._provider, provider._keyIndex);
@@ -564,6 +580,7 @@ export async function generateAIReply({
         const fallbackText = completion.choices?.[0]?.message?.content;
         if (fallbackText && fallbackText.trim()) {
           text = fallbackText.trim();
+          finishReason = completion.choices?.[0]?.finish_reason || "stop";
           console.log("[generateAIReply] ✅ ZAI SDK direct fallback succeeded");
         } else {
           console.warn("[generateAIReply] ZAI SDK returned empty response");
@@ -572,6 +589,45 @@ export async function generateAIReply({
         console.warn(`[generateAIReply] ZAI SDK direct fallback failed: ${zaiErr.message}`);
         lastError = zaiErr;
       }
+    }
+
+    // ─── AI Safety: Confidence scoring ───
+    // Most providers expose a finish_reason. We map common values to a 0-100
+    // confidence score. If the score is below the account's
+    // ai_confidence_threshold, the channel processor will hold the reply for
+    // human review instead of sending it to the customer.
+    //
+    // Mapping rationale:
+    //   stop            → 95  (model finished naturally)
+    //   tool-calls      → 90  (model emitted tool calls cleanly)
+    //   end_turn        → 95  (Anthropic-style "end_turn")
+    //   length          → 55  (hit max_tokens → reply is likely truncated)
+    //   content_filter  → 30  (filtered → reply may be incomplete)
+    //   max_tokens      → 55  (alias for length)
+    //   null/unknown    → 75  (no signal — assume reasonable)
+    const FINISH_REASON_SCORES = {
+      stop: 95,
+      "tool-calls": 90,
+      tool_calls: 90,
+      end_turn: 95,
+      length: 55,
+      max_tokens: 55,
+      content_filter: 30,
+      content_filtering: 30,
+    };
+    const confidenceScore = finishReason
+      ? (FINISH_REASON_SCORES[finishReason] ?? 75)
+      : 75;
+
+    // If the score is below threshold, mark for human review. The processor
+    // will still save the reply (so the operator can edit it) but will NOT
+    // send it to the customer.
+    const confidenceThreshold = aiSafetySettings.confidenceThreshold ?? 70;
+    const needsHumanReview = confidenceScore < confidenceThreshold;
+    if (needsHumanReview) {
+      console.log(
+        `[generateAIReply] AI Safety: confidence ${confidenceScore} < threshold ${confidenceThreshold} (finish_reason=${finishReason}) — flagging for human review`
+      );
     }
 
     // 5.5. Check for escalation tag in AI reply
@@ -628,7 +684,24 @@ export async function generateAIReply({
       console.log(`[generateAIReply] Using fallback reply for intent: ${intent}`);
     }
 
-    return { reply: text, intent, sentiment, toolCalls, needsHumanAttention, escalationReason, abTestVariant: abTestVariant?.name || null, abTestId };
+    return {
+      reply: text,
+      intent,
+      sentiment,
+      toolCalls,
+      needsHumanAttention,
+      escalationReason,
+      abTestVariant: abTestVariant?.name || null,
+      abTestId,
+      // ─── AI Safety fields ───
+      // The channel processor uses these to decide whether to hold the reply
+      // for human review (preview mode OR low confidence) instead of sending
+      // it to the customer immediately.
+      confidenceScore,
+      finishReason,
+      needsHumanReview,
+      safetySettings: aiSafetySettings,
+    };
   } catch (err) {
     console.error("Error generating AI reply:", err);
     // CRITICAL: Never return null reply — the customer must always get some response.
@@ -640,7 +713,20 @@ export async function generateAIReply({
       order_tracking: `I'm having trouble accessing order information right now. Our team has been notified and will update you on your order status shortly.`,
       general: `Thanks for reaching out! I'm experiencing some connectivity issues right now, but our team has been notified and will respond to you shortly.`,
     };
-    return { reply: fallbackReplies.general, intent: "general", sentiment: "neutral", toolCalls: null, needsHumanAttention: false, escalationReason: null };
+    return {
+      reply: fallbackReplies.general,
+      intent: "general",
+      sentiment: "neutral",
+      toolCalls: null,
+      needsHumanAttention: false,
+      escalationReason: null,
+      // AI Safety defaults for the error path — these replies are pre-written
+      // templates, so they don't need human review and have no provider signal.
+      confidenceScore: 100,
+      finishReason: "fallback",
+      needsHumanReview: false,
+      safetySettings: { confidenceThreshold: 70, previewMode: false, highValueThreshold: 1000 },
+    };
   }
 }
 

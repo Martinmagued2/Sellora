@@ -10,6 +10,7 @@ import {
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
   Megaphone, AlertTriangle, BellOff, Mic, MicOff, Image as ImageIcon,
   ArrowLeft, Filter, Hand, ThumbsUp, ThumbsDown, Pause, Play,
+  Shield, Eye, Flag, TrendingUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
@@ -45,6 +46,14 @@ const STATUS_OPTIONS = [
   { value: "needs_attention", label: "Needs Attention", color: "#e74c3c" },
   { value: "waiting_customer", label: "Waiting", color: "var(--accent-orange)" },
   { value: "closed", label: "Closed", color: "var(--text-tertiary)" },
+];
+
+// ─── Priority levels (Human Handoff) ───
+const PRIORITY_OPTIONS = [
+  { value: "low", label: "Low", color: "var(--text-tertiary)", icon: "🟢" },
+  { value: "normal", label: "Normal", color: "var(--accent-secondary)", icon: "⚪" },
+  { value: "high", label: "High", color: "var(--accent-orange)", icon: "🟠" },
+  { value: "urgent", label: "Urgent", color: "var(--accent-red)", icon: "🔴" },
 ];
 
 export default function ConversationsPage() {
@@ -116,6 +125,9 @@ export default function ConversationsPage() {
   // Image recognition
   const [imageRecognitionResults, setImageRecognitionResults] = useState({});
   const [showImageUploader, setShowImageUploader] = useState(false);
+
+  // AI Safety: pending reply approval actions (per-message)
+  const [pendingReplyAction, setPendingReplyAction] = useState({});
 
   // Mobile navigation (legacy)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
@@ -426,6 +438,75 @@ export default function ConversationsPage() {
     await supabase.from("conversations").update(updates).eq("id", activeConv.id);
     setActiveConv((prev) => ({ ...prev, status }));
     fetchConversations();
+  };
+
+  // ─── Human Handoff: update conversation priority ───
+  // low / normal / high / urgent — drives SLA-aware triage on the dashboard.
+  const updateConvPriority = async (priority) => {
+    if (!activeConv) return;
+    await supabase.from("conversations").update({ priority }).eq("id", activeConv.id);
+    setActiveConv((prev) => ({ ...prev, priority }));
+    setConversations((prev) =>
+      prev.map((c) => (c.id === activeConv.id ? { ...c, priority } : c))
+    );
+  };
+
+  // ─── AI Safety: Approve a pending AI reply (sends the message) ───
+  const handleApprovePendingReply = async (msgId) => {
+    setPendingReplyAction((prev) => ({ ...prev, [msgId]: "approving" }));
+    try {
+      const res = await fetch("/api/ai-safety/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: msgId, action: "approve" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Update the message locally — flip approval_status + delivery_status
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId
+              ? { ...m, approval_status: "approved", delivery_status: "delivered" }
+              : m
+          )
+        );
+      } else {
+        alert(data.error || "Failed to approve reply");
+      }
+    } catch (err) {
+      alert("Failed to approve reply: " + err.message);
+    } finally {
+      setPendingReplyAction((prev) => ({ ...prev, [msgId]: undefined }));
+    }
+  };
+
+  // ─── AI Safety: Reject a pending AI reply (discards it) ───
+  const handleRejectPendingReply = async (msgId) => {
+    if (!confirm("Reject this AI reply? The customer will not receive it.")) return;
+    setPendingReplyAction((prev) => ({ ...prev, [msgId]: "rejecting" }));
+    try {
+      const res = await fetch("/api/ai-safety/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: msgId, action: "reject" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId
+              ? { ...m, approval_status: "rejected", delivery_status: "failed" }
+              : m
+          )
+        );
+      } else {
+        alert(data.error || "Failed to reject reply");
+      }
+    } catch (err) {
+      alert("Failed to reject reply: " + err.message);
+    } finally {
+      setPendingReplyAction((prev) => ({ ...prev, [msgId]: undefined }));
+    }
   };
 
   // ─── Summarize conversation ───

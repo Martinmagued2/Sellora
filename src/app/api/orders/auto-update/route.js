@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { awardPointsForOrder } from "@/lib/loyalty";
 
 let _adminClient = null;
 function getAdminClient() {
@@ -71,6 +72,18 @@ export async function POST(req) {
       } catch (e) { console.warn("[ORDER-AUTO] notify failed:", e.message); }
     }
 
-    return NextResponse.json({ success: true, update, notified: shouldNotify });
+    // ─── Loyalty: award points when an order is marked as delivered ───
+    // Idempotent — awardPointsForOrder de-dupes against loyalty_transactions.order_id.
+    let loyaltyResult = null;
+    if (newStatus === "delivered" && order.customer_id) {
+      try {
+        loyaltyResult = await awardPointsForOrder(order.id);
+        if (loyaltyResult?.awarded) {
+          console.log(`[ORDER-AUTO] awarded ${loyaltyResult.points} loyalty pts to ${order.customer_id} for order ${order.order_number}`);
+        }
+      } catch (e) { console.warn("[ORDER-AUTO] loyalty award failed:", e.message); }
+    }
+
+    return NextResponse.json({ success: true, update, notified: shouldNotify, loyalty: loyaltyResult });
   } catch (e) { return NextResponse.json({ error: "Server error" }, { status: 500 }); }
 }

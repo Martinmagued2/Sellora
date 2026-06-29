@@ -241,6 +241,7 @@ export function buildNvidiaProviders() {
   if (keys.length === 0) return providers;
 
   const nvidiaModels = [
+    { id: "deepseek-ai/deepseek-v4-flash", name: "nvidia-deepseek-v4" },
     { id: "meta/llama-3.3-70b-instruct", name: "nvidia-llama33" },
     { id: "nvidia/llama-3.1-nemotron-70b-instruct", name: "nvidia-nemotron" },
     { id: "mistralai/mistral-large-2-instruct", name: "nvidia-mistral" },
@@ -394,7 +395,7 @@ export function buildVectorEngineProviders() {
 
 /**
  * Build the COMPLETE provider fallback chain for AI reply generation.
- * Order: VectorEngine → NVIDIA → Groq → Google → OpenAI
+ * Order: NVIDIA (DeepSeek V4) → Google → Groq → VectorEngine → OpenAI
  * Each provider may have multiple keys × multiple models.
  * 
  * @param {Object} opts
@@ -405,17 +406,17 @@ export function buildFullProviderChain(opts = {}) {
   const { routingOnly = false } = opts;
   const providers = [];
 
-  // 1. VectorEngine (if available — premium, fast)
-  providers.push(...buildVectorEngineProviders());
-
-  // 2. NVIDIA NIM (free tier, high quality)
+  // 1. NVIDIA DeepSeek V4 Flash — primary (thinking mode + fast + high quality)
   providers.push(...buildNvidiaProviders());
+
+  // 2. Google Gemini (generous free tier)
+  providers.push(...buildGoogleProviders());
 
   // 3. Groq — lightweight mode for auto-replies (fast/cheap models)
   providers.push(...buildGroqProviders({ routingOnly, lightweight: !routingOnly }));
 
-  // 4. Google Gemini (generous free tier)
-  providers.push(...buildGoogleProviders());
+  // 4. VectorEngine (if available — premium, fast)
+  providers.push(...buildVectorEngineProviders());
 
   // 5. OpenAI (paid, last resort)
   providers.push(...buildOpenAIProviders());
@@ -450,14 +451,14 @@ export function buildRoutingProviderChain() {
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // 1. Google Gemini FIRST — best at multi-step tool use + synthesis
+  // 1. NVIDIA DeepSeek V4 Flash — primary (fast + thinking mode + great at tool use)
+  providers.push(...buildNvidiaProviders());
+
+  // 2. Google Gemini — fallback (best at multi-step tool use + synthesis)
   providers.push(...buildGoogleProviders());
 
-  // 2. Groq (fast streaming, fallback)
+  // 3. Groq (fast streaming, fallback)
   providers.push(...buildGroqProviders());
-
-  // 3. NVIDIA (good but can be slower)
-  providers.push(...buildNvidiaProviders());
 
   // 4. VectorEngine (premium)
   providers.push(...buildVectorEngineProviders());
