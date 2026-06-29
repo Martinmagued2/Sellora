@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { parseTelegramUpdate, downloadTelegramFile } from '@/lib/telegram';
+import { parseTelegramUpdate, downloadTelegramFile, answerCallbackQuery } from '@/lib/telegram';
 import { processIncomingMessage } from '@/lib/channels/processor';
 import { notify } from '@/lib/notifications';
 
@@ -67,10 +67,30 @@ export async function POST(req) {
       }
     }
 
+    // Answer callback query (removes loading spinner on button)
+    if (message.isCallback && message.callbackQueryId) {
+      try {
+        await answerCallbackQuery({ botToken, callbackQueryId: message.callbackQueryId });
+      } catch (e) {}
+    }
+
+    // Translate callback data to readable text for the AI
+    let textForAI = message.text;
+    if (message.isCallback && message.text) {
+      const cb = message.text;
+      if (cb === 'pay_cod') textForAI = 'Cash on Delivery';
+      else if (cb === 'pay_vodafone_cash') textForAI = 'Vodafone Cash';
+      else if (cb === 'pay_instapay') textForAI = 'InstaPay';
+      else if (cb === 'confirm_yes') textForAI = 'yes, I confirm the order';
+      else if (cb === 'confirm_no') textForAI = 'no, cancel the order';
+      else if (cb.startsWith('variant_')) textForAI = `I want this variant`; // AI will see the variant in context
+      else textForAI = cb.replace(/_/g, ' ');
+    }
+
     await processIncomingMessage({
       senderId: message.from,
       senderName: message.fromName,
-      text: message.text,
+      text: textForAI,
       mediaUrls,
       mediaType,
       channel: 'telegram',

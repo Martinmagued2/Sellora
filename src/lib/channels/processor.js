@@ -92,6 +92,31 @@ async function sendChannelReply({ channel, senderId, message, account, accessTok
     if (channel === "telegram") {
       const botToken = account.telegram_bot_token || accessToken;
       if (!botToken) return false;
+
+      // 🔧 Smart buttons: detect when the AI is asking for payment or confirmation
+      // and send inline keyboard buttons instead of plain text
+      const msgLower = message.toLowerCase();
+      const { sendTelegramMessageWithButtons, paymentMethodButtons, confirmButtons } = await import("@/lib/telegram");
+
+      if (msgLower.includes('how would you like to pay') || msgLower.includes('payment method') || msgLower.includes('how do you want to pay')) {
+        // Payment method question → send payment buttons
+        await sendTelegramMessageWithButtons({
+          botToken, chatId: senderId, text: message,
+          buttons: paymentMethodButtons(),
+        });
+        return true;
+      }
+
+      if ((msgLower.includes('confirm') && msgLower.includes('order')) || msgLower.includes("reply 'yes'") || msgLower.includes('reply "yes"') || msgLower.includes('do you confirm')) {
+        // Order confirmation → send Yes/No buttons
+        await sendTelegramMessageWithButtons({
+          botToken, chatId: senderId, text: message,
+          buttons: confirmButtons(),
+        });
+        return true;
+      }
+
+      // Default: plain text message
       await sendTelegramMessage({ botToken, chatId: senderId, text: message });
       return true;
     }

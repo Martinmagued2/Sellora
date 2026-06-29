@@ -14,7 +14,7 @@ export async function setupTelegramWebhook({ botToken, webhookUrl }) {
   const res = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/setWebhook`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: webhookUrl, allowed_updates: ["message"], drop_pending_updates: true }),
+    body: JSON.stringify({ url: webhookUrl, allowed_updates: ["message", "callback_query"], drop_pending_updates: true }),
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.description || "Failed to set webhook");
@@ -33,15 +33,82 @@ export async function getBotInfo({ botToken }) {
   return data.result;
 }
 
-export async function sendTelegramMessage({ botToken, chatId, text, parseMode = "HTML" }) {
+export async function sendTelegramMessage({ botToken, chatId, text, parseMode = "HTML", replyMarkup = null }) {
+  const payload = { chat_id: chatId, text: text.slice(0, 4096), parse_mode: parseMode };
+  if (replyMarkup) {
+    payload.reply_markup = replyMarkup;
+  }
   const res = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4096), parse_mode: parseMode }),
+    body: JSON.stringify(payload),
   });
   const data = await res.json();
   if (!data.ok) throw new Error(data.description || "Failed to send message");
   return data;
+}
+
+/**
+ * Send a message with inline keyboard buttons.
+ * @param {Object} params
+ * @param {string} params.botToken
+ * @param {string|number} params.chatId
+ * @param {string} params.text - Message text
+ * @param {Array<Array<{text: string, callback_data: string}>>} params.buttons - 2D array of button rows
+ * @param {string} [params.parseMode]
+ */
+export async function sendTelegramMessageWithButtons({ botToken, chatId, text, buttons, parseMode = "HTML" }) {
+  return sendTelegramMessage({
+    botToken, chatId, text, parseMode,
+    replyMarkup: { inline_keyboard: buttons },
+  });
+}
+
+/**
+ * Answer a callback query (removes the loading spinner on the button).
+ */
+export async function answerCallbackQuery({ botToken, callbackQueryId, text }) {
+  const res = await fetch(`${TELEGRAM_API_BASE}/bot${botToken}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callback_query_id: callbackQueryId, text: text || undefined }),
+  });
+  return res.json();
+}
+
+/**
+ * Helper: build payment method buttons.
+ */
+export function paymentMethodButtons() {
+  return [
+    [
+      { text: "💵 Cash on Delivery", callback_data: "pay_cod" },
+      { text: "📱 Vodafone Cash", callback_data: "pay_vodafone_cash" },
+    ],
+    [
+      { text: "🏦 InstaPay", callback_data: "pay_instapay" },
+    ],
+  ];
+}
+
+/**
+ * Helper: build Yes/No confirmation buttons.
+ */
+export function confirmButtons() {
+  return [
+    [
+      { text: "✅ Yes, confirm", callback_data: "confirm_yes" },
+      { text: "❌ No, cancel", callback_data: "confirm_no" },
+    ],
+  ];
+}
+
+/**
+ * Helper: build product variant buttons.
+ * @param {Array<{name: string, id: string}>} variants
+ */
+export function variantButtons(variants) {
+  return variants.map(v => [{ text: v.name, callback_data: `variant_${v.id}` }]);
 }
 
 export async function sendTelegramPhoto({ botToken, chatId, photoUrl, caption }) {
@@ -67,6 +134,24 @@ export async function sendTelegramAudio({ botToken, chatId, audioUrl, caption })
 }
 
 export function parseTelegramUpdate(body) {
+  // Handle callback queries (button presses)
+  if (body?.callback_query) {
+    const cq = body.callback_query;
+    const message = cq.message;
+    return {
+      messageId: String(message?.message_id || Date.now()),
+      from: String(cq.message?.chat?.id || cq.from?.id),
+      fromName: cq.from?.username || cq.from?.first_name || "Unknown",
+      text: cq.data || null, // The callback_data from the button
+      mediaUrl: null, mediaType: null, mediaId: null,
+      chatId: cq.message?.chat?.id,
+      phoneNumberId: null,
+      timestamp: new Date().toISOString(),
+      isCallback: true,
+      callbackQueryId: cq.id,
+    };
+  }
+
   if (!body?.message) return null;
   const message = body.message;
   const from = message.from;
