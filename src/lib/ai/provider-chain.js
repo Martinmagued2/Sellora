@@ -451,11 +451,11 @@ export function buildRoutingProviderChain() {
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // 1. Google Gemini — best at multi-step tool use + fast streaming for Copilot
-  providers.push(...buildGoogleProviders());
-
-  // 2. NVIDIA DeepSeek V4 Pro — high quality but can be slower with 29 tools
+  // 1. NVIDIA DeepSeek V4 Pro — primary for everything (Copilot + auto-replies)
   providers.push(...buildNvidiaProviders());
+
+  // 2. Google Gemini — fallback
+  providers.push(...buildGoogleProviders());
 
   // 3. Groq (fast streaming, fallback)
   providers.push(...buildGroqProviders());
