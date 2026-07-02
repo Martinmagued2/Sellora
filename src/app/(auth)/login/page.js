@@ -86,17 +86,23 @@ function LoginContent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ inviteId: inviteToken, userId: user.id }),
           });
-          const acceptData = await acceptRes.json();
+          const acceptData = await acceptRes.json().catch(() => ({}));
+          console.log('[invite] Accept response:', acceptRes.status, acceptData);
           if (acceptData.success) {
-            router.push("/dashboard");
-            router.refresh();
+            // Redirect to dashboard — invite accepted
+            window.location.href = "/dashboard";
             return;
-          } else {
-            // Invite already accepted or invalid — continue to dashboard
-            console.warn("Invite acceptance:", acceptData.error);
+          } else if (acceptData.error) {
+            // Show the error to the user
+            setError("Invitation error: " + acceptData.error);
+            setLoading(false);
+            return;
           }
         } catch (e) {
-          console.warn("Invite acceptance failed:", e.message);
+          console.error("[invite] Accept failed:", e.message);
+          setError("Failed to accept invitation: " + e.message);
+          setLoading(false);
+          return;
         }
       }
 

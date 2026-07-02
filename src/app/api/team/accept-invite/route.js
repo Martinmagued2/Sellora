@@ -55,14 +55,13 @@ export async function POST(req) {
       .update({
         user_id: userId || user.id,
         invite_status: 'accepted',
-        accepted_at: new Date().toISOString(),
       })
       .eq('id', inviteId)
       .eq('invite_status', 'pending');
 
     if (updateErr) {
       console.error('[accept-invite] Update failed:', updateErr.message);
-      return NextResponse.json({ error: 'Failed to accept invitation' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to accept invitation: ' + updateErr.message }, { status: 500 });
     }
 
     // 4. Create an accounts row for the team member (if they don't have one)
