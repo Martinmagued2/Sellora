@@ -395,10 +395,10 @@ function layout({ preheader, bodyContent, footerNote }) {
     .wrapper { max-width:600px; margin:0 auto; background:#ffffff; border-radius:0; overflow:hidden; }
     .header { background:linear-gradient(135deg,#6C5CE7 0%,#8B5CF6 50%,#a855f7 100%); padding:36px 40px; position:relative; }
     .header::after { content:""; position:absolute; bottom:0; left:0; right:0; height:4px; background:linear-gradient(90deg,#a855f7,#ec4899,#a855f7); }
-    .logo { display:flex; align-items:center; gap:12px; }
-    .logo-mark { width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,0.18); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:22px; color:#fff; letter-spacing:-1px; border:1px solid rgba(255,255,255,0.25); }
+    .logo { display:flex; align-items:center; gap:14px; }
+    .logo-img { width:52px; height:52px; border-radius:12px; background:rgba(255,255,255,0.95); padding:6px; box-shadow:0 4px 14px rgba(0,0,0,0.15); border:1px solid rgba(255,255,255,0.3); object-fit:contain; display:block; }
     .logo-text { color:#fff; font-size:22px; font-weight:800; letter-spacing:-0.5px; line-height:1; }
-    .logo-text .ai { color:rgba(255,255,255,0.7); font-weight:600; font-size:14px; margin-left:6px; letter-spacing:1px; }
+    .logo-text .ai { color:rgba(255,255,255,0.75); font-weight:600; font-size:13px; margin-left:6px; letter-spacing:1.5px; }
     .tagline { color:rgba(255,255,255,0.85); margin:14px 0 0; font-size:13px; font-weight:500; letter-spacing:0.2px; }
     .body { padding:36px 40px 8px; }
     .body h1, .body h2, .body h3 { color:#0f0a1f; font-weight:800; letter-spacing:-0.4px; margin:0 0 14px; }
@@ -438,7 +438,7 @@ function layout({ preheader, bodyContent, footerNote }) {
     .items-table tfoot td { padding:14px 12px; font-weight:800; border-top:2px solid #e5e7eb; color:#0f0a1f; }
     .items-table tfoot td.total-value { color:#6C5CE7; font-size:17px; }
     .footer { background:#0f0a1f; padding:32px 40px; }
-    .footer .footer-brand { color:#fff; font-weight:800; font-size:16px; margin-bottom:8px; }
+    .footer .footer-brand { color:#fff; font-weight:800; font-size:16px; margin-bottom:8px; display:flex; align-items:center; }
     .footer .footer-brand .ai { color:#a855f7; font-weight:600; font-size:12px; margin-left:4px; }
     .footer p { color:rgba(255,255,255,0.6); font-size:12px; line-height:1.6; margin:0 0 8px; }
     .footer a { color:#a855f7; text-decoration:none; }
@@ -457,7 +457,7 @@ function layout({ preheader, bodyContent, footerNote }) {
   <div class="wrapper">
     <div class="header">
       <div class="logo">
-        <div class="logo-mark">S</div>
+        <img src="${APP_URL}/logo.png" alt="Sellora" class="logo-img" width="52" height="52" />
         <div class="logo-text">Sellora<span class="ai">AI</span></div>
       </div>
       <p class="tagline">Smart commerce, on autopilot</p>
@@ -466,7 +466,10 @@ function layout({ preheader, bodyContent, footerNote }) {
       ${bodyContent}
     </div>
     <div class="footer">
-      <div class="footer-brand">Sellora<span class="ai">AI</span></div>
+      <div class="footer-brand">
+        <img src="${APP_URL}/logo.png" alt="Sellora" width="28" height="28" style="vertical-align:middle;margin-right:10px;border-radius:6px;background:rgba(255,255,255,0.1);padding:3px;" />
+        Sellora<span class="ai">AI</span>
+      </div>
       <p>AI-powered conversational commerce for modern brands.</p>
       ${footerNote ? `<p>${footerNote}</p>` : ""}
       <div class="footer-links">
