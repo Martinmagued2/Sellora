@@ -114,6 +114,7 @@ export async function signup(formData) {
       to: email,
       fullName: fullName || email,
       businessName: businessName || "My Store",
+      accountId: data.user.id,
     }).catch(err => console.warn("[SIGNUP] Welcome email failed:", err.message));
   }
 
@@ -190,27 +191,68 @@ export async function resetPassword(formData) {
   // 3. Log the new request attempt
   await adminClient.from("rate_limits").insert({ email, action: "password_reset" });
 
-  // 4. Send password reset email via RESEND (not Supabase's broken SMTP)
-  const { sendPasswordResetEmail, isEmailConfigured } = await import("@/lib/email");
+  // 4. Send password reset email.
+  //
+  // STRATEGY:
+  //   a) If Resend is configured → use `auth.admin.generateLink({ type: 'recovery' })`
+  //      to generate a tokenized recovery URL via the service-role key, then send
+  //      a Sellora-branded email through Resend containing that link. The link
+  //      auto-establishes a recovery session on /auth/reset-password, so the
+  //      existing `updateUser({ password })` call works as-is.
+  //   b) If Resend is NOT configured → fall back to Supabase's built-in
+  //      `resetPasswordForEmail` (uses Supabase SMTP, which may or may not be set up).
+  //
+  // This avoids the broken-token bug where the old code sent a token-less link
+  // to /auth/reset-password — that link never established a recovery session
+  // and `updateUser` always failed.
+
+  const { isEmailConfigured, sendPasswordResetEmail } = await import("@/lib/email");
+
+  const redirectTo = `${origin}/auth/reset-password`;
 
   if (isEmailConfigured()) {
-    const resetLink = `${origin}/auth/reset-password?email=${encodeURIComponent(email)}`;
-    const result = await sendPasswordResetEmail({ to: email, resetLink });
-    if (!result.success) {
-      console.error("[resetPassword] Resend failed:", result.error);
-      // Fallback to Supabase's email (might work, might not)
-      await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/auth/reset-password`,
-      }).catch(() => {});
+    try {
+      // Generate a real tokenized recovery link via the admin API.
+      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+        type: "recovery",
+        email,
+      });
+
+      if (linkError || !linkData?.properties?.action_link) {
+        console.error("[resetPassword] generateLink failed:", linkError?.message);
+        // Fall back to Supabase's own email send
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+        if (error) return { error: error.message };
+      } else {
+        // action_link is the Supabase-hosted recovery URL with token.
+        // We need to redirect it to OUR /auth/reset-password page instead.
+        // The link looks like: https://<project>.supabase.co/auth/v1/verify?token=...&type=recovery&redirect_to=...
+        // We can append our redirect_to so that after Supabase verifies the token,
+        // it bounces to /auth/reset-password with the session established.
+        const actionLink = linkData.properties.action_link;
+        // Replace the redirect_to param to point at our reset-password page.
+        const resetLink = actionLink.includes("redirect_to=")
+          ? actionLink.replace(/redirect_to=[^&]+/, `redirect_to=${encodeURIComponent(redirectTo)}`)
+          : `${actionLink}&redirect_to=${encodeURIComponent(redirectTo)}`;
+
+        const result = await sendPasswordResetEmail({ to: email, resetLink });
+        if (!result.success) {
+          console.error("[resetPassword] Resend send failed:", result.error);
+          // Fall back to Supabase's own email send
+          const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+          if (error) return { error: error.message };
+        }
+      }
+    } catch (err) {
+      console.error("[resetPassword] Resend path exception:", err.message);
+      // Last-ditch fallback
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) return { error: error.message };
     }
   } else {
-    // No Resend configured — try Supabase's built-in email
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/auth/reset-password`,
-    });
-    if (error) {
-      return { error: error.message };
-    }
+    // No Resend configured — use Supabase's built-in email
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) return { error: error.message };
   }
 
   return { success: true };

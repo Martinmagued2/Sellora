@@ -83,6 +83,16 @@ async function sendRecoveryMessage({
   accessToken,
   pageId,
   message,
+  cartId,
+  cartValue,
+  currency,
+  customerName,
+  items,
+  step,
+  couponCode,
+  discountPercent,
+  accountId,
+  emailInboundAddress,
 }) {
   try {
     if (channel === "whatsapp") {
@@ -92,7 +102,33 @@ async function sendRecoveryMessage({
         phoneNumberId,
         accessToken,
       });
+    } else if (channel === "email") {
+      // Email channel: send via Sellora's branded email service.
+      const { sendAbandonedCartEmail, isEmailConfigured } = await import("@/lib/email");
+      if (!isEmailConfigured()) {
+        console.warn("[RECOVERY] email channel skipped — RESEND_API_KEY not configured");
+        return false;
+      }
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com";
+      const recoveryLink = `${appUrl}/dashboard/conversations`;
+      const result = await sendAbandonedCartEmail({
+        to: recipientId,
+        customerName: customerName || "there",
+        items,
+        cartValue,
+        currency,
+        step,
+        discountCode: couponCode,
+        discountPercent,
+        recoveryLink,
+        accountId,
+      });
+      if (!result.success) {
+        console.error(`[RECOVERY] email send failed: ${result.error}`);
+        return false;
+      }
     } else {
+      // instagram / facebook
       await sendMessage({
         recipientId,
         message,
@@ -108,10 +144,10 @@ async function sendRecoveryMessage({
 }
 
 export async function POST(req) {
-  // Auth: CRON_SECRET for server-to-server
+  // Auth: CRON_SECRET REQUIRED (Pattern B)
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -271,6 +307,7 @@ export async function POST(req) {
 
 /**
  * Resolve the recipient info (sender ID + tokens) for sending a recovery message.
+ * Supports whatsapp, instagram, facebook, AND email channels.
  */
 async function resolveRecipient(supabase, cart) {
   try {
@@ -284,35 +321,53 @@ async function resolveRecipient(supabase, cart) {
 
     const { data: customer } = await supabase
       .from("customers")
-      .select("name, phone")
+      .select("name, phone, email, platform_id")
       .eq("id", cart.customer_id || conv.customer_id)
       .single();
 
-    // For WhatsApp, use the customer's phone as recipientId
-    const recipientId = customer?.phone || conv.customer_id;
+    const channel = cart.channel || conv.channel || "whatsapp";
+
+    // For WhatsApp/IG/FB: use phone or platform_id as recipient
+    // For email: use customer.email or customer.platform_id (which holds the email address)
+    let recipientId;
+    if (channel === "email") {
+      recipientId = customer?.email || customer?.platform_id;
+    } else {
+      recipientId = customer?.phone || customer?.platform_id || conv.customer_id;
+    }
     if (!recipientId) return null;
 
     // Fetch account tokens
     const { data: account } = await supabase
       .from("accounts")
-      .select("whatsapp_access_token, whatsapp_phone_number_id, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id")
+      .select("whatsapp_access_token, whatsapp_phone_number_id, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, email_inbound_address")
       .eq("id", cart.account_id)
       .single();
     if (!account) return null;
 
     const ctx = {
-      channel: cart.channel || conv.channel || "whatsapp",
+      channel,
       recipientId,
       customerName: customer?.name || null,
+      cartId: cart.id,
+      cartValue: cart.cart_value,
+      currency: cart.currency || "EGP",
+      items: cart.items || [],
+      accountId: cart.account_id,
+      emailInboundAddress: account.email_inbound_address,
     };
 
-    if (ctx.channel === "whatsapp") {
+    if (channel === "whatsapp") {
       ctx.accessToken = account.whatsapp_access_token;
       ctx.phoneNumberId = account.whatsapp_phone_number_id;
-    } else if (ctx.channel === "instagram") {
+    } else if (channel === "instagram") {
       ctx.accessToken = account.instagram_access_token;
       ctx.pageId = account.instagram_page_id;
+    } else if (channel === "email") {
+      // Email channel: no extra tokens needed — Resend handles delivery
+      // via the centralized lib/email service.
     } else {
+      // facebook default
       ctx.accessToken = account.facebook_access_token;
       ctx.pageId = account.facebook_page_id;
     }

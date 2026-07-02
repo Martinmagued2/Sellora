@@ -138,7 +138,15 @@ export async function notify(accountId, params) {
   // 4. Email notification (best-effort, non-blocking)
   if (prefs.email && data._account_email) {
     try {
-      await sendEmailNotification(data._account_email, title, message, category, priority);
+      await sendEmailNotification(
+        data._account_email,
+        title,
+        message,
+        category,
+        priority,
+        accountId,
+        url
+      );
     } catch (e) {
       console.warn("[notify] Email failed:", e.message);
     }
@@ -207,28 +215,21 @@ async function sendPushNotification(db, accountId, title, message, url, priority
 }
 
 // ─── Email notification ───
-async function sendEmailNotification(to, title, message, category, priority) {
+async function sendEmailNotification(to, title, message, category, priority, accountId, url) {
   try {
-    const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
+    const { sendNotificationEmail, isEmailConfigured } = await import("@/lib/email");
     if (!isEmailConfigured()) return;
     const priorityLabel = priority === "urgent" ? "🚨 URGENT: " : priority === "high" ? "⚠️ " : "";
-    await sendCustomEmail({
+    await sendNotificationEmail({
       to,
-      subject: `${priorityLabel}${title}`,
-      html: `
-        <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #6c5ce7;">${title}</h2>
-          ${message ? `<p style="color: #374151; font-size: 15px; line-height: 1.6;">${message}</p>` : ""}
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-          <p style="color: #9ca3af; font-size: 12px;">
-            Category: ${category} · Priority: ${priority}<br/>
-            You received this email because you enabled email notifications for ${category} in Sellora.
-            Manage your preferences in Settings → Notifications.
-          </p>
-        </div>
-      `,
+      title: `${priorityLabel}${title}`,
+      body: message || "",
+      category,
+      accountId,
+      ctaLink: url ? (url.startsWith("http") ? url : `${process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com"}${url}`) : null,
+      ctaLabel: url ? "View Details →" : null,
     });
   } catch (e) {
-    // Email is best-effort
+    console.warn("[NOTIFY] email send failed:", e.message);
   }
 }

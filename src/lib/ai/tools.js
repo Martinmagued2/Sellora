@@ -828,7 +828,7 @@ export const createSalesTools = (accountId, customerId, options = {}) => {
           return { success: false, error: "Failed to create order: " + (error?.message || "unknown") };
         }
 
-        // 🔧 FIX: Send order confirmation email if customer provided an email
+        // Send order confirmation email if customer provided an email
         if (customer_email) {
           try {
             const { sendOrderConfirmationEmail, isEmailConfigured } = await import("@/lib/email");
@@ -840,6 +840,8 @@ export const createSalesTools = (accountId, customerId, options = {}) => {
                 items: dbItems,
                 total,
                 currency: await getAccountCurrency(accountId),
+                accountId,
+                customerEmail: customer_email,
               });
             }
           } catch (e) { console.warn("[create_order] Email failed:", e.message); }

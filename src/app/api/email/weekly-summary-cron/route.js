@@ -2,11 +2,11 @@
  * Weekly Summary Email Cron
  * POST /api/email/weekly-summary-cron
  *
- * Called every Monday at 8am (UTC) by Vercel Cron.
+ * Called every Monday at 8am (UTC) by cron-job.org.
  * Sends a weekly performance summary email to every account that:
  *   - Has an email address
  *   - Has had at least 1 conversation in the last 7 days
- *   - Has NOT opted out of weekly summaries (accounts.metadata.weekly_summary_opt_out = true)
+ *   - Has NOT opted out (accounts.weekly_summary_opt_out = true)
  *
  * The email includes:
  *   - Total conversations, orders, revenue
@@ -32,9 +32,10 @@ function getSupabase() {
 }
 
 export async function POST(req) {
+  // Pattern B: CRON_SECRET is REQUIRED
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -46,13 +47,21 @@ export async function POST(req) {
     // Get all accounts with activity in the last 7 days
     const { data: activeAccounts } = await supabase
       .from("accounts")
-      .select("id, email, business_name, owner_name, plan, currency, country")
+      .select("id, email, business_name, owner_name, plan, currency, country, weekly_summary_opt_out, weekly_summary_sent_at")
       .not("email", "is", null)
+      .eq("weekly_summary_opt_out", false)
       .order("created_at", { ascending: false })
       .limit(1000);
 
+    const oneDayAgo = new Date(Date.now() - 24 * 3600_000).toISOString();
+
     for (const account of activeAccounts || []) {
       try {
+        // Rate-limit: skip if sent within last 24h (prevents double-sends if cron fires twice)
+        if (account.weekly_summary_sent_at && new Date(account.weekly_summary_sent_at) > new Date(oneDayAgo)) {
+          stats.skipped++;
+          continue;
+        }
         // Check for activity
         const { count: convCount } = await supabase
           .from("conversations")
@@ -128,21 +137,41 @@ export async function POST(req) {
           recommendation,
         };
 
-        await sendWeeklySummaryEmail({
+        // Compute new customers this week
+        const { count: newCustCount } = await supabase
+          .from("customers")
+          .select("*", { count: "exact", head: true })
+          .eq("account_id", account.id)
+          .gte("created_at", sevenDaysAgo);
+
+        const sendResult = await sendWeeklySummaryEmail({
           to: account.email,
           businessName: account.business_name,
+          accountId: account.id,
           stats: {
             totalConversations: summary.conversations,
             aiReplies: aiResolved,
-            newCustomers: 0, // could be computed but skip for v1
+            newCustomers: newCustCount || 0,
             ordersCount: summary.orders,
             revenue: summary.revenue,
             currency: summary.currency,
             avgResponseTime: "N/A",
+            topProducts: topProductsList,
+            recommendation,
           },
         });
 
-        stats.sent++;
+        if (sendResult.success) {
+          // Stamp sent_at for rate-limit
+          await supabase
+            .from("accounts")
+            .update({ weekly_summary_sent_at: new Date().toISOString() })
+            .eq("id", account.id);
+          stats.sent++;
+        } else {
+          console.error(`[WEEKLY] send failed for ${account.email}:`, sendResult.error);
+          stats.errors++;
+        }
       } catch (e) {
         console.error(`[WEEKLY] failed for ${account.email}:`, e.message);
         stats.errors++;

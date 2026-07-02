@@ -88,6 +88,7 @@ export async function POST(req) {
       to: email,
       businessName: businessName || "a team",
       inviteLink,
+      accountId: user.id,
     });
 
     if (!result.success) {

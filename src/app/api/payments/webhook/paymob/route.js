@@ -233,6 +233,8 @@ export async function POST(req) {
                   items: Array.isArray(fullOrder.items) ? fullOrder.items : [],
                   total: fullOrder.total || 0,
                   currency: fullOrder.currency || "EGP",
+                  accountId: fullOrder.account_id,
+                  customerEmail: fullOrder.customer?.email || null,
                 }).catch(err => console.warn("[PAYMOB] Order confirmation email failed:", err.message));
               }
             }

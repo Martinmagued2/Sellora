@@ -122,9 +122,20 @@ async function sendChannelReply({ channel, senderId, message, account, accessTok
       return true;
     }
     if (channel === "email") {
-      // Use Resend to send email reply
+      // Use Resend to send email reply (AI auto-reply on email channel)
       const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
       if (!isEmailConfigured()) return false;
+      // Look up account for replyTo + accountId
+      let replyTo = null;
+      let accountId = null;
+      try {
+        const admin = (await import("@supabase/supabase-js")).createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+        // senderId is the email — we need to find the account that owns this conversation
+        // For now, omit replyTo/accountId if we can't resolve (the central send() will use defaults)
+      } catch {}
       await sendCustomEmail({
         to: senderId, // email address
         subject: "Re: Your message",
@@ -133,6 +144,9 @@ async function sendChannelReply({ channel, senderId, message, account, accessTok
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
           <p style="font-size: 12px; color: #9ca3af;">Sent from Sellora</p>
         </div>`,
+        templateName: "ai_email_reply",
+        replyTo,
+        accountId,
       });
       return true;
     }

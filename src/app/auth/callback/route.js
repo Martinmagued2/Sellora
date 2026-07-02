@@ -90,6 +90,7 @@ export async function GET(request) {
           to: data.user.email,
           fullName: data.user.user_metadata?.full_name || data.user.email,
           businessName: data.user.user_metadata?.business_name || "My Store",
+          accountId: data.user.id,
         }).catch(err => console.warn("[AUTH] Welcome email failed:", err.message));
 
         // Track referral from cookie (set before Google OAuth redirect)

@@ -121,12 +121,17 @@ function SignupForm() {
           plan_status: "trialing",
         }, { onConflict: "id" });
 
-        // 🔧 FIX: Send welcome email via Resend (was missing in client-side signup)
+        // Send welcome email via Resend (client-side path)
         try {
           await fetch('/api/email/welcome', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, fullName, businessName }),
+            body: JSON.stringify({
+              email,
+              fullName,
+              businessName,
+              accountId: data.user.id,
+            }),
           });
         } catch (e) { console.warn('[signup] Welcome email failed:', e.message); }
 

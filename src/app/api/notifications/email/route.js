@@ -33,6 +33,7 @@ export async function POST(req) {
       channel,
       reason,
       conversationId,
+      accountId,
     });
 
     if (!result.success) {

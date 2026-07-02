@@ -240,6 +240,9 @@ export async function POST(request) {
         html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <p style="font-size: 15px; line-height: 1.6; color: #374151; white-space: pre-wrap;">${content}</p>
         </div>`,
+        replyTo: account?.email_inbound_address,
+        templateName: "manual_email_reply",
+        accountId: account_id,
       });
 
       // Save the outgoing message

@@ -77,11 +77,22 @@ async function deliverReply({ channel, account, customer, content, conversationI
       if (!isEmailConfigured()) return { success: false, error: "Email not configured" };
       const to = customer?.platform_id;
       if (!to || !to.includes("@")) return { success: false, error: "Customer has no email" };
+      // Build proper HTML body — `text` was being silently ignored before,
+      // causing empty-body emails. sendCustomEmail accepts `html` (preferred)
+      // and an optional `text` plain-text fallback.
+      const html = `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;line-height:1.7;color:#374151;">
+          ${content.split("\n").map(p => `<p style="margin:0 0 12px;">${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`).join("")}
+        </div>
+      `;
       await sendCustomEmail({
         to,
         subject: "Re: Your message",
+        html,
         text: content,
         replyTo: account.email_inbound_address,
+        templateName: "ai_email_reply",
+        accountId: account.id,
       });
       return { success: true };
     }
