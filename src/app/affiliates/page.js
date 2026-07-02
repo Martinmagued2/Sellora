@@ -56,7 +56,7 @@ export default function AffiliatesPage() {
               {affiliateCode}
             </div>
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginBottom: 24 }}>
-              Share this link: <code style={{ color: "#7E88F5" }}>sellora-ruby.vercel.app?ref={affiliateCode}</code>
+              Share this link: <code style={{ color: "#7E88F5" }}>sellorachat.com?ref={affiliateCode}</code>
             </p>
             <a href="/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 24px", borderRadius: 10, background: "linear-gradient(135deg, #5865F2, #00D2FF)", color: "#fff", textDecoration: "none", fontWeight: 600, fontSize: 14 }}>
               Go to Dashboard <ArrowRight size={14} />

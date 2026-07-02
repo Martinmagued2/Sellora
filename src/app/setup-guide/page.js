@@ -67,7 +67,7 @@ const STEPS = {
       details: [
         "In Meta Developer → WhatsApp → Configuration (left sidebar)",
         "Scroll to 'Webhook' → click 'Edit'",
-        "Callback URL: https://sellora-ruby.vercel.app/api/webhooks/whatsapp",
+        "Callback URL: https://sellorachat.com/api/webhooks/whatsapp",
         "Verify Token: sellora_verify_2024",
         "Click 'Verify and Save'",
         "After verification, scroll to 'Webhook Fields'",
@@ -93,8 +93,8 @@ const STEPS = {
       desc: "The temporary token expires in 24 hours. Get a permanent one.",
       details: [
         "In Meta Developer → Settings → Basic (left sidebar)",
-        "Fill in Privacy Policy URL: https://sellora-ruby.vercel.app/privacy",
-        "Fill in Terms of Service URL: https://sellora-ruby.vercel.app/terms",
+        "Fill in Privacy Policy URL: https://sellorachat.com/privacy",
+        "Fill in Terms of Service URL: https://sellorachat.com/terms",
         "Click 'Save Changes'",
         "Go to 'System Users' (left sidebar) → click 'Add'",
         "Name: Sellora Production → Role: Admin",
@@ -161,7 +161,7 @@ const STEPS = {
       details: [
         "In Meta Developer → your app → Products → Webhooks",
         "Click 'Edit' under Webhooks",
-        "Callback URL: https://sellora-ruby.vercel.app/api/webhooks/instagram",
+        "Callback URL: https://sellorachat.com/api/webhooks/instagram",
         "Verify Token: sellora_verify_2024",
         "Click 'Verify and Save'",
         "Subscribe to: messages, messaging_postbacks, messaging_deliveries",
@@ -234,7 +234,7 @@ const STEPS = {
       details: [
         "In Meta Developer → your app → Products → Webhooks",
         "Click 'Edit' under Webhooks",
-        "Callback URL: https://sellora-ruby.vercel.app/api/webhooks/facebook",
+        "Callback URL: https://sellorachat.com/api/webhooks/facebook",
         "Verify Token: sellora_verify_2024",
         "Click 'Verify and Save'",
         "Subscribe to: messages, messaging_postbacks, messaging_deliveries",

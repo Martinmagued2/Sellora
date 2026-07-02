@@ -10,7 +10,7 @@
  *
  * PREREQUISITES (one-time setup by Sellora owner):
  * 1. In Meta Developer → your app → Facebook Login → Settings:
- *    - Add OAuth redirect URI: https://sellora-ruby.vercel.app/api/auth/meta-callback
+ *    - Add OAuth redirect URI: https://sellorachat.com/api/auth/meta-callback
  * 2. In App Review → request: pages_messaging, pages_show_list, instagram_manage_messages
  * 3. Set env vars: META_APP_ID, META_APP_SECRET
  */
@@ -26,7 +26,7 @@ export async function GET(req) {
     return NextResponse.json({ error: "META_APP_ID not configured" }, { status: 500 });
   }
 
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "https://sellora-ruby.vercel.app"}/api/auth/meta-callback`;
+  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com"}/api/auth/meta-callback`;
 
   // Permissions needed for FB + IG messaging
   const scopes = [

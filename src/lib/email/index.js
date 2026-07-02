@@ -44,7 +44,7 @@ const rawFromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 const FROM_DEFAULT = rawFromEmail.includes("<")
   ? rawFromEmail
   : `Sellora <${rawFromEmail}>`;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || `https://${process.env.VERCEL_URL || "sellora-ruby.vercel.app"}`;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || `https://${process.env.VERCEL_URL || "sellorachat.com"}`;
 
 // ────────────────────────────────────────────────────────
 //  PII masking helper for logs

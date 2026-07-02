@@ -30,7 +30,7 @@ export async function GET(req) {
   const state = searchParams.get("state");
   const error = searchParams.get("error");
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellora-ruby.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com";
 
   // Handle OAuth error (user declined)
   if (error) {

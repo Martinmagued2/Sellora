@@ -64,7 +64,7 @@ export async function POST(req) {
     }
 
     // Build the review URL
-    const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://sellora-ruby.vercel.app';
+    const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
     const firstItem = (order.items || [])[0];
     const productId = firstItem?.product_id || firstItem?.id || '';
     const reviewUrl = `${APP_URL}/review?order=${order.id}&product=${productId}`;

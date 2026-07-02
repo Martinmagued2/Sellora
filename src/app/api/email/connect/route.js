@@ -29,7 +29,7 @@ export async function POST(req) {
     return NextResponse.json({
       success: true,
       inboundAddress,
-      webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://sellora-ruby.vercel.app'}/api/webhooks/email`,
+      webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com'}/api/webhooks/email`,
       instructions: `Forward emails from ${inboundAddress} to this webhook URL using your email provider's forwarding rules, or configure Resend/SendGrid/Mailgun inbound parse to POST to this URL.`,
     });
   } catch (e) {

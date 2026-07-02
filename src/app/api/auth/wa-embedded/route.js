@@ -37,7 +37,7 @@ export async function GET(req) {
     return NextResponse.json({
       appId,
       configId: process.env.META_WA_CONFIG_ID || "", // Optional: WhatsApp Embedded Signup config ID
-      redirectUri: `${process.env.NEXT_PUBLIC_APP_URL || "https://sellora-ruby.vercel.app"}/dashboard/settings?tab=channels`,
+      redirectUri: `${process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com"}/dashboard/settings?tab=channels`,
     });
   } catch (e) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });

@@ -461,7 +461,7 @@ export async function generateAIReply({
     formattedMessages.push({ role: "user", content: customerMessage });
 
     // Get the actual store slug from the stores table
-    let storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellora-ruby.vercel.app";
+    let storeUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com";
     try {
       const { data: store } = await getSupabase()
         .from("stores")

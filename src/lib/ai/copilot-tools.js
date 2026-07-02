@@ -2124,7 +2124,7 @@ export const createCopilotTools = (accountId) => {
 
         // Send via the campaigns send API
         try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "https://sellora-ruby.vercel.app"}/api/campaigns/send`, {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com"}/api/campaigns/send`, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ campaign_id: campaign.id }),
           });
@@ -2186,7 +2186,7 @@ export const createCopilotTools = (accountId) => {
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "https://sellora-ruby.vercel.app"}/api/analytics/funnel?range=30d`, { headers: { cookie: "" } });
+          const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com"}/api/analytics/funnel?range=30d`, { headers: { cookie: "" } });
           const data = await res.json();
           if (!data.success) return { success: false, error: "Failed to fetch funnel" };
           const s = data.steps || {};
