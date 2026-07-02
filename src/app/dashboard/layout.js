@@ -48,6 +48,7 @@ import { StoreProvider } from "@/lib/store-context";
 import { useDevice } from "@/lib/use-device";
 import PageTransition from "@/components/PageTransition";
 import DashboardAnimations from "@/components/DashboardAnimations";
+import { EffectiveAccountProvider } from "@/lib/account-context";
 
 import CopilotPanel from "./components/CopilotPanel";
 import NotificationBell from "./components/NotificationBell";
@@ -292,6 +293,7 @@ export default function DashboardLayout({ children }) {
 
   return (
     <StoreProvider>
+    <EffectiveAccountProvider>
     <ToastProvider>
     <ConfirmProvider>
     <ServiceWorkerRegistration />
@@ -649,6 +651,7 @@ export default function DashboardLayout({ children }) {
     </div>
     </ConfirmProvider>
     </ToastProvider>
+    </EffectiveAccountProvider>
     </StoreProvider>
   );
 }

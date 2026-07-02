@@ -13,6 +13,7 @@ import {
   Shield, Eye, Flag, TrendingUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useEffectiveAccount } from "@/lib/account-context";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useDevice } from "@/lib/use-device";
 import RecommendationsCard from "../components/RecommendationsCard";
@@ -58,6 +59,7 @@ const PRIORITY_OPTIONS = [
 
 export default function ConversationsPage() {
   const { isMobile } = useDevice();
+  const { effectiveAccountId } = useEffectiveAccount();
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -164,17 +166,17 @@ export default function ConversationsPage() {
 
   // ─── Fetch conversations ───
   const fetchConversations = useCallback(async () => {
-    // Fetch account plan for data retention
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data: acct } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
+      const acctId = effectiveAccountId || user.id; // 🔧 Use effective account ID for team members
+      const { data: acct } = await supabase.from("accounts").select("plan").eq("id", acctId).maybeSingle();
       if (acct?.plan) setAccountPlan(acct.plan);
 
       // Use explicit account_id filter for reliability (don't rely solely on RLS)
       const { data } = await supabase
         .from("conversations")
         .select("*, customer:customers(id, name, phone, channel, platform, platform_id, tags, total_orders, total_spent, profile_pic_url, is_returning)")
-        .eq("account_id", user.id)
+        .eq("account_id", acctId)
         .order("last_message_at", { ascending: false });
 
       if (data) {
@@ -263,7 +265,7 @@ export default function ConversationsPage() {
   useEffect(() => {
     const interval = setInterval(fetchConversations, 15000);
     return () => clearInterval(interval);
-  }, [fetchConversations]);
+  }, [fetchConversations, effectiveAccountId]);
 
   // ─── Real-time: New message in active conversation ───
   useEffect(() => {
@@ -325,7 +327,7 @@ export default function ConversationsPage() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchConversations]);
+  }, [fetchConversations, effectiveAccountId]);
 
   // ─── Send media (audio/image) ───
   const handleSendMedia = async (file, type) => {
