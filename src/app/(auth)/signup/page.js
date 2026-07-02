@@ -33,9 +33,14 @@ function SignupForm() {
   const [refCode, setRefCode] = useState(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite");
 
   // Check for referral code in URL and localStorage
   useEffect(() => {
+    // 🔧 Save invite token to localStorage so it survives the OAuth redirect
+    if (inviteToken) {
+      localStorage.setItem("sellora_invite_token", inviteToken);
+    }
     const refFromUrl = searchParams.get("ref");
     if (refFromUrl) {
       localStorage.setItem("sellora_ref_code", refFromUrl);

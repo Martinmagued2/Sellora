@@ -36,6 +36,7 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawRedirectTo = searchParams.get("redirect") || "/dashboard";
+  const inviteToken = searchParams.get("invite");
   const ALLOWED_REDIRECTS = [
     "/dashboard",
     "/dashboard/analytics",
@@ -77,6 +78,28 @@ function LoginContent() {
     // Check if user is admin → redirect to admin panel
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      // 🔧 FIX: If there's an invite token, accept the team invite
+      if (inviteToken) {
+        try {
+          const acceptRes = await fetch('/api/team/accept-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inviteId: inviteToken, userId: user.id }),
+          });
+          const acceptData = await acceptRes.json();
+          if (acceptData.success) {
+            router.push("/dashboard");
+            router.refresh();
+            return;
+          } else {
+            // Invite already accepted or invalid — continue to dashboard
+            console.warn("Invite acceptance:", acceptData.error);
+          }
+        } catch (e) {
+          console.warn("Invite acceptance failed:", e.message);
+        }
+      }
+
       const { data: account } = await supabase.from("accounts").select("role").eq("id", user.id).single();
       if (account && account.role === "admin") {
         router.push("/admin");
@@ -177,9 +200,9 @@ function LoginContent() {
         <div className="auth-form-glow" />
 
         <div className="auth-card">
-          <h1 className="auth-title">Welcome back</h1>
+          <h1 className="auth-title">{inviteToken ? "Accept Team Invitation" : "Welcome back"}</h1>
           <p className="auth-subtitle">
-            Log in to your dashboard and start selling
+            {inviteToken ? "Log in to accept your invitation and join the team" : "Log in to your dashboard and start selling"}
           </p>
 
           {error && (
