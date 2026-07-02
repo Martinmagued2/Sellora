@@ -51,6 +51,7 @@ import DashboardAnimations from "@/components/DashboardAnimations";
 import { EffectiveAccountProvider } from "@/lib/account-context";
 
 import CopilotPanel from "./components/CopilotPanel";
+import InviteAcceptPopup from "./components/InviteAcceptPopup";
 import NotificationBell from "./components/NotificationBell";
 import ToastProvider, { useToast } from "./components/ToastProvider";
 import ConfirmProvider from "./components/ConfirmProvider";
@@ -302,6 +303,7 @@ export default function DashboardLayout({ children }) {
     <KeyboardShortcutsHelp />
     <ActionToastContainer />
     <DashboardAnimations />
+    <InviteAcceptPopup />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
       {/* Sidebar — only on desktop / tablet */}
       {!isMobile && (

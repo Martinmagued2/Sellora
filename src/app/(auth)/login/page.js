@@ -66,6 +66,11 @@ function LoginContent() {
     const email = formData.get("email");
     const password = formData.get("password");
 
+    // 🔧 Save invite token to localStorage BEFORE login (survives redirect)
+    if (inviteToken) {
+      localStorage.setItem("sellora_pending_invite", inviteToken);
+    }
+
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -75,38 +80,10 @@ function LoginContent() {
       return;
     }
 
-    // Check if user is admin → redirect to admin panel
+    // Redirect to dashboard — invite popup will show there
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // 🔧 FIX: If there's an invite token, accept the team invite
-      if (inviteToken) {
-        try {
-          const acceptRes = await fetch('/api/team/accept-invite', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ inviteId: inviteToken, userId: user.id }),
-          });
-          const acceptData = await acceptRes.json().catch(() => ({}));
-          console.log('[invite] Accept response:', acceptRes.status, acceptData);
-          if (acceptData.success) {
-            // Redirect to dashboard — invite accepted
-            window.location.href = "/dashboard";
-            return;
-          } else if (acceptData.error) {
-            // Show the error to the user
-            setError("Invitation error: " + acceptData.error);
-            setLoading(false);
-            return;
-          }
-        } catch (e) {
-          console.error("[invite] Accept failed:", e.message);
-          setError("Failed to accept invitation: " + e.message);
-          setLoading(false);
-          return;
-        }
-      }
-
-      const { data: account } = await supabase.from("accounts").select("role").eq("id", user.id).single();
+      const { data: account } = await supabase.from("accounts").select("role").eq("id", user.id).maybeSingle();
       if (account && account.role === "admin") {
         router.push("/admin");
       } else {
@@ -119,6 +96,11 @@ function LoginContent() {
   };
 
   const handleGoogleLogin = async () => {
+    // 🔧 Save invite token to localStorage BEFORE Google redirect
+    if (inviteToken) {
+      localStorage.setItem("sellora_pending_invite", inviteToken);
+    }
+
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
