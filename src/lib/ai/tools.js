@@ -828,6 +828,23 @@ export const createSalesTools = (accountId, customerId, options = {}) => {
           return { success: false, error: "Failed to create order: " + (error?.message || "unknown") };
         }
 
+        // 🔧 FIX: Send order confirmation email if customer provided an email
+        if (customer_email) {
+          try {
+            const { sendOrderConfirmationEmail, isEmailConfigured } = await import("@/lib/email");
+            if (isEmailConfigured()) {
+              await sendOrderConfirmationEmail({
+                to: customer_email,
+                orderNumber: order.order_number,
+                customerName: customer_name || "Customer",
+                items: dbItems,
+                total,
+                currency: await getAccountCurrency(accountId),
+              });
+            }
+          } catch (e) { console.warn("[create_order] Email failed:", e.message); }
+        }
+
         // 4. Decrement stock for each item
         for (const item of dbItems) {
           await getSupabase().rpc('decrement_stock', {

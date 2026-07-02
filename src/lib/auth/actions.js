@@ -190,13 +190,27 @@ export async function resetPassword(formData) {
   // 3. Log the new request attempt
   await adminClient.from("rate_limits").insert({ email, action: "password_reset" });
 
-  // 4. Proceed with standard reset via user's client
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/reset-password`,
-  });
+  // 4. Send password reset email via RESEND (not Supabase's broken SMTP)
+  const { sendPasswordResetEmail, isEmailConfigured } = await import("@/lib/email");
 
-  if (error) {
-    return { error: error.message };
+  if (isEmailConfigured()) {
+    const resetLink = `${origin}/auth/reset-password?email=${encodeURIComponent(email)}`;
+    const result = await sendPasswordResetEmail({ to: email, resetLink });
+    if (!result.success) {
+      console.error("[resetPassword] Resend failed:", result.error);
+      // Fallback to Supabase's email (might work, might not)
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/auth/reset-password`,
+      }).catch(() => {});
+    }
+  } else {
+    // No Resend configured — try Supabase's built-in email
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/reset-password`,
+    });
+    if (error) {
+      return { error: error.message };
+    }
   }
 
   return { success: true };

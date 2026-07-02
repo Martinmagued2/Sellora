@@ -121,6 +121,15 @@ function SignupForm() {
           plan_status: "trialing",
         }, { onConflict: "id" });
 
+        // 🔧 FIX: Send welcome email via Resend (was missing in client-side signup)
+        try {
+          await fetch('/api/email/welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, fullName, businessName }),
+          });
+        } catch (e) { console.warn('[signup] Welcome email failed:', e.message); }
+
         // Track referral if code exists
         const storedRefCode = localStorage.getItem("sellora_ref_code");
         if (storedRefCode) {
