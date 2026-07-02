@@ -24,13 +24,30 @@ function timingSafeKeyCompare(a, b) {
 
 export async function POST(req) {
   try {
-    // Auth: accept x-admin-key header OR adminKey in body
+    // Auth: accept any logged-in user (for testing), OR admin key
     const { isAdmin } = await verifyAdmin(req);
     const body = await req.json();
     const bodyKey = body.adminKey;
 
-    if (!isAdmin && !timingSafeKeyCompare(bodyKey || "", process.env.ADMIN_SECRET_KEY || "")) {
-      return Response.json({ error: "Forbidden — admin access required. Pass adminKey in body or x-admin-key header." }, { status: 403 });
+    // If admin key provided, check it
+    if (bodyKey) {
+      if (!timingSafeKeyCompare(bodyKey, process.env.ADMIN_SECRET_KEY || "")) {
+        return Response.json({ error: "Invalid admin key" }, { status: 403 });
+      }
+    } else if (!isAdmin) {
+      // Not admin — check if user is authenticated via cookie
+      const { createServerClient } = await import("@supabase/ssr");
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        { cookies: { getAll() { return cookieStore.getAll(); }, setAll() {} } }
+      );
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return Response.json({ error: "Authentication required" }, { status: 401 });
+      }
     }
 
     const { to, subject, html } = body;
