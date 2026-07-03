@@ -175,7 +175,7 @@ export async function POST(req, { params }) {
       console.warn("[CONV-CONTROL] event insert failed:", e.message);
     }
 
-    // On assignment, send a notification to the assignee
+    // On assignment, send a notification + email to the assignee
     if (action === "assign" && payload.assigneeId && payload.assigneeId !== user.id) {
       try {
         const { notify } = await import("@/lib/notifications");
@@ -189,6 +189,7 @@ export async function POST(req, { params }) {
         const custName = convFull?.customers?.name || "a customer";
         const channelLabel =
           { whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", telegram: "Telegram", email: "Email" }[convFull?.channel] || convFull?.channel || "chat";
+
         await notify(conv.account_id, {
           category: "messages",
           type: "conversation_assigned",
@@ -201,6 +202,55 @@ export async function POST(req, { params }) {
           related_id: conversationId,
           related_type: "conversation",
         });
+
+        // Look up assignee email
+        let assigneeEmail = null;
+        let assigneeName = null;
+        if (payload.assigneeId === conv.account_id) {
+          // Owner
+          const { data: owner } = await admin.from("accounts").select("email, owner_name").eq("id", conv.account_id).maybeSingle();
+          assigneeEmail = owner?.email;
+          assigneeName = owner?.owner_name || owner?.email;
+        } else {
+          const { data: tm } = await admin.from("team_members")
+            .select("email, invited_email, name, display_name")
+            .eq("user_id", payload.assigneeId)
+            .eq("account_id", conv.account_id)
+            .maybeSingle();
+          assigneeEmail = tm?.email || tm?.invited_email;
+          assigneeName = tm?.name || tm?.display_name || tm?.invited_email;
+        }
+
+        // ALWAYS send email for conversation assignment
+        if (assigneeEmail) {
+          try {
+            const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
+            if (isEmailConfigured()) {
+              const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com";
+              await sendCustomEmail({
+                to: assigneeEmail,
+                subject: `[Sellora] Conversation assigned: ${custName} on ${channelLabel}`,
+                html: `
+                  <h1>New conversation assigned to you 💬</h1>
+                  <p>Hi ${assigneeName || 'there'},</p>
+                  <p>${actorName} assigned a conversation to you on Sellora:</p>
+                  <table class="data">
+                    <tr><td class="label">Customer</td><td class="value">${custName}</td></tr>
+                    <tr><td class="label">Channel</td><td class="value">${channelLabel}</td></tr>
+                  </table>
+                  <p>Open the conversation to reply to the customer.</p>
+                  <p style="margin-top:20px;"><a href="${appUrl}/dashboard/conversations?selected=${conversationId}" class="btn">Open Conversation →</a></p>
+                  <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a conversation was assigned to you on Sellora.</p>
+                `,
+                templateName: "conversation_assigned",
+                accountId: conv.account_id,
+                metadata: { conversationId, customerName: custName, channel: channelLabel },
+              });
+            }
+          } catch (e) {
+            console.warn("[CONV-CONTROL] assignee email failed:", e.message);
+          }
+        }
       } catch (e) {
         console.warn("[CONV-CONTROL] assignee notification failed:", e.message);
       }

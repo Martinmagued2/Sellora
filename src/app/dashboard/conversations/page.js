@@ -60,7 +60,7 @@ const PRIORITY_OPTIONS = [
 
 export default function ConversationsPage() {
   const { isMobile } = useDevice();
-  const { effectiveAccountId } = useEffectiveAccount();
+  const { effectiveAccountId, role } = useEffectiveAccount();
   const [userId, setUserId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
@@ -116,7 +116,8 @@ export default function ConversationsPage() {
   const [channelFilter, setChannelFilter] = useState("all");
 
   // Assignee filter: "all" | "me" | "unassigned" | "others"
-  const [assigneeFilter, setAssigneeFilter] = useState("all");
+  // Agents default to "me" — they only see their assigned conversations
+  const [assigneeFilter, setAssigneeFilter] = useState(role === "agent" ? "me" : "all");
 
   // Team members cache (for assignee badge lookups)
   const [teamMembers, setTeamMembers] = useState([]);
@@ -903,9 +904,18 @@ export default function ConversationsPage() {
     if (search && !c.customer?.name?.toLowerCase().includes(search.toLowerCase())) return false;
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (channelFilter !== "all" && c.channel !== channelFilter) return false;
-    if (assigneeFilter === "me" && c.assigned_to !== userId) return false;
-    if (assigneeFilter === "unassigned" && c.assigned_to) return false;
-    if (assigneeFilter === "others" && c.assigned_to === userId) return false;
+    // For agents: "all" means "mine + unassigned" (not other agents' convos)
+    if (role === "agent") {
+      if (assigneeFilter === "me" && c.assigned_to !== userId) return false;
+      if (assigneeFilter === "unassigned" && c.assigned_to) return false;
+      if (assigneeFilter === "all" && c.assigned_to && c.assigned_to !== userId) return false;
+      if (assigneeFilter === "others" && c.assigned_to === userId) return false;
+    } else {
+      // Owner/admin can see everything
+      if (assigneeFilter === "me" && c.assigned_to !== userId) return false;
+      if (assigneeFilter === "unassigned" && c.assigned_to) return false;
+      if (assigneeFilter === "others" && c.assigned_to === userId) return false;
+    }
     return true;
   });
 

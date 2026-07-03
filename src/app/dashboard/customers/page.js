@@ -34,9 +34,21 @@ export default function CustomersPage() {
   const [newTag, setNewTag] = useState("");
 
   const { currentStoreId } = useCurrentStore();
-  const { effectiveAccountId } = useEffectiveAccount();
+  const { effectiveAccountId, role } = useEffectiveAccount();
 
   const supabase = createClient();
+  const [userId, setUserId] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) setUserId(data.user.id);
+    });
+    fetch("/api/team-members")
+      .then((r) => r.json())
+      .then((d) => setTeamMembers(d.assignees || []))
+      .catch(() => {});
+  }, [supabase]);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -45,6 +57,12 @@ export default function CustomersPage() {
 
     const accId = effectiveAccountId || user.id;
     let query = supabase.from("customers").select("*").eq("account_id", accId).order("total_spent", { ascending: false });
+
+    // Team members (agent role) only see customers assigned to them.
+    // Owner + admin see all customers.
+    if (role === "agent") {
+      query = query.eq("assigned_to", user.id);
+    }
 
     if (filter === "vip") query = query.contains("tags", ["VIP"]);
     if (filter === "new") query = query.contains("tags", ["New"]);
@@ -57,7 +75,29 @@ export default function CustomersPage() {
     const { data, error } = await query;
     if (!error) setCustomers(data || []);
     setLoading(false);
-  }, [filter, search, currentStoreId, effectiveAccountId]);
+  }, [filter, search, currentStoreId, effectiveAccountId, role]);
+
+  // Assign a customer to a team member (or owner)
+  const assignCustomer = async (customerId, assigneeId) => {
+    try {
+      const res = await fetch(`/api/customers/${customerId}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeId: assigneeId || null }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCustomers((prev) =>
+          prev.map((c) => (c.id === customerId ? { ...c, assigned_to: assigneeId || null, assigned_at: data.customer?.assigned_at } : c))
+        );
+        toast.success(assigneeId ? "Customer assigned" : "Customer unassigned");
+      } else {
+        toast.error(data.error || "Failed to assign");
+      }
+    } catch (e) {
+      toast.error("Network error");
+    }
+  };
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
@@ -195,6 +235,7 @@ export default function CustomersPage() {
                     <th>Tags</th>
                     <th>Orders</th>
                     <th>Revenue</th>
+                    <th>Assignee</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -251,10 +292,49 @@ export default function CustomersPage() {
                       </td>
                       <td style={{ fontWeight: 600 }}>{c.total_orders || 0}</td>
                       <td style={{ fontWeight: 700, color: "var(--accent-green)" }}>{c.total_spent?.toLocaleString() || 0} EGP</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {/* Assignee dropdown (only owner/admin can change) */}
+                        {role === "owner" || role === "admin" ? (
+                          <select
+                            value={c.assigned_to || ""}
+                            onChange={(e) => assignCustomer(c.id, e.target.value)}
+                            style={{
+                              fontSize: 11, padding: "3px 8px", borderRadius: 12,
+                              background: c.assigned_to ? (c.assigned_to === userId ? "rgba(108,92,231,0.15)" : "rgba(255,255,255,0.06)") : "transparent",
+                              color: c.assigned_to ? (c.assigned_to === userId ? "var(--accent-primary-light)" : "var(--text-secondary)") : "var(--text-tertiary)",
+                              border: "1px solid var(--border-subtle)", cursor: "pointer",
+                              fontFamily: "inherit", fontWeight: 600,
+                            }}
+                            title="Assign customer to team member"
+                          >
+                            <option value="">Unassigned</option>
+                            {teamMembers.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.display_name || m.name || m.email}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          /* Agent: read-only badge */
+                          (() => {
+                            const a = teamMembers.find((m) => m.id === c.assigned_to);
+                            return a ? (
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", gap: 4,
+                                fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
+                                background: c.assigned_to === userId ? "rgba(108,92,231,0.15)" : "rgba(255,255,255,0.06)",
+                                color: c.assigned_to === userId ? "var(--accent-primary-light)" : "var(--text-secondary)",
+                              }}>
+                                {a.display_name || a.name || a.email}
+                              </span>
+                            ) : <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>—</span>;
+                          })()
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {customers.length === 0 && (
-                    <tr><td colSpan="6" style={{ textAlign: "center", padding: "var(--space-2xl)", color: "var(--text-tertiary)" }}>No customers found</td></tr>
+                    <tr><td colSpan="7" style={{ textAlign: "center", padding: "var(--space-2xl)", color: "var(--text-tertiary)" }}>No customers found</td></tr>
                   )}
                 </tbody>
               </table>

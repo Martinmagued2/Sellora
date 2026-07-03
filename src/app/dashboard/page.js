@@ -26,7 +26,7 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const router = useRouter();
-  const { effectiveAccountId } = useEffectiveAccount();
+  const { effectiveAccountId, role } = useEffectiveAccount();
 
   useEffect(() => {
     if (!effectiveAccountId) return;
@@ -37,21 +37,44 @@ export default function DashboardHome() {
       setUser(user);
 
       const acctId = effectiveAccountId; // 🔧 Use effective account ID (owner's ID for team members)
+      const isAgent = role === "agent";
 
       // First get user's conversation IDs (needed to filter messages)
-      const { data: userConvs } = await supabase
+      // For agents: only their assigned conversations
+      let convsQuery = supabase
         .from("conversations")
-        .select("id, status, channel, converted, created_at")
+        .select("id, status, channel, converted, created_at, assigned_to")
         .eq("account_id", acctId);
+      if (isAgent) {
+        convsQuery = convsQuery.eq("assigned_to", user.id);
+      }
+      const { data: userConvs } = await convsQuery;
       const convIds = (userConvs || []).map(c => c.id);
       const conversations = userConvs || [];
+
+      // For agents: only their assigned customers
+      let customersCountQuery = supabase
+        .from("customers")
+        .select("id", { count: "exact", head: true })
+        .eq("account_id", acctId);
+      if (isAgent) {
+        customersCountQuery = customersCountQuery.eq("assigned_to", user.id);
+      }
+
+      let ordersQuery = supabase.from("orders").select("total, payment_status, created_at, status").eq("account_id", acctId);
+      if (isAgent) {
+        // Agent: only orders for their assigned customers
+        ordersQuery = ordersQuery.in("customer_id",
+          (await supabase.from("customers").select("id").eq("account_id", acctId).eq("assigned_to", user.id)).data?.map(c => c.id) || []
+        );
+      }
 
       const [
         ordersRes, customersRes, messagesRes,
         aiMsgRes, recentOrdersRes, topCustomersRes, responseTimesRes,
       ] = await Promise.all([
-        supabase.from("orders").select("total, payment_status, created_at, status").eq("account_id", acctId),
-        supabase.from("customers").select("id", { count: "exact", head: true }).eq("account_id", acctId),
+        ordersQuery,
+        customersCountQuery,
         convIds.length > 0
           ? supabase.from("messages").select("id, created_at, direction", { count: "exact", head: true }).in("conversation_id", convIds)
           : { count: 0, data: [] },
@@ -59,7 +82,9 @@ export default function DashboardHome() {
           ? supabase.from("messages").select("id", { count: "exact", head: true }).eq("is_ai", true).in("conversation_id", convIds)
           : { count: 0, data: [] },
         supabase.from("orders").select("*, customer:customers(name)").eq("account_id", acctId).order("created_at", { ascending: false }).limit(5),
-        supabase.from("customers").select("name, total_orders, total_spent, channel, platform").eq("account_id", acctId).order("total_spent", { ascending: false }).limit(5),
+        isAgent
+          ? supabase.from("customers").select("name, total_orders, total_spent, channel, platform").eq("account_id", acctId).eq("assigned_to", user.id).order("total_spent", { ascending: false }).limit(5)
+          : supabase.from("customers").select("name, total_orders, total_spent, channel, platform").eq("account_id", acctId).order("total_spent", { ascending: false }).limit(5),
         convIds.length > 0
           ? supabase.from("messages").select("response_time_seconds").in("conversation_id", convIds).not("response_time_seconds", "is", null).limit(100)
           : { data: [] },
