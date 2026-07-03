@@ -41,16 +41,18 @@ export async function POST(req) {
   }
 
   try {
-    const { email, businessName } = await req.json();
-    // 🔒 SECURITY: Use user.id (authenticated) instead of body-supplied accountId
-    // — previous code allowed any owner/admin to invite to ANY account (IDOR)
+    const { email, businessName, role: requestedRole } = await req.json();
+    // SECURITY: Use user.id (authenticated) instead of body-supplied accountId
     const accountId = user.id;
 
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    // 🔒 SECURITY: Validate email format + length
+    // Validate role (only 'admin' or 'agent' allowed)
+    const role = requestedRole === "admin" ? "admin" : "agent";
+
+    // SECURITY: Validate email format + length
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email) || email.length > 254) {
       return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
@@ -66,9 +68,11 @@ export async function POST(req) {
       .insert({
         account_id: accountId,
         user_id: accountId, // Temporary placeholder until they accept
-        role: "agent",
+        role,
         invited_email: email,
+        email,
         invite_status: "pending",
+        status: "invited",
       })
       .select()
       .single();
@@ -96,17 +100,17 @@ export async function POST(req) {
        return NextResponse.json({ error: "Failed to send email. Ensure you have a verified domain on Resend if sending to external addresses." }, { status: 500 });
     }
 
-    // 🔔 Fire notification (best-effort, non-blocking)
+    // Fire notification (best-effort, non-blocking)
     notify(accountId, {
       category: "team",
       type: "team_invite_sent",
       title: `Team invite sent to ${email}`,
-      message: `You invited ${email} to join your team as an agent.`,
+      message: `You invited ${email} to join your team as ${role === "admin" ? "an admin" : "an agent"}.`,
       priority: "normal",
       actionUrl: "/dashboard/settings?tab=team",
       related_id: newMember?.id,
       related_type: "team_member",
-      data: { invited_email: email },
+      data: { invited_email: email, role },
     }).catch(() => {});
 
     return NextResponse.json({ success: true, member: newMember });

@@ -22,6 +22,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useCurrentStore } from "@/lib/store-context";
+import { useEffectiveAccount } from "@/lib/account-context";
 import { useToast } from "../components/ToastProvider";
 import { useConfirm } from "../components/ConfirmProvider";
 import { PageSkeleton } from "@/components/SkeletonLoader";
@@ -31,7 +32,8 @@ import Product360Viewer from "../components/Product360Viewer";
 export default function ProductsPage() {
   const router = useRouter();
   const toast = useToast();
-  
+  const { effectiveAccountId } = useEffectiveAccount();
+
   const confirmAction = useConfirm();
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -90,7 +92,8 @@ export default function ProductsPage() {
     }
     if (!user) { setLoading(false); return; }
 
-    let query = supabase.from("products").select("*").eq("account_id", user.id).order("created_at", { ascending: false });
+    const accId = effectiveAccountId || user.id;
+    let query = supabase.from("products").select("*").eq("account_id", accId).order("created_at", { ascending: false });
 
     if (filter === "active") query = query.eq("status", "active");
     if (filter === "draft") query = query.eq("status", "draft");
@@ -101,7 +104,7 @@ export default function ProductsPage() {
     const { data, error } = await query;
     if (!error) setProducts(data || []);
     setLoading(false);
-  }, [filter, search, currentStoreId]);
+  }, [filter, search, currentStoreId, effectiveAccountId]);
 
   useEffect(() => { ensureBuckets(); fetchProducts(); }, [ensureBuckets, fetchProducts]);
 

@@ -68,6 +68,7 @@ export async function notify(accountId, params) {
   const {
     category, type, title, message, priority = "normal",
     actionUrl, actionLabel, data = {}, related_id, related_type,
+    userId, // optional — targets a specific team member
   } = params;
 
   if (!VALID_CATEGORIES.includes(category)) {
@@ -79,8 +80,9 @@ export async function notify(accountId, params) {
 
   const db = admin();
 
-  // 1. Fetch the user's notification preferences for this category
+  // 1. Fetch the account's notification preferences for this category
   let prefs = { dashboard: true, push: false, email: false };
+  let accountEmail = null;
   try {
     const { data: account } = await db.from("accounts")
       .select("notif_prefs, email")
@@ -90,10 +92,28 @@ export async function notify(accountId, params) {
       const catPrefs = account.notif_prefs[category];
       if (catPrefs) prefs = { ...prefs, ...catPrefs };
     }
-    // Stash email for later
-    if (account?.email) data._account_email = account.email;
+    if (account?.email) accountEmail = account.email;
+    if (accountEmail) data._account_email = accountEmail;
   } catch (e) {
     console.warn("[notify] Failed to fetch prefs:", e.message);
+  }
+
+  // If userId is provided, also fetch the team member's email for direct notification
+  let targetEmail = accountEmail;
+  if (userId && userId !== accountId) {
+    try {
+      const { data: tm } = await db.from("team_members")
+        .select("email, invited_email")
+        .eq("user_id", userId)
+        .eq("account_id", accountId)
+        .maybeSingle();
+      if (tm?.email || tm?.invited_email) {
+        targetEmail = tm.email || tm.invited_email;
+        data._target_email = targetEmail;
+      }
+    } catch (e) {
+      console.warn("[notify] Failed to fetch team member email:", e.message);
+    }
   }
 
   let notification = null;
@@ -103,6 +123,7 @@ export async function notify(accountId, params) {
     try {
       const { data: inserted, error } = await db.from("notifications").insert({
         account_id: accountId,
+        user_id: userId || null,
         type,
         title: title.slice(0, 200),
         message: message ? message.slice(0, 1000) : null,

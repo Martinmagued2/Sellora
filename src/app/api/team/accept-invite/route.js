@@ -55,6 +55,11 @@ export async function POST(req) {
       .update({
         user_id: userId || user.id,
         invite_status: 'accepted',
+        status: 'active',
+        email: user.email,
+        // Pull name from user_metadata if available
+        name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+        display_name: user.user_metadata?.full_name || user.user_metadata?.name || (user.email ? user.email.split('@')[0] : null),
       })
       .eq('id', inviteId)
       .eq('invite_status', 'pending');
@@ -64,27 +69,30 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Failed to accept invitation: ' + updateErr.message }, { status: 500 });
     }
 
-    // 4. Create an accounts row for the team member (if they don't have one)
-    //    This lets them access the dashboard with the team member's account_id
+    // 4. Create an accounts row for the team member (if they don't have one).
+    //    BUG FIX: do NOT overwrite an existing owner's role to 'agent' —
+    //    that would destroy their account if they were already a store owner
+    //    of another business. Only insert a minimal accounts row if they
+    //    don't have one, and don't touch role on existing rows.
     const { data: existingAccount } = await db.from('accounts')
-      .select('id')
+      .select('id, role, plan')
       .eq('id', userId || user.id)
       .maybeSingle();
 
     if (!existingAccount) {
-      // Create a minimal accounts row that references the owner's account
+      // Create a minimal accounts row so the user can log in.
+      // Role stays as the default 'owner' (meaningless for team members since
+      // we use team_members.role for actual permissions).
+      // Plan is 'team_member' so billing knows not to charge them.
       await db.from('accounts').insert({
         id: userId || user.id,
         email: user.email,
-        role: invite.role || 'agent',
-        plan: 'team_member', // Special plan that doesn't get billed
+        plan: 'team_member',
+        // Don't set role — let it default
       });
-    } else {
-      // Update their role to agent if they already have an account
-      await db.from('accounts')
-        .update({ role: invite.role || 'agent' })
-        .eq('id', userId || user.id);
     }
+    // If existingAccount exists, leave their role + plan alone.
+    // The team_members row is the source of truth for their team membership.
 
     return NextResponse.json({
       success: true,

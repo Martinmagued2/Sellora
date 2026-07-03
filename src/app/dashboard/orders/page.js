@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { ShoppingBag, Search, ChevronDown, Eye, X, Package, MapPin, CreditCard, StickyNote, Link2, Loader2, Truck, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
+import { useEffectiveAccount } from "@/lib/account-context";
 import { useToast } from "../components/ToastProvider";
 import { PageSkeleton } from "@/components/SkeletonLoader";
 import StatusPipeline from "../components/StatusPipeline";
@@ -32,6 +33,7 @@ export default function OrdersPage() {
   const [sendingReview, setSendingReview] = useState(null); // order ID being sent review request
 
   const { currentStoreId } = useCurrentStore();
+  const { effectiveAccountId } = useEffectiveAccount();
   const toast = useToast();
 
   const supabase = createClient();
@@ -41,10 +43,11 @@ export default function OrdersPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
+    const accId = effectiveAccountId || user.id;
     let query = supabase
       .from("orders")
       .select("*, customer:customers(name, phone)")
-      .eq("account_id", user.id)
+      .eq("account_id", accId)
       .order("created_at", { ascending: false });
 
     if (filter !== "all") query = query.eq("status", filter);
@@ -54,7 +57,7 @@ export default function OrdersPage() {
     const { data, error } = await query;
     if (!error) setOrders(data || []);
     setLoading(false);
-  }, [filter, search, currentStoreId]);
+  }, [filter, search, currentStoreId, effectiveAccountId]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -84,7 +87,7 @@ export default function OrdersPage() {
       }
     } catch (e) {
       // Fallback to a direct update if the auto-update route fails
-      await supabase.from("orders").update({ status: newStatus }).eq("id", id).eq("account_id", user.id);
+      await supabase.from("orders").update({ status: newStatus }).eq("id", id).eq("account_id", effectiveAccountId || user.id);
     }
     fetchOrders();
   };

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
+import { useEffectiveAccount } from "@/lib/account-context";
 import CustomerCRMPanel from "../components/CustomerCRMPanel";
 import { useToast } from "../components/ToastProvider";
 import { PageSkeleton } from "@/components/SkeletonLoader";
@@ -33,6 +34,7 @@ export default function CustomersPage() {
   const [newTag, setNewTag] = useState("");
 
   const { currentStoreId } = useCurrentStore();
+  const { effectiveAccountId } = useEffectiveAccount();
 
   const supabase = createClient();
 
@@ -41,7 +43,8 @@ export default function CustomersPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    let query = supabase.from("customers").select("*").eq("account_id", user.id).order("total_spent", { ascending: false });
+    const accId = effectiveAccountId || user.id;
+    let query = supabase.from("customers").select("*").eq("account_id", accId).order("total_spent", { ascending: false });
 
     if (filter === "vip") query = query.contains("tags", ["VIP"]);
     if (filter === "new") query = query.contains("tags", ["New"]);
@@ -54,7 +57,7 @@ export default function CustomersPage() {
     const { data, error } = await query;
     if (!error) setCustomers(data || []);
     setLoading(false);
-  }, [filter, search, currentStoreId]);
+  }, [filter, search, currentStoreId, effectiveAccountId]);
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 

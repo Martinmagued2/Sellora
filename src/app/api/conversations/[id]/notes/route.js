@@ -2,15 +2,15 @@
  * Conversation Internal Notes API
  * GET    /api/conversations/[id]/notes        — list notes
  * POST   /api/conversations/[id]/notes        — create note { body, pinned? }
- * PATCH  /api/conversations/[id]/notes/[nid]  — update { body?, pinned? }
- * DELETE /api/conversations/[id]/notes/[nid]  — delete
  *
  * Notes are PRIVATE — they are never sent to the customer or shown to the AI.
+ * Team-aware: any team member of the owner's account can read/write notes.
  */
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
+import { canAccessAccount } from "@/lib/team-auth";
 
 let _adminClient = null;
 function getAdminClient() {
@@ -23,14 +23,16 @@ function getAdminClient() {
   return _adminClient;
 }
 
-async function verifyOwnership(admin, conversationId, userId) {
+async function getConversation(admin, conversationId, userId) {
   const { data: conv } = await admin
     .from("conversations")
     .select("account_id")
     .eq("id", conversationId)
-    .single();
-  if (!conv || conv.account_id !== userId) return false;
-  return true;
+    .maybeSingle();
+  if (!conv) return null;
+  const hasAccess = await canAccessAccount({ id: userId }, conv.account_id);
+  if (!hasAccess) return null;
+  return conv;
 }
 
 export async function GET(req, { params }) {
@@ -41,7 +43,8 @@ export async function GET(req, { params }) {
     const { id: conversationId } = await params;
     const admin = getAdminClient();
 
-    if (!(await verifyOwnership(admin, conversationId, user.id))) {
+    const conv = await getConversation(admin, conversationId, user.id);
+    if (!conv) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -76,15 +79,18 @@ export async function POST(req, { params }) {
     }
 
     const admin = getAdminClient();
-    if (!(await verifyOwnership(admin, conversationId, user.id))) {
+    const conv = await getConversation(admin, conversationId, user.id);
+    if (!conv) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Use the conversation's account_id (the owner's) — not user.id — so RLS
+    // and team-context queries work correctly.
     const { data: note, error } = await admin
       .from("conversation_notes")
       .insert({
         conversation_id: conversationId,
-        account_id: user.id,
+        account_id: conv.account_id,
         author_id: user.id,
         body: body.trim(),
         pinned: !!pinned,
@@ -100,7 +106,7 @@ export async function POST(req, { params }) {
     try {
       await admin.from("conversation_events").insert({
         conversation_id: conversationId,
-        account_id: user.id,
+        account_id: conv.account_id,
         event_type: "note_added",
         actor_id: user.id,
         metadata: { noteId: note.id },

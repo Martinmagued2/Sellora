@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useEffectiveAccount } from "@/lib/account-context";
 import {
   ArrowLeft, Phone, Mail, MessageCircle, ShoppingBag, Star,
   Crown, Clock, Tag, Bot, User, Loader2,
@@ -12,6 +13,7 @@ export default function CustomerProfilePage() {
   const params = useParams();
   const router = useRouter();
   const customerId = params?.id;
+  const { effectiveAccountId } = useEffectiveAccount();
 
   const [customer, setCustomer] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -25,10 +27,11 @@ export default function CustomerProfilePage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const accId = effectiveAccountId || user.id;
       const [custRes, ordersRes, convsRes] = await Promise.all([
-        supabase.from("customers").select("*").eq("id", customerId).eq("account_id", user.id).single(),
-        supabase.from("orders").select("*").eq("customer_id", customerId).eq("account_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("conversations").select("id, channel, status, last_message_at, created_at").eq("customer_id", customerId).eq("account_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("customers").select("*").eq("id", customerId).eq("account_id", accId).single(),
+        supabase.from("orders").select("*").eq("customer_id", customerId).eq("account_id", accId).order("created_at", { ascending: false }),
+        supabase.from("conversations").select("id, channel, status, last_message_at, created_at").eq("customer_id", customerId).eq("account_id", accId).order("created_at", { ascending: false }),
       ]);
 
       if (custRes.data) setCustomer(custRes.data);
@@ -37,7 +40,7 @@ export default function CustomerProfilePage() {
       setLoading(false);
     };
     load();
-  }, [customerId]);
+  }, [customerId, effectiveAccountId]);
 
   if (loading) {
     return (

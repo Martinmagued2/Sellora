@@ -30,7 +30,16 @@ export default function CustomerCRMPanel({ customer, onClose }) {
   const [orders, setOrders] = useState([]);
   const [loyalty, setLoyalty] = useState(null);
   const [newNote, setNewNote] = useState("");
-  const [newTask, setNewTask] = useState({ title: "", description: "", due_date: "", priority: "normal" });
+  const [newTask, setNewTask] = useState({ title: "", description: "", due_date: "", priority: "normal", assigned_to: "" });
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  // Load team members for the assignee dropdown
+  useEffect(() => {
+    fetch("/api/team-members")
+      .then((r) => r.json())
+      .then((d) => setTeamMembers(d.assignees || []))
+      .catch(() => {});
+  }, []);
   const [animatedScore, setAnimatedScore] = useState(0);
 
   useEffect(() => {
@@ -112,15 +121,34 @@ export default function CustomerCRMPanel({ customer, onClose }) {
   const addTask = async () => {
     if (!newTask.title.trim()) return;
     try {
+      const payload = { ...newTask };
+      // Drop empty assigned_to so it defaults to creator
+      if (!payload.assigned_to) delete payload.assigned_to;
       const res = await fetch(`/api/customers/${customer.id}/tasks`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setTasks(prev => [...prev, data.task]);
-      setNewTask({ title: "", description: "", due_date: "", priority: "normal" });
+      setNewTask({ title: "", description: "", due_date: "", priority: "normal", assigned_to: "" });
       toast.success('Task created');
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const reassignTask = async (taskId, newAssigneeId) => {
+    try {
+      const res = await fetch(`/api/customers/${customer.id}/tasks`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, assigned_to: newAssigneeId || null }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed');
+      }
+      const data = await res.json();
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...data.task } : t));
+      toast.success('Task reassigned');
     } catch (e) { toast.error(e.message); }
   };
 
@@ -531,17 +559,29 @@ export default function CustomerCRMPanel({ customer, onClose }) {
                   <textarea className="form-input" placeholder="Description (optional)..." value={newTask.description}
                     onChange={(e) => setNewTask(p => ({ ...p, description: e.target.value }))} rows={2}
                     style={{ fontSize: 13, resize: 'none' }} />
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <input type="date" className="form-input" value={newTask.due_date?.split('T')[0] || ''}
                       onChange={(e) => setNewTask(p => ({ ...p, due_date: e.target.value ? new Date(e.target.value).toISOString() : '' }))}
-                      style={{ flex: 1, fontSize: 12 }} />
+                      style={{ flex: 1, minWidth: 110, fontSize: 12 }} />
                     <select className="form-input" value={newTask.priority}
                       onChange={(e) => setNewTask(p => ({ ...p, priority: e.target.value }))}
-                      style={{ width: 120, fontSize: 12 }}>
+                      style={{ width: 100, fontSize: 12 }}>
                       <option value="low">Low</option>
                       <option value="normal">Normal</option>
                       <option value="high">High</option>
                       <option value="urgent">Urgent</option>
+                    </select>
+                    <select className="form-input" value={newTask.assigned_to}
+                      onChange={(e) => setNewTask(p => ({ ...p, assigned_to: e.target.value }))}
+                      style={{ flex: 1, minWidth: 130, fontSize: 12 }}
+                      title="Assign to (defaults to you)"
+                    >
+                      <option value="">Assign to me</option>
+                      {teamMembers.filter(m => m.role !== 'owner').map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.display_name || m.name || m.email} ({m.role})
+                        </option>
+                      ))}
                     </select>
                     <button className="btn btn-primary btn-sm" onClick={addTask}><Plus size={14} /></button>
                   </div>
@@ -550,7 +590,9 @@ export default function CustomerCRMPanel({ customer, onClose }) {
                 {tasks.length === 0 ? (
                   <EmptyState icon={CheckCircle2} title="No tasks yet" />
                 ) : (
-                  tasks.map((task, i) => (
+                  tasks.map((task, i) => {
+                    const assignee = teamMembers.find((m) => m.id === task.assigned_to);
+                    return (
                     <motion.div
                       key={task.id}
                       initial={{ opacity: 0, y: 8 }}
@@ -575,7 +617,7 @@ export default function CustomerCRMPanel({ customer, onClose }) {
                           textDecoration: task.status === 'completed' ? 'line-through' : 'none',
                         }}>{task.title}</div>
                         {task.description && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{task.description}</div>}
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 11, color: 'var(--text-tertiary)' }}>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 11, color: 'var(--text-tertiary)', flexWrap: 'wrap', alignItems: 'center' }}>
                           {task.due_date && <span style={{ color: new Date(task.due_date) < new Date() && task.status !== 'completed' ? 'var(--accent-red)' : 'inherit' }}>
                             <Calendar size={10} /> {new Date(task.due_date).toLocaleDateString()}
                           </span>}
@@ -584,10 +626,31 @@ export default function CustomerCRMPanel({ customer, onClose }) {
                             color: task.priority === 'urgent' ? 'var(--accent-red)' : task.priority === 'high' ? 'var(--accent-orange)' : 'inherit',
                             fontWeight: 600,
                           }}>{task.priority}</span>
+                          {/* Assignee badge + dropdown */}
+                          <select
+                            value={task.assigned_to || ""}
+                            onChange={(e) => reassignTask(task.id, e.target.value)}
+                            style={{
+                              fontSize: 10, padding: "1px 6px", borderRadius: 10,
+                              background: task.assigned_to ? "rgba(108,92,231,0.1)" : "transparent",
+                              color: task.assigned_to ? "var(--accent-primary-light)" : "var(--text-tertiary)",
+                              border: "1px solid var(--border-subtle)", cursor: "pointer",
+                              fontFamily: "inherit", fontWeight: 600,
+                            }}
+                            title="Reassign task"
+                          >
+                            <option value="">Unassigned</option>
+                            {teamMembers.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.display_name || m.name || m.email}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     </motion.div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}

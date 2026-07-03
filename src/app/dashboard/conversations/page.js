@@ -21,6 +21,7 @@ import VoiceRecorder from "../components/VoiceRecorder";
 import ImageUploader from "../components/ImageUploader";
 import EmptyState from "../components/EmptyState";
 import ConversationSearch from "../components/ConversationSearch";
+import ConversationControls from "../components/ConversationControls";
 
 // ─── Intent badge config ───
 const INTENT_CONFIG = {
@@ -112,6 +113,19 @@ export default function ConversationsPage() {
 
   // Channel filter
   const [channelFilter, setChannelFilter] = useState("all");
+
+  // Assignee filter: "all" | "me" | "unassigned" | "others"
+  const [assigneeFilter, setAssigneeFilter] = useState("all");
+
+  // Team members cache (for assignee badge lookups)
+  const [teamMembers, setTeamMembers] = useState([]);
+  useEffect(() => {
+    if (!effectiveAccountId) return;
+    fetch("/api/team-members")
+      .then((r) => r.json())
+      .then((d) => setTeamMembers(d.assignees || []))
+      .catch(() => {});
+  }, [effectiveAccountId]);
 
   // Quick Broadcast
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -881,8 +895,36 @@ export default function ConversationsPage() {
     if (search && !c.customer?.name?.toLowerCase().includes(search.toLowerCase())) return false;
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (channelFilter !== "all" && c.channel !== channelFilter) return false;
+    if (assigneeFilter === "me" && c.assigned_to !== userId) return false;
+    if (assigneeFilter === "unassigned" && c.assigned_to) return false;
+    if (assigneeFilter === "others" && c.assigned_to === userId) return false;
     return true;
   });
+
+  // Refresh the active conversation after a control action (assign, snooze, etc.)
+  const refreshActiveConv = useCallback(async () => {
+    if (!activeConv?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("*, customer:customers(*)")
+        .eq("id", activeConv.id)
+        .maybeSingle();
+      if (!error && data) {
+        setActiveConv(data);
+        // Also update the conversations list in-place
+        setConversations((prev) => prev.map((c) => (c.id === data.id ? { ...c, ...data } : c)));
+      }
+    } catch (e) {
+      console.warn("[refreshActiveConv]", e.message);
+    }
+  }, [activeConv?.id, supabase]);
+
+  // Look up an assignee's display info by user_id
+  const getAssigneeInfo = (userId) => {
+    if (!userId) return null;
+    return teamMembers.find((m) => m.id === userId) || null;
+  };
 
   const statusColor = STATUS_OPTIONS.find((s) => s.value === activeConv?.status)?.color || "var(--text-tertiary)";
 
@@ -1887,6 +1929,8 @@ export default function ConversationsPage() {
               { value: "instagram", label: "📷 IG" },
               { value: "facebook", label: "🌐 FB" },
               { value: "whatsapp", label: "📱 WA" },
+              { value: "telegram", label: "✈️ TG" },
+              { value: "email", label: "📧 Email" },
             ].map((ch) => (
               <button
                 key={ch.value}
@@ -1899,6 +1943,31 @@ export default function ConversationsPage() {
                 }}
               >
                 {ch.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Assignee filter tabs */}
+          <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+            {[
+              { value: "all", label: "All" },
+              { value: "me", label: "👤 Mine" },
+              { value: "unassigned", label: "📥 Unassigned" },
+              { value: "others", label: "👥 Others" },
+            ].map((af) => (
+              <button
+                key={af.value}
+                onClick={() => setAssigneeFilter(af.value)}
+                style={{
+                  padding: "3px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600,
+                  border: `1px solid ${assigneeFilter === af.value ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                  cursor: "pointer",
+                  background: assigneeFilter === af.value ? "var(--accent-primary)" : "transparent",
+                  color: assigneeFilter === af.value ? "white" : "var(--text-tertiary)",
+                  transition: "all 0.15s",
+                }}
+              >
+                {af.label}
               </button>
             ))}
           </div>
@@ -1975,7 +2044,7 @@ export default function ConversationsPage() {
                   </span>
                 </div>
                 {/* Status dot */}
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2, flexWrap: "wrap" }}>
                   <span style={{
                     width: 6, height: 6, borderRadius: "50%",
                     background: STATUS_OPTIONS.find(s => s.value === conv.status)?.color || "var(--text-tertiary)",
@@ -1993,6 +2062,35 @@ export default function ConversationsPage() {
                       background: "rgba(231, 76, 60, 0.15)", color: "#e74c3c", display: "inline-flex", alignItems: "center", gap: 2,
                     }}>🤖<AlertTriangle size={9} /> Escalated</span>
                   )}
+                  {/* Assignee badge */}
+                  {(() => {
+                    const a = getAssigneeInfo(conv.assigned_to);
+                    if (!a) return null;
+                    const isMe = conv.assigned_to === userId;
+                    return (
+                      <span title={`Assigned to ${a.name || a.email}`} style={{
+                        display: "inline-flex", alignItems: "center", gap: 3,
+                        fontSize: 9, fontWeight: 600,
+                        padding: "1px 6px 1px 2px", borderRadius: 8,
+                        background: isMe ? "rgba(108,92,231,0.15)" : "rgba(255,255,255,0.06)",
+                        color: isMe ? "var(--accent-primary-light)" : "var(--text-secondary)",
+                      }}>
+                        <span style={{
+                          width: 14, height: 14, borderRadius: "50%",
+                          background: a.role === "owner"
+                            ? "linear-gradient(135deg,#f59e0b,#ef4444)"
+                            : a.role === "admin"
+                              ? "linear-gradient(135deg,#a855f7,#6C5CE7)"
+                              : "var(--accent-gradient)",
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 8, fontWeight: 700, color: "#fff",
+                        }}>
+                          {(a.name || a.email || "?").charAt(0).toUpperCase()}
+                        </span>
+                        {isMe ? "You" : (a.display_name || a.name?.split(" ")[0] || "Member")}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -2148,6 +2246,39 @@ export default function ConversationsPage() {
                   )}
                   <span>{aiPausedForConv ? "Resume AI" : "Pause AI"}</span>
                 </button>
+                {/* Assignee badge (if assigned) */}
+                {(() => {
+                  const assignee = getAssigneeInfo(activeConv.assigned_to);
+                  if (!assignee) return null;
+                  return (
+                    <span title={`Assigned to ${assignee.name || assignee.email}`} style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "3px 10px 3px 3px", borderRadius: 20,
+                      fontSize: 11, fontWeight: 600,
+                      background: "var(--bg-glass)", border: "1px solid var(--border-subtle)",
+                      color: "var(--text-secondary)",
+                    }}>
+                      <span style={{
+                        width: 20, height: 20, borderRadius: "50%",
+                        background: assignee.role === "owner"
+                          ? "linear-gradient(135deg,#f59e0b,#ef4444)"
+                          : assignee.role === "admin"
+                            ? "linear-gradient(135deg,#a855f7,#6C5CE7)"
+                            : "var(--accent-gradient)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 10, fontWeight: 700, color: "#fff",
+                      }}>
+                        {(assignee.name || assignee.email || "?").charAt(0).toUpperCase()}
+                      </span>
+                      {assignee.display_name || assignee.name?.split(" ")[0] || "Member"}
+                    </span>
+                  );
+                })()}
+                {/* Conversation Controls: assign / snooze / notes */}
+                <ConversationControls
+                  conversation={activeConv}
+                  onRefresh={refreshActiveConv}
+                />
                 {/* Status selector */}
                 <select
                   value={activeConv.status || "new"}

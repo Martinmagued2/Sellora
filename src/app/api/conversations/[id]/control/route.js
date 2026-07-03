@@ -19,6 +19,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
 import { finalizeDeflection } from "@/lib/ai/reply-helpers";
+import { canAccessAccount, getActorName } from "@/lib/team-auth";
 
 let _adminClient = null;
 function getAdminClient() {
@@ -53,17 +54,19 @@ export async function POST(req, { params }) {
 
     const admin = getAdminClient();
 
-    // Verify the conversation belongs to this user's account
+    // Verify the conversation belongs to this user's account (or their team's account)
     const { data: conv, error: convErr } = await admin
       .from("conversations")
-      .select("id, account_id, status")
+      .select("id, account_id, status, assigned_to")
       .eq("id", conversationId)
       .single();
 
     if (convErr || !conv) {
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
-    if (conv.account_id !== user.id) {
+    // Team-aware ownership check
+    const hasAccess = await canAccessAccount(user, conv.account_id);
+    if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -91,21 +94,33 @@ export async function POST(req, { params }) {
         if (!payload.assigneeId) {
           return NextResponse.json({ error: "assigneeId required" }, { status: 400 });
         }
-        // Verify assignee is on the same account (team member or owner)
-        const { data: assignee } = await admin
-          .from("accounts")
-          .select("id, role")
-          .eq("id", payload.assigneeId)
-          .single();
-        if (!assignee) {
-          return NextResponse.json({ error: "Assignee not found" }, { status: 404 });
+        // Verify assignee is the owner OR a team member of the owner's account
+        const isOwner = payload.assigneeId === conv.account_id;
+        let isValidAssignee = isOwner;
+        if (!isOwner) {
+          const { data: tm } = await admin
+            .from("team_members")
+            .select("id, name, display_name, invited_email")
+            .eq("user_id", payload.assigneeId)
+            .eq("account_id", conv.account_id)
+            .eq("invite_status", "accepted")
+            .eq("status", "active")
+            .maybeSingle();
+          isValidAssignee = !!tm;
+        }
+        if (!isValidAssignee) {
+          return NextResponse.json({ error: "Assignee not found in this team" }, { status: 404 });
         }
         update.assigned_to = payload.assigneeId;
+        update.assigned_at = new Date().toISOString();
+        update.assigned_by = user.id;
         eventMeta = { assigneeId: payload.assigneeId };
         break;
       }
       case "unassign":
         update.assigned_to = null;
+        update.assigned_at = null;
+        update.assigned_by = null;
         break;
       case "snooze": {
         if (!payload.until) {
@@ -147,17 +162,48 @@ export async function POST(req, { params }) {
       await finalizeDeflection(conversationId);
     }
 
-    // Record event
+    // Record event (use the conversation's account_id, not user.id, for team context)
     try {
       await admin.from("conversation_events").insert({
         conversation_id: conversationId,
-        account_id: user.id,
+        account_id: conv.account_id,
         event_type: eventType,
         actor_id: user.id,
         metadata: eventMeta,
       });
     } catch (e) {
       console.warn("[CONV-CONTROL] event insert failed:", e.message);
+    }
+
+    // On assignment, send a notification to the assignee
+    if (action === "assign" && payload.assigneeId && payload.assigneeId !== user.id) {
+      try {
+        const { notify } = await import("@/lib/notifications");
+        const actorName = await getActorName(user, conv.account_id);
+        // Look up customer + conversation for a nicer notification
+        const { data: convFull } = await admin
+          .from("conversations")
+          .select("id, customer_id, channel, customers(name)")
+          .eq("id", conversationId)
+          .maybeSingle();
+        const custName = convFull?.customers?.name || "a customer";
+        const channelLabel =
+          { whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", telegram: "Telegram", email: "Email" }[convFull?.channel] || convFull?.channel || "chat";
+        await notify(conv.account_id, {
+          category: "messages",
+          type: "conversation_assigned",
+          title: `Assigned to you: ${custName} on ${channelLabel}`,
+          message: `${actorName} assigned a conversation to you. Take it from here!`,
+          priority: "high",
+          actionUrl: `/dashboard/conversations?selected=${conversationId}`,
+          actionLabel: "Open conversation",
+          userId: payload.assigneeId,
+          related_id: conversationId,
+          related_type: "conversation",
+        });
+      } catch (e) {
+        console.warn("[CONV-CONTROL] assignee notification failed:", e.message);
+      }
     }
 
     return NextResponse.json({ success: true, action, update });
