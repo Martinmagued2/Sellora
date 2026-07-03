@@ -61,6 +61,7 @@ const PRIORITY_OPTIONS = [
 export default function ConversationsPage() {
   const { isMobile } = useDevice();
   const { effectiveAccountId } = useEffectiveAccount();
+  const [userId, setUserId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -177,6 +178,13 @@ export default function ConversationsPage() {
   }, []);
 
   useEffect(() => { fetchQuickReplies(); }, [fetchQuickReplies]);
+
+  // ─── Cache the current user's id for assignee filters + badges ───
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) setUserId(data.user.id);
+    });
+  }, [supabase]);
 
   // ─── Fetch conversations ───
   const fetchConversations = useCallback(async () => {
@@ -921,9 +929,9 @@ export default function ConversationsPage() {
   }, [activeConv?.id, supabase]);
 
   // Look up an assignee's display info by user_id
-  const getAssigneeInfo = (userId) => {
-    if (!userId) return null;
-    return teamMembers.find((m) => m.id === userId) || null;
+  const getAssigneeInfo = (uid) => {
+    if (!uid) return null;
+    return teamMembers.find((m) => m.id === uid) || null;
   };
 
   const statusColor = STATUS_OPTIONS.find((s) => s.value === activeConv?.status)?.color || "var(--text-tertiary)";
