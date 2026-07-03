@@ -1,22 +1,16 @@
-// Edge runtime Sentry config — lighter weight, dynamic import.
-
-let _initialized = false;
+/**
+ * Edge runtime Sentry config — currently a no-op.
+ *
+ * Sentry is not installed in this project. This file exists so that
+ * `instrumentation.js` imports don't break the build.
+ *
+ * To enable Sentry on edge runtime later:
+ *   1. npm install @sentry/nextjs
+ *   2. Set NEXT_PUBLIC_SENTRY_DSN env var
+ *   3. Replace this file with the real init code (see git history)
+ */
 
 export async function registerEdgeSentry() {
-  if (_initialized) return;
-  _initialized = true;
-
-  if (!process.env.NEXT_PUBLIC_SENTRY_DSN) return;
-
-  try {
-    const Sentry = (await import("@sentry/nextjs")).default;
-    Sentry.init({
-      dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-      tracesSampleRate: 0.1,
-      environment: process.env.NODE_ENV,
-      sendDefaultPii: false,
-    });
-  } catch (e) {
-    // Package not installed — Sentry is disabled
-  }
+  // No-op until @sentry/nextjs is installed
+  return;
 }

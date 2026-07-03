@@ -13,20 +13,12 @@
 
 const isProd = process.env.NODE_ENV === "production";
 
-// Sentry is loaded lazily so the import doesn't fail if not installed
-let Sentry = null;
+// Sentry is not installed in this project. To enable it:
+//   1. npm install @sentry/nextjs
+//   2. Set NEXT_PUBLIC_SENTRY_DSN env var
+//   3. Restore the dynamic import of @sentry/nextjs in getSentry()
 async function getSentry() {
-  if (Sentry !== null) return Sentry;
-  if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-    try {
-      Sentry = (await import("@sentry/nextjs")).default;
-    } catch (e) {
-      Sentry = false;
-    }
-  } else {
-    Sentry = false;
-  }
-  return Sentry;
+  return false;
 }
 
 function emit(level, msg, meta = {}, err = null) {
@@ -58,7 +50,7 @@ function emit(level, msg, meta = {}, err = null) {
     }
   }
 
-  // Forward to Sentry
+  // Forward to Sentry (no-op until installed)
   if (level === "error" && err) {
     getSentry().then((s) => {
       if (s) s.captureException(err, { extra: meta });
