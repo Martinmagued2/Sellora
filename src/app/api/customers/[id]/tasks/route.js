@@ -129,13 +129,13 @@ export async function POST(req, { params }) {
     if (finalAssignee !== user.id) {
       // Look up assignee email
       let assigneeEmail = null;
-      let assigneeName = finalAssigneeName;
+      let assigneeEmailName = assigneeName; // rename to avoid shadowing the outer assigneeName
       try {
         if (finalAssignee === customer.account_id) {
           // Owner
           const { data: owner } = await db.from('accounts').select('email, owner_name').eq('id', finalAssignee).maybeSingle();
           assigneeEmail = owner?.email;
-          assigneeName = owner?.owner_name || assigneeName;
+          assigneeEmailName = owner?.owner_name || assigneeEmailName;
         } else {
           const { data: tm } = await db.from('team_members')
             .select('email, invited_email, name, display_name')
@@ -143,7 +143,7 @@ export async function POST(req, { params }) {
             .eq('account_id', customer.account_id)
             .maybeSingle();
           assigneeEmail = tm?.email || tm?.invited_email;
-          assigneeName = tm?.name || tm?.display_name || assigneeName;
+          assigneeEmailName = tm?.name || tm?.display_name || assigneeEmailName;
         }
       } catch (e) { /* ignore */ }
 
@@ -176,7 +176,7 @@ export async function POST(req, { params }) {
               subject: `[Sellora] New task assigned: ${title.slice(0, 60)}`,
               html: `
                 <h1>New task assigned to you ✅</h1>
-                <p>Hi ${assigneeName || 'there'},</p>
+                <p>Hi ${assigneeEmailName || 'there'},</p>
                 <p>${creatorName} assigned you a task on Sellora:</p>
                 <div class="info-box">
                   <div class="info-label">Task</div>

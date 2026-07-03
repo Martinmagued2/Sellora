@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getAuthUser } from "@/lib/auth-helper";
 import { verifyAdmin } from "@/lib/admin-auth";
 
 // Lazy-init to avoid build-time errors
@@ -21,22 +22,26 @@ function getSupabaseAdmin() {
  * but can also be called manually.
  */
 export async function POST(request) {
-  // 🔒 Require authenticated user (not necessarily admin)
-  // Regular users need to call this to ensure the bucket exists before uploading
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const admin = getSupabaseAdmin();
+  // Try session-cookie auth first (works for logged-in users)
+  let user = await getAuthUser(request);
 
-  if (token) {
-    const { data: { user }, error: authError } = await admin.auth.getUser(token);
-    if (authError || !user) {
-      return Response.json({ error: "Invalid or expired token" }, { status: 401 });
-    }
-  } else {
-    // Fallback: allow admin users without Bearer token
-    const { isAdmin } = await verifyAdmin(request);
-    if (!isAdmin) {
-      return Response.json({ error: "Unauthorized — authentication required" }, { status: 401 });
+  if (!user) {
+    // Fallback: Bearer token
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    const admin = getSupabaseAdmin();
+    if (token) {
+      const { data, error: authError } = await admin.auth.getUser(token);
+      if (authError || !data?.user) {
+        return Response.json({ error: "Invalid or expired token" }, { status: 401 });
+      }
+      user = data.user;
+    } else {
+      // Final fallback: admin key
+      const { isAdmin } = await verifyAdmin(request);
+      if (!isAdmin) {
+        return Response.json({ error: "Unauthorized — authentication required" }, { status: 401 });
+      }
     }
   }
 
