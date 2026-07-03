@@ -439,26 +439,25 @@ export async function PATCH(req, { params }) {
         if (assigneeEmail && isEmailConfiguredViaImport()) {
           try {
             const { sendCustomEmail } = await import('@/lib/email');
-              const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
-              await sendCustomEmail({
-                to: assigneeEmail,
-                subject: `[Sellora] Task reassigned: ${existingTask.title?.slice(0, 60) || 'Untitled'}`,
-                html: `
-                  <h1>Task reassigned to you 🔄</h1>
-                  <p>Hi ${newAssigneeName || 'there'},</p>
-                  <p>${actorName} reassigned a task to you on Sellora:</p>
-                  <div class="info-box">
-                    <div class="info-label">Task</div>
-                    <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
-                  </div>
-                  <p style="margin-top:20px;"><a href="${appUrl}/dashboard/customers/${existingTask.customer_id}" class="btn">Open Task →</a></p>
-                  <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was reassigned to you on Sellora.</p>
-                `,
-                templateName: 'task_reassigned',
-                accountId: existingTask.account_id,
-                metadata: { taskId: task_id },
-              });
-            }
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
+            await sendCustomEmail({
+              to: assigneeEmail,
+              subject: `[Sellora] Task reassigned: ${existingTask.title?.slice(0, 60) || 'Untitled'}`,
+              html: `
+                <h1>Task reassigned to you 🔄</h1>
+                <p>Hi ${newAssigneeName || 'there'},</p>
+                <p>${actorName} reassigned a task to you on Sellora:</p>
+                <div class="info-box">
+                  <div class="info-label">Task</div>
+                  <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
+                </div>
+                <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">Open Task →</a></p>
+                <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was reassigned to you on Sellora.</p>
+              `,
+              templateName: 'task_reassigned',
+              accountId: existingTask.account_id,
+              metadata: { taskId: task_id },
+            });
           } catch (e) {
             console.warn('[TASKS] reassign email failed:', e.message);
           }
