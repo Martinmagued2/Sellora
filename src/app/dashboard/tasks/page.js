@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useEffectiveAccount } from "@/lib/account-context";
 import {
   CheckCircle2, Circle, Calendar, Plus, X, Loader2,
-  CheckSquare, Filter, User, AlertCircle, Clock,
+  CheckSquare, Filter, User, AlertCircle, Clock, Eye,
 } from "lucide-react";
 import { useToast } from "../components/ToastProvider";
 
@@ -18,10 +19,25 @@ const PRIORITY_COLORS = {
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
+  { value: "unseen", label: "Unseen" },
+  { value: "seen", label: "Seen" },
   { value: "in_progress", label: "In Progress" },
-  { value: "completed", label: "Completed" },
+  { value: "review", label: "In Review" },
+  { value: "done", label: "Done" },
+  { value: "rejected", label: "Needs Changes" },
 ];
+
+const STATUS_CONFIG = {
+  unseen:      { label: "Unseen",      color: "#9ca3af", bg: "rgba(156,163,175,0.15)" },
+  seen:        { label: "Seen",        color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+  in_progress: { label: "In Progress", color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+  review:      { label: "In Review",   color: "#a855f7", bg: "rgba(168,85,247,0.15)" },
+  done:        { label: "Done",        color: "#10b981", bg: "rgba(16,185,129,0.15)" },
+  completed:   { label: "Completed",   color: "#10b981", bg: "rgba(16,185,129,0.15)" },
+  rejected:    { label: "Needs Changes", color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+  pending:     { label: "Pending",     color: "#9ca3af", bg: "rgba(156,163,175,0.15)" },
+  cancelled:   { label: "Cancelled",   color: "#9ca3af", bg: "rgba(156,163,175,0.15)" },
+};
 
 const ASSIGNEE_OPTIONS = [
   { value: "all", label: "Everyone" },
@@ -118,9 +134,11 @@ export default function TasksPage() {
 
   // Group tasks by status
   const grouped = {
-    pending: filteredTasks.filter((t) => t.status === "pending"),
-    in_progress: filteredTasks.filter((t) => t.status === "in_progress"),
-    completed: filteredTasks.filter((t) => t.status === "completed"),
+    unseen: filteredTasks.filter((t) => t.status === "unseen"),
+    in_progress: filteredTasks.filter((t) => t.status === "in_progress" || t.status === "seen"),
+    review: filteredTasks.filter((t) => t.status === "review"),
+    done: filteredTasks.filter((t) => t.status === "done" || t.status === "completed"),
+    rejected: filteredTasks.filter((t) => t.status === "rejected"),
   };
 
   const handleToggleStatus = async (taskId, currentStatus) => {
@@ -217,12 +235,13 @@ export default function TasksPage() {
 
       {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
-        <StatCard label="Pending" count={grouped.pending.length} color="var(--accent-orange)" icon={<Clock size={18} />} />
-        <StatCard label="In Progress" count={grouped.in_progress.length} color="var(--accent-secondary)" icon={<Loader2 size={18} />} />
-        <StatCard label="Completed" count={grouped.completed.length} color="var(--accent-green)" icon={<CheckCircle2 size={18} />} />
+        <StatCard label="Unseen" count={grouped.unseen.length} color="#9ca3af" icon={<Eye size={18} />} />
+        <StatCard label="In Progress" count={grouped.in_progress.length} color="var(--accent-orange)" icon={<Clock size={18} />} />
+        <StatCard label="In Review" count={grouped.review.length} color="#a855f7" icon={<AlertCircle size={18} />} />
+        <StatCard label="Done" count={grouped.done.length} color="var(--accent-green)" icon={<CheckCircle2 size={18} />} />
         <StatCard
           label="My Tasks"
-          count={tasks.filter((t) => t.assigned_to === user?.id && t.status !== "completed").length}
+          count={tasks.filter((t) => t.assigned_to === user?.id && !["done", "completed", "cancelled"].includes(t.status)).length}
           color="var(--accent-primary)"
           icon={<User size={18} />}
         />
@@ -291,33 +310,52 @@ export default function TasksPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filteredTasks.map((task) => {
             const assignee = getAssigneeInfo(task.assigned_to);
-            const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== "completed";
+            const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !["done", "completed", "cancelled"].includes(task.status);
             const isMine = task.assigned_to === user?.id;
+            const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
             return (
-              <div
+              <Link
                 key={task.id}
+                href={`/dashboard/tasks/${task.id}`}
                 style={{
                   display: "flex", alignItems: "flex-start", gap: 12,
                   padding: "14px 16px", borderRadius: 12,
                   background: "var(--bg-glass)", border: "1px solid var(--border-subtle)",
-                  opacity: task.status === "completed" ? 0.6 : 1,
+                  opacity: ["done", "completed"].includes(task.status) ? 0.6 : 1,
+                  textDecoration: "none", color: "inherit",
+                  cursor: "pointer", transition: "border-color 0.15s",
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--accent-primary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
               >
-                <button
-                  onClick={() => handleToggleStatus(task.id, task.status)}
-                  style={{
-                    background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 2,
-                    color: task.status === "completed" ? "var(--accent-green)" : "var(--text-tertiary)",
-                  }}
-                >
-                  {task.status === "completed" ? <CheckCircle2 size={20} /> : <Circle size={20} />}
-                </button>
+                {/* Status badge replaces the toggle button */}
+                <div style={{
+                  marginTop: 2, flexShrink: 0,
+                  width: 22, height: 22, borderRadius: "50%",
+                  background: statusCfg.bg, color: statusCfg.color,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 700,
+                }}>
+                  {task.status === "done" || task.status === "completed" ? "✓" :
+                   task.status === "unseen" ? "•" :
+                   task.status === "review" ? "!" :
+                   task.status === "rejected" ? "↻" : "•"}
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     fontSize: 14, fontWeight: 600,
-                    textDecoration: task.status === "completed" ? "line-through" : "none",
+                    textDecoration: ["done", "completed"].includes(task.status) ? "line-through" : "none",
+                    display: "flex", alignItems: "center", gap: 8,
                   }}>
                     {task.title}
+                    {/* Status pill */}
+                    <span style={{
+                      padding: "1px 8px", borderRadius: 10,
+                      background: statusCfg.bg, color: statusCfg.color,
+                      fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4,
+                    }}>
+                      {statusCfg.label}
+                    </span>
                   </div>
                   {task.description && (
                     <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>
@@ -327,9 +365,9 @@ export default function TasksPage() {
                   <div style={{ display: "flex", gap: 10, marginTop: 6, fontSize: 11, color: "var(--text-tertiary)", flexWrap: "wrap", alignItems: "center" }}>
                     {/* Customer */}
                     {task.customer && (
-                      <a href={`/dashboard/customers/${task.customer.id}`} style={{ color: "var(--accent-primary-light)", textDecoration: "none" }}>
+                      <span style={{ color: "var(--accent-primary-light)" }} onClick={(e) => e.preventDefault()}>
                         👤 {task.customer.name || task.customer.email || "Customer"}
-                      </a>
+                      </span>
                     )}
                     {/* Due date */}
                     {task.due_date && (
@@ -344,10 +382,11 @@ export default function TasksPage() {
                     </span>
                   </div>
                 </div>
-                {/* Assignee dropdown */}
+                {/* Assignee dropdown — stopPropagation so clicking it doesn't navigate */}
                 <select
                   value={task.assigned_to || ""}
-                  onChange={(e) => handleReassign(task.id, e.target.value)}
+                  onChange={(e) => { e.stopPropagation(); handleReassign(task.id, e.target.value); }}
+                  onClick={(e) => e.stopPropagation()}
                   style={{
                     fontSize: 11, padding: "3px 8px", borderRadius: 12,
                     background: task.assigned_to ? (isMine ? "rgba(108,92,231,0.15)" : "rgba(255,255,255,0.06)") : "transparent",
@@ -364,7 +403,7 @@ export default function TasksPage() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </Link>
             );
           })}
         </div>

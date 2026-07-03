@@ -20,6 +20,11 @@ function admin() {
   return _admin;
 }
 
+// Helper to check email config without importing async
+function isEmailConfiguredViaImport() {
+  return !!process.env.RESEND_API_KEY;
+}
+
 async function getCustomerIfAccessible(db, customerId, userId) {
   const { data: customer } = await db.from('customers')
     .select('id, account_id, name')
@@ -103,6 +108,7 @@ export async function POST(req, { params }) {
       description: description ? description.slice(0, 2000) : null,
       due_date: due_date || null,
       priority,
+      status: finalAssignee !== user.id ? 'unseen' : 'in_progress', // if self-assigned, skip unseen
     }).select().single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -210,20 +216,41 @@ export async function POST(req, { params }) {
 }
 
 // PATCH — update task status / assignment
+// New status workflow:
+//   unseen → seen → in_progress → review → done | rejected
+// Plus legacy: pending, completed, cancelled (still work)
 export async function PATCH(req, { params }) {
   try {
     const user = await getAuthUser(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { task_id, status, assigned_to, ...otherUpdates } = body;
+    const { task_id, status, assigned_to, review_notes, ...otherUpdates } = body;
     if (!task_id) return NextResponse.json({ error: 'task_id required' }, { status: 400 });
 
     const updates = { ...otherUpdates, updated_at: new Date().toISOString() };
-    if (status === 'completed') {
-      updates.completed_at = new Date().toISOString();
-    } else if (status === 'pending' || status === 'in_progress') {
-      updates.completed_at = null;
+
+    // Status workflow tracking
+    if (status) {
+      updates.status = status;
+      if (status === 'seen') {
+        updates.seen_at = new Date().toISOString();
+      } else if (status === 'in_progress') {
+        // No special column — just the status
+      } else if (status === 'review') {
+        updates.review_requested_at = new Date().toISOString();
+      } else if (status === 'done' || status === 'completed') {
+        updates.completed_at = new Date().toISOString();
+        updates.completed_by = user.id;
+        updates.reviewed_by = user.id;
+        updates.reviewed_at = new Date().toISOString();
+      } else if (status === 'rejected') {
+        updates.reviewed_by = user.id;
+        updates.reviewed_at = new Date().toISOString();
+      }
+      if (review_notes !== undefined) {
+        updates.review_notes = review_notes;
+      }
     }
 
     // Reassignment tracking
@@ -231,13 +258,18 @@ export async function PATCH(req, { params }) {
       updates.assigned_to = assigned_to;
       updates.reassigned_by = user.id;
       updates.reassigned_at = new Date().toISOString();
+      // Reset to unseen if reassigned to a new person
+      if (assigned_to !== user.id) {
+        updates.status = 'unseen';
+        updates.seen_at = null;
+      }
     }
 
     const db = admin();
 
     // First fetch the task to verify access (via the customer's account_id)
     const { data: existingTask } = await db.from('customer_tasks')
-      .select('id, account_id, customer_id, title')
+      .select('id, account_id, customer_id, title, assigned_to, status, assigned_name')
       .eq('id', task_id)
       .maybeSingle();
     if (!existingTask) {
@@ -252,6 +284,121 @@ export async function PATCH(req, { params }) {
       .update(updates).eq('id', task_id).select().single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // ─── Status transition notifications ───
+    // 'review' → notify the OWNER (account owner) that a task is ready for review
+    // 'done' / 'rejected' → notify the ASSIGNEE
+    if (status === 'review' && existingTask.assigned_to === user.id) {
+      try {
+        const actorName = await getActorName(user, existingTask.account_id);
+        let ownerEmail = null;
+        const { data: owner } = await db.from('accounts').select('email, owner_name').eq('id', existingTask.account_id).maybeSingle();
+        ownerEmail = owner?.email;
+        const ownerName = owner?.owner_name || owner?.email;
+
+        await notify(existingTask.account_id, {
+          category: 'team',
+          type: 'task_review_requested',
+          title: `Task ready for review: ${existingTask.title?.slice(0, 70) || 'Untitled'}`,
+          message: `${actorName} finished a task and requested your review.`,
+          priority: 'high',
+          actionUrl: `/dashboard/tasks/${task_id}`,
+          actionLabel: 'Review task',
+          userId: existingTask.account_id,
+          related_id: task_id,
+          related_type: 'task',
+        });
+
+        if (ownerEmail && isEmailConfiguredViaImport()) {
+          const { sendCustomEmail } = await import('@/lib/email');
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
+          await sendCustomEmail({
+            to: ownerEmail,
+            subject: `[Sellora] Task ready for review: ${existingTask.title?.slice(0, 60) || 'Untitled'}`,
+            html: `
+              <h1>Task ready for review 🔍</h1>
+              <p>Hi ${ownerName || 'there'},</p>
+              <p><strong>${actorName}</strong> finished a task and is requesting your review:</p>
+              <div class="info-box">
+                <div class="info-label">Task</div>
+                <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
+              </div>
+              <p>Open the task to review the work and mark it as Done or request changes.</p>
+              <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">Review Task →</a></p>
+              <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was submitted for your review on Sellora.</p>
+            `,
+            templateName: 'task_review_requested',
+            accountId: existingTask.account_id,
+            metadata: { taskId: task_id },
+          });
+        }
+      } catch (e) {
+        console.warn('[TASKS] review notify failed:', e.message);
+      }
+    }
+
+    if ((status === 'done' || status === 'completed' || status === 'rejected') && existingTask.assigned_to && existingTask.assigned_to !== user.id) {
+      try {
+        const actorName = await getActorName(user, existingTask.account_id);
+        let assigneeEmail = null;
+        let assigneeName = null;
+        if (existingTask.assigned_to === existingTask.account_id) {
+          const { data: owner } = await db.from('accounts').select('email, owner_name').eq('id', existingTask.assigned_to).maybeSingle();
+          assigneeEmail = owner?.email;
+          assigneeName = owner?.owner_name;
+        } else {
+          const { data: tm } = await db.from('team_members')
+            .select('email, invited_email, name, display_name')
+            .eq('user_id', existingTask.assigned_to)
+            .eq('account_id', existingTask.account_id)
+            .maybeSingle();
+          assigneeEmail = tm?.email || tm?.invited_email;
+          assigneeName = tm?.name || tm?.display_name || tm?.invited_email;
+        }
+
+        const actionLabel = status === 'done' || status === 'completed' ? 'marked as Done ✅' : 'rejected — needs changes';
+        await notify(existingTask.account_id, {
+          category: 'team',
+          type: status === 'rejected' ? 'task_rejected' : 'task_completed',
+          title: `Task ${actionLabel}: ${existingTask.title?.slice(0, 70) || 'Untitled'}`,
+          message: `${actorName} ${actionLabel} your task.${review_notes ? ' Notes: ' + review_notes : ''}`,
+          priority: 'high',
+          actionUrl: `/dashboard/tasks/${task_id}`,
+          actionLabel: 'View task',
+          userId: existingTask.assigned_to,
+          related_id: task_id,
+          related_type: 'task',
+        });
+
+        if (assigneeEmail && isEmailConfiguredViaImport()) {
+          const { sendCustomEmail } = await import('@/lib/email');
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
+          const statusIcon = status === 'rejected' ? '🔄' : '✅';
+          const statusTitle = status === 'rejected' ? 'Task needs changes' : 'Task approved!';
+          await sendCustomEmail({
+            to: assigneeEmail,
+            subject: `[Sellora] ${statusTitle}: ${existingTask.title?.slice(0, 60) || 'Untitled'}`,
+            html: `
+              <h1>${statusIcon} ${statusTitle}</h1>
+              <p>Hi ${assigneeName || 'there'},</p>
+              <p><strong>${actorName}</strong> ${actionLabel} your task:</p>
+              <div class="info-box">
+                <div class="info-label">Task</div>
+                <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
+              </div>
+              ${review_notes ? `<div class="alert-box"><div class="alert-label">Reviewer Notes</div><div class="alert-text">${review_notes}</div></div>` : ''}
+              <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">View Task →</a></p>
+              <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because your task was reviewed on Sellora.</p>
+            `,
+            templateName: status === 'rejected' ? 'task_rejected' : 'task_completed',
+            accountId: existingTask.account_id,
+            metadata: { taskId: task_id, status },
+          });
+        }
+      } catch (e) {
+        console.warn('[TASKS] status notify failed:', e.message);
+      }
+    }
 
     // If reassigned, notify the new assignee
     if (assigned_to && assigned_to !== user.id) {
@@ -281,7 +428,7 @@ export async function PATCH(req, { params }) {
           title: `Task reassigned to you: ${existingTask.title?.slice(0, 80) || 'Untitled'}`,
           message: `${actorName} reassigned a task to you.`,
           priority: 'high',
-          actionUrl: `/dashboard/customers/${existingTask.customer_id}`,
+          actionUrl: `/dashboard/tasks/${task_id}`,
           actionLabel: 'Open task',
           userId: assigned_to,
           related_id: task_id,
@@ -289,10 +436,9 @@ export async function PATCH(req, { params }) {
         });
 
         // ALWAYS send email for task reassignment (bypass prefs)
-        if (assigneeEmail) {
+        if (assigneeEmail && isEmailConfiguredViaImport()) {
           try {
-            const { sendCustomEmail, isEmailConfigured } = await import('@/lib/email');
-            if (isEmailConfigured()) {
+            const { sendCustomEmail } = await import('@/lib/email');
               const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
               await sendCustomEmail({
                 to: assigneeEmail,

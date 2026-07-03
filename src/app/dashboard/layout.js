@@ -138,6 +138,7 @@ const pageTitles = {
   "/dashboard/orders": "Orders",
   "/dashboard/notifications": "Notifications",
   "/dashboard/tasks": "My Tasks",
+  "/dashboard/tasks/[id]": "Task Details",
   "/dashboard/products": "Products",
   "/dashboard/customers": "Customers",
   "/dashboard/campaigns": "Campaigns",
