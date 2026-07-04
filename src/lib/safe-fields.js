@@ -33,6 +33,9 @@ export const SAFE_ACCOUNT_FIELDS = [
   "instagram_connected", "facebook_connected", "whatsapp_connected",
   "shopify_installed",
   "instagram_page_id", "facebook_page_id", "whatsapp_phone_number_id",
+  // Telegram + Email channels (booleans + public identifiers only)
+  "telegram_connected", "telegram_bot_username", "telegram_webhook_verified",
+  "email_channel_enabled", "email_inbound_address",
   // Plan & Billing
   "plan", "plan_status", "subscription_ends_at", "trial_ends_at",
   "billing_address", "notification_prefs",
