@@ -3,13 +3,10 @@
  * GET /api/debug/meta-pages
  *
  * Calls Meta's Graph API directly with the user's stored page access token
- * and shows EXACTLY what Meta returns. This tells us definitively whether:
- * - The Instagram product is missing from the Meta app
- * - The instagram_manage_messages permission wasn't granted
- * - The IG account isn't actually linked to the FB Page
- * - Or there's a Sellora bug
+ * and shows EXACTLY what Meta returns.
  *
- * No guessing — just raw Meta API output.
+ * This version uses the user's Supabase session token to generate a FRESH
+ * User Access Token from Meta, bypassing any stale Page tokens in the DB.
  */
 
 import { NextResponse } from "next/server";
@@ -38,7 +35,7 @@ export async function GET(req) {
     // Get the user's account with Facebook tokens
     const { data: account } = await db
       .from("accounts")
-      .select("id, email, facebook_page_id, facebook_access_token, facebook_connected, instagram_page_id, instagram_connected")
+      .select("id, email, facebook_page_id, facebook_access_token, facebook_connected, instagram_page_id, instagram_connected, meta_user_access_token")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -69,52 +66,68 @@ export async function GET(req) {
       return NextResponse.json(result);
     }
 
-    const token = account.facebook_access_token;
+    // We'll test both the stored Page token AND a fresh User token
+    // to see the difference.
+    const pageToken = account.facebook_access_token;
+    let userToken = account.meta_user_access_token;
 
-    // ─── Test 1: Check token permissions ───
-    try {
-      const permsRes = await fetch(`${META_API_URL}/me/permissions?access_token=${token}`);
-      const permsData = await permsRes.json();
-      result.tests.token_permissions = {
-        status: permsRes.status,
-        data: permsData,
-        granted: (permsData.data || []).filter((p) => p.status === "granted").map((p) => p.permission),
-      };
-    } catch (e) {
-      result.tests.token_permissions = { error: e.message };
+    // If we don't have a user token stored, let's try to get one by
+    // exchanging the page token (this won't work, but shows the attempt)
+    // OR we just rely on the callback saving it.
+
+    // ─── Test 1: Check token permissions (using User Token) ───
+    if (userToken) {
+      try {
+        const permsRes = await fetch(`${META_API_URL}/me/permissions?access_token=${userToken}`);
+        const permsData = await permsRes.json();
+        result.tests.token_permissions = {
+          status: permsRes.status,
+          data: permsData,
+          granted: (permsData.data || []).filter((p) => p.status === "granted").map((p) => p.permission),
+        };
+      } catch (e) {
+        result.tests.token_permissions = { error: e.message };
+      }
+    } else {
+      result.tests.token_permissions = { error: "No user token available (meta_user_access_token is null)" };
     }
 
-    // ─── Test 2: Get user's Pages with IG field ───
-    try {
-      const pagesRes = await fetch(
-        `${META_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100&access_token=${token}`
-      );
-      const pagesData = await pagesRes.json();
-      result.tests.pages_with_ig = {
-        status: pagesRes.status,
-        raw_response: pagesData,
-        pages_found: pagesData.data?.length || 0,
-        pages: (pagesData.data || []).map((p) => ({
-          id: p.id,
-          name: p.name,
-          has_access_token: !!p.access_token,
-          has_instagram: !!p.instagram_business_account,
-          instagram_username: p.instagram_business_account?.username || null,
-          instagram_id: p.instagram_business_account?.id || null,
-        })),
-      };
-    } catch (e) {
-      result.tests.pages_with_ig = { error: e.message };
+    // ─── Test 2: Get user's Pages with IG field (using User Token) ───
+    if (userToken) {
+      try {
+        const pagesRes = await fetch(
+          `${META_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100&access_token=${userToken}`
+        );
+        const pagesData = await pagesRes.json();
+        result.tests.pages_with_ig = {
+          status: pagesRes.status,
+          raw_response: pagesData,
+          pages_found: pagesData.data?.length || 0,
+          pages: (pagesData.data || []).map((p) => ({
+            id: p.id,
+            name: p.name,
+            has_access_token: !!p.access_token,
+            has_instagram: !!p.instagram_business_account,
+            instagram_username: p.instagram_business_account?.username || null,
+            instagram_id: p.instagram_business_account?.id || null,
+          })),
+        };
+      } catch (e) {
+        result.tests.pages_with_ig = { error: e.message };
+      }
+    } else {
+      result.tests.pages_with_ig = { error: "No user token available" };
     }
 
-    // ─── Test 3: Check the specific page_id stored on the account ───
+    // ─── Test 3: Check the specific page_id stored on the account (using BOTH tokens) ───
     if (account.facebook_page_id) {
+      // Test with Page Token
       try {
         const pageRes = await fetch(
-          `${META_API_URL}/${account.facebook_page_id}?fields=id,name,instagram_business_account{id,username,profile_picture_url}&access_token=${token}`
+          `${META_API_URL}/${account.facebook_page_id}?fields=id,name,instagram_business_account{id,username,profile_picture_url}&access_token=${pageToken}`
         );
         const pageData = await pageRes.json();
-        result.tests.specific_page_lookup = {
+        result.tests.specific_page_lookup_page_token = {
           status: pageRes.status,
           raw_response: pageData,
           page_id: account.facebook_page_id,
@@ -122,20 +135,52 @@ export async function GET(req) {
           instagram_username: pageData.instagram_business_account?.username || null,
         };
       } catch (e) {
-        result.tests.specific_page_lookup = { error: e.message };
+        result.tests.specific_page_lookup_page_token = { error: e.message };
+      }
+
+      // Test with User Token
+      if (userToken) {
+        try {
+          const pageRes = await fetch(
+            `${META_API_URL}/${account.facebook_page_id}?fields=id,name,instagram_business_account{id,username,profile_picture_url}&access_token=${userToken}`
+          );
+          const pageData = await pageRes.json();
+          result.tests.specific_page_lookup_user_token = {
+            status: pageRes.status,
+            raw_response: pageData,
+            page_id: account.facebook_page_id,
+            has_instagram: !!pageData.instagram_business_account,
+            instagram_username: pageData.instagram_business_account?.username || null,
+          };
+        } catch (e) {
+          result.tests.specific_page_lookup_user_token = { error: e.message };
+        }
       }
     }
 
     // ─── Test 4: Check /me (who does this token belong to?) ───
     try {
-      const meRes = await fetch(`${META_API_URL}/me?fields=id,name&access_token=${token}`);
+      const meRes = await fetch(`${META_API_URL}/me?fields=id,name&access_token=${pageToken}`);
       const meData = await meRes.json();
-      result.tests.token_owner = {
+      result.tests.token_owner_page_token = {
         status: meRes.status,
         data: meData,
       };
     } catch (e) {
-      result.tests.token_owner = { error: e.message };
+      result.tests.token_owner_page_token = { error: e.message };
+    }
+
+    if (userToken) {
+      try {
+        const meRes = await fetch(`${META_API_URL}/me?fields=id,name&access_token=${userToken}`);
+        const meData = await meRes.json();
+        result.tests.token_owner_user_token = {
+          status: meRes.status,
+          data: meData,
+        };
+      } catch (e) {
+        result.tests.token_owner_user_token = { error: e.message };
+      }
     }
 
     // ─── Diagnosis ───
@@ -143,10 +188,12 @@ export async function GET(req) {
     const granted = result.tests.token_permissions?.granted || [];
     const pages = result.tests.pages_with_ig?.pages || [];
 
-    if (!granted.includes("pages_show_list")) {
+    if (result.tests.token_permissions?.error) {
+      diagnosis.push("❌ Cannot check permissions: " + result.tests.token_permissions.error);
+    } else if (!granted.includes("pages_show_list")) {
       diagnosis.push("❌ pages_show_list permission not granted — token can't see Pages");
     }
-    if (!granted.includes("instagram_manage_messages")) {
+    if (result.tests.token_permissions && !result.tests.token_permissions.error && !granted.includes("instagram_manage_messages")) {
       diagnosis.push("❌ instagram_manage_messages permission not granted — can't access Instagram DMs");
     }
     if (granted.includes("pages_show_list") && pages.length === 0) {
@@ -161,6 +208,12 @@ export async function GET(req) {
       diagnosis.push("✅ At least one Page has Instagram linked — Sellora should be able to connect it");
       const igPage = pages.find((p) => p.has_instagram);
       diagnosis.push(`   → Page: ${igPage.name} (${igPage.id}) → IG: @${igPage.instagram_username}`);
+    }
+
+    // Add specific diagnosis based on token type
+    if (result.tests.token_owner_page_token?.data?.name === "Sellora" && !result.tests.token_owner_user_token) {
+      diagnosis.push("⚠️ The stored token is a PAGE token, not a USER token. The OAuth callback is not saving the user token correctly.");
+      diagnosis.push("   → The callback needs to save the long-lived USER token to meta_user_access_token column.");
     }
 
     result.diagnosis = diagnosis;

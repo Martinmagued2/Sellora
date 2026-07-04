@@ -453,19 +453,22 @@ export async function GET(request) {
     }
 
     // ─── Step 5: Always connect Facebook Messenger ───
+    // CRITICAL: Save BOTH the Page token AND the long-lived User token.
+    // The User token is needed for Instagram Business Account lookup.
     const { error: fbUpdateError } = await supabase
       .from("accounts")
       .update({
         facebook_page_id: pageId,
         facebook_access_token: pageAccessToken,
         facebook_connected: true,
+        meta_user_access_token: longLivedToken, // Save user token for IG lookup
       })
       .eq("id", accountId);
 
     if (fbUpdateError) {
       console.error("[META-CALLBACK] Facebook DB update failed:", fbUpdateError);
     } else {
-      console.log(`[META-CALLBACK] Facebook connected: ${pageName}`);
+      console.log(`[META-CALLBACK] Facebook connected: ${pageName} (saved both page + user tokens)`);
     }
 
     // ─── Step 6: Try to connect Instagram via the Page's IG Business Account ───
