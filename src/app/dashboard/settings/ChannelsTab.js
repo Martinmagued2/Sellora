@@ -32,6 +32,47 @@ export default function ChannelsTab({
   const [emailDisconnecting, setEmailDisconnecting] = useState(false);
   const [showEmailSetup, setShowEmailSetup] = useState(false);
 
+  // IG/FB/WA disconnect loading states
+  const [igDisconnecting, setIgDisconnecting] = useState(false);
+  const [fbDisconnecting, setFbDisconnecting] = useState(false);
+  const [waDisconnecting, setWaDisconnecting] = useState(false);
+
+  // Generic disconnect handler for IG/FB/WA
+  const disconnectChannel = async ({ channel, setLoading, fields }) => {
+    if (!(await confirmAction(`Disconnect ${channel}? You will stop receiving ${channel} messages.`))) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("accounts")
+        .update(fields)
+        .eq("id", account.id);
+      if (error) throw new Error(error.message);
+      setAccount((prev) => ({ ...prev, ...fields }));
+      toast.success(`${channel} disconnected`);
+    } catch (e) {
+      console.error(`[ChannelsTab] ${channel} disconnect failed:`, e);
+      toast.error(e.message || `Failed to disconnect ${channel}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleIgDisconnect = () => disconnectChannel({
+    channel: "Instagram",
+    setLoading: setIgDisconnecting,
+    fields: { instagram_connected: false, instagram_page_id: null, instagram_access_token: null },
+  });
+  const handleFbDisconnect = () => disconnectChannel({
+    channel: "Facebook",
+    setLoading: setFbDisconnecting,
+    fields: { facebook_connected: false, facebook_page_id: null, facebook_access_token: null },
+  });
+  const handleWaDisconnect = () => disconnectChannel({
+    channel: "WhatsApp",
+    setLoading: setWaDisconnecting,
+    fields: { whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null },
+  });
+
   const handleTelegramConnect = async () => {
     if (!tgToken || !tgToken.match(/^\d+:[A-Za-z0-9_-]+$/)) {
       toast.error("Invalid bot token format. Get it from @BotFather on Telegram.");
@@ -182,11 +223,9 @@ export default function ChannelsTab({
                 <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
                   <Check size={16} /> Connected
                 </button>
-                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
-                  if (!(await confirmAction('Disconnect Instagram? You will stop receiving Instagram messages.'))) return;
-                  await supabase.from('accounts').update({ instagram_connected: false, instagram_page_id: null, instagram_access_token: null }).eq('id', account.id);
-                  setAccount(prev => ({ ...prev, instagram_connected: false, instagram_page_id: null, instagram_access_token: null }));
-                }}>Disconnect</button>
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={igDisconnecting} onClick={handleIgDisconnect}>
+                  {igDisconnecting ? <><Loader2 size={12} className="spin" /> Disconnecting…</> : 'Disconnect'}
+                </button>
               </div>
             ) : limitReached ? (
               <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => router.push('/dashboard/billing')}>
@@ -264,11 +303,9 @@ export default function ChannelsTab({
                 <button className="btn btn-secondary" style={{ width: "100%", color: "var(--accent-green)", borderColor: "rgba(0,230,118,0.2)" }} disabled>
                   <Check size={16} /> Connected
                 </button>
-                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
-                  if (!(await confirmAction('Disconnect Facebook? You will stop receiving Facebook messages.'))) return;
-                  await supabase.from('accounts').update({ facebook_connected: false, facebook_page_id: null, facebook_access_token: null }).eq('id', account.id);
-                  setAccount(prev => ({ ...prev, facebook_connected: false, facebook_page_id: null, facebook_access_token: null }));
-                }}>Disconnect</button>
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={fbDisconnecting} onClick={handleFbDisconnect}>
+                  {fbDisconnecting ? <><Loader2 size={12} className="spin" /> Disconnecting…</> : 'Disconnect'}
+                </button>
               </div>
             ) : limitReached ? (
               <button className="btn btn-secondary" style={{ width: "100%", opacity: 0.7 }} onClick={() => router.push('/dashboard/billing')}>
@@ -414,11 +451,9 @@ export default function ChannelsTab({
                   <div style={{ marginBottom: 4 }}><strong>Webhook URL:</strong> <code style={{ fontSize: 10, background: "var(--bg-tertiary)", padding: "2px 6px", borderRadius: 4 }}>{typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/whatsapp` : '/api/webhooks/whatsapp'}</code></div>
                   <div><strong>Verify Token:</strong> Set via WHATSAPP_WEBHOOK_VERIFY_TOKEN env var</div>
                 </div>
-                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} onClick={async () => {
-                  if (!(await confirmAction('Disconnect WhatsApp? You will stop receiving WhatsApp messages.'))) return;
-                  await supabase.from('accounts').update({ whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }).eq('id', account.id);
-                  setAccount(prev => ({ ...prev, whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null }));
-                }}>Disconnect</button>
+                <button className="btn btn-secondary btn-sm" style={{ width: "100%", color: "var(--accent-red)", fontSize: 11 }} disabled={waDisconnecting} onClick={handleWaDisconnect}>
+                  {waDisconnecting ? <><Loader2 size={12} className="spin" /> Disconnecting…</> : 'Disconnect'}
+                </button>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
