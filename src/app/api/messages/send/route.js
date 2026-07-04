@@ -124,18 +124,38 @@ export async function POST(request) {
         return NextResponse.json({ error: "WhatsApp not connected" }, { status: 400 });
       }
 
-      const phoneNumber = customer?.phone || customer?.platform_id;
+      // For WhatsApp, prefer platform_id (it's the canonical phone number from the
+      // webhook, always digits-only). Fall back to customer.phone if platform_id
+      // is missing — but normalize it by stripping all non-digit characters
+      // (WhatsApp rejects "+20 123 456" → must be "20123456").
+      let phoneNumber = customer?.platform_id || customer?.phone;
       if (!phoneNumber) {
         return NextResponse.json({ error: "Customer has no phone number for WhatsApp" }, { status: 400 });
       }
+      // Normalize: strip everything except digits
+      phoneNumber = String(phoneNumber).replace(/[^\d]/g, "");
+      if (phoneNumber.length < 7) {
+        return NextResponse.json({ error: `Customer phone number is too short after normalization: "${phoneNumber}"` }, { status: 400 });
+      }
+
+      console.log(`[MSG-SEND] WhatsApp send to: ${phoneNumber} (from platform_id=${customer?.platform_id}, phone=${customer?.phone})`);
 
       // Send via WhatsApp Cloud API
-      const sendResult = await sendWhatsAppMessage({
-        to: phoneNumber,
-        message: content,
-        phoneNumberId: account.whatsapp_phone_number_id,
-        accessToken: account.whatsapp_access_token,
-      });
+      let sendResult;
+      try {
+        sendResult = await sendWhatsAppMessage({
+          to: phoneNumber,
+          message: content,
+          phoneNumberId: account.whatsapp_phone_number_id,
+          accessToken: account.whatsapp_access_token,
+        });
+      } catch (waErr) {
+        console.error("[MSG-SEND] WhatsApp API error:", waErr.message);
+        return NextResponse.json({
+          error: `WhatsApp API error: ${waErr.message}`,
+          details: { phoneNumber, phoneNumberId: account.whatsapp_phone_number_id }
+        }, { status: 500 });
+      }
 
       // Save the outgoing message
       const { error: insertError } = await supabase.from("messages").insert({
@@ -145,6 +165,7 @@ export async function POST(request) {
         content,
         type,
         is_ai: false,
+        platform_message_id: sendResult?.messages?.[0]?.id || null,
       });
 
       if (insertError) {
