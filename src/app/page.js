@@ -1045,11 +1045,11 @@ export default function Home() {
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300, padding: "20px 0" }}>
             <BounceCards
               images={[
-                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2325D366'/><stop offset='1' stop-color='%23128C7E'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>WA</text></svg>",
-                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23E1306C'/><stop offset='0.5' stop-color='%23F77737'/><stop offset='1' stop-color='%23FCAF45'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>IG</text></svg>",
-                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%231877F2'/><stop offset='1' stop-color='%23042A6F'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='50' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>FB</text></svg>",
-                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230088cc'/><stop offset='1' stop-color='%23005580'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='45' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>TG</text></svg>",
-                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236C5CE7'/><stop offset='1' stop-color='%23a855f7'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='45' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>@</text></svg>",
+                "/channels/whatsapp.svg",
+                "/channels/instagram.svg",
+                "/channels/facebook.svg",
+                "/channels/telegram.svg",
+                "/channels/email.svg",
               ]}
               containerWidth={500}
               containerHeight={280}
