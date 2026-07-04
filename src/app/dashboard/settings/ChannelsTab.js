@@ -196,7 +196,11 @@ export default function ChannelsTab({
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {process.env.NEXT_PUBLIC_META_APP_ID && (
                   <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
-                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
+                    // Use the production URL (not window.location.origin) to ensure
+                    // the redirect URI always matches what's whitelisted in Meta dashboard.
+                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sellorachat.com';
+                    const redirectUri = `${baseUrl}/api/auth/meta-callback`;
+                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
                   }}>
                     Connect with Meta
                   </button>
@@ -274,7 +278,9 @@ export default function ChannelsTab({
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {process.env.NEXT_PUBLIC_META_APP_ID && (
                   <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
-                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(window.location.origin + '/api/auth/meta-callback')}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
+                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sellorachat.com';
+                    const redirectUri = `${baseUrl}/api/auth/meta-callback`;
+                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
                   }}>
                     Connect with Meta
                   </button>
