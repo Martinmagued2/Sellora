@@ -1,0 +1,100 @@
+.card-swap-container {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  transform: translate(5%, 20%);
+  transform-origin: bottom right;
+
+  perspective: 900px;
+  overflow: visible;
+}
+
+.card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(30, 30, 50, 0.95), rgba(20, 20, 35, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: white;
+
+  transform-style: preserve-3d;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.card-swap-testimonial {
+  font-size: 18px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 24px;
+}
+
+.card-swap-author {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.card-swap-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6C5CE7, #a855f7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.card-swap-author-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-swap-name {
+  font-weight: 700;
+  font-size: 16px;
+  color: white;
+}
+
+.card-swap-role {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.card-swap-rating {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  color: #FFD700;
+}
+
+@media (max-width: 768px) {
+  .card-swap-container {
+    transform: scale(0.75) translate(25%, 25%);
+  }
+  .card {
+    padding: 30px;
+  }
+  .card-swap-testimonial {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .card-swap-container {
+    transform: scale(0.55) translate(25%, 25%);
+  }
+}
