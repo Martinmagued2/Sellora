@@ -200,6 +200,152 @@ export async function POST(request) {
       });
     }
 
+    // ─── Telegram Channel ───
+    if (effectiveChannel === "telegram") {
+      const { data: account, error: accountError } = await supabase
+        .from("accounts")
+        .select("telegram_bot_token, telegram_connected")
+        .eq("id", account_id)
+        .single();
+
+      if (accountError || !account) {
+        return NextResponse.json({ error: "Account not found" }, { status: 404 });
+      }
+
+      if (!account.telegram_connected || !account.telegram_bot_token) {
+        return NextResponse.json({ error: "Telegram not connected" }, { status: 400 });
+      }
+
+      // For Telegram, platform_id is the chat_id (a number).
+      // Telegram chat_ids are integers — normalize by stripping non-digits.
+      let chatId = customer?.platform_id;
+      if (!chatId) {
+        return NextResponse.json({ error: "Customer has no Telegram chat ID" }, { status: 400 });
+      }
+      chatId = String(chatId).replace(/[^\d-]/g, ""); // keep digits + minus sign (negative for groups)
+
+      const { sendTelegramMessage } = await import("@/lib/telegram");
+
+      let sendResult;
+      try {
+        console.log(`[MSG-SEND] Telegram send to chatId: ${chatId}`);
+        sendResult = await sendTelegramMessage({
+          botToken: account.telegram_bot_token,
+          chatId,
+          text: content,
+        });
+      } catch (tgErr) {
+        console.error("[MSG-SEND] Telegram API error:", tgErr.message);
+        return NextResponse.json({
+          error: `Telegram API error: ${tgErr.message}`,
+          details: { chatId, channel: "telegram" }
+        }, { status: 500 });
+      }
+
+      // Save the outgoing message
+      const { error: insertError } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        account_id,
+        direction: "outgoing",
+        content,
+        type,
+        is_ai: false,
+        platform_message_id: sendResult?.result?.message_id?.toString() || null,
+      });
+
+      if (insertError) {
+        console.error("[MSG-SEND] Failed to save Telegram message:", insertError);
+      }
+
+      // Update conversation
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_at: new Date().toISOString(),
+          status: "waiting_customer",
+        })
+        .eq("id", conversationId);
+
+      return NextResponse.json({
+        success: true,
+        messageId: sendResult?.result?.message_id?.toString(),
+      });
+    }
+
+    // ─── Email Channel ───
+    if (effectiveChannel === "email") {
+      const { data: account, error: accountError } = await supabase
+        .from("accounts")
+        .select("email_inbound_address")
+        .eq("id", account_id)
+        .single();
+
+      if (accountError || !account) {
+        return NextResponse.json({ error: "Account not found" }, { status: 404 });
+      }
+
+      // For Email, platform_id stores the customer's email address
+      const customerEmail = customer?.platform_id || customer?.email;
+      if (!customerEmail || !customerEmail.includes("@")) {
+        return NextResponse.json({ error: "Customer has no valid email address" }, { status: 400 });
+      }
+
+      const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
+      if (!isEmailConfigured()) {
+        return NextResponse.json({ error: "Email not configured (RESEND_API_KEY missing)" }, { status: 400 });
+      }
+
+      let sendResult;
+      try {
+        console.log(`[MSG-SEND] Email send to: ${customerEmail}`);
+        sendResult = await sendCustomEmail({
+          to: customerEmail,
+          subject: "Re: Your message",
+          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+            <p style="font-size:15px;line-height:1.6;color:#374151;white-space:pre-wrap;">${content}</p>
+          </div>`,
+          replyTo: account.email_inbound_address,
+          templateName: "manual_email_reply",
+          accountId: account_id,
+        });
+      } catch (emailErr) {
+        console.error("[MSG-SEND] Email API error:", emailErr.message);
+        return NextResponse.json({
+          error: `Email API error: ${emailErr.message}`,
+          details: { to: customerEmail, channel: "email" }
+        }, { status: 500 });
+      }
+
+      // Save the outgoing message
+      const { error: insertError } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        account_id,
+        direction: "outgoing",
+        content,
+        type,
+        is_ai: false,
+        platform_message_id: sendResult?.messageId || null,
+      });
+
+      if (insertError) {
+        console.error("[MSG-SEND] Failed to save email message:", insertError);
+      }
+
+      // Update conversation
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_at: new Date().toISOString(),
+          status: "waiting_customer",
+        })
+        .eq("id", conversationId);
+
+      return NextResponse.json({
+        success: true,
+        messageId: sendResult?.messageId,
+      });
+    }
+
     // ─── Instagram / Facebook Channel ───
     if (!recipientId) {
       console.error("[MSG-SEND] No platform_id for customer in conversation", conversationId);
