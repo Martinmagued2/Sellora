@@ -14,48 +14,84 @@ export default function InviteAcceptPopup() {
 
   useEffect(() => {
     const checkPendingInvite = async () => {
-      const pendingInvite = localStorage.getItem("sellora_pending_invite");
-      if (!pendingInvite) return;
-
       // Check if user is logged in
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch the invite details
-      try {
-        const res = await fetch('/api/team/invite-details', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inviteId: pendingInvite }),
-        });
-        const data = await res.json();
+      // ─── Strategy 1: localStorage invite ID (from /login?invite=...) ───
+      const pendingInvite = localStorage.getItem("sellora_pending_invite");
+      let inviteToFetch = null;
 
-        if (data.success && data.invite) {
-          // Check if already accepted by this user
-          if (data.invite.invite_status === 'accepted' && data.invite.user_id === user.id) {
+      if (pendingInvite) {
+        // Fetch the specific invite
+        try {
+          const res = await fetch('/api/team/invite-details', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inviteId: pendingInvite }),
+          });
+          const data = await res.json();
+
+          if (data.success && data.invite) {
+            // Check if already accepted by this user
+            if (data.invite.invite_status === 'accepted' && data.invite.user_id === user.id) {
+              localStorage.removeItem("sellora_pending_invite");
+              // Don't return — fall through to Strategy 2 in case there are OTHER pending invites
+            } else if (data.invite.invite_status === 'pending') {
+              inviteToFetch = data.invite;
+              // Hydrate business_name if missing
+              if (!inviteToFetch.business_name) {
+                try {
+                  const { createClient: createAdmin } = await import("@supabase/supabase-js");
+                  // We can't use service role client-side, so just leave business_name as-is
+                  // The pending-invites API below will hydrate it
+                } catch {}
+              }
+              setInviteInfo(inviteToFetch);
+              setShow(true);
+              return;
+            } else {
+              localStorage.removeItem("sellora_pending_invite");
+            }
+          } else {
             localStorage.removeItem("sellora_pending_invite");
-            return;
           }
-
-          // Check if invite is still pending
-          if (data.invite.invite_status !== 'pending') {
-            localStorage.removeItem("sellora_pending_invite");
-            return;
-          }
-
-          setInviteInfo(data.invite);
-          setShow(true);
-        } else {
+        } catch (e) {
+          console.error('[InvitePopup] localStorage invite fetch error:', e);
           localStorage.removeItem("sellora_pending_invite");
         }
+      }
+
+      // ─── Strategy 2: proactively query by email ───
+      // This catches the case where the user clicked the email link while already
+      // logged in, OR they cleared their localStorage, OR they didn't go through
+      // /login (e.g. they were on /dashboard when the invite was sent).
+      try {
+        const res = await fetch('/api/team/pending-invites');
+        const data = await res.json();
+        if (data.invites && data.invites.length > 0) {
+          // Show the most recent pending invite
+          const inv = data.invites[0];
+          setInviteInfo({
+            id: inv.id,
+            account_id: inv.account_id,
+            business_name: inv.business_name,
+            owner_name: inv.owner_name,
+            role: inv.role,
+            invited_email: inv.invited_email,
+            invite_status: inv.invite_status,
+          });
+          // Persist to localStorage so we don't re-prompt on every page load
+          try { localStorage.setItem("sellora_pending_invite", inv.id); } catch {}
+          setShow(true);
+        }
       } catch (e) {
-        console.error('[InvitePopup] Error:', e);
-        localStorage.removeItem("sellora_pending_invite");
+        console.error('[InvitePopup] pending-invites fetch error:', e);
       }
     };
 
     // Small delay to let dashboard load
-    const timer = setTimeout(checkPendingInvite, 1000);
+    const timer = setTimeout(checkPendingInvite, 1500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -131,7 +167,10 @@ export default function InviteAcceptPopup() {
                   Team Invitation
                 </h2>
                 <p style={{ fontSize: 15, color: "var(--text-secondary)", textAlign: "center", marginBottom: 24, lineHeight: 1.5 }}>
-                  You've been invited to join <strong style={{ color: "var(--text-primary)" }}>{inviteInfo?.business_name || "a team"}</strong> as an <strong style={{ color: "var(--accent-primary)" }}>{inviteInfo?.role || "agent"}</strong>.
+                  {inviteInfo?.owner_name
+                    ? <><strong style={{ color: "var(--text-primary)" }}>{inviteInfo.owner_name}</strong> invited you to join </>
+                    : <>You've been invited to join </>}
+                  <strong style={{ color: "var(--text-primary)" }}>{inviteInfo?.business_name || "a team"}</strong> as an <strong style={{ color: "var(--accent-primary)" }}>{inviteInfo?.role || "agent"}</strong>.
                   <br />Accept to start managing conversations together.
                 </p>
 

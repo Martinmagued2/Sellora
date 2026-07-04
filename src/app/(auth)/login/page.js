@@ -14,7 +14,7 @@ import {
   Zap,
   Loader2,
 } from "lucide-react";
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -55,6 +55,26 @@ function LoginContent() {
   ];
   const redirectBase = rawRedirectTo.split("?")[0].split("#")[0];
   const redirectTo = ALLOWED_REDIRECTS.includes(redirectBase) ? rawRedirectTo : "/dashboard";
+
+  // ─── Capture ?invite= param + redirect already-logged-in users to dashboard ───
+  useEffect(() => {
+    const inviteId = searchParams.get("invite");
+    if (inviteId) {
+      // Persist so the InviteAcceptPopup on /dashboard can pick it up after login
+      try {
+        localStorage.setItem("sellora_pending_invite", inviteId);
+      } catch (e) { /* localStorage might be blocked */ }
+    }
+
+    // If user is already logged in, redirect to dashboard (with invite preserved)
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const dest = inviteId ? `/dashboard?invite=${inviteId}` : redirectTo;
+        router.replace(dest);
+      }
+    });
+  }, [searchParams, router, redirectTo]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
