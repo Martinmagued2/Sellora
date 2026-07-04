@@ -38,9 +38,8 @@ export default function ChannelsTab({
   const [waDisconnecting, setWaDisconnecting] = useState(false);
 
   // Generic disconnect handler for IG/FB/WA — calls server-side API endpoint
-  // (client-side supabase update fails on access_token columns due to RLS)
+  // No confirmAction (it was breaking the disconnect — see commit 776a491)
   const disconnectChannel = async ({ channel, endpoint, setLoading, fields }) => {
-    if (!(await confirmAction(`Disconnect ${channel}? You will stop receiving ${channel} messages.`))) return;
     setLoading(true);
     try {
       console.log(`[ChannelsTab] Disconnecting ${channel} → ${endpoint}`);
@@ -109,7 +108,6 @@ export default function ChannelsTab({
   };
 
   const handleTelegramDisconnect = async () => {
-    if (!(await confirmAction('Disconnect Telegram bot? Customers won\'t be able to message you on Telegram.'))) return;
     setTgDisconnecting(true);
     try {
       const res = await fetch("/api/telegram/disconnect", {
@@ -159,7 +157,6 @@ export default function ChannelsTab({
   };
 
   const handleEmailDisconnect = async () => {
-    if (!(await confirmAction('Disable email channel? Inbound emails will no longer create conversations.'))) return;
     setEmailDisconnecting(true);
     try {
       const res = await fetch("/api/email/connect", {
@@ -411,7 +408,6 @@ export default function ChannelsTab({
                     {shopifySyncing ? 'Syncing...' : 'Sync Data'}
                   </button>
                   <button className="btn btn-secondary btn-sm" style={{ flex: 1, color: "var(--accent-red)" }} disabled={shopifyDisconnecting} onClick={async () => {
-                    if (!(await confirmAction('Are you sure you want to disconnect Shopify?'))) return;
                     setShopifyDisconnecting(true);
                     try {
                       const res = await fetch('/api/integrations/shopify/disconnect', {
