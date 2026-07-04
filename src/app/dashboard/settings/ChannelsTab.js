@@ -43,8 +43,14 @@ export default function ChannelsTab({
     if (!(await confirmAction(`Disconnect ${channel}? You will stop receiving ${channel} messages.`))) return;
     setLoading(true);
     try {
-      const res = await fetch(endpoint, { method: "POST" });
+      console.log(`[ChannelsTab] Disconnecting ${channel} → ${endpoint}`);
+      const res = await fetch(endpoint, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       const data = await res.json().catch(() => ({}));
+      console.log(`[ChannelsTab] ${channel} disconnect response:`, res.status, data);
       if (!res.ok || data.error) throw new Error(data.error || `Failed (HTTP ${res.status})`);
       setAccount((prev) => ({ ...prev, ...fields }));
       toast.success(`${channel} disconnected`);
@@ -106,7 +112,11 @@ export default function ChannelsTab({
     if (!(await confirmAction('Disconnect Telegram bot? Customers won\'t be able to message you on Telegram.'))) return;
     setTgDisconnecting(true);
     try {
-      const res = await fetch("/api/telegram/disconnect", { method: "POST" });
+      const res = await fetch("/api/telegram/disconnect", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       if (res.ok) {
         toast.success("Telegram disconnected");
         setAccount((prev) => ({ ...prev, telegram_connected: false, telegram_bot_token: null, telegram_bot_username: null }));
@@ -152,7 +162,11 @@ export default function ChannelsTab({
     if (!(await confirmAction('Disable email channel? Inbound emails will no longer create conversations.'))) return;
     setEmailDisconnecting(true);
     try {
-      const res = await fetch("/api/email/connect", { method: "DELETE" });
+      const res = await fetch("/api/email/connect", {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       if (res.ok) {
         toast.success("Email channel disabled");
         setAccount((prev) => ({ ...prev, email_channel_enabled: false, email_inbound_address: null }));
@@ -400,7 +414,11 @@ export default function ChannelsTab({
                     if (!(await confirmAction('Are you sure you want to disconnect Shopify?'))) return;
                     setShopifyDisconnecting(true);
                     try {
-                      const res = await fetch('/api/integrations/shopify/disconnect', { method: 'POST' });
+                      const res = await fetch('/api/integrations/shopify/disconnect', {
+                        method: 'POST',
+                        credentials: "include",
+                        headers: { "Content-Type": "application/json" },
+                      });
                       if (res.ok) window.location.reload();
                     } catch(e) {}
                     finally { setShopifyDisconnecting(false); }
