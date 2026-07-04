@@ -252,7 +252,7 @@ export default function ChannelsTab({
                     // the redirect URI always matches what's whitelisted in Meta dashboard.
                     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sellorachat.com';
                     const redirectUri = `${baseUrl}/api/auth/meta-callback`;
-                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
+                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_manage_messages&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
                   }}>
                     Connect with Meta
                   </button>
@@ -330,7 +330,7 @@ export default function ChannelsTab({
                   <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
                     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sellorachat.com';
                     const redirectUri = `${baseUrl}/api/auth/meta-callback`;
-                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
+                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_manage_messages&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
                   }}>
                     Connect with Meta
                   </button>
