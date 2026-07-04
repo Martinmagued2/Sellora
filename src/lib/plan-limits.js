@@ -16,7 +16,7 @@ export const PLAN_LIMITS = {
     copilot_msgs_per_day: 10,     // Increased for testing
 
     // Scale
-    channels: 1,
+    channels: 5,                  // All 5 channels allowed (WA, IG, FB, TG, Email)
     products: 25,
     conversations_per_month: 100,
     customers: 200,
@@ -46,7 +46,7 @@ export const PLAN_LIMITS = {
     copilot_msgs_per_day: 50,
 
     // Scale
-    channels: 2,
+    channels: 5,                  // All 5 channels allowed
     products: -1,                 // Unlimited
     conversations_per_month: 1000,
     customers: -1,
@@ -76,7 +76,7 @@ export const PLAN_LIMITS = {
     copilot_msgs_per_day: -1,     // Unlimited
 
     // Scale
-    channels: 3,
+    channels: 5,                  // All 5 channels allowed
     products: -1,
     conversations_per_month: -1,
     customers: -1,
