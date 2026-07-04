@@ -5,6 +5,7 @@ import { MessageCircle, Globe, Check, Plus, X, Link as LinkIcon, Loader2, Send, 
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useToast } from "../components/ToastProvider";
 import { useConfirm } from "../components/ConfirmProvider";
+import { useEffectiveAccount } from "@/lib/account-context";
 
 export default function ChannelsTab({
   account, setAccount, supabase, router,
@@ -17,9 +18,14 @@ export default function ChannelsTab({
 }) {
   const toast = useToast();
   const confirmAction = useConfirm();
+  const { effectiveAccountId } = useEffectiveAccount();
   const planLimits = getPlanLimits(account.plan || "starter");
   const connectedChannels = (account.instagram_connected ? 1 : 0) + (account.facebook_connected ? 1 : 0) + (account.whatsapp_connected ? 1 : 0) + (account.telegram_connected ? 1 : 0) + (account.email_channel_enabled ? 1 : 0);
   const limitReached = planLimits.channels !== -1 && connectedChannels >= planLimits.channels;
+
+  // Use effectiveAccountId (owner's ID for team members, own ID for owners)
+  // Falls back to account.id if effectiveAccountId isn't loaded yet.
+  const activeAccountId = effectiveAccountId || account.id;
 
   // Telegram state
   const [tgToken, setTgToken] = useState("");
@@ -252,7 +258,7 @@ export default function ChannelsTab({
                     // the redirect URI always matches what's whitelisted in Meta dashboard.
                     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sellorachat.com';
                     const redirectUri = `${baseUrl}/api/auth/meta-callback`;
-                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_manage_messages&response_type=code&auth_type=rerequest&state=instagram_${account.id}`;
+                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_manage_messages&response_type=code&auth_type=rerequest&state=instagram_${activeAccountId}`;
                   }}>
                     Connect with Meta
                   </button>
@@ -330,7 +336,7 @@ export default function ChannelsTab({
                   <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
                     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sellorachat.com';
                     const redirectUri = `${baseUrl}/api/auth/meta-callback`;
-                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_manage_messages&response_type=code&auth_type=rerequest&state=facebook_${account.id}`;
+                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_messaging,pages_read_engagement,pages_show_list,pages_manage_metadata,instagram_manage_messages&response_type=code&auth_type=rerequest&state=facebook_${activeAccountId}`;
                   }}>
                     Connect with Meta
                   </button>
