@@ -98,10 +98,23 @@ export async function POST(request) {
       }
     }
 
-    // Secondary consistency check: if x-account-id is provided, it must match
+    // Secondary consistency check: if x-account-id is provided, the user must
+    // have access to that account (owner OR team member). This replaces the old
+    // strict-equality check that broke team members (whose auth.uid != owner's
+    // account_id but who SHOULD be allowed to send on the owner's behalf).
     const headerAccountId = request.headers.get("x-account-id") || bodyAccountId;
     if (headerAccountId && headerAccountId !== conversation.account_id) {
-      return NextResponse.json({ error: "You do not have access to this conversation" }, { status: 403 });
+      // The provided account id doesn't match the conversation's owner — but
+      // maybe the user is the owner of the provided account OR a team member of
+      // the conversation's account. Either way, canAccessAccount already
+      // verified access above, so we just need to make sure the header account
+      // is one the user can access.
+      if (authenticatedUserId && headerAccountId !== authenticatedUserId) {
+        const canAccessHeader = await canAccessAccount({ id: authenticatedUserId }, headerAccountId);
+        if (!canAccessHeader) {
+          return NextResponse.json({ error: "You do not have access to this conversation" }, { status: 403 });
+        }
+      }
     }
 
     const effectiveChannel = channelOverride || conversation.channel;
@@ -218,22 +231,30 @@ export async function POST(request) {
     // Send the message to Meta
     let sendResult;
 
-    if (type === "product_card" && product) {
-      console.log(`[MSG-SEND] Sending product card to ${effectiveChannel} recipient ${recipientId} via page ${pageId}`);
-      sendResult = await sendProductCard({
-        recipientId,
-        product,
-        pageId,
-        accessToken,
-      });
-    } else {
-      console.log(`[MSG-SEND] Sending text to ${effectiveChannel} recipient ${recipientId} via page ${pageId}`);
-      sendResult = await sendMessage({
-        recipientId,
-        message: content,
-        pageId,
-        accessToken,
-      });
+    try {
+      if (type === "product_card" && product) {
+        console.log(`[MSG-SEND] Sending product card to ${effectiveChannel} recipient ${recipientId} via page ${pageId}`);
+        sendResult = await sendProductCard({
+          recipientId,
+          product,
+          pageId,
+          accessToken,
+        });
+      } else {
+        console.log(`[MSG-SEND] Sending text to ${effectiveChannel} recipient ${recipientId} via page ${pageId}`);
+        sendResult = await sendMessage({
+          recipientId,
+          message: content,
+          pageId,
+          accessToken,
+        });
+      }
+    } catch (metaErr) {
+      console.error(`[MSG-SEND] ${effectiveChannel} API error:`, metaErr.message);
+      return NextResponse.json({
+        error: `${effectiveChannel} API error: ${metaErr.message}`,
+        details: { recipientId, pageId, channel: effectiveChannel }
+      }, { status: 500 });
     }
 
     console.log(`[MSG-SEND] Meta API response:`, JSON.stringify(sendResult));
