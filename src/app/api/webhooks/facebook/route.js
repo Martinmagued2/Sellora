@@ -20,6 +20,8 @@ function getSupabase() {
 
 /**
  * GET — Facebook Messenger webhook verification
+ *
+ * Accepts EITHER META_WEBHOOK_VERIFY_TOKEN or WHATSAPP_WEBHOOK_VERIFY_TOKEN.
  */
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -28,22 +30,26 @@ export async function GET(request) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+  if (mode === "subscribe" && token) {
+    const expectedTokens = [
+      process.env.META_WEBHOOK_VERIFY_TOKEN,
+      process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+    ].filter(Boolean);
 
-  if (!verifyToken) {
-    console.error("[FB-WEBHOOK] META_WEBHOOK_VERIFY_TOKEN is not set! Webhook verification will fail. Add it to your Vercel environment variables.");
-    return NextResponse.json({ error: "Webhook verify token not configured on server" }, { status: 500 });
-  }
+    if (expectedTokens.length === 0) {
+      console.error("[FB-WEBHOOK] No verify token configured. Set META_WEBHOOK_VERIFY_TOKEN in Vercel env vars.");
+      return NextResponse.json({ error: "Webhook verify token not configured on server" }, { status: 500 });
+    }
 
-  // 🔒 SECURITY: Timing-safe comparison to prevent timing attacks
-  if (mode === "subscribe" && token && verifyToken) {
-    try {
-      if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(verifyToken))) {
-        console.log("[FB-WEBHOOK] Webhook verified successfully");
-        return new Response(challenge, { status: 200 });
+    for (const expectedToken of expectedTokens) {
+      try {
+        if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
+          console.log("[FB-WEBHOOK] Webhook verified successfully");
+          return new Response(challenge, { status: 200 });
+        }
+      } catch (e) {
+        // Length mismatch — try next token
       }
-    } catch (e) {
-      // Length mismatch — fall through to failure
     }
   }
 

@@ -22,6 +22,9 @@ function getSupabase() {
 /**
  * GET — WhatsApp webhook verification
  * Meta sends a GET request to verify the webhook URL
+ *
+ * Accepts EITHER WHATSAPP_WEBHOOK_VERIFY_TOKEN or META_WEBHOOK_VERIFY_TOKEN
+ * (some users configure the same token for both IG/FB and WhatsApp).
  */
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -30,20 +33,26 @@ export async function GET(request) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  // 🔒 SECURITY: Timing-safe comparison to prevent timing attacks
-  const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
-  if (mode === "subscribe" && token && expectedToken) {
-    try {
-      if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
-        console.log("[WA-WEBHOOK] Verification successful");
-        return new Response(challenge, { status: 200 });
+  if (mode === "subscribe" && token) {
+    // Try WHATSAPP_WEBHOOK_VERIFY_TOKEN first, then fall back to META_WEBHOOK_VERIFY_TOKEN
+    const expectedTokens = [
+      process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+      process.env.META_WEBHOOK_VERIFY_TOKEN,
+    ].filter(Boolean);
+
+    for (const expectedToken of expectedTokens) {
+      try {
+        if (expectedToken && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
+          console.log("[WA-WEBHOOK] Verification successful");
+          return new Response(challenge, { status: 200 });
+        }
+      } catch (e) {
+        // Length mismatch — try next token
       }
-    } catch (e) {
-      // Length mismatch — fall through to failure
     }
   }
 
-  console.warn("[WA-WEBHOOK] Verification failed");
+  console.warn("[WA-WEBHOOK] Verification failed — token mismatch or no tokens configured");
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
