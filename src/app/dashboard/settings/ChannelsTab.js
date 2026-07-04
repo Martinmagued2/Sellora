@@ -37,16 +37,15 @@ export default function ChannelsTab({
   const [fbDisconnecting, setFbDisconnecting] = useState(false);
   const [waDisconnecting, setWaDisconnecting] = useState(false);
 
-  // Generic disconnect handler for IG/FB/WA
-  const disconnectChannel = async ({ channel, setLoading, fields }) => {
+  // Generic disconnect handler for IG/FB/WA — calls server-side API endpoint
+  // (client-side supabase update fails on access_token columns due to RLS)
+  const disconnectChannel = async ({ channel, endpoint, setLoading, fields }) => {
     if (!(await confirmAction(`Disconnect ${channel}? You will stop receiving ${channel} messages.`))) return;
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("accounts")
-        .update(fields)
-        .eq("id", account.id);
-      if (error) throw new Error(error.message);
+      const res = await fetch(endpoint, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || `Failed (HTTP ${res.status})`);
       setAccount((prev) => ({ ...prev, ...fields }));
       toast.success(`${channel} disconnected`);
     } catch (e) {
@@ -59,16 +58,19 @@ export default function ChannelsTab({
 
   const handleIgDisconnect = () => disconnectChannel({
     channel: "Instagram",
+    endpoint: "/api/instagram/disconnect",
     setLoading: setIgDisconnecting,
     fields: { instagram_connected: false, instagram_page_id: null, instagram_access_token: null },
   });
   const handleFbDisconnect = () => disconnectChannel({
     channel: "Facebook",
+    endpoint: "/api/facebook/disconnect",
     setLoading: setFbDisconnecting,
     fields: { facebook_connected: false, facebook_page_id: null, facebook_access_token: null },
   });
   const handleWaDisconnect = () => disconnectChannel({
     channel: "WhatsApp",
+    endpoint: "/api/whatsapp/disconnect",
     setLoading: setWaDisconnecting,
     fields: { whatsapp_connected: false, whatsapp_phone_number_id: null, whatsapp_access_token: null },
   });
