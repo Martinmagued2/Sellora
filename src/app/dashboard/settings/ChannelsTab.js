@@ -60,7 +60,7 @@ export default function ChannelsTab({
   };
 
   const handleTelegramDisconnect = async () => {
-    if (!await confirmAction({ message: "Disconnect Telegram bot? Customers won't be able to message you on Telegram." })) return;
+    if (!(await confirmAction('Disconnect Telegram bot? Customers won\'t be able to message you on Telegram.'))) return;
     setTgDisconnecting(true);
     try {
       const res = await fetch("/api/telegram/disconnect", { method: "POST" });
@@ -106,7 +106,7 @@ export default function ChannelsTab({
   };
 
   const handleEmailDisconnect = async () => {
-    if (!await confirmAction({ message: "Disable email channel? Inbound emails will no longer create conversations." })) return;
+    if (!(await confirmAction('Disable email channel? Inbound emails will no longer create conversations.'))) return;
     setEmailDisconnecting(true);
     try {
       const res = await fetch("/api/email/connect", { method: "DELETE" });
