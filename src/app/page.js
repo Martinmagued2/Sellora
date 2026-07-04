@@ -1285,7 +1285,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== TESTIMONIALS — CARD SWAP ANIMATION ===== */}
+      {/* ===== TESTIMONIALS — FLOATING GLASS ===== */}
       <section className="section testimonials" id="testimonials">
         <div className="section-inner">
           <div className="section-header animate-on-scroll">
@@ -1293,33 +1293,23 @@ export default function Home() {
             <h2 className="section-title-reveal">{t("testimonials_title")}</h2>
             <p>{t("testimonials_subtitle")}</p>
           </div>
-          <div style={{ height: 500, position: "relative", maxWidth: 700, margin: "0 auto", overflow: "hidden" }}>
-            <CardSwap
-              width={500}
-              height={350}
-              cardDistance={50}
-              verticalDistance={60}
-              delay={5000}
-              pauseOnHover={true}
-              easing="elastic"
-              skewAmount={5}
-            >
-              {testimonials.map((tItem, i) => (
-                <Card key={i}>
-                  <div className="card-swap-rating">
-                    {[...Array(5)].map((_, j) => (<Star key={j} size={18} fill="currentColor" />))}
-                  </div>
-                  <p className="card-swap-testimonial">&ldquo;{tItem.text}&rdquo;</p>
-                  <div className="card-swap-author">
-                    <div className="card-swap-avatar">{tItem.initials}</div>
-                    <div className="card-swap-author-info">
-                      <div className="card-swap-name">{tItem.name}</div>
-                      <div className="card-swap-role">{tItem.role}</div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </CardSwap>
+          <div className="testimonials-grid">
+            {testimonials.map((tItem, i) => (
+              <motion.div key={i} className="glass-card testimonial-card"
+                initial={{ opacity: 0, y: 30 + (i % 2) * 15 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: i * 0.15 }}
+                whileHover={{ y: -8, transition: { duration: 0.3 } }}
+              >
+                <div className="testimonial-stars">{[...Array(5)].map((_, j) => (<Star key={j} size={14} fill="currentColor" />))}</div>
+                <p className="testimonial-text">&quot;{tItem.text}&quot;</p>
+                <div className="testimonial-author">
+                  <div className="testimonial-avatar">{tItem.initials}</div>
+                  <div className="testimonial-info"><h4>{tItem.name}</h4><p>{tItem.role}</p></div>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
