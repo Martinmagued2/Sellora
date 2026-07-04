@@ -4,8 +4,6 @@ import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { getAuthUser } from "@/lib/auth-helper";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -36,7 +34,7 @@ function buildProviderChain() {
 
   if (process.env.GROQ_API_KEY) {
     const groqProvider = createGroq();
-    providers.push({ name: 'groq', model: groqProvider("llama-3.3-70b-versatile") });
+    providers.push({ name: 'groq', model: groqProvider("meta-llama/llama-4-scout-17b-16e-instruct") });
   }
 
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
@@ -62,19 +60,6 @@ function buildProviderChain() {
  */
 export async function POST(req) {
   try {
-    // 🔒 SECURITY: Auth required — was previously public (AI credit drain + prompt injection)
-    const user = await getAuthUser(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // 🔒 Rate limit: 5 generations per minute per user
-    const rlKey = `ai-gendesc:${user.id}`;
-    const rl = checkRateLimit(rlKey, 5, 60_000);
-    if (rl.limited) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-    }
-
     const body = await req.json().catch(() => ({}));
     const { product_name, features, category, tone, language } = body;
 
@@ -82,12 +67,11 @@ export async function POST(req) {
       return NextResponse.json({ error: "Product name or features are required" }, { status: 400 });
     }
 
-    // 🔒 SECURITY: Cap input lengths to prevent prompt-injection / token-exhaustion DoS
-    const finalName = (String(product_name || "Product")).slice(0, 120);
-    const finalFeatures = (String(features || "")).slice(0, 800);
-    const finalCategory = (String(category || "General")).slice(0, 60);
-    const finalTone = ["professional", "casual", "luxurious", "playful", "technical"].includes(tone) ? tone : "professional";
-    const finalLanguage = ["en", "ar", "both"].includes(language) ? language : "both";
+    const finalName = product_name || "Product";
+    const finalFeatures = features || "";
+    const finalCategory = category || "General";
+    const finalTone = tone || "professional";
+    const finalLanguage = language || "both"; // "en", "ar", or "both"
 
     const prompt = `Generate a compelling, SEO-optimized product description for an e-commerce store.
 

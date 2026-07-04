@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyTOTP, generateBackupCodes, decryptSecret } from "@/lib/totp";
-import { notify } from "@/lib/notifications";
 import crypto from "crypto";
 
 // Lazy Supabase admin client (server-side only)
@@ -103,22 +102,10 @@ export async function POST(request) {
     }
 
     // Verify TOTP code with replay protection
-    // 🔒 FIX: window=2 (±60 seconds) for better clock skew tolerance
-    const result = verifyTOTP(account.totp_secret, code, 2, account.last_totp_time_step);
+    const result = verifyTOTP(account.totp_secret, code, 1, account.last_totp_time_step);
 
     if (!result.valid) {
-      // 🔒 DIAGNOSTIC: log enough to debug without exposing the secret
-      const currentTimeStep = Math.floor(Date.now() / 1000 / 30);
-      console.warn("[2FA Verify] Failed", {
-        userId: targetUserId.slice(0, 8),
-        hasSecret: !!account.totp_secret,
-        secretFormat: account.totp_secret?.startsWith("enc:v1:") ? "encrypted" : "plaintext",
-        codeLength: code.length,
-        currentTimeStep,
-        lastUsedTimeStep: account.last_totp_time_step,
-        // Don't log the actual code or secret — just metadata
-      });
-      return NextResponse.json({ error: "Invalid verification code. Make sure your device clock is accurate and try the latest code from your authenticator app." }, { status: 400 });
+      return NextResponse.json({ error: "Invalid verification code" }, { status: 400 });
     }
 
     // Update the last used time step for replay protection
@@ -137,15 +124,6 @@ export async function POST(request) {
         .from("accounts")
         .update(updateData)
         .eq("id", targetUserId);
-
-      // 🔔 Fire notification (best-effort, non-blocking)
-      notify(targetUserId, {
-        category: "security",
-        type: "2fa_enabled",
-        title: `2FA enabled on your account`,
-        message: `Two-factor authentication is now active. You'll need your authenticator app to log in.`,
-        priority: "high",
-      }).catch(() => {});
 
       return NextResponse.json({
         verified: true,

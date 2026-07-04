@@ -7,13 +7,12 @@ import {
   ArrowUpRight, ArrowDownRight, Activity, Download, Lock,
   ChevronRight, Calendar, RefreshCw, Sparkles, AlertTriangle,
   Heart, Meh, Frown, Flame, Package, CreditCard, Smartphone,
-  FileText, Loader2, PieChart, Camera, Globe
+  FileText, Loader2, BarChart, PieChart, Camera, Globe
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "../components/ToastProvider";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { PageSkeleton } from "@/components/SkeletonLoader";
-import { generateAnalyticsPDF } from "@/lib/pdf-export";
 import { LineChart, DonutChart, BarChart as FunnelBarChart, GaugeChart } from "../components/Charts";
 
 function TrendArrow({ value }) {
@@ -221,51 +220,27 @@ export default function AnalyticsPage() {
   const handleExportPDF = async () => {
     setExportingPdf(true);
     try {
-      // 🔧 FIX: Generate PDF client-side using jsPDF (browser-native).
-      // Previous server-side approach failed because jspdf wasn't installed
-      // in the Vercel build environment.
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { toast.error("Not authenticated"); return; }
-
-      const { data: account } = await supabase.from("accounts").select("business_name").eq("id", user.id).single();
-
-      // Fetch fresh data for the PDF
-      const { data: orders } = await supabase.from("orders").select("total, payment_status, status, channel, items, created_at").eq("account_id", user.id).order("created_at", { ascending: false });
-      const { data: customers } = await supabase.from("customers").select("id, name, total_orders, total_spent, channel").eq("account_id", user.id).order("total_spent", { ascending: false }).limit(10);
-
-      const paidOrders = (orders || []).filter(o => o.payment_status === "paid");
-      const revenue = paidOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-
-      // Top products from order items
-      const productRevenue = {};
-      paidOrders.forEach(order => {
-        (order.items || []).forEach(item => {
-          const name = item.name || "Unknown";
-          productRevenue[name] = (productRevenue[name] || 0) + (item.price || 0) * (item.qty || 1);
-        });
+      const res = await fetch("/api/analytics/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dateRange, reportType: "overview" }),
       });
-      const topProducts = Object.entries(productRevenue)
-        .map(([name, rev]) => ({ name, revenue: rev }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 8);
-
-      await generateAnalyticsPDF({
-        dateRange,
-        reportType: "overview",
-        analytics: {
-          businessName: account?.business_name || "My Store",
-          revenue,
-          orders: orders || [],
-          customers: customers || [],
-          topProducts,
-          conversionRate: stats?.conversionRate || 0,
-        },
-      });
-
-      toast.success("PDF report downloaded!");
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Failed to generate PDF");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `sellora_report_${new Date().toISOString().split('T')[0]}.pdf`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (err) {
-      console.error("PDF export error:", err);
       toast.error("Failed to export PDF: " + err.message);
     }
     setExportingPdf(false);
@@ -1068,22 +1043,18 @@ export default function AnalyticsPage() {
               </span>
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
-              {/* Revenue Trend */}
-              {salesData && salesData.dailyRevenue && (
+              {/* Revenue Chart */}
+              {sales && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue Trend</div>
-                  <LineChart data={salesData.dailyRevenue.map(d => ({ label: d.date?.slice(5) || "", value: d.revenue || 0 }))} color="#3BA55C" height={100} label="Revenue" />
+                  <LineChart data={sales.dailyRevenue || []} color="#3BA55C" height={100} label="Revenue" />
                 </div>
               )}
               {/* Channel Distribution */}
-              {salesData && salesData.channelRevenue && (
+              {sales && sales.channelData && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Channel Distribution (Revenue)</div>
-                  <DonutChart data={[
-                    { label: "WhatsApp", value: salesData.channelRevenue.whatsapp || 0, color: "#25D366" },
-                    { label: "Instagram", value: salesData.channelRevenue.instagram || 0, color: "#E1306C" },
-                    { label: "Facebook", value: salesData.channelRevenue.facebook || 0, color: "#1877F2" },
-                  ].filter(d => d.value > 0)} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Channel Distribution</div>
+                  <DonutChart data={sales.channelData || []} />
                 </div>
               )}
               {customerData ? (

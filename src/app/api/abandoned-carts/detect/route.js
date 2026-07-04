@@ -1,7 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth-helper";
-import { notify } from "@/lib/notifications";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -23,45 +21,21 @@ function getSupabase() {
  * in the last N hours.
  *
  * Body: {
- *   account_id (optional — defaults to authenticated user, or all accounts for cron),
+ *   account_id (required),
  *   hours? (default: 2) - hours of inactivity before marking as abandoned
  * }
- *
- * 🔒 SECURITY: Accepts either:
- *   - Authorization: Bearer <CRON_SECRET> (for cron — processes ALL accounts)
- *   - Authenticated user session (for manual triggers — only their account)
  */
 export async function POST(request) {
   try {
-    // 🔒 SECURITY: Auth required — was previously public (anyone could insert fake
-    // abandoned cart rows for any account_id)
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-    const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+    const body = await request.json();
+    const { account_id, hours = 2 } = body;
 
-    let accountId;
-    if (isCron) {
-      // Cron can target any account_id (supplied in body)
-      const body = await request.json();
-      accountId = body.account_id;
-      if (!accountId) {
-        return NextResponse.json({ error: "account_id is required for cron calls" }, { status: 400 });
-      }
-    } else {
-      // Manual call — must be authenticated, ignore body account_id
-      const user = await getAuthUser(request);
-      if (!user) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-      accountId = user.id;
+    if (!account_id) {
+      return NextResponse.json({ error: "account_id is required" }, { status: 400 });
     }
 
-    const body = isCron ? null : await request.json().catch(() => ({}));
-    const { hours = 2 } = body || {};
-    const safeHours = Math.min(Math.max(Number(hours) || 2, 1), 168); // 1h..7d
-
     const supabase = getSupabase();
-    const cutoffTime = new Date(Date.now() - safeHours * 60 * 60 * 1000).toISOString();
+    const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
     // Find conversations where:
     // 1. Customer expressed purchase intent (products were discussed)
@@ -80,7 +54,7 @@ export async function POST(request) {
         created_at,
         customer:customers(id, name, email, phone, channel, platform_id)
       `)
-      .eq("account_id", accountId)
+      .eq("account_id", account_id)
       .in("status", ["new", "open", "in_progress", "waiting_customer"])
       .lt("last_message_at", cutoffTime);
 
@@ -97,7 +71,7 @@ export async function POST(request) {
     const { data: existingCarts } = await supabase
       .from("abandoned_carts")
       .select("conversation_id")
-      .eq("account_id", accountId);
+      .eq("account_id", account_id);
 
     const existingConvIds = new Set((existingCarts || []).map(c => c.conversation_id).filter(Boolean));
 
@@ -107,7 +81,7 @@ export async function POST(request) {
     const { data: recentOrders } = await supabase
       .from("orders")
       .select("customer_id, created_at")
-      .eq("account_id", accountId)
+      .eq("account_id", account_id)
       .in("customer_id", customerIds)
       .gte("created_at", cutoffTime);
 
@@ -147,7 +121,7 @@ export async function POST(request) {
       const { data: newCart, error: insertError } = await supabase
         .from("abandoned_carts")
         .insert({
-          account_id: accountId,
+          account_id,
           customer_id: conv.customer_id,
           conversation_id: conv.id,
           channel: conv.channel,
@@ -174,18 +148,6 @@ export async function POST(request) {
         value: cartValue,
         status: "created",
       });
-    }
-
-    // 🔔 Fire notification (best-effort, non-blocking) — only if any carts were detected
-    if (detected > 0) {
-      notify(accountId, {
-        category: "automation",
-        type: "abandoned_cart_detected",
-        title: `${detected} new abandoned cart(s) detected`,
-        message: `${detected} cart(s) are waiting to be recovered. Send a reminder to win them back.`,
-        priority: "normal",
-        actionUrl: "/dashboard/abandoned-carts",
-      }).catch(() => {});
     }
 
     return NextResponse.json({

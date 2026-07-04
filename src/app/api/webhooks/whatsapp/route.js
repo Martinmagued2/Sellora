@@ -5,7 +5,6 @@ import { parseWebhookMessage, markMessageAsRead } from "@/lib/whatsapp";
 import { processIncomingMessage } from "@/lib/channels/processor";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
-import { notify } from "@/lib/notifications";
 import crypto from 'crypto';
 
 // Service role client for webhook processing (lazy-initialized)
@@ -133,108 +132,20 @@ export async function POST(request) {
     // Process through the shared pipeline — handles EVERYTHING:
     // account lookup, customer upsert, conversation, message storage,
     // auto-greeting, FAQ, keyword auto-reply, and AI auto-reply
-    //
-    // 🔧 FIX: If the message has media (image/audio/video), download it
-    // from WhatsApp and upload to Supabase Storage so it's accessible.
-    let mediaUrls = [];
-    let mediaType = null;
-    if (message.mediaId && waAccessToken) {
-      try {
-        const { downloadWhatsAppMedia } = await import("@/lib/whatsapp");
-        const { buffer, mimeType } = await downloadWhatsAppMedia({
-          mediaId: message.mediaId,
-          accessToken: waAccessToken,
-        });
-
-        // Upload to Supabase Storage
-        const ext = mimeType.split("/")[1] || "bin";
-        const fileName = `inbound/${accountId}/${Date.now()}-${message.messageId}.${ext}`;
-        const { data: uploadData, error: uploadError } = await getSupabase()
-          .storage.from("message-media")
-          .upload(fileName, buffer, { contentType: mimeType, upsert: false });
-
-        if (!uploadError) {
-          const { data: urlData } = getSupabase().storage.from("message-media").getPublicUrl(fileName);
-          mediaUrls = [urlData.publicUrl];
-          mediaType = message.mediaType;
-        }
-      } catch (mediaErr) {
-        console.warn("[WA-WEBHOOK] Media download failed:", mediaErr.message);
-      }
-    }
-
-    // 🔧 FIX: Set customer typing indicator BEFORE storing the message.
-    // This makes the typing bubble appear briefly, then transitions to the
-    // actual message when it's stored (real-time INSERT on messages table).
-    // Meta doesn't send typing webhooks, so we simulate it:
-    // set typing=true 1.5s before the message appears.
-    if (accountId) {
-      try {
-        // Find the conversation for this customer
-        const { data: customer } = await getSupabase().from("customers")
-          .select("id").eq("phone", message.from).eq("account_id", accountId).maybeSingle();
-
-        if (customer) {
-          const { data: conv } = await getSupabase().from("conversations")
-            .select("id").eq("customer_id", customer.id).eq("account_id", accountId)
-            .order("last_message_at", { ascending: false }).limit(1).maybeSingle();
-
-          if (conv) {
-            // Set typing indicator
-            await getSupabase().from("typing_indicators").upsert({
-              account_id: accountId,
-              conversation_id: conv.id,
-              is_customer: true,
-              is_team_member: false,
-              created_at: new Date().toISOString(),
-            }, { onConflict: 'conversation_id,is_customer' });
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Small delay so the typing bubble is visible before the message appears
-    await new Promise(resolve => setTimeout(resolve, 800));
-
     await processIncomingMessage({
       senderId: message.from,
       senderName: message.contactName || null,
       senderProfilePic: null,
       text: message.text,
-      mediaUrls,
-      mediaType,
+      mediaUrls: [],
       channel: "whatsapp",
       pageId: message.phoneNumberId,
       platformMessageId: message.messageId,
       accessToken: waAccessToken,
-      accountId: accountId,
+      accountId: accountId, // Pass accountId to avoid duplicate lookup in processor
     });
 
     console.log(`[WA-WEBHOOK] Successfully processed message from ${message.from}`);
-
-    // 🔧 FIX: Clear customer typing indicator (message has arrived)
-    if (accountId) {
-      try {
-        await getSupabase().from("typing_indicators")
-          .delete()
-          .eq("account_id", accountId)
-          .eq("is_customer", true);
-      } catch (e) {}
-    }
-
-    // 🔔 Fire notification (best-effort, non-blocking) — only if we found an account
-    if (accountId) {
-      const customerName = message.contactName || message.from || "Unknown";
-      const messagePreview = (message.text || "").slice(0, 100);
-      notify(accountId, {
-        category: "messages",
-        type: "new_message",
-        title: `New WhatsApp message from ${customerName}`,
-        message: messagePreview,
-        priority: "normal",
-        actionUrl: "/dashboard/conversations",
-      }).catch(() => {});
-    }
   } catch (err) {
     console.error("[WA-WEBHOOK] Error processing WhatsApp message:", err.message);
     console.error("[WA-WEBHOOK] Stack:", err.stack);

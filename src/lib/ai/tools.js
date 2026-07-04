@@ -24,28 +24,7 @@ const getAccountCurrency = async (accountId) => {
   return data?.currency || "EGP";
 };
 
-// ─── AI Safety: fetch the high-value order threshold for this account ───
-// Returns { highValueThreshold, currency, slaHours }.
-// Defaults to 1000 / EGP / 4 hours if the column isn't set yet.
-const getAccountSafetySettings = async (accountId) => {
-  const { data } = await getSupabase()
-    .from("accounts")
-    .select("currency, ai_high_value_threshold, ai_sla_hours")
-    .eq("id", accountId)
-    .single();
-  return {
-    currency: data?.currency || "EGP",
-    highValueThreshold: data?.ai_high_value_threshold != null
-      ? Number(data.ai_high_value_threshold)
-      : 1000,
-    slaHours: data?.ai_sla_hours || 4,
-  };
-};
-
-export const createSalesTools = (accountId, customerId, options = {}) => {
-  // conversationId is needed so high-value orders can be saved as
-  // pending_actions linked to the conversation that triggered them.
-  const conversationId = options.conversationId || null;
+export const createSalesTools = (accountId, customerId) => {
   return {
     personalized_recommendations: tool({
       description: "Get personalized product recommendations for a customer based on their purchase history and similar customers' behavior. Use this when you want to suggest products a specific customer might like, such as 'you might also like', 'based on your style', or when you want to proactively upsell. Returns products with reasons like 'Frequently bought together', 'Similar category to your purchases', or 'Popular with similar customers'.",
@@ -601,23 +580,20 @@ export const createSalesTools = (accountId, customerId, options = {}) => {
     }),
 
     create_order: tool({
-      description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price. Include the customer's name, phone, and email if collected.",
+      description: "Create a new order in the system for the customer. ONLY call this AFTER the customer has explicitly confirmed they want to order and agreed to the total price.",
       inputSchema: z.object({
         items: z.array(z.object({
           productId: z.string().optional().describe("Product ID"),
           product_id: z.string().optional().describe("Alternative product ID"),
           quantity: z.coerce.number().positive().describe("Quantity of items"),
         })),
-        shippingAddress: z.string().optional().describe("Customer's shipping address (include street, building, apartment, city)"),
+        shippingAddress: z.string().optional().describe("Customer's shipping address"),
         shipping_address: z.string().optional().describe("Alternative shipping address parameter"),
         paymentMethod: z.enum(["cod", "vodafone_cash", "instapay"]).optional().describe("Payment method"),
         payment_method: z.enum(["cod", "vodafone_cash", "instapay"]).optional().describe("Alternative payment method parameter"),
         coupon_code: z.string().optional().describe("Coupon code to apply to this order (optional)"),
-        customer_name: z.string().optional().describe("Customer's full name (if collected during ordering)"),
-        customer_phone: z.string().optional().describe("Customer's phone number (if collected during ordering)"),
-        customer_email: z.string().optional().describe("Customer's email address (if collected during ordering)"),
       }),
-      execute: async ({ items, shippingAddress, shipping_address, paymentMethod, payment_method, coupon_code, customer_name, customer_phone, customer_email }) => {
+      execute: async ({ items, shippingAddress, shipping_address, paymentMethod, payment_method, coupon_code }) => {
         const finalShippingAddress = shippingAddress || shipping_address || "Address needed";
         const finalPaymentMethod = paymentMethod || payment_method || "cod";
 
@@ -716,91 +692,6 @@ export const createSalesTools = (accountId, customerId, options = {}) => {
           }
         }
 
-        // 2b. Update customer info if provided
-        if (customer_name || customer_phone || customer_email) {
-          const customerUpdates = {};
-          if (customer_name) customerUpdates.name = customer_name;
-          if (customer_phone) customerUpdates.phone = customer_phone;
-          if (customer_email) customerUpdates.email = customer_email;
-          await getSupabase().from("customers").update(customerUpdates).eq("id", customerId);
-        }
-
-        // ─── AI Safety: High-value order approval ───
-        // If the order total exceeds the account's ai_high_value_threshold,
-        // we do NOT create the order automatically. Instead we save it as a
-        // pending_action so the owner can approve or reject it from the
-        // dashboard. The owner's approve endpoint will execute the order.
-        //
-        // This prevents the AI from creating very large orders that may have
-        // been triggered by a misunderstanding (e.g. customer said "100" but
-        // meant quantity 1 with price 100, not 100 units).
-        let safetySettings;
-        try {
-          safetySettings = await getAccountSafetySettings(accountId);
-        } catch (e) {
-          safetySettings = { currency, highValueThreshold: 1000, slaHours: 4 };
-        }
-
-        if (total > safetySettings.highValueThreshold) {
-          console.log(
-            `[create_order] AI Safety: order total ${total} ${safetySettings.currency} exceeds high-value threshold ${safetySettings.highValueThreshold} ${safetySettings.currency} — saving as pending action for owner approval`
-          );
-
-          try {
-            const { data: pendingAction, error: pendingErr } = await getSupabase()
-              .from("pending_actions")
-              .insert({
-                account_id: accountId,
-                conversation_id: conversationId,
-                customer_id: customerId,
-                action_type: "create_order",
-                payload: {
-                  items: dbItems,
-                  subtotal,
-                  total,
-                  currency: safetySettings.currency,
-                  discount_amount: discountAmount,
-                  coupon_id: couponId,
-                  coupon_code: coupon_code ? coupon_code.trim().toUpperCase() : null,
-                  payment_method: finalPaymentMethod,
-                  shipping_address: finalShippingAddress,
-                  customer_name: customer_name || null,
-                  customer_phone: customer_phone || null,
-                  customer_email: customer_email || null,
-                  channel: "ai_agent",
-                  source: "ai_agent",
-                  reason: "high_value_order_approval",
-                  high_value_threshold: safetySettings.highValueThreshold,
-                },
-                status: "pending",
-                proposed_by: "ai",
-              })
-              .select("id")
-              .single();
-
-            if (pendingErr) {
-              console.error("[create_order] Failed to save high-value pending action:", pendingErr.message);
-              // Fall through to normal order creation as a safety net —
-              // better to create the order than to lose it entirely.
-            } else {
-              return {
-                success: true,
-                pending_approval: true,
-                pending_action_id: pendingAction?.id,
-                message: `This order (${total.toFixed(2)} ${safetySettings.currency}) exceeds the high-value threshold of ${safetySettings.highValueThreshold} ${safetySettings.currency} and has been saved for the store owner to approve. Tell the customer: "I've prepared your order for ${total.toFixed(2)} ${safetySettings.currency} and our team will confirm it shortly." Do NOT tell the customer the order is confirmed yet — it must be approved first.`,
-                subtotal,
-                total,
-                currency: safetySettings.currency,
-                items: dbItems,
-                high_value_threshold: safetySettings.highValueThreshold,
-              };
-            }
-          } catch (pendingErr) {
-            console.error("[create_order] High-value pending action exception:", pendingErr.message);
-            // Fall through to normal order creation
-          }
-        }
-
         // 3. Insert Order
         const { data: order, error } = await getSupabase()
           .from("orders")
@@ -816,35 +707,13 @@ export const createSalesTools = (accountId, customerId, options = {}) => {
             status: "pending",
             payment_method: finalPaymentMethod,
             shipping_address: finalShippingAddress,
-            customer_name: customer_name || null,
-            customer_phone: customer_phone || null,
-            customer_email: customer_email || null,
             source: "ai_agent"
           })
-          .select("id, order_number")
-          .maybeSingle();
+          .select("order_number")
+          .single();
 
-        if (error || !order) {
-          return { success: false, error: "Failed to create order: " + (error?.message || "unknown") };
-        }
-
-        // Send order confirmation email if customer provided an email
-        if (customer_email) {
-          try {
-            const { sendOrderConfirmationEmail, isEmailConfigured } = await import("@/lib/email");
-            if (isEmailConfigured()) {
-              await sendOrderConfirmationEmail({
-                to: customer_email,
-                orderNumber: order.order_number,
-                customerName: customer_name || "Customer",
-                items: dbItems,
-                total,
-                currency: await getAccountCurrency(accountId),
-                accountId,
-                customerEmail: customer_email,
-              });
-            }
-          } catch (e) { console.warn("[create_order] Email failed:", e.message); }
+        if (error) {
+          return { success: false, error: "Failed to create order" };
         }
 
         // 4. Decrement stock for each item
@@ -867,17 +736,13 @@ export const createSalesTools = (accountId, customerId, options = {}) => {
           });
         }
 
-        const result = {
-          success: true,
-          message: `✅ Order created! Order number: ${order.order_number}`,
+        const result = { 
+          success: true, 
+          message: "Order created successfully", 
           order_number: order.order_number,
-          order_id: order.id,
           subtotal: subtotal,
           total,
           currency,
-          items: dbItems,
-          payment_method: finalPaymentMethod,
-          shipping_address: finalShippingAddress,
         };
 
         if (discountAmount > 0) {

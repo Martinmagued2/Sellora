@@ -167,55 +167,35 @@ function calculateTOTP(secret, timeStep) {
 
 /**
  * Verify a TOTP code against a secret with replay protection
- *
- * 🔒 SECURITY FIX: Widened window from ±1 to ±2 (±60 seconds total) for
- * better clock skew tolerance. Some authenticator apps (especially on
- * mobile devices with inaccurate clocks) can be 30-45 seconds off.
- *
- * Replay protection: only rejects the EXACT last used time step, not all
- * steps <= it. This prevents the "always incorrect" bug where a user
- * verifies during setup, then immediately tries to log in — the login
- * would fail because the current time step was <= the setup time step.
+ * Allows ±1 time window (±30 seconds) for clock skew
+ * Prevents reuse of the same time step (replay protection)
  *
  * @param {string} secret - Base32-encoded secret (may be encrypted)
  * @param {string} code - 6-digit code to verify
- * @param {number} window - Number of time windows to check (default 2 = ±60 seconds)
+ * @param {number} window - Number of time windows to check (default 1 = ±30 seconds)
  * @param {number|null} lastUsedTimeStep - The last time step that was used (for replay protection)
  * @returns {{ valid: boolean, timeStep: number|null }} Result with the matched time step for replay protection
  */
-function verifyTOTP(secret, code, window = 2, lastUsedTimeStep = null) {
+function verifyTOTP(secret, code, window = 1, lastUsedTimeStep = null) {
   if (!secret || !code) return { valid: false, timeStep: null };
 
-  // Normalize code: strip whitespace, ensure 6 digits
-  const normalizedCode = String(code).trim().replace(/\s/g, "");
-  if (!/^\d{6}$/.test(normalizedCode)) {
-    return { valid: false, timeStep: null };
-  }
-
   // Decrypt the secret if it's encrypted
-  let decryptedSecret;
-  try {
-    decryptedSecret = decryptSecret(secret);
-  } catch (decryptErr) {
-    console.error("[TOTP] Decryption failed during verify:", decryptErr.message);
-    return { valid: false, timeStep: null };
-  }
+  const decryptedSecret = decryptSecret(secret);
 
   const currentTimeStep = Math.floor(Date.now() / 1000 / 30);
 
   for (let i = -window; i <= window; i++) {
     const testStep = currentTimeStep + i;
 
-    // Replay protection: only reject the EXACT last used time step
-    // (not all steps <= it — that was too aggressive and caused false rejects)
-    if (lastUsedTimeStep !== null && testStep === lastUsedTimeStep) {
+    // Replay protection: reject if this time step was already used
+    if (lastUsedTimeStep !== null && testStep <= lastUsedTimeStep) {
       continue;
     }
 
     const testCode = calculateTOTP(decryptedSecret, testStep);
     // 🔒 SECURITY: Constant-time comparison to prevent timing attacks
-    if (testCode.length === normalizedCode.length &&
-        crypto.timingSafeEqual(Buffer.from(testCode, 'utf8'), Buffer.from(normalizedCode, 'utf8'))) {
+    if (testCode.length === code.length &&
+        crypto.timingSafeEqual(Buffer.from(testCode, 'utf8'), Buffer.from(code, 'utf8'))) {
       return { valid: true, timeStep: testStep };
     }
   }
@@ -240,29 +220,15 @@ function generateBackupCodes(count = 8) {
 
 /**
  * Build the otpauth:// URL for QR code generation
- *
- * 🔒 SECURITY FIX: Explicitly include algorithm, digits, and period parameters.
- * Some authenticator apps default to different values (e.g. SHA256, 8 digits,
- * 60-second period) if these are omitted, causing codes to never match.
- *
- * Also strip base32 padding (=) from the secret — some authenticator apps
- * (notably older Microsoft Authenticator) don't strip it and generate
- * wrong codes as a result.
- *
- * @param {string} secret - Base32-encoded secret (may include = padding)
+ * @param {string} secret - Base32-encoded secret
  * @param {string} email - User email for display
  * @param {string} issuer - Issuer name (default "Sellora")
  * @returns {string} otpauth:// URL
  */
 function buildOtpauthUrl(secret, email, issuer = "Sellora") {
-  // Strip base32 padding — authenticator apps don't need it and some choke on it
-  const cleanSecret = secret.replace(/=+$/g, "");
   const params = new URLSearchParams({
-    secret: cleanSecret,
+    secret: secret,
     issuer: issuer,
-    algorithm: "SHA1",
-    digits: "6",
-    period: "30",
   });
   return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(email)}?${params.toString()}`;
 }

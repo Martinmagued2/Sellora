@@ -160,71 +160,22 @@ export function humanReplyDelay(replyText = "") {
  * Mark a conversation as escalated to the human queue.
  * Sets ai_paused=TRUE with a 4-hour auto-resume and records the reason.
  *
- * ─── Human Handoff System (Item #3) ───
- * Also sets sla_deadline = now + account.ai_sla_hours (default 4 hours),
- * bumps the conversation priority to 'high' if it's currently 'normal'/'low',
- * and (optionally) sends the customer a friendly "human will help" message.
- *
  * @param {string} conversationId
  * @param {string} reason - why the escalation happened
  * @param {string} [accountId]
- * @param {Object} [options]
- * @param {boolean} [options.sendCustomerMessage=true] - send the customer message
- * @param {Object} [options.channelInfo] - { channel, recipientId, phoneNumberId, accessToken, pageId } for sending
  */
-export async function escalateToHuman(conversationId, reason, accountId = null, options = {}) {
-  const {
-    sendCustomerMessage: shouldSendCustomerMessage = true,
-    channelInfo = null,
-  } = options;
-
+export async function escalateToHuman(conversationId, reason, accountId = null) {
   try {
+    const fourHoursFromNow = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
     const supabase = getSupabase();
-
-    // ─── Fetch the account's SLA window (default 4h) ───
-    let slaHours = 4;
-    if (accountId) {
-      try {
-        const { data: acct } = await supabase
-          .from("accounts")
-          .select("ai_sla_hours")
-          .eq("id", accountId)
-          .single();
-        if (acct?.ai_sla_hours) slaHours = acct.ai_sla_hours;
-      } catch (e) { /* fall back to 4h */ }
-    }
-
-    const slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000).toISOString();
-    const autoResumeAt = slaDeadline; // also used as the AI auto-resume time
-
-    // ─── Fetch current priority so we don't downgrade an 'urgent' conv ───
-    let currentPriority = "normal";
-    try {
-      const { data: conv } = await supabase
-        .from("conversations")
-        .select("priority")
-        .eq("id", conversationId)
-        .single();
-      if (conv?.priority) currentPriority = conv.priority;
-    } catch (e) { /* column may not exist yet — default normal */ }
-
-    // Escalations bump priority to at least 'high'. Don't downgrade 'urgent'.
-    const PRIORITY_RANK = { low: 0, normal: 1, high: 2, urgent: 3 };
-    const newPriority =
-      PRIORITY_RANK[currentPriority] >= PRIORITY_RANK.high
-        ? currentPriority
-        : "high";
 
     await supabase
       .from("conversations")
       .update({
         ai_paused: true,
-        ai_paused_until: autoResumeAt,
+        ai_paused_until: fourHoursFromNow,
         escalation_reason: reason,
         status: "needs_attention",
-        // ─── Human Handoff: SLA deadline + priority ───
-        sla_deadline: slaDeadline,
-        priority: newPriority,
       })
       .eq("id", conversationId);
 
@@ -234,72 +185,15 @@ export async function escalateToHuman(conversationId, reason, accountId = null, 
         conversation_id: conversationId,
         account_id: accountId,
         event_type: "escalated",
-        metadata: {
-          reason,
-          auto_resume_at: autoResumeAt,
-          sla_deadline: slaDeadline,
-          sla_hours: slaHours,
-          priority: newPriority,
-        },
+        metadata: { reason, auto_resume_at: fourHoursFromNow },
       });
     }
 
     console.log(
-      `[AI-HELPERS] Conversation ${conversationId} escalated to human: ${reason} (SLA: ${slaHours}h, priority: ${newPriority})`
+      `[AI-HELPERS] Conversation ${conversationId} escalated to human: ${reason}`
     );
-
-    // ─── Human Handoff: Send the customer a friendly message ───
-    // "Thanks for your message! I've connected you with our team who will
-    //  reply shortly. Your request is important to us 🙏"
-    //
-    // This is best-effort — channel delivery failures don't fail the escalation.
-    if (shouldSendCustomerMessage && channelInfo && channelInfo.recipientId) {
-      try {
-        await sendEscalationCustomerMessage(channelInfo);
-      } catch (sendErr) {
-        console.warn("[AI-HELPERS] Failed to send escalation customer message:", sendErr.message);
-      }
-    }
   } catch (err) {
     console.warn("[AI-HELPERS] escalateToHuman failed:", err.message);
-  }
-}
-
-/**
- * The customer-facing message sent when AI escalates to a human.
- * Kept as a constant so it can be reused by the processor when it needs
- * to send the message even when escalateToHuman is called without channelInfo.
- */
-export const ESCALATION_CUSTOMER_MESSAGE =
-  "Thanks for your message! I've connected you with our team who will reply shortly. Your request is important to us 🙏";
-
-/**
- * Send the escalation customer message via the configured channel.
- * Best-effort — failures are swallowed.
- */
-async function sendEscalationCustomerMessage(channelInfo) {
-  const { channel, recipientId, phoneNumberId, accessToken, pageId } = channelInfo;
-  if (!recipientId || !accessToken) return;
-
-  if (channel === "whatsapp") {
-    const { sendWhatsAppMessage } = await import("@/lib/whatsapp");
-    await sendWhatsAppMessage({
-      to: recipientId,
-      message: ESCALATION_CUSTOMER_MESSAGE,
-      phoneNumberId,
-      accessToken,
-    });
-  } else {
-    // instagram, facebook, telegram all use the Meta sender (telegram has
-    // its own sender but the Meta sender covers IG/FB; telegram escalation
-    // is rare and the operator will see it immediately).
-    const { sendMessage } = await import("@/lib/channels/meta");
-    await sendMessage({
-      recipientId,
-      message: ESCALATION_CUSTOMER_MESSAGE,
-      pageId,
-      accessToken,
-    });
   }
 }
 

@@ -5,7 +5,6 @@ import { processIncomingMessage } from "@/lib/channels/processor";
 import { createClient } from "@supabase/supabase-js";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
-import { notify } from "@/lib/notifications";
 import crypto from 'crypto';
 
 let _supabase = null;
@@ -140,27 +139,10 @@ export async function POST(request) {
         .map((a) => a.payload?.url)
         .filter(Boolean);
 
-      // 🔧 Set customer typing indicator BEFORE storing the message
-      try {
-        const { data: customer } = await getSupabase().from("customers")
-          .select("id").eq("platform_id", event.senderId).eq("account_id", account.id).maybeSingle();
-        if (customer) {
-          const { data: conv } = await getSupabase().from("conversations")
-            .select("id").eq("customer_id", customer.id).eq("account_id", account.id)
-            .order("last_message_at", { ascending: false }).limit(1).maybeSingle();
-          if (conv) {
-            await getSupabase().from("typing_indicators").upsert({
-              account_id: account.id, conversation_id: conv.id,
-              is_customer: true, is_team_member: false, created_at: new Date().toISOString(),
-            }, { onConflict: 'conversation_id,is_customer' });
-          }
-        }
-      } catch (e) {}
-
-      // Small delay so typing bubble is visible
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Process through the shared pipeline
+      // Process through the shared pipeline — ALWAYS, even without token
+      // When accessToken is null, the processor will still store the message and generate
+      // an AI reply, but won't be able to deliver it to FB. The reply is saved in DB.
+      // Pass accountId so processor uses the correct account (handles duplicate page_ids)
       await processIncomingMessage({
         senderId: event.senderId,
         senderName: profile?.name || null,
@@ -174,25 +156,7 @@ export async function POST(request) {
         accountId: account.id,
       });
 
-      // 🔧 Clear customer typing indicator (message arrived)
-      try {
-        await getSupabase().from("typing_indicators")
-          .delete().eq("account_id", account.id).eq("is_customer", true);
-      } catch (e) {}
-
       console.log(`[FB-WEBHOOK] Processed message from ${event.senderId}: "${event.text?.substring(0, 50)}..."`);
-
-      // 🔔 Fire notification (best-effort, non-blocking)
-      const customerName = profile?.name || event.senderId || "Unknown";
-      const messagePreview = (event.text || "").slice(0, 100);
-      notify(account.id, {
-        category: "messages",
-        type: "new_message",
-        title: `New Facebook message from ${customerName}`,
-        message: messagePreview,
-        priority: "normal",
-        actionUrl: "/dashboard/conversations",
-      }).catch(() => {});
 
     } catch (err) {
       console.error("[FB-WEBHOOK] Error processing Facebook message:", err.message);

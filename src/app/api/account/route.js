@@ -108,13 +108,9 @@ export async function GET(request) {
     }
 
     const supabase = getServiceRoleClient();
-    // SECURITY: Use SAFE_ACCOUNT_FIELDS to exclude sensitive columns
-    // (totp_secret, *_access_token, shopify_access_token, etc.)
-    // Never use select("*") on accounts — that exposes live platform tokens.
-    const { SAFE_ACCOUNT_FIELDS } = await import("@/lib/safe-fields");
     const { data, error } = await supabase
       .from("accounts")
-      .select(SAFE_ACCOUNT_FIELDS)
+      .select("*")
       .eq("id", user.id)
       .single();
 

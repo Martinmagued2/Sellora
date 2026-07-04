@@ -4,8 +4,6 @@ import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { getAuthUser } from "@/lib/auth-helper";
-import { checkRateLimit, createRateLimitKey } from "@/lib/rate-limit";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -36,7 +34,7 @@ function buildProviderChain() {
 
   if (process.env.GROQ_API_KEY) {
     const groqProvider = createGroq();
-    providers.push({ name: 'groq', model: groqProvider("llama-3.3-70b-versatile") });
+    providers.push({ name: 'groq', model: groqProvider("meta-llama/llama-4-scout-17b-16e-instruct") });
   }
 
   if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
@@ -62,19 +60,6 @@ function buildProviderChain() {
  */
 export async function POST(req) {
   try {
-    // 🔒 SECURITY: Auth required — was previously public (IDOR + AI credit drain)
-    const user = await getAuthUser(req);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // 🔒 Rate limit: 5 summaries per minute per user
-    const rlKey = `ai-summarize:${user.id}`;
-    const rl = checkRateLimit(rlKey, 5, 60_000);
-    if (rl.limited) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-    }
-
     const body = await req.json().catch(() => ({}));
     const { conversation_id } = body;
 
@@ -84,12 +69,11 @@ export async function POST(req) {
 
     const supabase = getSupabase();
 
-    // Fetch conversation with messages — 🔒 filtered by account_id to prevent IDOR
+    // Fetch conversation with messages
     const { data: conversation, error: convError } = await supabase
       .from("conversations")
       .select("id, channel, status, tags, summary, customer:customers(name)")
       .eq("id", conversation_id)
-      .eq("account_id", user.id)  // 🔒 IDOR fix
       .single();
 
     if (convError || !conversation) {

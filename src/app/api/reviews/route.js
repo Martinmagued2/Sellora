@@ -15,7 +15,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
-import { notify } from "@/lib/notifications";
 
 let _adminClient = null;
 function getAdminClient() {
@@ -136,32 +135,6 @@ export async function POST(req) {
       console.error("[REVIEWS] insert failed:", reviewErr);
       return NextResponse.json({ error: "Failed to submit review" }, { status: 500 });
     }
-
-    // 🔔 Fire notification (best-effort, non-blocking)
-    const reviewCustomerId = customerId || order.customer_id;
-    let customerName = "A customer";
-    if (reviewCustomerId) {
-      try {
-        const { data: cust } = await admin
-          .from("customers")
-          .select("name, full_name, first_name")
-          .eq("id", reviewCustomerId)
-          .maybeSingle();
-        if (cust) customerName = cust.name || cust.full_name || cust.first_name || customerName;
-      } catch (_) { /* best-effort */ }
-    }
-    const reviewMessage = (title || reviewBody || "").slice(0, 100);
-    notify(order.account_id, {
-      category: "reviews",
-      type: "new_review",
-      title: `${rating}-star review from ${customerName}`,
-      message: reviewMessage || undefined,
-      priority: rating <= 2 ? "urgent" : "normal",
-      actionUrl: "/dashboard/reviews",
-      related_id: review.id,
-      related_type: "review",
-      data: { rating, product_id: productId, order_id: orderId },
-    }).catch(() => {});
 
     return NextResponse.json({ review });
   } catch (err) {

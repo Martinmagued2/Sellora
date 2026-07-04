@@ -25,17 +25,13 @@ function getSupabase() {
  */
 export async function POST(req) {
   try {
-    // ── Authentication: Bearer CRON_SECRET (preferred), x-cron-secret (legacy), or admin ──
-    const authHeader = req.headers.get("authorization");
-    const xCronSecret = req.headers.get("x-cron-secret");
-    const envSecret = process.env.CRON_SECRET;
-
-    const hasBearerSecret = envSecret && authHeader === `Bearer ${envSecret}`;
-    const hasXCronSecret = xCronSecret && envSecret && xCronSecret === envSecret;
+    // ── Authentication: cron secret or admin ──
+    const cronSecret = req.headers.get("x-cron-secret");
+    const hasCronSecret = cronSecret && process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET;
 
     let isAuthenticated = false;
 
-    if (hasBearerSecret || hasXCronSecret) {
+    if (hasCronSecret) {
       isAuthenticated = true;
     } else {
       // Fallback to admin auth when CRON_SECRET is not set or doesn't match

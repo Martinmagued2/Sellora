@@ -1,7 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { getAuthUser } from "@/lib/auth-helper";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 function getAdminClient() {
   return createAdminClient(
@@ -16,33 +14,6 @@ export async function POST(request) {
 
     if (!referralCode) {
       return Response.json({ error: "Referral code is required" }, { status: 400 });
-    }
-
-    // 🔒 SECURITY: When `referredId` is provided (which triggers $5 credit award),
-    // require authentication AND verify the authenticated user matches referredId.
-    // This prevents attackers from spamming fake referrals to credit any account.
-    if (referredId) {
-      const authUser = await getAuthUser(request);
-      if (!authUser) {
-        return Response.json({ error: "Authentication required to award referral credits" }, { status: 401 });
-      }
-      if (authUser.id !== referredId) {
-        return Response.json({ error: "referredId must match the authenticated user" }, { status: 403 });
-      }
-
-      // 🔒 Rate limit: 1 referral credit claim per IP per hour (per-user already enforced above)
-      const ip = getClientIp(request);
-      const rlKey = `referral-track:${ip}`;
-      if (checkRateLimit(rlKey, 3, 60 * 60 * 1000).limited) {
-        return Response.json({ error: "Too many referral attempts. Please try again later." }, { status: 429 });
-      }
-    } else {
-      // Anonymous tracking (click tracking before signup) — apply IP rate limit
-      const ip = getClientIp(request);
-      const rlKey = `referral-track-anon:${ip}`;
-      if (checkRateLimit(rlKey, 10, 60 * 60 * 1000).limited) {
-        return Response.json({ error: "Too many requests" }, { status: 429 });
-      }
     }
 
     const supabase = await createClient();
@@ -64,28 +35,14 @@ export async function POST(request) {
       return Response.json({ error: "Self-referral is not allowed" }, { status: 400 });
     }
 
-    // 🔒 SECURITY: Dedupe on BOTH referred_email AND referred_id (not just email)
-    // Previously an attacker could rotate emails to bypass the dedupe.
-    if (referredId) {
-      const { data: existingById } = await adminClient
-        .from("referrals")
-        .select("id")
-        .eq("referrer_id", referrerAccount.id)
-        .eq("referred_id", referredId)
-        .maybeSingle();
-
-      if (existingById) {
-        return Response.json({ message: "Already referred", referralId: existingById.id });
-      }
-    }
-
+    // Check if this email was already referred by this person
     if (referredEmail) {
       const { data: existing } = await adminClient
         .from("referrals")
         .select("id")
         .eq("referrer_id", referrerAccount.id)
         .eq("referred_email", referredEmail)
-        .maybeSingle();
+        .single();
 
       if (existing) {
         return Response.json({ message: "Already referred", referralId: existing.id });
@@ -110,10 +67,6 @@ export async function POST(request) {
       .single();
 
     if (error) {
-      // 23505 = unique violation — already referred
-      if (error.code === "23505") {
-        return Response.json({ message: "Already referred" });
-      }
       console.error("Failed to create referral:", error);
       return Response.json({ error: "Failed to track referral" }, { status: 500 });
     }

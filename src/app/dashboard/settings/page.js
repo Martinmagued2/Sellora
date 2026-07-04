@@ -373,7 +373,7 @@ function SettingsContent() {
             </div>
           )}
           {activeTab === "team" && <TeamTab {...tabProps} />}
-          {activeTab === "notifications" && <NotificationsTab />}
+          {activeTab === "notifications" && <NotificationsTab {...tabProps} />}
           {activeTab === "security" && <SecurityTab {...tabProps} />}
         </div>
       </div>

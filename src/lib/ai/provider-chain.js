@@ -173,10 +173,7 @@ export function buildGroqProviders(opts = {}) {
   if (keys.length === 0) return providers;
   
   // Model selection based on use case:
-  // - Default (Copilot): Llama 3.3 70B (smartest available on free tier) → Llama 3.1 8B (fallback)
-  //   (Llama 4 Scout 17B deprecated by Groq 2026-06-25. Qwen3 32B hit quota
-  //    limits on free tier — switched to Llama 3.3 70B which has higher
-  //    free-tier rate limits and is still supported.)
+  // - Default (Copilot): Llama 4 Scout (smartest) → Llama 3.3 70B (fallback)
   // - Lightweight (auto-replies): Llama 3.1 8B (fast, cheap) → Mixtral (fallback)
   // - Routing only: Llama 3.1 8B + Gemma 2 (cheapest, fastest)
   let primaryModels;
@@ -186,14 +183,8 @@ export function buildGroqProviders(opts = {}) {
     // Auto-replies: fast & cheap to conserve rate limits for Copilot
     primaryModels = [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "mixtral-8x7b-32768", name: "groq-mixtral" }];
   } else {
-    // Copilot: Llama 3.3 70B is the best free-tier model on Groq.
-    // Qwen3 32B and GPT-OSS have quota limits on the free tier that get
-    // exhausted quickly. Llama 3.3 70B has generous free limits and is
-    // very capable for agentic tool use.
-    primaryModels = [
-      { id: "llama-3.3-70b-versatile", name: "groq-llama70b" },
-      { id: "llama-3.1-8b-instant", name: "groq-llama8b" },
-    ];
+    // Copilot: smartest model first
+    primaryModels = [{ id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "groq-llama4scout" }, { id: "llama-3.3-70b-versatile", name: "groq-llama70b" }];
   }
   
   const fastModels = fastModel && !routingOnly && !lightweight
@@ -241,11 +232,10 @@ export function buildNvidiaProviders() {
   if (keys.length === 0) return providers;
 
   const nvidiaModels = [
-    { id: "deepseek-ai/deepseek-v4-pro", name: "nvidia-deepseek-v4-pro" },
-    { id: "deepseek-ai/deepseek-v4-flash", name: "nvidia-deepseek-v4-flash" },
     { id: "meta/llama-3.3-70b-instruct", name: "nvidia-llama33" },
     { id: "nvidia/llama-3.1-nemotron-70b-instruct", name: "nvidia-nemotron" },
     { id: "mistralai/mistral-large-2-instruct", name: "nvidia-mistral" },
+    { id: "deepseek-ai/deepseek-r1", name: "nvidia-deepseek" },
   ];
 
   keys.forEach((key, keyIndex) => {
@@ -395,7 +385,7 @@ export function buildVectorEngineProviders() {
 
 /**
  * Build the COMPLETE provider fallback chain for AI reply generation.
- * Order: NVIDIA (DeepSeek V4) → Google → Groq → VectorEngine → OpenAI
+ * Order: VectorEngine → NVIDIA → Groq → Google → OpenAI
  * Each provider may have multiple keys × multiple models.
  * 
  * @param {Object} opts
@@ -406,17 +396,17 @@ export function buildFullProviderChain(opts = {}) {
   const { routingOnly = false } = opts;
   const providers = [];
 
-  // 1. NVIDIA DeepSeek V4 Flash — primary (thinking mode + fast + high quality)
-  providers.push(...buildNvidiaProviders());
+  // 1. VectorEngine (if available — premium, fast)
+  providers.push(...buildVectorEngineProviders());
 
-  // 2. Google Gemini (generous free tier)
-  providers.push(...buildGoogleProviders());
+  // 2. NVIDIA NIM (free tier, high quality)
+  providers.push(...buildNvidiaProviders());
 
   // 3. Groq — lightweight mode for auto-replies (fast/cheap models)
   providers.push(...buildGroqProviders({ routingOnly, lightweight: !routingOnly }));
 
-  // 4. VectorEngine (if available — premium, fast)
-  providers.push(...buildVectorEngineProviders());
+  // 4. Google Gemini (generous free tier)
+  providers.push(...buildGoogleProviders());
 
   // 5. OpenAI (paid, last resort)
   providers.push(...buildOpenAIProviders());
@@ -435,38 +425,28 @@ export function buildRoutingProviderChain() {
 
 /**
  * Build the streaming provider chain for Copilot/Agent.
- *
- * Provider order is CRITICAL for agentic tool use:
- * 1. Google Gemini 2.0 Flash — best at multi-step tool use + synthesis
- * 2. Groq Llama 4 Scout — fast streaming but weaker at following up after tools
- * 3. NVIDIA NIM — strong models but slower streaming
- * 4. VectorEngine — premium
- * 5. OpenAI — last resort (paid)
- *
- * Previous order had Groq first — but Llama 4 Scout (17B) struggles with
- * multi-step agentic tasks: it calls a tool, gets the result, then stops
- * without synthesizing a final answer. Gemini 2.0 Flash reliably follows
- * up with a comprehensive text response after tool calls complete.
+ * Same providers but in a different order optimized for streaming UX:
+ * Groq first (fastest streaming) → Google → NVIDIA → OpenAI
  */
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // 1. NVIDIA DeepSeek V4 Pro — primary for everything (Copilot + auto-replies)
-  providers.push(...buildNvidiaProviders());
-
-  // 2. Google Gemini — fallback
-  providers.push(...buildGoogleProviders());
-
-  // 3. Groq (fast streaming, fallback)
+  // Groq first (fastest for streaming)
   providers.push(...buildGroqProviders());
 
-  // 4. VectorEngine (premium)
+  // Google Gemini (fast streaming)
+  providers.push(...buildGoogleProviders());
+
+  // NVIDIA (good but can be slower)
+  providers.push(...buildNvidiaProviders());
+
+  // VectorEngine (premium)
   providers.push(...buildVectorEngineProviders());
 
-  // 5. OpenAI last
+  // OpenAI last
   providers.push(...buildOpenAIProviders());
 
-  console.log(`[ProviderChain] Built streaming chain (copilot): ${providers.length} provider(s) total [${providers.map(p => p.name).slice(0, 4).join(', ')}...]`);
+  console.log(`[ProviderChain] Built streaming chain (copilot): ${providers.length} provider(s) total`);
   return providers;
 }
 

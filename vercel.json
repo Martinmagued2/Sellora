@@ -1,6 +1,28 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "github": {
-    "silent": true
-  }
+  "crons": [
+    {
+      "path": "/api/abandoned-carts/process-recovery",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/orders/process-post-delivery",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/subscriptions/process-scheduled",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/email-drip",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/email/weekly-summary-cron",
+      "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/campaigns/process-scheduled",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }

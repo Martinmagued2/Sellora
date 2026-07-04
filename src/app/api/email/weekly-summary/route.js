@@ -162,7 +162,6 @@ export async function POST(req) {
     const result = await sendWeeklySummaryEmail({
       to: account.email,
       businessName: account.business_name || "Your Store",
-      accountId: account.id,
       stats: {
         totalConversations: totalConversations || 0,
         aiReplies: aiReplies || 0,

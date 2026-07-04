@@ -125,58 +125,41 @@ async function computeSegmentCustomers(supabase, accountId, segmentId, rules) {
     return count || 0;
   }
 
-  // 🔒 SECURITY: Allowlist of fields that segment rules can filter on.
-  // Prevents PostgREST filter injection via crafted `field` values like
-  // "account_id" or "id,orders.account_id" which could bypass account scoping.
-  const ALLOWED_SEGMENT_FIELDS = [
-    "total_spent", "total_orders", "tags", "created_at", "first_seen_at",
-    "channel", "is_returning", "last_order_at", "name", "email", "phone",
-  ];
-
   const operator = rules.operator || "AND";
 
   for (const condition of rules.conditions) {
     const { field, operator: condOp, value } = condition;
     if (!field || !condOp || value === undefined || value === "") continue;
 
-    // 🔒 SECURITY: Skip invalid field names — do NOT pass user-controlled strings
-    // to .eq() / .ilike() / .gte() / .lte() as the column name
-    if (!ALLOWED_SEGMENT_FIELDS.includes(field)) {
-      continue;
-    }
-
-    // 🔒 SECURITY: Cap string values to prevent DoS via huge ilike patterns
-    const safeValue = typeof value === "string" ? value.slice(0, 200) : value;
-
     switch (condOp) {
       case "greater_than":
-        query = query.gte(field, Number(safeValue));
+        query = query.gte(field, Number(value));
         break;
       case "less_than":
-        query = query.lte(field, Number(safeValue));
+        query = query.lte(field, Number(value));
         break;
       case "equals":
         if (field === "tags") {
-          query = query.contains("tags", [safeValue]);
+          query = query.contains("tags", [value]);
         } else {
-          query = query.eq(field, safeValue);
+          query = query.eq(field, value);
         }
         break;
       case "contains":
         if (field === "tags") {
-          query = query.contains("tags", [safeValue]);
+          query = query.contains("tags", [value]);
         } else {
-          query = query.ilike(field, `%${safeValue}%`);
+          query = query.ilike(field, `%${value}%`);
         }
         break;
       case "within_days":
         const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - Number(safeValue));
+        cutoff.setDate(cutoff.getDate() - Number(value));
         query = query.gte(field, cutoff.toISOString());
         break;
       case "not_within_days":
         const cutoffBefore = new Date();
-        cutoffBefore.setDate(cutoffBefore.getDate() - Number(safeValue));
+        cutoffBefore.setDate(cutoffBefore.getDate() - Number(value));
         query = query.lt(field, cutoffBefore.toISOString());
         break;
     }

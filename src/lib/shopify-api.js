@@ -1,4 +1,4 @@
-export function validateShopifyDomain(shopDomain) {
+function validateShopifyDomain(shopDomain) {
   if (!/^[a-z0-9][a-z0-9\-]*\.myshopify\.com$/i.test(shopDomain)) {
     throw new Error('Invalid Shopify domain format');
   }
@@ -7,65 +7,21 @@ export function validateShopifyDomain(shopDomain) {
 export async function fetchShopifyProducts(shopDomain, accessToken) {
   validateShopifyDomain(shopDomain);
 
-  // Shopify's `status=any` parameter is buggy on dev stores — it silently
-  // returns [] even when count.json reports 2 products. The fix: fetch each
-  // status individually (active, draft, archived) and combine the results.
-  // This is a documented Shopify REST API quirk.
-  const STATUSES = ['active', 'draft', 'archived'];
-  const allProducts = [];
-
-  for (const status of STATUSES) {
-    // Paginate up to 250 products per status (Shopify's max page size)
-    let pageInfo = null;
-    let safety = 0;
-    while (safety++ < 20) {
-      const url = new URL(`https://${shopDomain}/admin/api/2024-04/products.json`);
-      url.searchParams.set('limit', '250');
-      url.searchParams.set('status', status);
-      url.searchParams.set('published_status', 'any');
-      if (pageInfo) url.searchParams.set('page_info', pageInfo);
-
-      const res = await fetch(url.toString(), {
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text();
-        console.error(`[Shopify] Products fetch failed (status=${status}):`, res.status, errBody.substring(0, 200));
-        throw new Error(`Failed to fetch Shopify products (status ${res.status})`);
-      }
-
-      const data = await res.json();
-      if (Array.isArray(data.products)) {
-        allProducts.push(...data.products);
-      }
-
-      // Follow Link header for pagination (Shopify uses cursor-based pagination)
-      const linkHeader = res.headers.get('link') || '';
-      const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
-      if (nextMatch) {
-        // Extract page_info from the next URL
-        const nextUrl = new URL(nextMatch[1]);
-        pageInfo = nextUrl.searchParams.get('page_info');
-      } else {
-        break;
-      }
+  const res = await fetch(`https://${shopDomain}/admin/api/2024-04/products.json`, {
+    headers: {
+      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/json'
     }
-  }
-
-  // Dedupe by product ID (a product shouldn't appear in multiple statuses, but just in case)
-  const seen = new Set();
-  const deduped = allProducts.filter(p => {
-    const id = String(p.id);
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
   });
 
-  return deduped;
+  if (!res.ok) {
+    const errBody = await res.text();
+    console.error('[Shopify] Products fetch failed:', res.status, errBody.substring(0, 200));
+    throw new Error(`Failed to fetch Shopify products (status ${res.status})`);
+  }
+
+  const data = await res.json();
+  return data.products;
 }
 
 export async function fetchShopifyOrders(shopDomain, accessToken) {

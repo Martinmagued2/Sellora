@@ -26,7 +26,7 @@ export async function GET(req) {
       title: `${store.name} — Products & WhatsApp Ordering`,
       description: store.description?.substring(0, 155) || `Shop at ${store.name} and order directly via WhatsApp. Browse products, check prices, and chat with us!`,
       image: store.logo_url || null,
-      url: `https://sellorachat.com/store/${slug}`,
+      url: `https://sellora-ruby.vercel.app/store/${slug}`,
       type: "website",
       siteName: "Sellora",
     });

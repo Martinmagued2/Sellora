@@ -27,7 +27,7 @@ export async function GET(req) {
         title: `${post.title} — Sellora Blog`,
         description: post.excerpt?.substring(0, 155) || post.title,
         image: post.cover_image || null,
-        url: `https://sellorachat.com/blog/${slug}`,
+        url: `https://sellora-ruby.vercel.app/blog/${slug}`,
         type: "article",
         author: post.author || "Sellora Team",
         publishedTime: post.published_at,
@@ -38,7 +38,7 @@ export async function GET(req) {
         title: "Sellora Blog — Guides for MENA Sellers",
         description: "Tips, guides, and stories about selling on WhatsApp, Instagram, and Facebook in Egypt and the MENA region.",
         image: null,
-        url: "https://sellorachat.com/blog",
+        url: "https://sellora-ruby.vercel.app/blog",
         type: "website",
       });
     }

@@ -40,10 +40,9 @@ export async function middleware(request) {
 
     // Rate limit ALL API routes (GET and mutation)
     if (pathname.startsWith("/api/")) {
-      // 🔒 SECURITY: Rate limit ALL methods on /api/auth/* (was previously only
-      // applying the strict `auth` tier to non-GET requests — GET callbacks like
-      // /api/auth/meta-callback exchange codes for tokens and need strict limits too)
-      const getRlTier = (method === "GET" && rateLimitTier !== "auth") ? "api_read" : rateLimitTier;
+      // 🔒 SECURITY: Also rate-limit GET API endpoints (was only POST/PUT/DELETE/PATCH)
+      // Use a more lenient tier for GET requests
+      const getRlTier = method === "GET" ? "api_read" : rateLimitTier;
       const rlKey = createRateLimitKey(request);
       const rlResult = checkRateLimit(rlKey, getRlTier);
 

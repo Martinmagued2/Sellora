@@ -46,7 +46,7 @@ STRIPE_WEBHOOK_SECRET=whsec_XXXXX
 
 1. Go to https://dashboard.stripe.com/webhooks
 2. Click "Add endpoint"
-3. URL: `https://sellorachat.com/api/webhooks/stripe`
+3. URL: `https://sellora-ruby.vercel.app/api/webhooks/stripe`
 4. Events to send:
    - `checkout.session.completed`
    - `customer.subscription.updated`

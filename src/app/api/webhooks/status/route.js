@@ -197,7 +197,7 @@ export async function GET(request) {
   }
 
   // ─── 6. Webhook URL Info ───
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sellora-ruby.vercel.app";
   diagnostics.webhook_urls = {
     unified: `${appUrl}/api/webhook`,
     instagram: `${appUrl}/api/webhooks/instagram`,

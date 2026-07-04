@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createCheckout } from "@/lib/paymob";
-import { getAuthUser } from "@/lib/auth-helper";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 // Server-side admin client (bypasses RLS)
 let _supabaseAdmin = null;
@@ -27,20 +25,6 @@ function getSupabaseAdmin() {
  */
 export async function POST(request) {
   try {
-    // 🔒 SECURITY: Auth required — was previously public (anyone with orderId UUID
-    // could read customer PII, create Paymob sessions, manipulate order totals)
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // 🔒 Rate limit: 5 checkout attempts per minute per user
-    const rlKey = `paymob-checkout:${user.id}`;
-    const rl = checkRateLimit(rlKey, 5, 60_000);
-    if (rl.limited) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-    }
-
     const { orderId, coupon_code } = await request.json();
 
     if (!orderId) {
@@ -54,12 +38,11 @@ export async function POST(request) {
 
     const supabase = getSupabaseAdmin();
 
-    // 1. Get the order with customer info — 🔒 filtered by account_id to prevent IDOR
+    // 1. Get the order with customer info
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .select("id, order_number, account_id, items, total, currency, payment_status, payment_link, customer:customers(id, name, phone, email)")
       .eq("id", orderId)
-      .eq("account_id", user.id)  // 🔒 IDOR fix: only owner can checkout their orders
       .single();
 
     if (orderError || !order) {

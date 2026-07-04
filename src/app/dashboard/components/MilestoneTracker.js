@@ -7,8 +7,6 @@ import {
   Trophy, Star, Zap, Users, ShoppingBag, MessageCircle,
   Bot, Crown, X, Package,
 } from "lucide-react";
-import { useDevice } from "@/lib/use-device";
-import Confetti3D from "./Confetti3D";
 
 /**
  * MilestoneTracker — silently monitors the owner's achievements and
@@ -52,8 +50,6 @@ export default function MilestoneTracker({ stats }) {
   const [activeMilestone, setActiveMilestone] = useState(null);
   const [dismissedMilestones, setDismissedMilestones] = useState(new Set());
   const [streakDays, setStreakDays] = useState(0);
-  const [confettiTrigger, setConfettiTrigger] = useState(false);
-  const { isMobile } = useDevice();
 
   // Load dismissed milestones from localStorage
   useEffect(() => {
@@ -147,13 +143,7 @@ export default function MilestoneTracker({ stats }) {
         exit={{ opacity: 0, y: -60, scale: 0.9 }}
         transition={{ type: "spring", stiffness: 300, damping: 25 }}
         style={{
-          position: "fixed", top: 20,
-          // 🔧 FIX: On desktop, account for the 260px sidebar by shifting
-          // the center point right by 130px (half the sidebar width).
-          // On mobile, there's no sidebar, so use plain 50%.
-          // Using JS state (isMobile) instead of CSS media query because
-          // inline styles can't be overridden by <style> tags.
-          left: isMobile ? "50%" : "calc(50% + 130px)",
+          position: "fixed", top: 20, left: "50%",
           transform: "translateX(-50%)",
           zIndex: 10000,
           maxWidth: 440, width: "calc(100% - 40px)",
@@ -206,13 +196,25 @@ export default function MilestoneTracker({ stats }) {
           </button>
         </div>
 
-        {/* 3D physics confetti for special milestones */}
+        {/* Confetti for special milestones */}
         {(activeMilestone.id === "first_order" || activeMilestone.id === "orders_100") && (
-          <Confetti3D
-            trigger={activeMilestone.id + Date.now()}
-            count={120}
-            colors={[activeMilestone.color, "#5865F2", "#00D2FF", "#F8A532", "#3BA55C", "#FD79A8"]}
-          />
+          <>
+            {Array.from({ length: 20 }).map((_, i) => (
+              <div key={i} style={{
+                position: "fixed", top: 40, left: `${50 + (Math.random() - 0.5) * 60}%`,
+                width: 6, height: 6, borderRadius: i % 2 === 0 ? "50%" : "2px",
+                background: [activeMilestone.color, "#5865F2", "#00D2FF", "#F8A532"][i % 4],
+                animation: `milestone-confetti ${1.5 + Math.random()}s ease-out forwards`,
+                pointerEvents: "none", zIndex: 10001,
+              }} />
+            ))}
+            <style>{`
+              @keyframes milestone-confetti {
+                0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+                100% { transform: translateY(300px) rotate(360deg); opacity: 0; }
+              }
+            `}</style>
+          </>
         )}
       </motion.div>
     </AnimatePresence>

@@ -11,7 +11,6 @@ import { createClient } from "@supabase/supabase-js";
 import { generateAIReply, generateAIReplyWithVision, analyzeIntent } from "@/lib/ai";
 import { sendMessage } from "@/lib/channels/meta";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import { sendTelegramMessage } from "@/lib/telegram";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { dispatchWebhook } from "@/lib/webhooks";
 import {
@@ -21,7 +20,6 @@ import {
   escalateToHuman,
   trackDeflection,
   sendAiFailureFallback,
-  ESCALATION_CUSTOMER_MESSAGE,
 } from "@/lib/ai/reply-helpers";
 
 // Service role client for server-side processing (lazy-initialized)
@@ -71,105 +69,6 @@ async function resolveChannelToken(accountId, channel) {
 }
 
 /**
- * Unified reply sender — handles all 5 channels.
- * @param {Object} params
- * @param {string} params.channel - whatsapp|instagram|facebook|telegram|email
- * @param {string} params.senderId - recipient ID (phone/chatId/platformId/email)
- * @param {string} params.message - text to send
- * @param {Object} params.account - full account row
- * @param {string} [params.accessToken] - optional pre-resolved token
- * @param {string} [params.pageId] - optional pre-resolved page ID
- * @returns {Promise<boolean>} true if delivered
- */
-async function sendChannelReply({ channel, senderId, message, account, accessToken, pageId }) {
-  try {
-    if (channel === "whatsapp") {
-      const waToken = account.whatsapp_access_token || accessToken;
-      const waPhoneId = account.whatsapp_phone_number_id || pageId;
-      if (!waToken || !waPhoneId) return false;
-      await sendWhatsAppMessage({ to: senderId, message, phoneNumberId: waPhoneId, accessToken: waToken });
-      return true;
-    }
-    if (channel === "telegram") {
-      const botToken = account.telegram_bot_token || accessToken;
-      if (!botToken) return false;
-
-      // 🔧 Smart buttons: detect when the AI is asking for payment or confirmation
-      // and send inline keyboard buttons instead of plain text
-      const msgLower = message.toLowerCase();
-      const { sendTelegramMessageWithButtons, paymentMethodButtons, confirmButtons } = await import("@/lib/telegram");
-
-      if (msgLower.includes('how would you like to pay') || msgLower.includes('payment method') || msgLower.includes('how do you want to pay')) {
-        // Payment method question → send payment buttons
-        await sendTelegramMessageWithButtons({
-          botToken, chatId: senderId, text: message,
-          buttons: paymentMethodButtons(),
-        });
-        return true;
-      }
-
-      if ((msgLower.includes('confirm') && msgLower.includes('order')) || msgLower.includes("reply 'yes'") || msgLower.includes('reply "yes"') || msgLower.includes('do you confirm')) {
-        // Order confirmation → send Yes/No buttons
-        await sendTelegramMessageWithButtons({
-          botToken, chatId: senderId, text: message,
-          buttons: confirmButtons(),
-        });
-        return true;
-      }
-
-      // Default: plain text message
-      await sendTelegramMessage({ botToken, chatId: senderId, text: message });
-      return true;
-    }
-    if (channel === "email") {
-      // Use Resend to send email reply (AI auto-reply on email channel)
-      const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
-      if (!isEmailConfigured()) return false;
-      // Look up account for replyTo + accountId
-      let replyTo = null;
-      let accountId = null;
-      try {
-        const admin = (await import("@supabase/supabase-js")).createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.SUPABASE_SERVICE_ROLE_KEY
-        );
-        // senderId is the email — we need to find the account that owns this conversation
-        // For now, omit replyTo/accountId if we can't resolve (the central send() will use defaults)
-      } catch {}
-      await sendCustomEmail({
-        to: senderId, // email address
-        subject: "Re: Your message",
-        html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <p style="font-size: 15px; line-height: 1.6; color: #374151; white-space: pre-wrap;">${message}</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #9ca3af;">Sent from Sellora</p>
-        </div>`,
-        templateName: "ai_email_reply",
-        replyTo,
-        accountId,
-      });
-      return true;
-    }
-    // Instagram + Facebook (Meta)
-    let metaToken = accessToken;
-    let metaPageId = pageId;
-    if (!metaToken) {
-      const resolved = await resolveChannelToken(account.id, channel);
-      metaToken = resolved.accessToken;
-      metaPageId = resolved.pageId || pageId;
-    }
-    if (metaToken && metaPageId) {
-      await sendMessage({ recipientId: senderId, message, pageId: metaPageId, accessToken: metaToken });
-      return true;
-    }
-    return false;
-  } catch (e) {
-    console.warn(`[PROCESSOR] Failed to send ${channel} reply:`, e.message);
-    return false;
-  }
-}
-
-/**
  * Process an incoming message from any channel
  * 
  * @param {Object} params
@@ -189,7 +88,6 @@ export async function processIncomingMessage({
   senderProfilePic,
   text,
   mediaUrls = [],
-  mediaType = null,
   channel,
   pageId,
   platformMessageId,
@@ -198,7 +96,7 @@ export async function processIncomingMessage({
 }) {
   try {
     // ─── 1. Find the account that owns this page ───
-    const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : channel === "telegram" ? "telegram_bot_token" : channel === "email" ? "email_inbound_address" : "facebook_page_id";
+    const pageColumn = channel === "instagram" ? "instagram_page_id" : channel === "whatsapp" ? "whatsapp_phone_number_id" : "facebook_page_id";
 
     // Step 1a: Fetch core columns that MUST exist
     // If accountId was provided (from webhook handler that already resolved duplicates), use it directly
@@ -206,9 +104,9 @@ export async function processIncomingMessage({
     if (providedAccountId) {
       const { data: directAccount, error: directError } = await getSupabase()
         .from("accounts")
-        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, telegram_bot_token, telegram_connected, email_channel_enabled, email_inbound_address, notify_escalations, auto_greeting, auto_greeting_message, greeting_per_channel, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, ai_escalation_keywords, notify_escalations, auto_follow_up_enabled, ai_confidence_threshold, ai_preview_mode, ai_high_value_threshold, ai_sla_hours")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
         .eq("id", providedAccountId)
-        .maybeSingle();
+        .single();
 
       if (directError || !directAccount) {
         console.error(`[PROCESSOR] Account lookup by ID failed for ${providedAccountId}:`, directError?.message);
@@ -219,7 +117,7 @@ export async function processIncomingMessage({
       // No accountId provided — look up by page ID (handle duplicates gracefully)
       const { data: accounts, error: accountError } = await getSupabase()
         .from("accounts")
-        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token, instagram_access_token, instagram_page_id, facebook_access_token, facebook_page_id, telegram_bot_token, telegram_connected, email_channel_enabled, email_inbound_address, notify_escalations, auto_greeting, auto_greeting_message, greeting_per_channel, instagram_greeting, facebook_greeting, whatsapp_greeting, greeting_delay_seconds, ai_escalation_keywords, notify_escalations, auto_follow_up_enabled, ai_confidence_threshold, ai_preview_mode, ai_high_value_threshold, ai_sla_hours")
+        .select("id, ai_enabled, ai_personality, plan, business_name, country, whatsapp_phone_number_id, whatsapp_access_token")
         .eq(pageColumn, pageId);
 
       if (accountError || !accounts || accounts.length === 0) {
@@ -270,12 +168,12 @@ export async function processIncomingMessage({
       .select("*")
       .eq("account_id", account.id)
       .eq("platform_id", senderId)
-      .maybeSingle();
+      .single();
 
     const isNewCustomer = !customer;
 
     if (!customer) {
-      const { data: newCustomer, error: custInsertErr } = await getSupabase()
+      const { data: newCustomer } = await getSupabase()
         .from("customers")
         .insert({
           account_id: account.id,
@@ -289,12 +187,8 @@ export async function processIncomingMessage({
           is_returning: false,
         })
         .select()
-        .maybeSingle();
+        .single();
 
-      if (custInsertErr || !newCustomer) {
-        console.error(`[PROCESSOR] Failed to create customer for ${channel} ${senderId}:`, custInsertErr?.message);
-        return;
-      }
       customer = newCustomer;
     } else {
       // Update profile pic and name if we have newer data
@@ -321,25 +215,21 @@ export async function processIncomingMessage({
       .in("status", ["new", "open", "in_progress", "waiting_customer"])
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle();
+      .single();
 
     if (!conversation) {
-      const { data: newConv, error: convInsertErr } = await getSupabase()
+      const { data: newConv } = await getSupabase()
         .from("conversations")
         .insert({
           account_id: account.id,
           customer_id: customer.id,
           channel: channel,
           status: "new",
-          platform_thread_id: senderId,
+          platform_thread_id: senderId, // Thread is per-user on IG/FB
         })
         .select()
-        .maybeSingle();
+        .single();
 
-      if (convInsertErr || !newConv) {
-        console.error(`[PROCESSOR] Failed to create conversation:`, convInsertErr?.message);
-        return;
-      }
       conversation = newConv;
     }
 
@@ -357,8 +247,7 @@ export async function processIncomingMessage({
     }
 
     // ─── 5. Store the incoming message ───
-    // 🔧 FIX: use mediaType from webhook (image/audio/video) instead of always "image"
-    const messageType = mediaUrls.length > 0 ? (mediaType || "image") : "text";
+    const messageType = mediaUrls.length > 0 ? "image" : "text";
     const { error: insertError } = await getSupabase().from("messages").insert({
       conversation_id: conversation.id,
       account_id: account.id,
@@ -366,8 +255,6 @@ export async function processIncomingMessage({
       content: text,
       type: messageType,
       media_urls: mediaUrls.length > 0 ? mediaUrls : null,
-      media_url: mediaUrls.length > 0 ? mediaUrls[0] : null,
-      media_type: mediaType || null,
       platform_message_id: platformMessageId,
       intent: intent,
       sentiment: sentiment,
@@ -485,15 +372,6 @@ export async function processIncomingMessage({
     if (account.auto_greeting && isNewCustomer && text) {
       try {
         // Determine greeting message based on channel
-        // 🔧 FIX: Use store name instead of business_name for greetings
-        let storeNameForGreeting = account.business_name;
-        try {
-          const { data: storeForGreeting } = await getSupabase().from("stores")
-            .select("name").eq("account_id", account.id).eq("is_active", true)
-            .limit(1).maybeSingle();
-          if (storeForGreeting?.name) storeNameForGreeting = storeForGreeting.name;
-        } catch (e) {}
-
         let greetingMessage;
         if (account.greeting_per_channel) {
           // Use channel-specific greeting
@@ -501,8 +379,6 @@ export async function processIncomingMessage({
             instagram: account.instagram_greeting,
             facebook: account.facebook_greeting,
             whatsapp: account.whatsapp_greeting,
-            telegram: account.auto_greeting_message, // Telegram uses the default greeting
-            email: account.auto_greeting_message, // Email uses the default greeting
           };
           greetingMessage = channelGreetings[channel] || account.auto_greeting_message || "Hi! Welcome to {business_name} 👋 How can I help you today?";
         } else {
@@ -510,7 +386,7 @@ export async function processIncomingMessage({
         }
 
         greetingMessage = greetingMessage
-          .replace(/\{business_name\}/g, storeNameForGreeting || "our store")
+          .replace(/\{business_name\}/g, account.business_name || "our store")
           .replace(/\{name\}/g, customer.name || "there");
 
         // Apply greeting delay if configured
@@ -522,14 +398,39 @@ export async function processIncomingMessage({
         // Send greeting via the appropriate channel (best-effort)
         let greetingDelivered = false;
         try {
-          greetingDelivered = await sendChannelReply({
-            channel, senderId, message: greetingMessage, account, accessToken, pageId,
-          });
-          if (!greetingDelivered) {
-            console.warn(`[PROCESSOR] No ${channel} token for greeting delivery — greeting stored but NOT sent`);
+          if (channel === "whatsapp") {
+            const waAccessToken = account.whatsapp_access_token || null;
+            await sendWhatsAppMessage({
+              to: senderId,
+              message: greetingMessage,
+              phoneNumberId: account.whatsapp_phone_number_id,
+              accessToken: waAccessToken,
+            });
+            greetingDelivered = true;
+          } else {
+            // For IG/FB: try provided token, then look up from accounts table
+            let greetToken = accessToken;
+            let greetPageId = pageId;
+            if (!greetToken) {
+              const resolved = await resolveChannelToken(account.id, channel);
+              greetToken = resolved.accessToken;
+              greetPageId = resolved.pageId || pageId;
+            }
+            if (greetToken && greetPageId) {
+              await sendMessage({
+                recipientId: senderId,
+                message: greetingMessage,
+                pageId: greetPageId,
+                accessToken: greetToken,
+              });
+              greetingDelivered = true;
+            } else {
+              console.warn(`[PROCESSOR] No ${channel} token for greeting delivery — greeting stored but NOT sent`);
+            }
           }
         } catch (deliveryErr) {
           console.warn(`[PROCESSOR] Greeting delivery failed for ${channel}:`, deliveryErr.message);
+          // Continue to store the greeting in DB even if delivery failed
         }
 
         // Store the greeting message (always, even if delivery failed)
@@ -636,9 +537,35 @@ export async function processIncomingMessage({
             // Send the FAQ answer via the appropriate channel (best-effort)
             let faqDelivered = false;
             try {
-              faqDelivered = await sendChannelReply({
-                channel, senderId, message: bestMatch.answer, account, accessToken, pageId,
-              });
+              if (channel === "whatsapp") {
+                const waAccessToken = account.whatsapp_access_token || null;
+                await sendWhatsAppMessage({
+                  to: senderId,
+                  message: bestMatch.answer,
+                  phoneNumberId: account.whatsapp_phone_number_id,
+                  accessToken: waAccessToken,
+                });
+                faqDelivered = true;
+              } else {
+                let faqToken = accessToken;
+                let faqPageId = pageId;
+                if (!faqToken) {
+                  const resolved = await resolveChannelToken(account.id, channel);
+                  faqToken = resolved.accessToken;
+                  faqPageId = resolved.pageId || pageId;
+                }
+                if (faqToken && faqPageId) {
+                  await sendMessage({
+                    recipientId: senderId,
+                    message: bestMatch.answer,
+                    pageId: faqPageId,
+                    accessToken: faqToken,
+                  });
+                  faqDelivered = true;
+                } else {
+                  console.warn(`[PROCESSOR] No ${channel} token for FAQ reply delivery — reply stored but NOT sent`);
+                }
+              }
             } catch (deliveryErr) {
               console.warn(`[PROCESSOR] FAQ reply delivery failed for ${channel}:`, deliveryErr.message);
             }
@@ -702,9 +629,35 @@ export async function processIncomingMessage({
           // Send the auto-reply via the appropriate channel (best-effort)
           let keywordDelivered = false;
           try {
-            keywordDelivered = await sendChannelReply({
-              channel, senderId, message: matchedReply.response, account, accessToken, pageId,
-            });
+            if (channel === "whatsapp") {
+              const waAccessToken = account.whatsapp_access_token || null;
+              await sendWhatsAppMessage({
+                to: senderId,
+                message: matchedReply.response,
+                phoneNumberId: account.whatsapp_phone_number_id,
+                accessToken: waAccessToken,
+              });
+              keywordDelivered = true;
+            } else {
+              let kwToken = accessToken;
+              let kwPageId = pageId;
+              if (!kwToken) {
+                const resolved = await resolveChannelToken(account.id, channel);
+                kwToken = resolved.accessToken;
+                kwPageId = resolved.pageId || pageId;
+              }
+              if (kwToken && kwPageId) {
+                await sendMessage({
+                  recipientId: senderId,
+                  message: matchedReply.response,
+                  pageId: kwPageId,
+                  accessToken: kwToken,
+                });
+                keywordDelivered = true;
+              } else {
+                console.warn(`[PROCESSOR] No ${channel} token for keyword reply delivery — reply stored but NOT sent`);
+              }
+            }
           } catch (deliveryErr) {
             console.warn(`[PROCESSOR] Keyword reply delivery failed for ${channel}:`, deliveryErr.message);
           }
@@ -828,27 +781,6 @@ export async function processIncomingMessage({
 
           // Use vision AI if customer sent images, otherwise standard AI reply
           let aiResult;
-          // 🔧 FIX: Use store name (from stores table) instead of business_name
-          let storeName = account.business_name;
-          try {
-            const { data: store } = await getSupabase().from("stores")
-              .select("name").eq("account_id", account.id).eq("is_active", true)
-              .limit(1).maybeSingle();
-            if (store?.name) storeName = store.name;
-          } catch (e) {}
-
-          // ─── Channel info for human-handoff customer messages ───
-          // When AI escalates to a human, we send the customer a friendly
-          // "I've connected you with our team" message. escalateToHuman()
-          // needs the channel info to deliver that message.
-          const escalationChannelInfo = {
-            channel,
-            recipientId: senderId,
-            phoneNumberId: account.whatsapp_phone_number_id,
-            accessToken: channel === "whatsapp" ? (account.whatsapp_access_token || accessToken) : accessToken,
-            pageId,
-          };
-
           let aiFailed = false;
           try {
             aiResult = mediaUrls.length > 0
@@ -860,7 +792,7 @@ export async function processIncomingMessage({
                   customerName: customer.name,
                   personality: account.ai_personality,
                   country: account.country,
-                  businessName: storeName,
+                  businessName: account.business_name,
                   conversationHistory: history,
                   plan: account.plan,
                   mediaUrls,
@@ -873,7 +805,7 @@ export async function processIncomingMessage({
                   customerName: customer.name,
                   personality: account.ai_personality,
                   country: account.country,
-                  businessName: storeName,
+                  businessName: account.business_name,
                   conversationHistory: history,
                   plan: account.plan,
                 });
@@ -891,104 +823,107 @@ export async function processIncomingMessage({
               phoneNumberId: account.whatsapp_phone_number_id,
               accessToken: channel === "whatsapp" ? (account.whatsapp_access_token || accessToken) : accessToken,
               pageId,
-              businessName: storeName,
+              businessName: account.business_name,
             });
-            // ─── Human Handoff: pass channelInfo so the customer gets the
-            // "I've connected you with our team 🙏" message, and set SLA deadline.
             await escalateToHuman(
               conversation.id,
               aiFailed ? "AI generation threw an error" : "AI returned empty reply",
-              account.id,
-              { channelInfo: escalationChannelInfo }
+              account.id
             );
             return;
           }
 
-          console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}, confidence=${aiResult?.confidenceScore}, finishReason=${aiResult?.finishReason}, needsHumanReview=${aiResult?.needsHumanReview}, previewMode=${account.ai_preview_mode}`);
+          console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
 
           // ─── B5: Auto-escalate on negative sentiment ───
           // If the customer is clearly angry/frustrated, route to a human
           if (aiResult?.sentiment === "negative" && aiResult?.intent === "complaint") {
             console.log(`[PROCESSOR] Negative sentiment + complaint → escalating to human`);
-            // Still send the AI's reply (it might be a good de-escalation), but flag for human follow-up.
-            // ─── Human Handoff: pass channelInfo so the customer gets the
-            // escalation message AND SLA deadline is set. We DON'T double-send
-            // here (sendCustomerMessage=false) because the AI's reply is still
-            // going out below — the escalation notification + SLA are still set.
+            // Still send the AI's reply (it might be a good de-escalation), but flag for human follow-up
             await escalateToHuman(
               conversation.id,
               "Auto-escalated: negative sentiment + complaint intent",
-              account.id,
-              { sendCustomerMessage: false, channelInfo: escalationChannelInfo }
-            );
-          }
-
-          // ─── AI Safety: Decide whether to hold the reply for human review ───
-          // Two conditions trigger a hold:
-          //   1. Preview mode is ON (account.ai_preview_mode) — ALL AI replies
-          //      are held for owner approval.
-          //   2. Confidence threshold not met (aiResult.needsHumanReview) —
-          //      the AI provider's finish_reason suggests the reply may be
-          //      truncated/filtered, so we hold it for review.
-          //
-          // When held, the reply is saved to the messages table with
-          // approval_status='pending' and is NOT delivered to the customer.
-          // The dashboard shows a "Review AI Reply" banner; the owner can
-          // approve (delivers the message) or reject (discards).
-          const previewModeEnabled = !!account.ai_preview_mode;
-          const confidenceBelowThreshold = !!aiResult?.needsHumanReview;
-          const holdForReview = previewModeEnabled || confidenceBelowThreshold;
-
-          if (holdForReview) {
-            console.log(
-              `[PROCESSOR] AI Safety: holding AI reply for human review (previewMode=${previewModeEnabled}, confidenceBelowThreshold=${confidenceBelowThreshold}, confidence=${aiResult?.confidenceScore}, threshold=${account.ai_confidence_threshold})`
+              account.id
             );
           }
 
           // ─── H1: Human-feeling reply delay (1.5–3s) ───
           // Wait until the AI is done, then add a short throttle so the reply
           // doesn't appear in <1s (feels robotic). Typing indicator continues during this delay.
-          // Skipped when holding for review — the customer isn't getting the
-          // reply immediately anyway.
-          if (!holdForReview) {
-            await humanReplyDelay(aiResult.reply);
-          }
+          await humanReplyDelay(aiResult.reply);
 
           if (aiResult && aiResult.reply) {
             const aiReply = aiResult.reply;
             console.log(`[PROCESSOR] AI reply generated (${aiReply.length} chars): "${aiReply.substring(0, 80)}..."`);
 
             // ─── Step 10a: Send AI reply via Meta/WhatsApp (best-effort) ───
-            // SKIPPED when holding for review — the reply is saved with
-            // approval_status='pending' and the owner decides whether to send.
+            // This is wrapped in its own try/catch because Meta delivery failure
+            // should NOT prevent the AI reply from being stored in the database.
+            // The business owner can still see the AI reply in the conversations page.
             let deliverySuccess = false;
-            if (!holdForReview) {
-              try {
-                deliverySuccess = await sendChannelReply({
-                  channel, senderId, message: aiReply, account, accessToken, pageId,
+            try {
+              if (channel === "whatsapp") {
+                // Use the account's WhatsApp token if available, otherwise fall back to env var
+                const waAccessToken = account.whatsapp_access_token || null;
+                await sendWhatsAppMessage({
+                  to: senderId,
+                  message: aiReply,
+                  phoneNumberId: account.whatsapp_phone_number_id,
+                  accessToken: waAccessToken,
                 });
-                if (!deliverySuccess) {
-                  console.warn(`[PROCESSOR] No token available for ${channel} — AI reply stored but NOT delivered to customer`);
+                deliverySuccess = true;
+              } else {
+                // For Instagram/Facebook: try the provided accessToken first.
+                // If not provided (webhook handler couldn't find it), look it up
+                // from the accounts table directly — the token may have been stored
+                // but the webhook handler didn't have it in its initial query.
+                let effectiveAccessToken = accessToken;
+                let effectivePageId = pageId;
+
+                if (!effectiveAccessToken) {
+                  console.log(`[PROCESSOR] No accessToken passed for ${channel}, looking up from accounts table...`);
+                  const tokenColumn = channel === "instagram" ? "instagram_access_token" : "facebook_access_token";
+                  const pageIdColumn = channel === "instagram" ? "instagram_page_id" : "facebook_page_id";
+                  const { data: tokenData } = await getSupabase()
+                    .from("accounts")
+                    .select(`${tokenColumn}, ${pageIdColumn}`)
+                    .eq("id", account.id)
+                    .single();
+                  if (tokenData?.[tokenColumn]) {
+                    effectiveAccessToken = tokenData[tokenColumn];
+                    effectivePageId = tokenData[pageIdColumn] || pageId;
+                    console.log(`[PROCESSOR] Found ${channel} access token in accounts table, will attempt delivery`);
+                  } else {
+                    console.warn(`[PROCESSOR] No ${channel} access token found in accounts table for account ${account.id}`);
+                  }
                 }
-              } catch (deliveryErr) {
-                console.error(`[PROCESSOR] AI reply delivery failed for ${channel}:`, deliveryErr.message);
-                console.error(`[PROCESSOR] AI reply is still saved to database but customer did NOT receive it on ${channel}`);
-                // Continue to store the AI reply in DB even if delivery failed
+
+                if (effectiveAccessToken && effectivePageId) {
+                  await sendMessage({
+                    recipientId: senderId,
+                    message: aiReply,
+                    pageId: effectivePageId,
+                    accessToken: effectiveAccessToken,
+                  });
+                  deliverySuccess = true;
+                } else {
+                  console.warn(`[PROCESSOR] No access token available for ${channel} — AI reply stored but NOT delivered to customer`);
+                  console.warn(`[PROCESSOR] HINT: Re-connect ${channel} in Settings to refresh the access token`);
+                }
               }
+            } catch (deliveryErr) {
+              console.error(`[PROCESSOR] AI reply delivery failed for ${channel}:`, deliveryErr.message);
+              console.error(`[PROCESSOR] AI reply is still saved to database but customer did NOT receive it on ${channel}`);
+              // Continue to store the AI reply in DB even if delivery failed
             }
 
             // ─── Step 10b: ALWAYS store AI reply in database ───
             // This must happen regardless of whether Meta delivery succeeded.
             // Otherwise, AI replies are lost when delivery fails.
-            //
-            // When holdForReview is true, the message is stored with
-            // approval_status='pending' instead of being sent. The dashboard
-            // shows a "Review AI Reply" banner for conversations with pending
-            // replies; the owner can approve (sends the message) or reject.
             const responseTime = Math.round((Date.now() - (conversation.last_message_at ? new Date(conversation.last_message_at).getTime() : Date.now())) / 1000);
 
             try {
-              const insertPayload = {
+              const { data: insertedMsg } = await getSupabase().from("messages").insert({
                 conversation_id: conversation.id,
                 account_id: account.id,
                 direction: "outgoing",
@@ -998,20 +933,11 @@ export async function processIncomingMessage({
                 response_time_seconds: responseTime,
                 sentiment: aiResult.sentiment || null,
                 tool_calls: aiResult.toolCalls ? JSON.stringify(aiResult.toolCalls) : null,
-                delivery_status: holdForReview ? "pending" : (deliverySuccess ? "delivered" : "failed"),
-              };
-
-              // ─── AI Safety: mark the message as pending approval ───
-              if (holdForReview) {
-                insertPayload.approval_status = "pending";
-              }
-
-              const { data: insertedMsg } = await getSupabase().from("messages").insert(insertPayload).select("id").single();
+                delivery_status: deliverySuccess ? "delivered" : "failed",
+              }).select("id").single();
 
               // ─── Track deflection: AI replied → record first_ai_reply_at if not set ───
-              // Only count as a deflection if the reply was actually sent
-              // (not held for review).
-              if (insertedMsg?.id && !holdForReview) {
+              if (insertedMsg?.id) {
                 await getSupabase()
                   .from("conversations")
                   .update({
@@ -1050,35 +976,14 @@ export async function processIncomingMessage({
                 .eq("id", conversation.id);
             }
 
-            console.log(`[PROCESSOR] AI auto-reply generated and ${holdForReview ? 'held for review' : (deliverySuccess ? 'delivered' : 'saved (delivery failed)')} for conversation ${conversation.id}`);
+            console.log(`[PROCESSOR] AI auto-reply generated and ${deliverySuccess ? 'delivered' : 'saved (delivery failed)'} for conversation ${conversation.id}`);
 
             // ─── Step 10c: Handle AI Escalation (notify owner) ───
             if (aiResult.needsHumanAttention && aiResult.escalationReason) {
               try {
                 console.log(`[PROCESSOR] AI ESCALATION detected for conversation ${conversation.id}: ${aiResult.escalationReason}`);
 
-                // 1. Update conversation status to "needs_attention" and add escalation tag.
-                // ─── Human Handoff: also set SLA deadline + bump priority ───
-                // SLA window comes from account.ai_sla_hours (default 4h).
-                const slaHours = account.ai_sla_hours || 4;
-                const slaDeadline = new Date(Date.now() + slaHours * 60 * 60 * 1000).toISOString();
-
-                // Fetch current priority so we don't downgrade an 'urgent' conv
-                let currentPriority = "normal";
-                try {
-                  const { data: convRow } = await getSupabase()
-                    .from("conversations")
-                    .select("priority")
-                    .eq("id", conversation.id)
-                    .single();
-                  if (convRow?.priority) currentPriority = convRow.priority;
-                } catch (e) { /* column may not exist yet */ }
-                const PRIORITY_RANK = { low: 0, normal: 1, high: 2, urgent: 3 };
-                const newPriority =
-                  PRIORITY_RANK[currentPriority] >= PRIORITY_RANK.high
-                    ? currentPriority
-                    : "high";
-
+                // 1. Update conversation status to "needs_attention" and add escalation tag
                 const currentTags = conversation.tags || [];
                 const escalationTag = "escalated:ai";
                 const reasonTag = `escalation:${aiResult.escalationReason.substring(0, 50)}`;
@@ -1089,53 +994,8 @@ export async function processIncomingMessage({
                   .update({
                     status: "needs_attention",
                     tags: newTags,
-                    // ─── Human Handoff: SLA deadline + priority bump ───
-                    sla_deadline: slaDeadline,
-                    priority: newPriority,
                   })
                   .eq("id", conversation.id);
-
-                console.log(`[PROCESSOR] Conversation ${conversation.id} marked needs_attention (SLA: ${slaHours}h → ${slaDeadline}, priority: ${newPriority})`);
-
-                // 1b. ─── Human Handoff: send the customer a friendly message ───
-                // "Thanks for your message! I've connected you with our team
-                //  who will reply shortly. Your request is important to us 🙏"
-                //
-                // Best-effort — channel delivery failures don't block the escalation.
-                // We DON'T send this if the AI's reply is already being held for
-                // review (the customer hasn't received anything yet, and we want
-                // the operator to decide what to send).
-                if (!holdForReview) {
-                  try {
-                    if (channel === "whatsapp") {
-                      const { sendWhatsAppMessage } = await import("@/lib/whatsapp");
-                      await sendWhatsAppMessage({
-                        to: senderId,
-                        message: ESCALATION_CUSTOMER_MESSAGE,
-                        phoneNumberId: account.whatsapp_phone_number_id,
-                        accessToken: account.whatsapp_access_token || accessToken,
-                      });
-                    } else if (channel === "telegram" && account.telegram_bot_token) {
-                      const { sendTelegramMessage } = await import("@/lib/telegram");
-                      await sendTelegramMessage({
-                        botToken: account.telegram_bot_token,
-                        chatId: senderId,
-                        text: ESCALATION_CUSTOMER_MESSAGE,
-                      });
-                    } else {
-                      const { sendMessage } = await import("@/lib/channels/meta");
-                      await sendMessage({
-                        recipientId: senderId,
-                        message: ESCALATION_CUSTOMER_MESSAGE,
-                        pageId,
-                        accessToken,
-                      });
-                    }
-                    console.log(`[PROCESSOR] Sent escalation customer message to ${senderId} on ${channel}`);
-                  } catch (custMsgErr) {
-                    console.warn(`[PROCESSOR] Failed to send escalation customer message:`, custMsgErr.message);
-                  }
-                }
 
                 // 2. Store escalation notification for the owner (resilient to missing table)
                 try {
@@ -1154,9 +1014,6 @@ export async function processIncomingMessage({
                       ai_reply_preview: aiReply?.substring(0, 200),
                       intent: aiResult.intent,
                       sentiment: aiResult.sentiment,
-                      sla_deadline: slaDeadline,
-                      sla_hours: slaHours,
-                      priority: newPriority,
                     },
                     read: false,
                   });

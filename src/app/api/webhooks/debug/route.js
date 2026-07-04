@@ -192,7 +192,7 @@ export async function GET(request) {
       `3. ${serviceRoleKey ? "OK" : "FIX"} Add SUPABASE_SERVICE_ROLE_KEY to Vercel env vars`,
       `4. ${(groqKey || googleKey) ? "OK" : "FIX"} Add GROQ_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to Vercel env vars`,
       "5. Redeploy on Vercel",
-      "6. Go to Meta App Dashboard > Webhooks > Add Callback URL: https://sellorachat.com/api/webhook",
+      "6. Go to Meta App Dashboard > Webhooks > Add Callback URL: https://sellora-ruby.vercel.app/api/webhook",
       "7. Use the META_WEBHOOK_VERIFY_TOKEN you set in step 2 as the Verify Token",
       "8. Subscribe to: messages, messaging_postbacks (for both Instagram and Messenger)",
       "9. Make sure your Page is selected at the bottom of the webhooks page",

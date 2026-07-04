@@ -8,7 +8,7 @@ export async function GET() {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const baseUrl = "https://sellorachat.com";
+    const baseUrl = "https://sellora-ruby.vercel.app";
     const now = new Date().toISOString();
 
     const staticPages = [

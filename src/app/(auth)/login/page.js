@@ -36,7 +36,6 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawRedirectTo = searchParams.get("redirect") || "/dashboard";
-  const inviteToken = searchParams.get("invite");
   const ALLOWED_REDIRECTS = [
     "/dashboard",
     "/dashboard/analytics",
@@ -66,11 +65,6 @@ function LoginContent() {
     const email = formData.get("email");
     const password = formData.get("password");
 
-    // 🔧 Save invite token to localStorage BEFORE login (survives redirect)
-    if (inviteToken) {
-      localStorage.setItem("sellora_pending_invite", inviteToken);
-    }
-
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -80,10 +74,10 @@ function LoginContent() {
       return;
     }
 
-    // Redirect to dashboard — invite popup will show there
+    // Check if user is admin → redirect to admin panel
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data: account } = await supabase.from("accounts").select("role").eq("id", user.id).maybeSingle();
+      const { data: account } = await supabase.from("accounts").select("role").eq("id", user.id).single();
       if (account && account.role === "admin") {
         router.push("/admin");
       } else {
@@ -96,11 +90,6 @@ function LoginContent() {
   };
 
   const handleGoogleLogin = async () => {
-    // 🔧 Save invite token to localStorage BEFORE Google redirect
-    if (inviteToken) {
-      localStorage.setItem("sellora_pending_invite", inviteToken);
-    }
-
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -188,9 +177,9 @@ function LoginContent() {
         <div className="auth-form-glow" />
 
         <div className="auth-card">
-          <h1 className="auth-title">{inviteToken ? "Accept Team Invitation" : "Welcome back"}</h1>
+          <h1 className="auth-title">Welcome back</h1>
           <p className="auth-subtitle">
-            {inviteToken ? "Log in to accept your invitation and join the team" : "Log in to your dashboard and start selling"}
+            Log in to your dashboard and start selling
           </p>
 
           {error && (

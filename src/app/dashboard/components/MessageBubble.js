@@ -3,7 +3,6 @@
 import {
   Bot, Camera, Check, Loader2, ThumbsUp, ThumbsDown,
 } from "lucide-react";
-import TiltCard3D from "./TiltCard3D";
 
 /**
  * MessageBubble — renders a single chat message with all the bells:
@@ -34,18 +33,15 @@ export default function MessageBubble({
 }) {
   const isAI = msg.is_ai;
   const isOutgoing = msg.direction === "outgoing";
-  // 🔧 FIX: check both media_url (single) and media_urls (array) for compatibility
-  const mediaUrl = msg.media_url || (Array.isArray(msg.media_urls) && msg.media_urls[0]) || null;
-  const isImage = (msg.type === "image") && mediaUrl;
+  const isImage = msg.type === "image" && msg.media_url;
   const isProductCard = msg.type === "product_card";
-  const isAudio = (msg.type === "audio") && mediaUrl;
+  const isAudio = msg.type === "audio";
 
   return (
     <div
       key={msg.id}
       className={`chat-msg ${isOutgoing ? (isAI ? "ai-reply" : "outgoing") : "incoming"}`}
     >
-      <TiltCard3D maxTilt={3} scale={1.01} glare={false}>
       {isAI && <span className="ai-label"><Bot size={10} /> AI Auto-Reply</span>}
 
       {/* Sentiment badge on incoming */}
@@ -76,9 +72,9 @@ export default function MessageBubble({
         <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)", maxWidth: 280 }}>
           <div
             className="chat-image-thumbnail"
-            onClick={() => onRecognize && onRecognize(msg.id, mediaUrl)}
+            onClick={() => onRecognize && onRecognize(msg.id, msg.media_url)}
           >
-            <img src={mediaUrl} alt="Customer sent image" className="chat-image-thumb" />
+            <img src={msg.media_url} alt="Customer sent image" className="chat-image-thumb" />
             {!imageRecognition?.[msg.id] && (
               <div className="chat-image-recognize-hint">
                 <Camera size={12} /> Click to find matching products
@@ -98,14 +94,14 @@ export default function MessageBubble({
         </div>
       ) : isAudio ? (
         <div className="msg-bubble" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-medium)", borderRadius: 16, padding: "var(--space-md)", display: "flex", alignItems: "center", gap: 10 }}>
-          {mediaUrl ? (
-            <>
-              <audio controls src={mediaUrl} style={{ height: 32, maxWidth: 200 }} />
-              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Voice note</span>
-            </>
-          ) : (
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>🎤 Voice note</span>
-          )}
+          <button
+            onClick={() => msg.media_url && window.open(msg.media_url, "_blank")}
+            style={{ background: "var(--accent-gradient)", color: "#fff", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            title="Play voice note"
+          >
+            ▶
+          </button>
+          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Voice note</span>
         </div>
       ) : (
         <>{msg.content}</>
@@ -151,7 +147,6 @@ export default function MessageBubble({
           </button>
         </div>
       )}
-      </TiltCard3D>
     </div>
   );
 }

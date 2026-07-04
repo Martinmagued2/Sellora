@@ -20,7 +20,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { sendMessage } from "@/lib/channels/meta";
-import { awardPointsForOrder } from "@/lib/loyalty";
 
 let _supabase = null;
 function getSupabase() {
@@ -36,15 +35,14 @@ function getSupabase() {
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "";
 
 export async function POST(req) {
-  // Pattern B: CRON_SECRET REQUIRED
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = getSupabase();
-  const stats = { review_requests: 0, payment_reminders: 0, thank_you_sent: 0, loyalty_awards: 0, loyalty_skipped: 0, errors: 0 };
+  const stats = { review_requests: 0, payment_reminders: 0, thank_you_sent: 0, errors: 0 };
 
   try {
     // ─── Phase 1: Post-delivery review requests ───
@@ -202,48 +200,6 @@ export async function POST(req) {
       } catch (e) {
         console.error("[POST-DELIVERY] payment reminder error:", e.message);
         stats.errors++;
-      }
-    }
-
-    // ─── Phase 3: Loyalty points backfill ───
-    // Find delivered orders that don't yet have a "purchase" loyalty_transaction
-    // (e.g. status was set directly via Supabase, bypassing /api/orders/auto-update).
-    // We look back 30 days to keep the sweep bounded.
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400_000).toISOString();
-    const { data: deliveredNoPoints } = await supabase
-      .from("orders")
-      .select("id, order_number, account_id, customer_id")
-      .eq("status", "delivered")
-      .gte("updated_at", thirtyDaysAgo)
-      .order("updated_at", { ascending: false })
-      .limit(500);
-
-    if (deliveredNoPoints && deliveredNoPoints.length > 0) {
-      // Filter out orders that already have a purchase loyalty_transaction.
-      const orderIds = deliveredNoPoints.map((o) => o.id);
-      const { data: existingTx } = await supabase
-        .from("loyalty_transactions")
-        .select("order_id")
-        .in("order_id", orderIds)
-        .eq("reason", "purchase");
-      const alreadyCredited = new Set((existingTx || []).map((t) => t.order_id));
-
-      for (const order of deliveredNoPoints) {
-        if (alreadyCredited.has(order.id)) {
-          stats.loyalty_skipped++;
-          continue;
-        }
-        try {
-          const result = await awardPointsForOrder(order.id);
-          if (result?.awarded) {
-            stats.loyalty_awards++;
-          } else {
-            stats.loyalty_skipped++;
-          }
-        } catch (e) {
-          console.error("[POST-DELIVERY] loyalty award error:", e.message);
-          stats.errors++;
-        }
       }
     }
 

@@ -113,7 +113,6 @@ export async function POST(request) {
                 amount: planConfig.amount,
                 currency: "USD",
                 interval: session.mode === "subscription" ? "monthly" : "one-time",
-                accountId: userId,
               }).catch(err => console.warn("[STRIPE] Plan upgrade email failed:", err.message));
             }
           }

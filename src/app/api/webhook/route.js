@@ -8,7 +8,7 @@
  *   - "page"      → Facebook Messenger events
  *
  * Configure this URL in your Meta App Dashboard:
- *   https://sellorachat.com/api/webhook
+ *   https://sellora-ruby.vercel.app/api/webhook
  *
  * For Instagram: Subscribe to "messages" and "messaging_postbacks" events
  * For Messenger: Subscribe to "messages" and "messaging_postbacks" events

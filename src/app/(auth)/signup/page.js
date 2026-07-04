@@ -33,14 +33,9 @@ function SignupForm() {
   const [refCode, setRefCode] = useState(null);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const inviteToken = searchParams.get("invite");
 
   // Check for referral code in URL and localStorage
   useEffect(() => {
-    // 🔧 Save invite token to localStorage so it survives the OAuth redirect
-    if (inviteToken) {
-      localStorage.setItem("sellora_invite_token", inviteToken);
-    }
     const refFromUrl = searchParams.get("ref");
     if (refFromUrl) {
       localStorage.setItem("sellora_ref_code", refFromUrl);
@@ -120,20 +115,6 @@ function SignupForm() {
           plan: "starter",
           plan_status: "trialing",
         }, { onConflict: "id" });
-
-        // Send welcome email via Resend (client-side path)
-        try {
-          await fetch('/api/email/welcome', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email,
-              fullName,
-              businessName,
-              accountId: data.user.id,
-            }),
-          });
-        } catch (e) { console.warn('[signup] Welcome email failed:', e.message); }
 
         // Track referral if code exists
         const storedRefCode = localStorage.getItem("sellora_ref_code");

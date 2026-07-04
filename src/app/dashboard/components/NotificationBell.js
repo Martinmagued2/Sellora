@@ -16,49 +16,58 @@ import {
   CheckCircle2,
   Check,
   ExternalLink,
-  Star,
-  Tag,
-  Shield,
-  Truck,
-  Zap,
-  CreditCard,
-  TrendingDown,
 } from "lucide-react";
 
 // Map notification types to icons and colors
-// 🔔 Extended to cover all 21 automation + action types
 const NOTIFICATION_TYPE_CONFIG = {
-  // Orders
-  new_order: { icon: ShoppingBag, color: "#F8A532", bgColor: "rgba(248, 165, 50, 0.12)", label: "New Order" },
-  coupon_redeemed: { icon: Tag, color: "#F8A532", bgColor: "rgba(248, 165, 50, 0.12)", label: "Coupon" },
-  // Messages
-  new_message: { icon: MessageCircle, color: "#00D2FF", bgColor: "rgba(0, 210, 255, 0.12)", label: "New Message" },
-  // Payments
-  payment_received: { icon: DollarSign, color: "#3BA55C", bgColor: "rgba(59, 165, 92, 0.12)", label: "Payment" },
-  payment_failed: { icon: CreditCard, color: "#ED4245", bgColor: "rgba(237, 66, 69, 0.12)", label: "Payment Failed" },
-  // Products
-  low_stock: { icon: Package, color: "#F8A532", bgColor: "rgba(248, 165, 50, 0.12)", label: "Low Stock" },
-  product_created: { icon: Package, color: "#5865F2", bgColor: "rgba(88, 101, 242, 0.12)", label: "Product" },
-  // Customers
-  vip_tagged: { icon: Star, color: "#FD79A8", bgColor: "rgba(253, 121, 168, 0.12)", label: "VIP Customer" },
-  // Reviews
-  new_review: { icon: Star, color: "#F8A532", bgColor: "rgba(248, 165, 50, 0.12)", label: "Review" },
-  // Team
-  team_invite: { icon: UserPlus, color: "#EB459E", bgColor: "rgba(235, 69, 158, 0.12)", label: "Team" },
-  team_invite_sent: { icon: UserPlus, color: "#EB459E", bgColor: "rgba(235, 69, 158, 0.12)", label: "Team" },
-  // Channels
-  channel_disconnected: { icon: AlertTriangle, color: "#ED4245", bgColor: "rgba(237, 66, 69, 0.12)", label: "Channel" },
-  // AI
-  ai_escalation: { icon: Bot, color: "#ED4245", bgColor: "rgba(237, 66, 69, 0.12)", label: "AI Escalation" },
-  // Automation
-  campaign_sent: { icon: Megaphone, color: "#5865F2", bgColor: "rgba(88, 101, 242, 0.12)", label: "Campaign" },
-  winback_sent: { icon: Zap, color: "#6c5ce7", bgColor: "rgba(108, 92, 231, 0.12)", label: "Win-Back" },
-  abandoned_cart_detected: { icon: ShoppingBag, color: "#F8A532", bgColor: "rgba(248, 165, 50, 0.12)", label: "Abandoned Cart" },
-  shopify_sync_complete: { icon: Check, color: "#3BA55C", bgColor: "rgba(59, 165, 92, 0.12)", label: "Sync" },
-  // Security
-  two_fa_enabled: { icon: Shield, color: "#3BA55C", bgColor: "rgba(59, 165, 92, 0.12)", label: "Security" },
-  // System
-  system: { icon: AlertTriangle, color: "#8E9297", bgColor: "rgba(142, 146, 151, 0.12)", label: "System" },
+  new_order: {
+    icon: ShoppingBag,
+    color: "#F8A532",
+    bgColor: "rgba(248, 165, 50, 0.12)",
+    label: "New Order",
+  },
+  new_message: {
+    icon: MessageCircle,
+    color: "#00D2FF",
+    bgColor: "rgba(0, 210, 255, 0.12)",
+    label: "New Message",
+  },
+  ai_escalation: {
+    icon: Bot,
+    color: "#ED4245",
+    bgColor: "rgba(237, 66, 69, 0.12)",
+    label: "AI Escalation",
+  },
+  payment_received: {
+    icon: DollarSign,
+    color: "#3BA55C",
+    bgColor: "rgba(59, 165, 92, 0.12)",
+    label: "Payment",
+  },
+  low_stock: {
+    icon: Package,
+    color: "#F8A532",
+    bgColor: "rgba(248, 165, 50, 0.12)",
+    label: "Low Stock",
+  },
+  campaign_sent: {
+    icon: Megaphone,
+    color: "#5865F2",
+    bgColor: "rgba(88, 101, 242, 0.12)",
+    label: "Campaign",
+  },
+  team_invite: {
+    icon: UserPlus,
+    color: "#EB459E",
+    bgColor: "rgba(235, 69, 158, 0.12)",
+    label: "Team",
+  },
+  system: {
+    icon: AlertTriangle,
+    color: "#8E9297",
+    bgColor: "rgba(142, 146, 151, 0.12)",
+    label: "System",
+  },
 };
 
 function getTimeAgo(dateString) {
@@ -184,33 +193,15 @@ export default function NotificationBell() {
       handleMarkSingleRead(notif.id);
     }
 
-    // 🔔 Prefer the action_url stored on the notification (new field from migration 052)
-    // Fall back to the type-based navMap for older notifications
-    if (notif.action_url) {
-      setIsOpen(false);
-      router.push(notif.action_url);
-      return;
-    }
-
-    // Legacy fallback — navigate based on type
+    // Navigate based on type
     const navMap = {
       new_order: "/dashboard/orders",
       new_message: "/dashboard/conversations",
       ai_escalation: "/dashboard/conversations",
       payment_received: "/dashboard/orders",
-      payment_failed: "/dashboard/orders",
       low_stock: "/dashboard/products",
       campaign_sent: "/dashboard/campaigns",
       team_invite: "/dashboard/settings",
-      team_invite_sent: "/dashboard/settings?tab=team",
-      channel_disconnected: "/dashboard/settings?tab=channels",
-      new_review: "/dashboard/reviews",
-      vip_tagged: "/dashboard/customers",
-      coupon_redeemed: "/dashboard/orders",
-      winback_sent: "/dashboard/revenue-automations",
-      abandoned_cart_detected: "/dashboard/abandoned-carts",
-      shopify_sync_complete: "/dashboard/products",
-      two_fa_enabled: "/dashboard/settings?tab=security",
       system: null,
     };
 
@@ -283,7 +274,7 @@ export default function NotificationBell() {
               position: "absolute",
               right: 0,
               top: "100%",
-              width: "min(380px, calc(100vw - 32px))",
+              width: 380,
               zIndex: 100,
               background: "var(--bg-secondary)",
               borderRadius: 16,

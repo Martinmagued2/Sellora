@@ -7,7 +7,7 @@ Disallow: /dashboard
 Disallow: /admin
 Disallow: /api
 
-Sitemap: https://sellorachat.com/sitemap.xml`;
+Sitemap: https://sellora-ruby.vercel.app/sitemap.xml`;
 
   return new NextResponse(txt, {
     headers: { "Content-Type": "text/plain" },

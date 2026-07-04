@@ -3,7 +3,6 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { isRateLimited } from "@/lib/rate-limit";
-import { notify } from "@/lib/notifications";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -204,9 +203,6 @@ export async function POST(req) {
 
     // ─── Step 6: Update the order with coupon info if order_id provided ───
     if (order_id) {
-      // 🔒 SECURITY: Filter by account_id to prevent IDOR — previously the update
-      // matched any order by id, allowing a user to apply their coupon to someone
-      // else's order and reduce its total.
       await supabase
         .from("orders")
         .update({
@@ -216,37 +212,10 @@ export async function POST(req) {
           subtotal: orderTotal > 0 ? orderTotal + discountAmount : null,
           total: orderTotal > 0 ? Math.max(0, orderTotal - discountAmount) : null,
         })
-        .eq("id", order_id)
-        .eq("account_id", accountId);  // 🔒 IDOR fix
+        .eq("id", order_id);
     }
 
     // ─── Step 7: Return success ───
-
-    // 🔔 Fire notification (best-effort, non-blocking)
-    let customerName = "A customer";
-    let redeemCurrency = "EGP";
-    if (customer_id) {
-      try {
-        const { data: cust } = await supabase
-          .from("customers")
-          .select("name, full_name, first_name")
-          .eq("id", customer_id)
-          .maybeSingle();
-        if (cust) customerName = cust.name || cust.full_name || cust.first_name || customerName;
-      } catch (_) { /* best-effort */ }
-    }
-    notify(accountId, {
-      category: "orders",
-      type: "coupon_redeemed",
-      title: `Coupon ${coupon.code} redeemed`,
-      message: `${customerName} saved ${discountAmount} ${redeemCurrency}`,
-      priority: "normal",
-      actionUrl: "/dashboard/orders",
-      related_id: coupon.id,
-      related_type: "coupon",
-      data: { code: coupon.code, discount_amount: discountAmount, order_id: order_id || null },
-    }).catch(() => {});
-
     return NextResponse.json({
       redeemed: true,
       discount_amount: discountAmount,
