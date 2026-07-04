@@ -480,9 +480,11 @@ export async function GET(request) {
       console.log("[META-CALLBACK] Page token permissions:", JSON.stringify(permsCheckData));
 
       // First, try the page we already found
-      console.log("[META-CALLBACK] Checking page", pageId, "for IG Business Account...");
+      // CRITICAL: Use longLivedToken (User Token) here, NOT pageAccessToken.
+      // Page tokens often can't see the instagram_business_account field even with permissions.
+      console.log("[META-CALLBACK] Checking page", pageId, "for IG Business Account using USER token...");
       const igAccountResponse = await fetch(
-        `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${pageAccessToken}`,
+        `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${longLivedToken}`,
         { method: "GET" }
       );
 
