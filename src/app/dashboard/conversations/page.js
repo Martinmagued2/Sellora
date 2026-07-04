@@ -10,8 +10,10 @@ import {
   FileText, AlertCircle, Zap, ChevronDown, MessageSquare,
   Megaphone, AlertTriangle, BellOff, Mic, MicOff, Image as ImageIcon,
   ArrowLeft, Filter, Hand, ThumbsUp, ThumbsDown, Pause, Play,
+  Shield, Eye, Flag, TrendingUp,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useEffectiveAccount } from "@/lib/account-context";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useDevice } from "@/lib/use-device";
 import RecommendationsCard from "../components/RecommendationsCard";
@@ -19,6 +21,7 @@ import VoiceRecorder from "../components/VoiceRecorder";
 import ImageUploader from "../components/ImageUploader";
 import EmptyState from "../components/EmptyState";
 import ConversationSearch from "../components/ConversationSearch";
+import ConversationControls from "../components/ConversationControls";
 
 // ─── Intent badge config ───
 const INTENT_CONFIG = {
@@ -35,6 +38,8 @@ const CHANNEL_ICON = {
   instagram: <Camera size={14} />,
   facebook: <Globe size={14} />,
   whatsapp: <MessageSquare size={14} />,
+  telegram: <Send size={14} />,
+  email: <Mail size={14} />,
 };
 
 const STATUS_OPTIONS = [
@@ -45,8 +50,18 @@ const STATUS_OPTIONS = [
   { value: "closed", label: "Closed", color: "var(--text-tertiary)" },
 ];
 
+// ─── Priority levels (Human Handoff) ───
+const PRIORITY_OPTIONS = [
+  { value: "low", label: "Low", color: "var(--text-tertiary)", icon: "🟢" },
+  { value: "normal", label: "Normal", color: "var(--accent-secondary)", icon: "⚪" },
+  { value: "high", label: "High", color: "var(--accent-orange)", icon: "🟠" },
+  { value: "urgent", label: "Urgent", color: "var(--accent-red)", icon: "🔴" },
+];
+
 export default function ConversationsPage() {
   const { isMobile } = useDevice();
+  const { effectiveAccountId, role } = useEffectiveAccount();
+  const [userId, setUserId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -55,6 +70,10 @@ export default function ConversationsPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const typingTimeoutRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const audioInputRef = useRef(null);
 
   // Right panel
   const [customerInfo, setCustomerInfo] = useState(null);
@@ -96,6 +115,20 @@ export default function ConversationsPage() {
   // Channel filter
   const [channelFilter, setChannelFilter] = useState("all");
 
+  // Assignee filter: "all" | "me" | "unassigned" | "others"
+  // Agents default to "me" — they only see their assigned conversations
+  const [assigneeFilter, setAssigneeFilter] = useState(role === "agent" ? "me" : "all");
+
+  // Team members cache (for assignee badge lookups)
+  const [teamMembers, setTeamMembers] = useState([]);
+  useEffect(() => {
+    if (!effectiveAccountId) return;
+    fetch("/api/team-members")
+      .then((r) => r.json())
+      .then((d) => setTeamMembers(d.assignees || []))
+      .catch(() => {});
+  }, [effectiveAccountId]);
+
   // Quick Broadcast
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [broadcastMessage, setBroadcastMessage] = useState("");
@@ -110,6 +143,9 @@ export default function ConversationsPage() {
   // Image recognition
   const [imageRecognitionResults, setImageRecognitionResults] = useState({});
   const [showImageUploader, setShowImageUploader] = useState(false);
+
+  // AI Safety: pending reply approval actions (per-message)
+  const [pendingReplyAction, setPendingReplyAction] = useState({});
 
   // Mobile navigation (legacy)
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
@@ -144,19 +180,26 @@ export default function ConversationsPage() {
 
   useEffect(() => { fetchQuickReplies(); }, [fetchQuickReplies]);
 
+  // ─── Cache the current user's id for assignee filters + badges ───
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) setUserId(data.user.id);
+    });
+  }, [supabase]);
+
   // ─── Fetch conversations ───
   const fetchConversations = useCallback(async () => {
-    // Fetch account plan for data retention
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { data: acct } = await supabase.from("accounts").select("plan").eq("id", user.id).single();
+      const acctId = effectiveAccountId || user.id; // 🔧 Use effective account ID for team members
+      const { data: acct } = await supabase.from("accounts").select("plan").eq("id", acctId).maybeSingle();
       if (acct?.plan) setAccountPlan(acct.plan);
 
       // Use explicit account_id filter for reliability (don't rely solely on RLS)
       const { data } = await supabase
         .from("conversations")
         .select("*, customer:customers(id, name, phone, channel, platform, platform_id, tags, total_orders, total_spent, profile_pic_url, is_returning)")
-        .eq("account_id", user.id)
+        .eq("account_id", acctId)
         .order("last_message_at", { ascending: false });
 
       if (data) {
@@ -245,7 +288,7 @@ export default function ConversationsPage() {
   useEffect(() => {
     const interval = setInterval(fetchConversations, 15000);
     return () => clearInterval(interval);
-  }, [fetchConversations]);
+  }, [fetchConversations, effectiveAccountId]);
 
   // ─── Real-time: New message in active conversation ───
   useEffect(() => {
@@ -307,7 +350,55 @@ export default function ConversationsPage() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchConversations]);
+  }, [fetchConversations, effectiveAccountId]);
+
+  // ─── Send media (audio/image) ───
+  const handleSendMedia = async (file, type) => {
+    if (!activeConv || uploadingMedia) return;
+    setUploadingMedia(true);
+    setSendError("");
+
+    try {
+      const formData = new FormData();
+      formData.append('conversationId', activeConv.id);
+      formData.append('type', type);
+      formData.append('file', file);
+
+      const res = await fetch('/api/messages/send-media', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send media');
+
+      // Add the new message to the list immediately
+      if (data.message) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === data.message.id)) return prev;
+          return [...prev, data.message];
+        });
+      }
+
+      await fetchConversations();
+    } catch (err) {
+      setSendError(err.message);
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleSendMedia(file, 'image');
+    e.target.value = ''; // reset input
+  };
+
+  const handleAudioSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleSendMedia(file, 'audio');
+    e.target.value = '';
+  };
 
   // ─── Send message ───
   const handleSend = async (e) => {
@@ -317,7 +408,7 @@ export default function ConversationsPage() {
     setSendError("");
 
     try {
-      if (activeConv.channel === "whatsapp" || activeConv.channel === "instagram" || activeConv.channel === "facebook") {
+      if (activeConv.channel === "whatsapp" || activeConv.channel === "instagram" || activeConv.channel === "facebook" || activeConv.channel === "telegram" || activeConv.channel === "email") {
         // Send via the API route — it handles channel delivery AND DB save
         const res = await fetch("/api/messages/send", {
           method: "POST",
@@ -348,7 +439,7 @@ export default function ConversationsPage() {
       }
 
       // Only update conversation locally for non-API paths (API route already does it)
-      if (activeConv.channel !== "whatsapp" && activeConv.channel !== "instagram" && activeConv.channel !== "facebook") {
+      if (activeConv.channel !== "whatsapp" && activeConv.channel !== "instagram" && activeConv.channel !== "facebook" && activeConv.channel !== "telegram" && activeConv.channel !== "email") {
         await supabase.from("conversations")
           .update({ last_message_at: new Date().toISOString(), status: "waiting_customer" })
           .eq("id", activeConv.id);
@@ -372,6 +463,75 @@ export default function ConversationsPage() {
     await supabase.from("conversations").update(updates).eq("id", activeConv.id);
     setActiveConv((prev) => ({ ...prev, status }));
     fetchConversations();
+  };
+
+  // ─── Human Handoff: update conversation priority ───
+  // low / normal / high / urgent — drives SLA-aware triage on the dashboard.
+  const updateConvPriority = async (priority) => {
+    if (!activeConv) return;
+    await supabase.from("conversations").update({ priority }).eq("id", activeConv.id);
+    setActiveConv((prev) => ({ ...prev, priority }));
+    setConversations((prev) =>
+      prev.map((c) => (c.id === activeConv.id ? { ...c, priority } : c))
+    );
+  };
+
+  // ─── AI Safety: Approve a pending AI reply (sends the message) ───
+  const handleApprovePendingReply = async (msgId) => {
+    setPendingReplyAction((prev) => ({ ...prev, [msgId]: "approving" }));
+    try {
+      const res = await fetch("/api/ai-safety/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: msgId, action: "approve" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Update the message locally — flip approval_status + delivery_status
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId
+              ? { ...m, approval_status: "approved", delivery_status: "delivered" }
+              : m
+          )
+        );
+      } else {
+        alert(data.error || "Failed to approve reply");
+      }
+    } catch (err) {
+      alert("Failed to approve reply: " + err.message);
+    } finally {
+      setPendingReplyAction((prev) => ({ ...prev, [msgId]: undefined }));
+    }
+  };
+
+  // ─── AI Safety: Reject a pending AI reply (discards it) ───
+  const handleRejectPendingReply = async (msgId) => {
+    if (!confirm("Reject this AI reply? The customer will not receive it.")) return;
+    setPendingReplyAction((prev) => ({ ...prev, [msgId]: "rejecting" }));
+    try {
+      const res = await fetch("/api/ai-safety/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: msgId, action: "reject" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId
+              ? { ...m, approval_status: "rejected", delivery_status: "failed" }
+              : m
+          )
+        );
+      } else {
+        alert(data.error || "Failed to reject reply");
+      }
+    } catch (err) {
+      alert("Failed to reject reply: " + err.message);
+    } finally {
+      setPendingReplyAction((prev) => ({ ...prev, [msgId]: undefined }));
+    }
   };
 
   // ─── Summarize conversation ───
@@ -744,8 +904,45 @@ export default function ConversationsPage() {
     if (search && !c.customer?.name?.toLowerCase().includes(search.toLowerCase())) return false;
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (channelFilter !== "all" && c.channel !== channelFilter) return false;
+    // For agents: "all" means "mine + unassigned" (not other agents' convos)
+    if (role === "agent") {
+      if (assigneeFilter === "me" && c.assigned_to !== userId) return false;
+      if (assigneeFilter === "unassigned" && c.assigned_to) return false;
+      if (assigneeFilter === "all" && c.assigned_to && c.assigned_to !== userId) return false;
+      if (assigneeFilter === "others" && c.assigned_to === userId) return false;
+    } else {
+      // Owner/admin can see everything
+      if (assigneeFilter === "me" && c.assigned_to !== userId) return false;
+      if (assigneeFilter === "unassigned" && c.assigned_to) return false;
+      if (assigneeFilter === "others" && c.assigned_to === userId) return false;
+    }
     return true;
   });
+
+  // Refresh the active conversation after a control action (assign, snooze, etc.)
+  const refreshActiveConv = useCallback(async () => {
+    if (!activeConv?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("*, customer:customers(*)")
+        .eq("id", activeConv.id)
+        .maybeSingle();
+      if (!error && data) {
+        setActiveConv(data);
+        // Also update the conversations list in-place
+        setConversations((prev) => prev.map((c) => (c.id === data.id ? { ...c, ...data } : c)));
+      }
+    } catch (e) {
+      console.warn("[refreshActiveConv]", e.message);
+    }
+  }, [activeConv?.id, supabase]);
+
+  // Look up an assignee's display info by user_id
+  const getAssigneeInfo = (uid) => {
+    if (!uid) return null;
+    return teamMembers.find((m) => m.id === uid) || null;
+  };
 
   const statusColor = STATUS_OPTIONS.find((s) => s.value === activeConv?.status)?.color || "var(--text-tertiary)";
 
@@ -909,6 +1106,8 @@ export default function ConversationsPage() {
                 { value: "instagram", label: "📷 IG" },
                 { value: "facebook", label: "🌐 FB" },
                 { value: "whatsapp", label: "📱 WA" },
+                { value: "telegram", label: "✈️ TG" },
+                { value: "email", label: "📧 Email" },
               ].map((ch) => (
                 <button
                   key={ch.value}
@@ -1014,7 +1213,7 @@ export default function ConversationsPage() {
                   <div className="mobile-chat-header-name">{activeConv.customer?.name}</div>
                   <div className="mobile-chat-header-channel">
                     {CHANNEL_ICON[activeConv.channel]}
-                    {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : "WhatsApp"}
+                    {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : activeConv.channel === "telegram" ? "Telegram" : activeConv.channel === "email" ? "Email" : "WhatsApp"}
                   </div>
                 </div>
               </div>
@@ -1120,6 +1319,12 @@ export default function ConversationsPage() {
                 </div>
               )}
               {messages.map(renderMessage)}
+              {/* Upload progress */}
+              {uploadingMedia && (
+                <div className="chat-msg outgoing" style={{ opacity: 0.6 }}>
+                  <div className="msg-bubble">Uploading media...</div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -1200,6 +1405,42 @@ export default function ConversationsPage() {
                   compact
                   onTranscribe={(text) => { setNewMsg(text); }}
                   disabled={sending}
+                />
+                {/* Photo upload button */}
+                <button
+                  type="button"
+                  className="topbar-btn"
+                  title="Send photo"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  style={{ width: 36, height: 36, flexShrink: 0, position: 'relative' }}
+                >
+                  {uploadingMedia ? <Loader2 size={14} className="spin" /> : <Camera size={15} />}
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleImageSelect}
+                  style={{ display: 'none' }}
+                />
+                {/* Audio upload button */}
+                <button
+                  type="button"
+                  className="topbar-btn"
+                  title="Send audio"
+                  onClick={() => audioInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  style={{ width: 36, height: 36, flexShrink: 0 }}
+                >
+                  <Mic size={15} />
+                </button>
+                <input
+                  ref={audioInputRef}
+                  type="file"
+                  accept="audio/webm,audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/m4a"
+                  onChange={handleAudioSelect}
+                  style={{ display: 'none' }}
                 />
                 <ImageUploader
                   compact
@@ -1706,6 +1947,8 @@ export default function ConversationsPage() {
               { value: "instagram", label: "📷 IG" },
               { value: "facebook", label: "🌐 FB" },
               { value: "whatsapp", label: "📱 WA" },
+              { value: "telegram", label: "✈️ TG" },
+              { value: "email", label: "📧 Email" },
             ].map((ch) => (
               <button
                 key={ch.value}
@@ -1718,6 +1961,31 @@ export default function ConversationsPage() {
                 }}
               >
                 {ch.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Assignee filter tabs */}
+          <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+            {[
+              { value: "all", label: "All" },
+              { value: "me", label: "👤 Mine" },
+              { value: "unassigned", label: "📥 Unassigned" },
+              { value: "others", label: "👥 Others" },
+            ].map((af) => (
+              <button
+                key={af.value}
+                onClick={() => setAssigneeFilter(af.value)}
+                style={{
+                  padding: "3px 8px", borderRadius: 12, fontSize: 10, fontWeight: 600,
+                  border: `1px solid ${assigneeFilter === af.value ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                  cursor: "pointer",
+                  background: assigneeFilter === af.value ? "var(--accent-primary)" : "transparent",
+                  color: assigneeFilter === af.value ? "white" : "var(--text-tertiary)",
+                  transition: "all 0.15s",
+                }}
+              >
+                {af.label}
               </button>
             ))}
           </div>
@@ -1747,7 +2015,7 @@ export default function ConversationsPage() {
           ) : filteredConvs.length === 0 ? (
             <EmptyState type="conversations" title="No conversations yet" description="When customers message your WhatsApp, Instagram, or Facebook, their conversations will appear here." />
           ) : filteredConvs.map((conv) => {
-            const channelColors = { whatsapp: "#25D366", instagram: "#E1306C", facebook: "#1877F2" };
+            const channelColors = { whatsapp: "#25D366", instagram: "#E1306C", facebook: "#1877F2", telegram: "#0088cc", email: "#6c5ce7" };
             const channelColor = channelColors[conv.channel] || "#5865F2";
             return (
             <div
@@ -1794,7 +2062,7 @@ export default function ConversationsPage() {
                   </span>
                 </div>
                 {/* Status dot */}
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2, flexWrap: "wrap" }}>
                   <span style={{
                     width: 6, height: 6, borderRadius: "50%",
                     background: STATUS_OPTIONS.find(s => s.value === conv.status)?.color || "var(--text-tertiary)",
@@ -1812,6 +2080,35 @@ export default function ConversationsPage() {
                       background: "rgba(231, 76, 60, 0.15)", color: "#e74c3c", display: "inline-flex", alignItems: "center", gap: 2,
                     }}>🤖<AlertTriangle size={9} /> Escalated</span>
                   )}
+                  {/* Assignee badge */}
+                  {(() => {
+                    const a = getAssigneeInfo(conv.assigned_to);
+                    if (!a) return null;
+                    const isMe = conv.assigned_to === userId;
+                    return (
+                      <span title={`Assigned to ${a.name || a.email}`} style={{
+                        display: "inline-flex", alignItems: "center", gap: 3,
+                        fontSize: 9, fontWeight: 600,
+                        padding: "1px 6px 1px 2px", borderRadius: 8,
+                        background: isMe ? "rgba(108,92,231,0.15)" : "rgba(255,255,255,0.06)",
+                        color: isMe ? "var(--accent-primary-light)" : "var(--text-secondary)",
+                      }}>
+                        <span style={{
+                          width: 14, height: 14, borderRadius: "50%",
+                          background: a.role === "owner"
+                            ? "linear-gradient(135deg,#f59e0b,#ef4444)"
+                            : a.role === "admin"
+                              ? "linear-gradient(135deg,#a855f7,#6C5CE7)"
+                              : "var(--accent-gradient)",
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 8, fontWeight: 700, color: "#fff",
+                        }}>
+                          {(a.name || a.email || "?").charAt(0).toUpperCase()}
+                        </span>
+                        {isMe ? "You" : (a.display_name || a.name?.split(" ")[0] || "Member")}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1886,7 +2183,7 @@ export default function ConversationsPage() {
                 <div>
                   <div className="chat-header-name">{activeConv.customer?.name}</div>
                   <div className="chat-header-status" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {CHANNEL_ICON[activeConv.channel]} {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : "WhatsApp"}
+                    {CHANNEL_ICON[activeConv.channel]} {activeConv.channel === "instagram" ? "Instagram" : activeConv.channel === "facebook" ? "Facebook" : activeConv.channel === "telegram" ? "Telegram" : activeConv.channel === "email" ? "Email" : "WhatsApp"}
                     <span style={{ color: "var(--text-tertiary)" }}>•</span>
                     {activeConv.customer?.phone || activeConv.customer?.platform_id?.slice(0, 8) + "..."}
                   </div>
@@ -1967,6 +2264,39 @@ export default function ConversationsPage() {
                   )}
                   <span>{aiPausedForConv ? "Resume AI" : "Pause AI"}</span>
                 </button>
+                {/* Assignee badge (if assigned) */}
+                {(() => {
+                  const assignee = getAssigneeInfo(activeConv.assigned_to);
+                  if (!assignee) return null;
+                  return (
+                    <span title={`Assigned to ${assignee.name || assignee.email}`} style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "3px 10px 3px 3px", borderRadius: 20,
+                      fontSize: 11, fontWeight: 600,
+                      background: "var(--bg-glass)", border: "1px solid var(--border-subtle)",
+                      color: "var(--text-secondary)",
+                    }}>
+                      <span style={{
+                        width: 20, height: 20, borderRadius: "50%",
+                        background: assignee.role === "owner"
+                          ? "linear-gradient(135deg,#f59e0b,#ef4444)"
+                          : assignee.role === "admin"
+                            ? "linear-gradient(135deg,#a855f7,#6C5CE7)"
+                            : "var(--accent-gradient)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 10, fontWeight: 700, color: "#fff",
+                      }}>
+                        {(assignee.name || assignee.email || "?").charAt(0).toUpperCase()}
+                      </span>
+                      {assignee.display_name || assignee.name?.split(" ")[0] || "Member"}
+                    </span>
+                  );
+                })()}
+                {/* Conversation Controls: assign / snooze / notes */}
+                <ConversationControls
+                  conversation={activeConv}
+                  onRefresh={refreshActiveConv}
+                />
                 {/* Status selector */}
                 <select
                   value={activeConv.status || "new"}
@@ -2009,6 +2339,11 @@ export default function ConversationsPage() {
                 </div>
               )}
               {messages.map(renderMessage)}
+              {uploadingMedia && (
+                <div className="chat-msg outgoing" style={{ opacity: 0.6 }}>
+                  <div className="msg-bubble">Uploading media...</div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -2270,6 +2605,28 @@ export default function ConversationsPage() {
                     disabled={sending}
                   />
                 </div>
+                {/* Photo upload button (direct send) */}
+                <button
+                  type="button"
+                  className="topbar-btn"
+                  title="Send photo"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  style={{ width: 36, height: 36, flexShrink: 0 }}
+                >
+                  {uploadingMedia ? <Loader2 size={14} className="spin" /> : <Camera size={15} />}
+                </button>
+                {/* Audio upload button (direct send) */}
+                <button
+                  type="button"
+                  className="topbar-btn"
+                  title="Send audio file"
+                  onClick={() => audioInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  style={{ width: 36, height: 36, flexShrink: 0 }}
+                >
+                  <Mic size={15} />
+                </button>
                 <button type="submit" className="chat-send-btn" disabled={!newMsg.trim() || sending} id="chat-send"><Send size={18} /></button>
               </div>
             </form>

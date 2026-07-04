@@ -50,14 +50,19 @@ export async function resolveEffectiveAccount(user) {
 
   const db = admin();
 
-  // 1. Check if this user is a team member of someone else's account
-  const { data: teamMember } = await db
+  // 1. Check if this user is a team member of someone else's account.
+  // We use or('status.is.null') because older members who accepted before
+  // migration 060 added the 'status' column may have NULL instead of 'active'.
+  const { data: teamMembers } = await db
     .from("team_members")
     .select("id, account_id, role, status, invite_status, name, email, display_name")
     .eq("user_id", user.id)
     .eq("invite_status", "accepted")
-    .eq("status", "active")
-    .maybeSingle();
+    .or("status.is.null,status.eq.active")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const teamMember = teamMembers?.[0];
 
   if (teamMember?.account_id) {
     // Fetch the owner's account info
@@ -98,13 +103,15 @@ export async function canAccessAccount(user, accountId) {
   if (user.id === accountId) return true;
 
   const db = admin();
+  // Use or('status.is.null') for backward compat — older members who accepted
+  // before migration 060 may have status=NULL instead of 'active'.
   const { data: teamMember } = await db
     .from("team_members")
     .select("id")
     .eq("user_id", user.id)
     .eq("account_id", accountId)
     .eq("invite_status", "accepted")
-    .eq("status", "active")
+    .or("status.is.null,status.eq.active")
     .maybeSingle();
 
   if (teamMember) return true;
@@ -157,7 +164,7 @@ export async function getTeamMembers(accountId) {
     .order("created_at", { ascending: true });
 
   const memberEntries = (members || [])
-    .filter((m) => m.invite_status === "accepted" && m.status === "active")
+    .filter((m) => m.invite_status === "accepted" && (m.status === "active" || m.status === null || m.status === undefined))
     .map((m) => ({
       id: m.user_id || m.id,
       email: m.email || m.invited_email,

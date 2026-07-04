@@ -86,13 +86,16 @@ export async function POST(req, { params }) {
     // If assignee is someone other than creator, verify they're on the team
     if (assignedTo && assignedTo !== user.id) {
       const { data: tm } = await db.from('team_members')
-        .select('id, name, display_name, invited_email')
+        .select('id, name, display_name, invited_email, status, invite_status')
         .eq('user_id', assignedTo)
         .eq('account_id', customer.account_id)
-        .eq('invite_status', 'accepted')
-        .eq('status', 'active')
         .maybeSingle();
-      if (!tm && assignedTo !== customer.account_id) {
+      // Accept if: invite_status='accepted' AND (status='active' OR status IS NULL)
+      // The status IS NULL check is for older members who accepted before
+      // migration 060 added the column (their status might be NULL instead of 'active').
+      const isValid = tm && tm.invite_status === 'accepted' &&
+        (tm.status === 'active' || tm.status === null || tm.status === undefined);
+      if (!isValid && assignedTo !== customer.account_id) {
         return NextResponse.json({ error: 'Assignee is not a team member' }, { status: 400 });
       }
       assigneeName = tm?.name || tm?.display_name || tm?.invited_email || assigneeName;

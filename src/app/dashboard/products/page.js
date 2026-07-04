@@ -22,14 +22,18 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { useCurrentStore } from "@/lib/store-context";
+import { useEffectiveAccount } from "@/lib/account-context";
 import { useToast } from "../components/ToastProvider";
 import { useConfirm } from "../components/ConfirmProvider";
 import { PageSkeleton } from "@/components/SkeletonLoader";
+import TiltCard3D from "../components/TiltCard3D";
+import Product360Viewer from "../components/Product360Viewer";
 
 export default function ProductsPage() {
   const router = useRouter();
   const toast = useToast();
-  
+  const { effectiveAccountId } = useEffectiveAccount();
+
   const confirmAction = useConfirm();
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -88,7 +92,8 @@ export default function ProductsPage() {
     }
     if (!user) { setLoading(false); return; }
 
-    let query = supabase.from("products").select("*").eq("account_id", user.id).order("created_at", { ascending: false });
+    const accId = effectiveAccountId || user.id;
+    let query = supabase.from("products").select("*").eq("account_id", accId).order("created_at", { ascending: false });
 
     if (filter === "active") query = query.eq("status", "active");
     if (filter === "draft") query = query.eq("status", "draft");
@@ -99,7 +104,7 @@ export default function ProductsPage() {
     const { data, error } = await query;
     if (!error) setProducts(data || []);
     setLoading(false);
-  }, [filter, search, currentStoreId]);
+  }, [filter, search, currentStoreId, effectiveAccountId]);
 
   useEffect(() => { ensureBuckets(); fetchProducts(); }, [ensureBuckets, fetchProducts]);
 
@@ -602,7 +607,8 @@ export default function ProductsPage() {
       ) : (
         <div className="products-grid">
           {products.map((product) => (
-            <div key={product.id} className="product-card" onMouseEnter={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 1; }} onMouseLeave={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 0; }}>
+            <TiltCard3D key={product.id} maxTilt={5} scale={1.03}>
+            <div className="product-card" onMouseEnter={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 1; }} onMouseLeave={(e) => { const a = e.currentTarget.querySelector('.product-card-actions'); if (a) a.style.opacity = 0; }}>
               <div className="product-card-image">
                 {product.image_urls && product.image_urls.length > 0 ? (
                   <img
@@ -699,6 +705,7 @@ export default function ProductsPage() {
                 </div>
               </div>
             </div>
+            </TiltCard3D>
           ))}
         </div>
       )}
@@ -823,8 +830,17 @@ export default function ProductsPage() {
               <button className="modal-close" onClick={() => setViewProduct(null)}><X size={18} /></button>
             </div>
             <div className="modal-body">
-              {/* Product image */}
-              {viewProduct.image_urls && viewProduct.image_urls.length > 0 && (
+              {/* Product image — 360° viewer if multiple images, otherwise static */}
+              {viewProduct.image_urls && viewProduct.image_urls.length > 1 && (
+                <div style={{ marginBottom: "var(--space-lg)" }}>
+                  <Product360Viewer
+                    images={viewProduct.image_urls}
+                    productName={viewProduct.name}
+                    autoRotate={false}
+                  />
+                </div>
+              )}
+              {viewProduct.image_urls && viewProduct.image_urls.length === 1 && (
                 <div style={{ marginBottom: "var(--space-lg)", borderRadius: "var(--radius-md)", overflow: "hidden", height: 200 }}>
                   <img src={viewProduct.image_urls[0]} alt={viewProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>
