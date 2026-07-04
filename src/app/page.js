@@ -16,6 +16,7 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 import SmoothScrollProvider from "@/components/SmoothScrollProvider";
 import GSAPAnimations from "@/components/GSAPAnimations";
 import MagneticButton from "@/components/MagneticButton";
+import BounceCards from "./components/BounceCards";
 
 /* Dynamic import for 3D hero scene (SSR safe) */
 const HeroScene3D = lazy(() => import("./components/HeroScene3D"));
@@ -1031,6 +1032,59 @@ export default function Home() {
       {/* ===== THE SOLUTION ===== */}
       <SolutionSection />
       <SVGWaveDivider flip />
+
+      {/* ===== 5 CHANNELS SHOWCASE — BOUNCE CARDS ===== */}
+      <section className="section" style={{ background: "var(--bg-primary)", overflow: "hidden" }}>
+        <div className="section-inner" style={{ textAlign: "center" }}>
+          <div className="section-header animate-on-scroll" style={{ marginBottom: 40 }}>
+            <span className="badge badge-primary" style={{ marginBottom: 16 }}><MessageSquare size={12} /> Unified Inbox</span>
+            <h2 className="section-title-reveal">5 Channels. <span className="text-gradient-static">One Inbox.</span></h2>
+            <p>Your customers are everywhere. Sellora's AI replies on all 5 — instantly, 24/7.</p>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300, padding: "20px 0" }}>
+            <BounceCards
+              images={[
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2325D366'/><stop offset='1' stop-color='%23128C7E'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>WA</text></svg>",
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23E1306C'/><stop offset='0.5' stop-color='%23F77737'/><stop offset='1' stop-color='%23FCAF45'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>IG</text></svg>",
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%231877F2'/><stop offset='1' stop-color='%23042A6F'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='50' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>FB</text></svg>",
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230088cc'/><stop offset='1' stop-color='%23005580'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='45' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>TG</text></svg>",
+                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%236C5CE7'/><stop offset='1' stop-color='%23a855f7'/></linearGradient></defs><rect width='200' height='200' fill='url(%23g)' rx='20'/><text x='100' y='110' font-size='45' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>@</text></svg>",
+              ]}
+              containerWidth={500}
+              containerHeight={280}
+              animationDelay={0.3}
+              animationStagger={0.1}
+              easeType="elastic.out(1, 0.5)"
+              transformStyles={[
+                "rotate(8deg) translate(-150px)",
+                "rotate(-3deg) translate(-75px)",
+                "rotate(2deg)",
+                "rotate(-5deg) translate(75px)",
+                "rotate(6deg) translate(150px)",
+              ]}
+              enableHover={true}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 20 }}>
+            {[
+              { name: "WhatsApp", color: "#25D366" },
+              { name: "Instagram", color: "#E1306C" },
+              { name: "Facebook", color: "#1877F2" },
+              { name: "Telegram", color: "#0088cc" },
+              { name: "Email", color: "#6C5CE7" },
+            ].map((ch) => (
+              <span key={ch.name} style={{
+                padding: "6px 16px", borderRadius: 20, fontSize: 13, fontWeight: 600,
+                background: `${ch.color}15`, color: ch.color, border: `1px solid ${ch.color}33`,
+              }}>
+                {ch.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ===== AI CAPABILITIES — 3D TILT CARDS ===== */}
       <section className="section" id="features" style={{ position: "relative", overflow: "hidden" }}>
