@@ -429,13 +429,14 @@ export async function GET(request) {
     // ─── Step 6: Try to connect Instagram via the Page's IG Business Account ───
     let instagramConnected = false;
     try {
+      // First, try the page we already found
       const igAccountResponse = await fetch(
         `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${pageAccessToken}`,
         { method: "GET" }
       );
 
       const igAccountData = await igAccountResponse.json();
-      console.log("[META-CALLBACK] IG account found:", igAccountData.instagram_business_account?.username || "yes");
+      console.log("[META-CALLBACK] IG account lookup on page", pageId, ":", JSON.stringify(igAccountData));
 
       if (igAccountData.instagram_business_account) {
         const igAccount = igAccountData.instagram_business_account;
@@ -456,7 +457,38 @@ export async function GET(request) {
           console.log(`[META-CALLBACK] Instagram connected: @${igAccount.username}`);
         }
       } else {
-        console.log("[META-CALLBACK] No Instagram Business Account linked to Page");
+        // The first page didn't have IG linked. Try ALL pages the user manages.
+        console.log("[META-CALLBACK] No IG on first page, trying ALL pages...");
+        const allPagesResponse = await fetch(
+          `${META_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100&access_token=${longLivedToken}`,
+          { method: "GET" }
+        );
+        const allPagesData = await allPagesResponse.json();
+        console.log("[META-CALLBACK] All pages:", allPagesData.data?.length || 0, "pages found");
+
+        for (const p of allPagesData.data || []) {
+          if (p.instagram_business_account) {
+            console.log(`[META-CALLBACK] Found IG on page: ${p.name} (${p.id}) → @${p.instagram_business_account.username}`);
+            const { error: igUpdateError } = await supabase
+              .from("accounts")
+              .update({
+                instagram_page_id: p.id,
+                instagram_access_token: p.access_token,
+                instagram_connected: true,
+              })
+              .eq("id", accountId);
+
+            if (!igUpdateError) {
+              instagramConnected = true;
+              console.log(`[META-CALLBACK] Instagram connected: @${p.instagram_business_account.username}`);
+              break;
+            }
+          }
+        }
+
+        if (!instagramConnected) {
+          console.log("[META-CALLBACK] No Instagram Business Account linked to ANY page");
+        }
       }
     } catch (igErr) {
       console.warn("[META-CALLBACK] IG lookup error:", igErr.message);
