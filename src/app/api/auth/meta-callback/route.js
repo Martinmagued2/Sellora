@@ -91,10 +91,54 @@ export async function GET(request) {
   const [platform, ...accountIdParts] = state.split("_");
   const accountId = accountIdParts.join("_");
 
-  // Log for debugging (no security block — the user is already authenticated
-  // via session cookie, and the OAuth flow itself requires Facebook login)
-  if (authenticatedUserId && accountId !== authenticatedUserId) {
-    console.log(`[META-CALLBACK] User ${authenticatedUserId} connecting channels for account ${accountId} (team member or owner)`);
+  // SECURITY: Verify the authenticated user is allowed to manage this account.
+  // The state param comes from the frontend and is NOT trusted — a malicious user
+  // could craft a state with any accountId. We must verify server-side that the
+  // logged-in user is the owner OR an accepted team member of this account.
+  //
+  // We do a direct DB query (not canAccessAccount) to avoid any helper bugs.
+  if (authenticatedUserId) {
+    console.log("[META-CALLBACK] Security check:", {
+      authenticatedUserId,
+      accountId,
+      isOwner: authenticatedUserId === accountId,
+    });
+
+    // Case 1: User is the owner
+    if (authenticatedUserId === accountId) {
+      console.log("[META-CALLBACK] ✅ User is the owner");
+    } else {
+      // Case 2: User might be a team member — check directly in DB
+      const supabase = getSupabase();
+      const { data: membership, error: memberErr } = await supabase
+        .from("team_members")
+        .select("id, role, invite_status, status")
+        .eq("user_id", authenticatedUserId)
+        .eq("account_id", accountId)
+        .maybeSingle();
+
+      console.log("[META-CALLBACK] Team membership check:", {
+        found: !!membership,
+        error: memberErr?.message,
+        invite_status: membership?.invite_status,
+        status: membership?.status,
+      });
+
+      const isAcceptedMember = membership &&
+        membership.invite_status === "accepted" &&
+        (membership.status === "active" || membership.status === null || membership.status === undefined);
+
+      if (!isAcceptedMember) {
+        console.error(`[META-CALLBACK] ❌ User ${authenticatedUserId} is NOT authorized to manage account ${accountId}`);
+        return NextResponse.redirect(
+          redirectUrl("/dashboard/settings?tab=channels&error=auth_mismatch")
+        );
+      }
+
+      console.log(`[META-CALLBACK] ✅ Team member ${authenticatedUserId} authorized for account ${accountId}`);
+    }
+  } else {
+    console.warn("[META-CALLBACK] No authenticated user found in session — proceeding anyway (OAuth flow itself verifies Facebook identity)");
   }
 
   if (!["instagram", "facebook"].includes(platform) || !accountId) {
