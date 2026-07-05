@@ -1,11 +1,8 @@
 "use client";
 
-import React, { Children, cloneElement, forwardRef, isValidElement, useEffect, useMemo, useRef, useState } from "react";
+import React, { Children, cloneElement, forwardRef, isValidElement, useEffect, useMemo, useRef } from "react";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import "./CardSwap.css";
-
-gsap.registerPlugin(ScrollTrigger);
 
 export const Card = forwardRef(({ customClass, ...rest }, ref) => (
   <div ref={ref} {...rest} className={`card ${customClass ?? ""} ${rest.className ?? ""}`.trim()} />
@@ -43,7 +40,7 @@ const ScrollCardSwap = ({
 }) => {
   const config =
     easing === "elastic"
-      ? { ease: "elastic.out(0.6,0.9)", dur: 1.5 }
+      ? { ease: "elastic.out(0.6,0.9)", dur: 1.2 }
       : { ease: "power1.inOut", dur: 0.8 };
 
   const childArr = useMemo(() => Children.toArray(children), [children]);
@@ -52,35 +49,80 @@ const ScrollCardSwap = ({
     [childArr.length]
   );
 
-  const containerRef = useRef(null);
-  const innerRef = useRef(null);
+  const sectionRef = useRef(null);
+  const stickyRef = useRef(null);
+  const cardsRef = useRef(null);
   const currentIndexRef = useRef(0);
 
   useEffect(() => {
     const total = refs.length;
-    if (total === 0 || !containerRef.current || !innerRef.current) return;
+    if (total === 0) return;
 
     // Initial placement
     refs.forEach((r, i) => placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount));
 
-    const swap = (direction) => {
+    const handleScroll = () => {
+      if (!sectionRef.current || !stickyRef.current) return;
+
+      const rect = sectionRef.current.getBoundingClientRect();
+      const sectionHeight = sectionRef.current.offsetHeight;
+      const stickyHeight = stickyRef.current.offsetHeight;
+      const scrollableHeight = sectionHeight - stickyHeight;
+
+      if (scrollableHeight <= 0) return;
+
+      // How far through the scrollable area are we? (0 to 1)
+      const scrolled = -rect.top;
+      const progress = Math.max(0, Math.min(1, scrolled / scrollableHeight));
+
+      // Which card should be at front?
+      const targetIndex = Math.min(Math.floor(progress * total), total - 1);
+
+      if (targetIndex !== currentIndexRef.current) {
+        const diff = targetIndex - currentIndexRef.current;
+        const direction = diff > 0 ? "next" : "prev";
+        const steps = Math.abs(diff);
+
+        for (let i = 0; i < steps; i++) {
+          swapOne(direction);
+        }
+
+        currentIndexRef.current = targetIndex;
+      }
+    };
+
+    const swapOne = (direction) => {
       if (total < 2) return;
+
+      // Current order: [0, 1, 2, 3, ...] where 0 is front
+      // We need to figure out the current visual order
+      // and rotate it
+      const currentOrder = [];
+      for (let i = 0; i < total; i++) {
+        // Find which card is in slot i by checking zIndex
+        const slot = makeSlot(i, cardDistance, verticalDistance, total);
+        let foundCard = -1;
+        refs.forEach((r, idx) => {
+          if (r.current) {
+            const z = parseInt(r.current.style.zIndex || "0");
+            if (z === slot.zIndex) foundCard = idx;
+          }
+        });
+        currentOrder.push(foundCard >= 0 ? foundCard : i);
+      }
 
       let newOrder;
       if (direction === "next") {
-        // Move front to back: [0,1,2,3] -> [1,2,3,0]
-        newOrder = [...Array(total).keys()].map((_, i) => (i - 1 + total) % total);
+        newOrder = [...currentOrder.slice(1), currentOrder[0]];
       } else {
-        // Move back to front: [0,1,2,3] -> [3,0,1,2]
-        newOrder = [...Array(total).keys()].map((_, i) => (i + 1) % total);
+        newOrder = [currentOrder[currentOrder.length - 1], ...currentOrder.slice(0, -1)];
       }
 
-      // Animate to new positions based on new order
+      // Animate each card to its new slot
       newOrder.forEach((cardIdx, slotIdx) => {
-        const el = refs[cardIdx].current;
+        const el = refs[cardIdx]?.current;
         if (!el) return;
         const slot = makeSlot(slotIdx, cardDistance, verticalDistance, total);
-        
         gsap.to(el, {
           x: slot.x,
           y: slot.y,
@@ -93,40 +135,11 @@ const ScrollCardSwap = ({
       });
     };
 
-    // Set up ScrollTrigger
-    const st = ScrollTrigger.create({
-      trigger: containerRef.current,
-      start: "top top",
-      end: `+=${total * 100}%`,
-      pin: innerRef.current,
-      pinSpacing: true,
-      scrub: false,
-      onUpdate: (self) => {
-        const progress = self.progress;
-        const targetIndex = Math.min(Math.floor(progress * total), total - 1);
-        
-        if (targetIndex !== currentIndexRef.current) {
-          const diff = targetIndex - currentIndexRef.current;
-          const direction = diff > 0 ? "next" : "prev";
-          const steps = Math.abs(diff);
-          
-          for (let i = 0; i < steps; i++) {
-            swap(direction);
-          }
-          
-          currentIndexRef.current = targetIndex;
-        }
-      },
-      onLeaveBack: () => {
-        // Reset to initial state when scrolling back above the section
-        currentIndexRef.current = 0;
-        refs.forEach((r, i) => placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount));
-      },
-    });
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // Initial check
 
     return () => {
-      st.kill();
-      gsap.killTweensOf(refs.map(r => r.current).filter(Boolean));
+      window.removeEventListener("scroll", handleScroll);
     };
   }, [cardDistance, verticalDistance, skewAmount, easing, refs.length]);
 
@@ -140,10 +153,33 @@ const ScrollCardSwap = ({
       : child
   );
 
+  const totalHeight = `${childArr.length * 100}vh`;
+
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
-      <div ref={innerRef} className="card-swap-container" style={{ width, height, position: "relative", transform: "none", margin: "0 auto" }}>
-        {rendered}
+    <div ref={sectionRef} style={{ height: totalHeight, position: "relative" }}>
+      <div
+        ref={stickyRef}
+        style={{
+          position: "sticky",
+          top: 0,
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          ref={cardsRef}
+          className="card-swap-container"
+          style={{
+            width,
+            height,
+            position: "relative",
+            transform: "none",
+          }}
+        >
+          {rendered}
+        </div>
       </div>
     </div>
   );
