@@ -18,6 +18,7 @@ import GSAPAnimations from "@/components/GSAPAnimations";
 import MagneticButton from "@/components/MagneticButton";
 import BounceCards from "./components/BounceCards";
 import CardSwap, { Card } from "./components/CardSwap";
+import ScrollCardSwap, { Card as ScrollCard } from "./components/ScrollCardSwap";
 
 /* Dynamic import for 3D hero scene (SSR safe) */
 const HeroScene3D = lazy(() => import("./components/HeroScene3D"));
@@ -1087,26 +1088,42 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== AI CAPABILITIES — 3D TILT CARDS ===== */}
-      <section className="section" id="features" style={{ position: "relative", overflow: "hidden" }}>
-        <SVGFloatingRings />
-        <div className="section-inner">
-          <div className="section-header animate-on-scroll">
-            <span className="badge badge-green" style={{ marginBottom: 16 }}><Sparkles size={12} /> AI Capabilities</span>
-            <h2 className="section-title-reveal">Powered by <span className="text-gradient-static">Intelligence</span></h2>
-            <p>Seven AI-powered capabilities that transform how you sell, support, and grow.</p>
-          </div>
+      {/* ===== AI CAPABILITIES — SCROLL CARD SWAP ===== */}
+      <section id="features" style={{ position: "relative", background: "var(--bg-primary)" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "80px", marginBottom: "-40px" }}>
+          <span className="badge badge-green" style={{ marginBottom: 16 }}><Sparkles size={12} /> AI Capabilities</span>
+          <h2 className="section-title-reveal" style={{ fontSize: "2.5rem", marginBottom: "10px" }}>Powered by <span className="text-gradient-static">Intelligence</span></h2>
+          <p style={{ color: "var(--text-secondary)", maxWidth: "600px", textAlign: "center" }}>Scroll to explore seven AI-powered capabilities that transform how you sell, support, and grow.</p>
+        </div>
 
-          <div className="ai-caps-grid">
-            {aiCapabilities.map((cap, i) => (
-              <TiltCard key={i} className="glass-card ai-cap-card" style={{ animationDelay: `${i * 0.1}s` }}>
-                <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
-                  <div className="ai-cap-icon">{cap.icon}</div>
-                  <h3>{cap.title}</h3>
-                  <p>{cap.desc}</p>
-                </motion.div>
-              </TiltCard>
-            ))}
+        <div style={{ height: "600vh", position: "relative" }}>
+          <div style={{ position: "sticky", top: 0, height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ScrollCardSwap
+              width={450}
+              height={350}
+              cardDistance={50}
+              verticalDistance={60}
+              skewAmount={5}
+              easing="elastic"
+            >
+              {aiCapabilities.map((cap, i) => (
+                <ScrollCard key={i}>
+                  <div style={{ padding: "40px", display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", color: "white" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
+                      <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg, rgba(108,92,231,0.2), rgba(168,85,247,0.1))", display: "flex", alignItems: "center", justifyContent: "center", color: "#a855f7" }}>
+                        {cap.icon}
+                      </div>
+                      <h3 style={{ fontSize: "24px", fontWeight: 800, margin: 0 }}>{cap.title}</h3>
+                    </div>
+                    <p style={{ fontSize: "17px", lineHeight: 1.6, color: "rgba(255,255,255,0.8)", margin: 0 }}>{cap.desc}</p>
+                    <div style={{ marginTop: "auto", paddingTop: "24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.4)" }}>Capability {i + 1} of {aiCapabilities.length}</span>
+                      <span style={{ fontSize: "40px", fontWeight: 800, color: "rgba(108,92,231,0.1)" }}>0{i + 1}</span>
+                    </div>
+                  </div>
+                </ScrollCard>
+              ))}
+            </ScrollCardSwap>
           </div>
         </div>
       </section>
