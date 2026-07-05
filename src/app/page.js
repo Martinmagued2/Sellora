@@ -26,6 +26,7 @@ import BeforeAfterScrubber from "./components/landing/BeforeAfterScrubber";
 import InteractiveSandbox from "./components/landing/InteractiveSandbox";
 import ROICalculator from "./components/landing/ROICalculator";
 import AutomatedLifecycleTimeline from "./components/landing/AutomatedLifecycleTimeline";
+import HonestTrustSection from "./components/landing/HonestTrustSection";
 
 /* Dynamic import for 3D hero scene (SSR safe) */
 const HeroScene3D = lazy(() => import("./components/HeroScene3D"));
@@ -381,32 +382,46 @@ function SVGDotPattern() {
 }
 
 /* ============================================
-   BRAND MARQUEE
+   ECOSYSTEM & TECH STACK MARQUEE (Honest Trust)
    ============================================ */
 function BrandMarquee() {
-  const brands = ["Opio", "Town Team", "Ravin", "Cottonil", "Zara Home", "H&M Egypt", "Noon", "Amazon Egypt"];
-  const brandColors = ["rgba(88,101,242,0.12)", "rgba(0,210,255,0.12)", "rgba(88,101,242,0.12)", "rgba(0,210,255,0.12)", "rgba(88,101,242,0.12)", "rgba(0,210,255,0.12)", "rgba(88,101,242,0.12)", "rgba(0,210,255,0.12)"];
-  const brandTextColors = ["var(--accent-primary-light)", "var(--accent-secondary)", "var(--accent-primary-light)", "var(--accent-secondary)", "var(--accent-primary-light)", "var(--accent-secondary)", "var(--accent-primary-light)", "var(--accent-secondary)"];
-  const countries = ["EGYPT", "SAUDI", "UAE", "INDIA", "BRAZIL", "NIGERIA"];
-  const doubledBrands = [...brands, ...brands];
-  const doubledCountries = [...countries, ...countries];
+  const integrations = [
+    "WhatsApp Business API", "Shopify Storefront", "Paymob Direct Webhooks", "InstaPay Egypt", 
+    "Fawry Invoicing", "Vodafone Cash", "Meta Business Partner", "Supabase RLS", 
+    "Groq Llama 4 Engine", "Google Gemini Flash"
+  ];
+  const certs = [
+    "2FA SERVER ENFORCEMENT", "ENTERPRISE ROW-LEVEL SECURITY", "DIRECT BANKING WEBHOOKS", 
+    "SUB-SECOND NLP ROUTING", "VERIFIED META SOLUTION", "ZERO HUMAN DELAY"
+  ];
+  const doubledIntegrations = [...integrations, ...integrations];
+  const doubledCerts = [...certs, ...certs];
 
   return (
     <section className="social-proof trusted-by-section">
-      <p className="trusted-by-title">Trusted by leading brands</p>
-      <div className="brand-marquee-row"><div className="brand-marquee-track brand-marquee-track-left">{doubledBrands.map((brand, i) => (<span key={i} className="brand-badge" style={{ background: brandColors[i % brandColors.length], color: brandTextColors[i % brandTextColors.length] }}>{brand}</span>))}</div></div>
-      <p className="trusted-by-title" style={{ marginTop: "var(--space-xl)" }}>Sellers across the Middle East & beyond</p>
-      <div className="brand-marquee-row"><div className="brand-marquee-track brand-marquee-track-right">{doubledCountries.map((country, i) => (<span key={i} className="social-proof-logo" style={{ margin: "0 var(--space-xl)" }}>{country}</span>))}</div></div>
+      <p className="trusted-by-title">Official E-Commerce Integration Ecosystem</p>
+      <div className="brand-marquee-row">
+        <div className="brand-marquee-track brand-marquee-track-left">
+          {doubledIntegrations.map((item, i) => (
+            <span key={i} className="brand-badge" style={{ background: "rgba(99, 102, 241, 0.12)", color: "#818cf8", border: "1px solid rgba(99, 102, 241, 0.25)" }}>
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+      <p className="trusted-by-title" style={{ marginTop: "var(--space-xl)" }}>Technical Transparency &amp; Security Certifications</p>
+      <div className="brand-marquee-row">
+        <div className="brand-marquee-track brand-marquee-track-right">
+          {doubledCerts.map((cert, i) => (
+            <span key={i} className="social-proof-logo" style={{ margin: "0 var(--space-xl)", color: "#34d399", fontWeight: 700, fontSize: "11px", letterSpacing: "0.08em" }}>
+              ● {cert}
+            </span>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
-
-/* ============================================
-   SOLUTION SECTION — Sellora AI steps in
-   ============================================ */
-/* ============================================
-   INTEGRATIONS SECTION — Animated AI Hub
-   ============================================ */
 /* ============================================
    MAIN HOME COMPONENT
    ============================================ */
@@ -456,16 +471,12 @@ export default function Home() {
   ];
 
   const pricingPlans = [
-    { tier: "STARTER", name: "Starter", desc: "Perfect for solo sellers just getting started", price: isAnnual ? 799 : 999, features: ["1 connected channel (WA, IG or FB)", "25 products", "50 AI replies/day (Fast AI)", "100 conversations/mo", "30-day message history", "Basic analytics", "Email support"], cta: "Start Free Trial", featured: false },
-    { tier: "MOST POPULAR", name: "Professional", desc: "For growing businesses that need AI power", price: isAnnual ? 1999 : 2499, features: ["2 connected channels", "Unlimited products", "500 AI replies/day (Smart AI)", "1,000 conversations/mo", "6-month message history", "Full analytics dashboard", "Webhook integrations", "3 team members", "5 broadcast campaigns/mo", "Priority support"], cta: "Start Free Trial", featured: true },
-    { tier: "BUSINESS", name: "Business", desc: "For teams managing multiple brands at scale", price: isAnnual ? 4799 : 5999, features: ["All 3 channels", "Unlimited everything", "Unlimited AI (Premium GPT-4o)", "Unlimited conversations", "Unlimited message history", "Full analytics + CSV export", "Webhook integrations", "Unlimited team members", "Unlimited campaigns", "Dedicated support"], cta: "Contact Sales", featured: false },
+    { tier: "STARTER", name: "Starter", desc: "Perfect for solo sellers launching automated social commerce", price: isAnnual ? 799 : 999, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "1 Shopify store connection", "25 catalog products", "50 automated replies/day (Llama 4 Engine)", "100 conversations/mo", "30-day message history", "Basic analytics dashboard", "Email support"], cta: "Start Free Trial", featured: false },
+    { tier: "MOST POPULAR", name: "Professional", desc: "For growing e-commerce brands scaling social revenue", price: isAnnual ? 1999 : 2499, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "3 Shopify store connections", "Unlimited catalog products", "500 automated replies/day (Gemini 2.0 Flash Engine)", "1,000 conversations/mo", "6-month message history", "Full analytics dashboard + Webhooks", "3 team seats", "5 broadcast campaigns/mo", "Priority email support"], cta: "Start Free Trial", featured: true },
+    { tier: "BUSINESS", name: "Business", desc: "For teams managing multiple stores and high DM volume", price: isAnnual ? 4799 : 5999, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "Unlimited Shopify stores", "Unlimited catalog products", "Unlimited automated replies (Gemini 2.5 Flash Engine)", "Unlimited conversations", "Unlimited message history", "Full analytics + CSV export + Webhooks", "Unlimited team seats", "Unlimited broadcast campaigns", "Dedicated account manager"], cta: "Contact Sales", featured: false },
   ];
 
-  const testimonials = [
-    { text: "Sellora saved me 4 hours every day. I used to reply to 200+ messages manually — now AI handles 80% of them perfectly.", name: "Nour Ahmed", role: "Opio Franchise Owner, Cairo", initials: "NA" },
-    { text: "My orders went up 3x in the first month. Customers love browsing my catalog right inside WhatsApp. It's like having a store in their pocket.", name: "Omar Hassan", role: "Town Team Branch Manager, Alexandria", initials: "OH" },
-    { text: "As an agency, we manage multiple local clothing brands like Ravin and Cottonil. Sellora lets us handle all of them from one dashboard. The ROI is insane.", name: "Sara Youssef", role: "Digital Marketing Agency, Mansoura", initials: "SY" },
-  ];
+  
 
   const faqs = [
     { q: "Do I need a WhatsApp Business API account?", a: "We help you set everything up! When you sign up, we guide you through connecting your WhatsApp Business number. The process takes about 10 minutes. You'll need a Meta Business account (free) and a dedicated phone number." },
@@ -715,11 +726,12 @@ export default function Home() {
               </tr></thead>
               <tbody>
                 {[
-                  { category: "AI & Automation" }, { label: "AI Model", starter: "Fast (Llama 3)", pro: "Smart (GPT-4o Mini)", biz: "Premium (GPT-4o)" },
+                  { category: "AI & Automation" }, { label: "AI Reasoning Engine", starter: "Groq Llama 4 Scout", pro: "Gemini 2.0 Flash", biz: "Gemini 2.5 Flash Preview" },
                   { label: "AI Replies / Day", starter: "50", pro: "500", biz: "Unlimited" },
-                  { label: "AI Simulator Tests / Day", starter: "10", pro: "50", biz: "Unlimited" },
+                  { label: "Sandbox Testing / Day", starter: "10", pro: "50", biz: "Unlimited" },
                   { label: "Custom AI Personality", starter: false, pro: true, biz: true },
-                  { category: "Scale & Limits" }, { label: "Connected Channels", starter: "1", pro: "2", biz: "3 (All)" },
+                  { category: "Scale & Limits" }, { label: "Connected Channels", starter: "All 5 Channels", pro: "All 5 Channels", biz: "All 5 Channels" },
+                  { label: "Shopify Stores", starter: "1 Store", pro: "3 Stores", biz: "Unlimited" },
                   { label: "Products", starter: "25", pro: "Unlimited", biz: "Unlimited" },
                   { label: "Conversations / Month", starter: "100", pro: "1,000", biz: "Unlimited" },
                   { category: "Data & History" }, { label: "Message History", starter: "30 days", pro: "6 months", biz: "Unlimited" },
@@ -740,34 +752,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== TESTIMONIALS — FLOATING GLASS ===== */}
-      <section className="section testimonials" id="testimonials">
-        <div className="section-inner">
-          <div className="section-header animate-on-scroll">
-            <span className="badge badge-green" style={{ marginBottom: 16 }}><Star size={12} />{t("testimonials_badge")}</span>
-            <h2 className="section-title-reveal">{t("testimonials_title")}</h2>
-            <p>{t("testimonials_subtitle")}</p>
-          </div>
-          <div className="testimonials-grid">
-            {testimonials.map((tItem, i) => (
-              <motion.div key={i} className="glass-card testimonial-card"
-                initial={{ opacity: 0, y: 30 + (i % 2) * 15 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: i * 0.15 }}
-                whileHover={{ y: -8, transition: { duration: 0.3 } }}
-              >
-                <div className="testimonial-stars">{[...Array(5)].map((_, j) => (<Star key={j} size={14} fill="currentColor" />))}</div>
-                <p className="testimonial-text">&quot;{tItem.text}&quot;</p>
-                <div className="testimonial-author">
-                  <div className="testimonial-avatar">{tItem.initials}</div>
-                  <div className="testimonial-info"><h4>{tItem.name}</h4><p>{tItem.role}</p></div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ===== WHAT EARLY USERS ARE SAYING & BETA TRUST ===== */}
+      <HonestTrustSection />
 
       {/* ===== FAQ ===== */}
       <section className="section" id="faq">
