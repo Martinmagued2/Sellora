@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Children, cloneElement, forwardRef, isValidElement, useEffect, useMemo, useRef } from "react";
+import React, { Children, cloneElement, forwardRef, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import "./CardSwap.css";
@@ -52,36 +52,33 @@ const ScrollCardSwap = ({
     [childArr.length]
   );
 
-  const container = useRef(null);
-  const stickyRef = useRef(null);
-
-  // State: which index is currently at the front
-  const order = useRef(Array.from({ length: childArr.length }, (_, i) => i));
+  const containerRef = useRef(null);
+  const innerRef = useRef(null);
+  const currentIndexRef = useRef(0);
 
   useEffect(() => {
     const total = refs.length;
-    if (total === 0) return;
+    if (total === 0 || !containerRef.current || !innerRef.current) return;
 
     // Initial placement
     refs.forEach((r, i) => placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount));
 
     const swap = (direction) => {
-      if (order.current.length < 2) return;
+      if (total < 2) return;
 
-      let newOrder = [...order.current];
+      let newOrder;
       if (direction === "next") {
-        // Move front to back
-        const front = newOrder.shift();
-        newOrder.push(front);
+        // Move front to back: [0,1,2,3] -> [1,2,3,0]
+        newOrder = [...Array(total).keys()].map((_, i) => (i - 1 + total) % total);
       } else {
-        // Move back to front
-        const back = newOrder.pop();
-        newOrder.unshift(back);
+        // Move back to front: [0,1,2,3] -> [3,0,1,2]
+        newOrder = [...Array(total).keys()].map((_, i) => (i + 1) % total);
       }
 
-      // Animate to new positions
+      // Animate to new positions based on new order
       newOrder.forEach((cardIdx, slotIdx) => {
         const el = refs[cardIdx].current;
+        if (!el) return;
         const slot = makeSlot(slotIdx, cardDistance, verticalDistance, total);
         
         gsap.to(el, {
@@ -91,44 +88,45 @@ const ScrollCardSwap = ({
           zIndex: slot.zIndex,
           duration: config.dur,
           ease: config.ease,
-          overwrite: true,
+          overwrite: "auto",
         });
       });
-
-      order.current = newOrder;
     };
 
     // Set up ScrollTrigger
     const st = ScrollTrigger.create({
-      trigger: container.current,
+      trigger: containerRef.current,
       start: "top top",
-      end: `+=${total * 80}%`, // Scroll distance
-      pin: stickyRef.current,
+      end: `+=${total * 100}%`,
+      pin: innerRef.current,
       pinSpacing: true,
+      scrub: false,
       onUpdate: (self) => {
         const progress = self.progress;
-        const targetIndex = Math.floor(progress * total);
+        const targetIndex = Math.min(Math.floor(progress * total), total - 1);
         
-        // If we need to advance
-        if (targetIndex > self.currentTarget) {
-          const steps = targetIndex - self.currentTarget;
-          for (let i = 0; i < steps; i++) swap("next");
-          self.currentTarget = targetIndex;
-        } 
-        // If we need to go back
-        else if (targetIndex < self.currentTarget) {
-          const steps = self.currentTarget - targetIndex;
-          for (let i = 0; i < steps; i++) swap("prev");
-          self.currentTarget = targetIndex;
+        if (targetIndex !== currentIndexRef.current) {
+          const diff = targetIndex - currentIndexRef.current;
+          const direction = diff > 0 ? "next" : "prev";
+          const steps = Math.abs(diff);
+          
+          for (let i = 0; i < steps; i++) {
+            swap(direction);
+          }
+          
+          currentIndexRef.current = targetIndex;
         }
+      },
+      onLeaveBack: () => {
+        // Reset to initial state when scrolling back above the section
+        currentIndexRef.current = 0;
+        refs.forEach((r, i) => placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount));
       },
     });
 
-    // Initialize currentTarget on the trigger object
-    st.currentTarget = 0;
-
     return () => {
       st.kill();
+      gsap.killTweensOf(refs.map(r => r.current).filter(Boolean));
     };
   }, [cardDistance, verticalDistance, skewAmount, easing, refs.length]);
 
@@ -143,8 +141,8 @@ const ScrollCardSwap = ({
   );
 
   return (
-    <div ref={container} style={{ height: "100%" }}>
-      <div ref={stickyRef} className="card-swap-container" style={{ width, height, position: "relative", transform: "none" }}>
+    <div ref={containerRef} style={{ position: "relative" }}>
+      <div ref={innerRef} className="card-swap-container" style={{ width, height, position: "relative", transform: "none", margin: "0 auto" }}>
         {rendered}
       </div>
     </div>
