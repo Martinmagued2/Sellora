@@ -151,7 +151,15 @@ export default function HeroDashboardMockup() {
   const { lang, dir } = useLanguage();
   const d = DASH_DICT[lang] || DASH_DICT.en;
 
+  const [activeTab, setActiveTab] = useState("Overview");
+  const [toastMsg, setToastMsg] = useState(null);
   const [rev, setRev] = useState(42500);
+  const handleNavClick = (tabName) => {
+    setActiveTab(tabName);
+    setToastMsg(`✔ Workspace Synced: Loaded ${tabName} module across channels`);
+    setTimeout(() => setToastMsg(null), 3500);
+  };
+
   const [ord, setOrd] = useState(128);
   const [stock1, setStock1] = useState(14);
   const [recentFeed, setRecentFeed] = useState([
@@ -216,33 +224,55 @@ export default function HeroDashboardMockup() {
       <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", flex: 1, minHeight: "440px" }}>
         {/* ================= SIDEBAR ================= */}
         <div style={{ background: "#0c0d14", borderRight: dir === "rtl" ? "none" : "1px solid rgba(255, 255, 255, 0.06)", borderLeft: dir === "rtl" ? "1px solid rgba(255, 255, 255, 0.06)" : "none", padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", fontSize: "11.5px", color: "#94a3b8" }}>
-          <div style={{ background: "rgba(99, 102, 241, 0.2)", color: "#fff", padding: "8px 10px", borderRadius: "8px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-            <Home size={14} color="#818cf8" />
-            <span>{d.navOverview}</span>
-          </div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-              <ShoppingBag size={14} /> <span>{d.navOrders}</span>
+          {[
+            { id: "Overview", label: d.navOverview, icon: <Home size={14} /> },
+            { id: "Orders", label: d.navOrders, icon: <ShoppingBag size={14} />, badge: ord },
+            { id: "Conversations", label: d.navConv, icon: <MessageSquare size={14} />, badge: "314" },
+            { id: "Customers", label: d.navCust, icon: <Users size={14} /> },
+            { id: "Products", label: d.navProd, icon: <Package size={14} /> },
+            { id: "Payments", label: d.navPay, icon: <CreditCard size={14} /> },
+            { id: "Shipping", label: d.navShip, icon: <Truck size={14} /> },
+            { id: "Analytics", label: d.navAnal, icon: <BarChart3 size={14} /> },
+            { id: "Automations", label: d.navAuto, icon: <Zap size={14} /> },
+            { id: "Settings", label: d.navSet, icon: <Settings size={14} /> },
+          ].map((item, idx) => (
+            <div
+              key={idx}
+              onClick={() => handleNavClick(item.label)}
+              style={{
+                background: activeTab === item.label ? "rgba(99, 102, 241, 0.2)" : "transparent",
+                color: activeTab === item.label ? "#fff" : "#94a3b8",
+                padding: "8px 10px",
+                borderRadius: "8px",
+                fontWeight: activeTab === item.label ? 600 : 400,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                flexDirection: dir === "rtl" ? "row-reverse" : "row",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
+                {React.cloneElement(item.icon, { color: activeTab === item.label ? "#818cf8" : "#94a3b8" })}
+                <span>{item.label}</span>
+              </div>
+              {item.badge && (
+                <span style={{ background: "rgba(99, 102, 241, 0.15)", color: "#818cf8", padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 700 }}>
+                  {item.badge}
+                </span>
+              )}
             </div>
-            <span style={{ background: "rgba(99, 102, 241, 0.15)", color: "#818cf8", padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 700 }}>{ord}</span>
-          </div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-              <MessageSquare size={14} /> <span>{d.navConv}</span>
-            </div>
-            <span style={{ background: "rgba(99, 102, 241, 0.15)", color: "#818cf8", padding: "1px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 700 }}>314</span>
-          </div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Users size={14} /> <span>{d.navCust}</span></div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Package size={14} /> <span>{d.navProd}</span></div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><CreditCard size={14} /> <span>{d.navPay}</span></div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Truck size={14} /> <span>{d.navShip}</span></div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><BarChart3 size={14} /> <span>{d.navAnal}</span></div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Zap size={14} /> <span>{d.navAuto}</span></div>
-          <div style={{ padding: "7px 10px", display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Settings size={14} /> <span>{d.navSet}</span></div>
+          ))}
         </div>
 
         {/* ================= DASHBOARD CONTENT AREA ================= */}
         <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "12px", background: "#0e1017", overflowX: "auto" }}>
+          {toastMsg && (
+            <div style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#fff", padding: "8px 14px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", boxShadow: "0 4px 15px rgba(99,102,241,0.4)", animation: "slide-down 0.2s ease" }}>
+              <Sparkles size={14} /> <span>{toastMsg}</span>
+            </div>
+          )}
           
           {/* Top 4 KPI Cards Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
@@ -301,7 +331,7 @@ export default function HeroDashboardMockup() {
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10.5px", fontWeight: 700, color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "6px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
                 <span>{d.actTitle}</span>
-                <span style={{ fontSize: "9.5px", color: "#818cf8", cursor: "pointer" }}>{d.viewAll}</span>
+                <span onClick={() => handleNavClick(d.viewAll)} style={{ fontSize: "9.5px", color: "#818cf8", cursor: "pointer" }}>{d.viewAll}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "10px" }}>
                 {recentFeed.map((item, idx) => (
@@ -325,7 +355,7 @@ export default function HeroDashboardMockup() {
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "8px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10.5px", fontWeight: 700, color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "6px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
                 <span>{d.chanTitle}</span>
-                <span style={{ fontSize: "9.5px", color: "#818cf8", cursor: "pointer" }}>{d.viewAll}</span>
+                <span onClick={() => handleNavClick(d.viewAll)} style={{ fontSize: "9.5px", color: "#818cf8", cursor: "pointer" }}>{d.viewAll}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "10px" }}>
                 {[
@@ -403,7 +433,7 @@ export default function HeroDashboardMockup() {
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "4px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", fontWeight: 700, color: "#fff", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
                 <span>{d.invTitle}</span>
-                <span style={{ fontSize: "9px", color: "#818cf8", cursor: "pointer" }}>{d.viewAll} &gt;</span>
+                <span onClick={() => handleNavClick(d.invTitle)} style={{ fontSize: "9px", color: "#818cf8", cursor: "pointer" }}>{d.viewAll} &gt;</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9.5px", color: "#cbd5e1", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><ShoppingBag size={10} color="#ef4444" /> {d.inv1}</span>

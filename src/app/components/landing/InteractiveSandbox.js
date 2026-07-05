@@ -209,6 +209,7 @@ export default function InteractiveSandbox() {
   const [customInput, setCustomInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeLog, setActiveLog] = useState(3);
+  const [actionFeedback, setActionFeedback] = useState(null);
 
   // When language switches, switch to preset 0 of new lang if user hadn't typed custom
   React.useEffect(() => {
@@ -396,6 +397,11 @@ export default function InteractiveSandbox() {
 
           {/* Chat simulator window */}
           <div style={{ flex: 1, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "12px", padding: "16px", display: "flex", flexDirection: "column", gap: "14px", minHeight: "280px" }}>
+            {actionFeedback && (
+              <div style={{ background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", padding: "8px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", boxShadow: "0 4px 12px rgba(16,185,129,0.3)", animation: "slide-down 0.2s ease" }}>
+                <Check size={14} /> <span>{actionFeedback}</span>
+              </div>
+            )}
             {/* User message */}
             <div style={{ alignSelf: dir === "rtl" ? "flex-start" : "flex-end", background: "#056162", color: "#fff", padding: "10px 14px", borderRadius: "12px", borderTopRightRadius: dir === "rtl" ? "2px" : "12px", borderTopLeftRadius: dir === "rtl" ? "12px" : "2px", maxWidth: "85%", fontSize: "13px", lineHeight: 1.5, direction: dir }}>
               {selectedPreset.userQuery}
@@ -424,6 +430,10 @@ export default function InteractiveSandbox() {
                   {selectedPreset.actions.map((act, i) => (
                     <button
                       key={i}
+                      onClick={() => {
+                        setActionFeedback(`✔ Executed: "${act}" • Verified via Direct Cloud Webhooks`);
+                        setTimeout(() => setActionFeedback(null), 4000);
+                      }}
                       style={{
                         background: i === 0 ? "linear-gradient(135deg, #10b981, #059669)" : "rgba(255,255,255,0.06)",
                         color: "#fff",

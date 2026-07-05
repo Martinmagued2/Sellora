@@ -487,8 +487,7 @@ export default function Home() {
     { q: "Is my data secure?", a: "100%. We use bank-level encryption (AES-256), all data is stored in secure cloud infrastructure, and we never share your customer data with third parties." },
   ];
 
-  const preventNav = (e) => e.preventDefault();
-
+  
   return (
     <SmoothScrollProvider>
       <GSAPAnimations />
@@ -505,7 +504,7 @@ export default function Home() {
           </a>
           <div className="navbar-links">
             <a href="#features">{t("nav_features")}</a>
-            <a href="#solution">{t("nav_how")}</a>
+            <a href="#automated-lifecycle">{t("nav_how")}</a>
             <a href="#pricing">{t("nav_pricing")}</a>
             <a href="#faq">{t("nav_faq")}</a>
           </div>
@@ -539,7 +538,7 @@ export default function Home() {
         <div className="mobile-menu-overlay" onClick={() => setMobileMenuOpen(false)}>
           <div className="mobile-menu" onClick={(e) => e.stopPropagation()}>
             <a href="#features" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_features")}</a>
-            <a href="#solution" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_how")}</a>
+            <a href="#automated-lifecycle" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_how")}</a>
             <a href="#pricing" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_pricing")}</a>
             <a href="#faq" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_faq")}</a>
             <div className="mobile-menu-actions">
@@ -833,39 +832,39 @@ export default function Home() {
             </div>
             <div className="footer-col">
               <h4>{t("footer_product")}</h4>
-              <a href="#features" onClick={preventNav}>{t("footer_features")}</a>
-              <a href="#pricing" onClick={preventNav}>{t("footer_pricing")}</a>
-              <a href="#how-it-works" onClick={preventNav}>{t("footer_how")}</a>
-              <a href="#integrations" onClick={preventNav}>{t("footer_integrations")}</a>
-              <Link href="/api-docs" onClick={preventNav}>{t("footer_api")}</Link>
+              <a href="#features">{t("footer_features")}</a>
+              <a href="#pricing">{t("footer_pricing")}</a>
+              <a href="#automated-lifecycle">{t("footer_how")}</a>
+              <a href="#problem">{t("footer_integrations")}</a>
+              <Link href="/api-docs">{t("footer_api")}</Link>
             </div>
             <div className="footer-col">
               <h4>{t("footer_company")}</h4>
-              <Link href="/about" onClick={preventNav}>{t("footer_about")}</Link>
-              <Link href="/blog" onClick={preventNav}>{t("footer_blog")}</Link>
-              <Link href="/careers" onClick={preventNav}>{t("footer_careers")}</Link>
-              <a href="mailto:support@sellora.app" onClick={preventNav}>{t("footer_contact")}</a>
+              <Link href="/about">{t("footer_about")}</Link>
+              <Link href="/blog">{t("footer_blog")}</Link>
+              <Link href="/careers">{t("footer_careers")}</Link>
+              <a href="mailto:support@sellora.app">{t("footer_contact")}</a>
             </div>
             <div className="footer-col">
               <h4>{t("footer_legal")}</h4>
-              <Link href="/privacy" onClick={preventNav}>{t("footer_privacy")}</Link>
-              <Link href="/terms" onClick={preventNav}>{t("footer_terms")}</Link>
-              <Link href="/gdpr" onClick={preventNav}>{t("footer_gdpr")}</Link>
-              <Link href="/security" onClick={preventNav}>{t("footer_security")}</Link>
+              <Link href="/privacy">{t("footer_privacy")}</Link>
+              <Link href="/terms">{t("footer_terms")}</Link>
+              <Link href="/gdpr">{t("footer_gdpr")}</Link>
+              <Link href="/security">{t("footer_security")}</Link>
             </div>
           </div>
           <div className="footer-extra-links">
-            <Link href="/help" onClick={preventNav}>Help Center</Link>
-            <Link href="/blog" onClick={preventNav}>Blog</Link>
-            <Link href="/affiliates" onClick={preventNav}>Affiliates</Link>
-            <Link href="/status" onClick={preventNav}>Status</Link>
+            <Link href="/help">Help Center</Link>
+            <Link href="/blog">Blog</Link>
+            <Link href="/affiliates">Affiliates</Link>
+            <Link href="/status">Status</Link>
           </div>
           <div className="footer-bottom">
             <p>{t("footer_copyright")}</p>
             <div className="footer-social">
-              <a href="#" aria-label="Twitter"><Globe size={16} /></a>
-              <a href="#" aria-label="LinkedIn"><Users size={16} /></a>
-              <a href="#" aria-label="Instagram"><MessageCircle size={16} /></a>
+              <a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="Twitter"><Globe size={16} /></a>
+              <a href="https://www.linkedin.com/in/martin-magued" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><Users size={16} /></a>
+              <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><MessageCircle size={16} /></a>
             </div>
           </div>
         </div>
