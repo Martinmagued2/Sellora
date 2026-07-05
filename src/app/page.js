@@ -180,184 +180,9 @@ function TypingIndicator() {
 /* ============================================
    AI CHAT DEMO — Interactive chat simulator
    ============================================ */
-function AIChatDemo() {
-  const [messages, setMessages] = useState([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const chatRef = useRef(null);
-  const sectionRef = useRef(null);
-  const isInView = useInView(sectionRef, { once: true, margin: "-100px" });
-  const hasStarted = useRef(false);
-
-  const demoConversation = [
-    { role: "customer", text: "Hi! Do you have cotton t-shirts?", delay: 800 },
-    { role: "typing", delay: 1200 },
-    { role: "ai", text: "Absolutely! \ud83c\udfa3 We have premium cotton t-shirts starting from 150 EGP. Available in White, Black, Navy, and Grey. Sizes S-XXL. Would you like to see our collection?", delay: 1500 },
-    { role: "customer", text: "Yes, what colors do you have in Large?", delay: 2000 },
-    { role: "typing", delay: 1200 },
-    { role: "ai", text: "In size Large, we have: \u26aa White - 150 EGP, \u26ab Black - 150 EGP, \ud83d\udd35 Navy - 175 EGP, \ud83e\ude36 Grey - 150 EGP. All are 100% Egyptian cotton! Which one catches your eye? \ud83d\ude0a", delay: 1800 },
-    { role: "customer", text: "I'll take 2 Navy ones", delay: 2000 },
-    { role: "typing", delay: 1200 },
-    { role: "ai", text: "Great choice! \ud83d\uded2 Here's your order: 2x Navy Cotton Tee (Large) - 350 EGP total. I'll send a payment link via InstaPay. Shall I proceed?", delay: 1500 },
-  ];
-
-  useEffect(() => {
-    if (!isInView || hasStarted.current) return;
-    hasStarted.current = true;
-
-    let timeout;
-    const playConversation = async () => {
-      for (let i = 0; i < demoConversation.length; i++) {
-        const msg = demoConversation[i];
-        await new Promise(r => { timeout = setTimeout(r, msg.delay); });
-
-        if (msg.role === "typing") {
-          setIsTyping(true);
-          await new Promise(r => { timeout = setTimeout(r, 1500); });
-          setIsTyping(false);
-        } else {
-          setMessages(prev => [...prev, { role: msg.role, text: msg.text }]);
-          setCurrentIndex(i);
-        }
-      }
-    };
-    playConversation();
-    return () => clearTimeout(timeout);
-  }, [isInView]);
-
-  useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
-  }, [messages, isTyping]);
-
-  return (
-    <section className="section chat-demo-section" id="ai-demo" ref={sectionRef}>
-      <div className="section-inner">
-        <div className="section-header animate-on-scroll">
-          <span className="badge badge-primary" style={{ marginBottom: 16 }}>
-            <Bot size={12} />
-            AI Conversation Demo
-          </span>
-          <h2 className="section-title-reveal">Watch Sellora AI <span className="text-gradient-static">in Action</span></h2>
-          <p>See how our AI handles real customer conversations — instantly, accurately, and in any language.</p>
-        </div>
-
-        <motion.div
-          className="chat-demo-card"
-          initial={{ opacity: 0, y: 40 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-        >
-          <div className="chat-demo-header">
-            <div className="chat-demo-avatar">
-              <Bot size={20} />
-            </div>
-            <div>
-              <div className="chat-demo-name">Sellora AI</div>
-              <div className="chat-demo-status"><span className="status-dot" />Online</div>
-            </div>
-          </div>
-
-          <div className="chat-demo-messages" ref={chatRef}>
-            {messages.map((msg, i) => (
-              <motion.div
-                key={i}
-                className={`chat-demo-msg ${msg.role === "customer" ? "customer" : "ai"}`}
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                {msg.role === "ai" && <div className="chat-msg-avatar"><Bot size={14} /></div>}
-                <div className="chat-msg-bubble">{msg.text}</div>
-              </motion.div>
-            ))}
-            {isTyping && (
-              <motion.div
-                className="chat-demo-msg ai"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <div className="chat-msg-avatar"><Bot size={14} /></div>
-                <div className="chat-msg-bubble typing-bubble"><TypingIndicator /></div>
-              </motion.div>
-            )}
-          </div>
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
 /* ============================================
    LIVE DASHBOARD PREVIEW
    ============================================ */
-function LiveDashboardPreview() {
-  const [activeTab, setActiveTab] = useState(0);
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-
-  const tabs = [
-    { label: "Conversations", icon: <MessageSquare size={14} /> },
-    { label: "Orders", icon: <ShoppingCart size={14} /> },
-    { label: "Analytics", icon: <BarChart2 size={14} /> },
-  ];
-
-  const chatMessages = [
-    { name: "Ahmed M.", msg: "Hi, is the blue shirt available in size L?", time: "2:34 PM", incoming: true },
-    { name: "Sellora AI", msg: "Yes! The Blue Classic Shirt is available in L. Would you like to order? Price: 450 EGP", time: "2:34 PM", incoming: false },
-    { name: "Ahmed M.", msg: "Yes please! I'll take 2", time: "2:35 PM", incoming: true },
-  ];
-
-  const orders = [
-    { id: "#1847", customer: "Nour A.", items: "2x Blue Shirt", total: "900 EGP", status: "Delivered", statusColor: "var(--accent-green)" },
-    { id: "#1848", customer: "Omar H.", items: "1x Black Bag", total: "450 EGP", status: "Shipped", statusColor: "var(--accent-secondary)" },
-    { id: "#1849", customer: "Sara Y.", items: "3x Cotton Tee", total: "750 EGP", status: "Processing", statusColor: "var(--accent-orange)" },
-  ];
-
-  const analyticsData = [
-    { label: "Mon", value: 65 }, { label: "Tue", value: 80 }, { label: "Wed", value: 45 },
-    { label: "Thu", value: 90 }, { label: "Fri", value: 70 }, { label: "Sat", value: 95 }, { label: "Sun", value: 85 },
-  ];
-
-  return (
-    <section className="section dashboard-preview-section" id="dashboard-preview" ref={ref}>
-      <div className="section-inner">
-        <div className="section-header animate-on-scroll">
-          <span className="badge badge-green" style={{ marginBottom: 16 }}><LayoutDashboard size={12} /> Live Preview</span>
-          <h2 className="section-title-reveal">Experience the <span className="text-gradient-static">Dashboard</span></h2>
-          <p>See how Sellora helps you manage conversations, orders, and analytics — all in one place.</p>
-        </div>
-        <motion.div className="dashboard-preview-card" initial={{ opacity: 0, y: 40 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: "easeOut" }}>
-          <div className="dashboard-browser-bar">
-            <div className="dashboard-browser-dots"><span className="dot red" /><span className="dot yellow" /><span className="dot green" /></div>
-            <div className="dashboard-browser-url"><Shield size={12} /><span>app.sellora.app/dashboard</span></div>
-          </div>
-          <div className="dashboard-preview-tabs">
-            {tabs.map((tab, i) => (<button key={i} className={`dashboard-preview-tab ${activeTab === i ? "active" : ""}`} onClick={() => setActiveTab(i)}>{tab.icon}<span>{tab.label}</span></button>))}
-          </div>
-          <div className="dashboard-preview-content">
-            <AnimatePresence mode="wait">
-              {activeTab === 0 && (<motion.div key="conv" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="dashboard-tab-content">
-                {chatMessages.map((msg, i) => (<div key={i} className={`dashboard-chat-msg ${msg.incoming ? "incoming" : "outgoing"}`}><div className="dashboard-chat-name">{msg.name}</div><div className="dashboard-chat-bubble">{msg.msg}</div><div className="dashboard-chat-time">{msg.time}</div></div>))}
-              </motion.div>)}
-              {activeTab === 1 && (<motion.div key="ord" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="dashboard-tab-content">
-                <table className="dashboard-orders-table"><thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
-                  <tbody>{orders.map((o, i) => (<tr key={i}><td style={{ fontWeight: 600 }}>{o.id}</td><td>{o.customer}</td><td>{o.items}</td><td style={{ fontWeight: 600 }}>{o.total}</td><td><span className="dashboard-order-status" style={{ background: `${o.statusColor}20`, color: o.statusColor }}>{o.status}</span></td></tr>))}</tbody>
-                </table>
-              </motion.div>)}
-              {activeTab === 2 && (<motion.div key="anlt" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="dashboard-tab-content">
-                <div className="dashboard-analytics-header"><div><div className="dashboard-analytics-label">Weekly Revenue</div><div className="dashboard-analytics-total">12,450 EGP</div></div><span className="dashboard-analytics-change">+23% vs last week</span></div>
-                <div className="dashboard-chart">{analyticsData.map((bar, i) => (<div key={i} className="dashboard-chart-bar-wrapper"><motion.div className="dashboard-chart-bar" initial={{ height: 0 }} animate={{ height: `${bar.value}%` }} transition={{ duration: 0.6, delay: i * 0.08, ease: "easeOut" }} /><span className="dashboard-chart-label">{bar.label}</span></div>))}</div>
-              </motion.div>)}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
 /* ============================================
    SVG WAVE DIVIDER — animated wave between sections
    ============================================ */
@@ -579,145 +404,9 @@ function BrandMarquee() {
 /* ============================================
    SOLUTION SECTION — Sellora AI steps in
    ============================================ */
-function SolutionSection() {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-
-  const solutionMessages = [
-    { role: "customer", text: "Hi, how much is the black bag?", time: "11:47 PM" },
-    { role: "ai", text: "Hey! \ud83d\udc4b The Black Leather Bag is 450 EGP. We have it in Small, Medium, and Large. Would you like to order one?", time: "11:47 PM — instant!" },
-    { role: "customer", text: "Yes! Medium please", time: "11:48 PM" },
-    { role: "ai", text: "Great choice! \ud83d\uded2 Here's your order: 1x Black Leather Bag (Medium) - 450 EGP. I'll send a payment link now!", time: "11:48 PM" },
-  ];
-
-  return (
-    <section className="section solution-section" id="solution" ref={ref}>
-      <div className="section-inner">
-        <div className="solution-grid">
-          <motion.div className="solution-content solution-left" initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
-            <span className="badge badge-green" style={{ marginBottom: 16 }}><Zap size={12} /> Business Automation</span>
-            <h2 className="section-title-reveal">Your Store <span className="text-gradient-static">Never Sleeps</span></h2>
-            <p>While your competitors lose track of DMs and spreadsheets, Sellora runs your entire commerce workflow autonomously—from inquiry to shipping.</p>
-            <div className="solution-features">
-              {[
-                { icon: <Zap size={18} />, label: "Instant replies", desc: "Under 2 seconds response time" },
-                { icon: <Bot size={18} />, label: "Smart conversations", desc: "AI that understands context & intent" },
-                { icon: <Check size={18} />, label: "Lead conversion", desc: "Turns inquiries into confirmed orders" },
-                { icon: <CreditCard size={18} />, label: "Auto payments", desc: "Sends payment links automatically" },
-              ].map((item, i) => (
-                <motion.div key={i} className="solution-feature" initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 + i * 0.1 }}>
-                  <div className="solution-feature-icon">{item.icon}</div>
-                  <div><strong>{item.label}</strong><span>{item.desc}</span></div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          <motion.div className="solution-visual solution-right" initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
-            <div className="solution-chat-card">
-              <div className="solution-chat-header">
-                <div className="solution-chat-header-ai"><Bot size={16} /><span>Sellora AI</span></div>
-                <span className="solution-chat-badge"><span className="status-dot" />Active</span>
-              </div>
-              <div className="solution-chat-messages">
-                {solutionMessages.map((msg, i) => (
-                  <motion.div key={i} className={`solution-chat-msg ${msg.role}`} initial={{ opacity: 0, y: 15 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ delay: 0.5 + i * 0.6 }}>
-                    {msg.role === "ai" && <div className="solution-ai-badge"><Bot size={10} /></div>}
-                    <div className="solution-chat-bubble">{msg.text}</div>
-                    <span className="solution-chat-time">{msg.time}</span>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 /* ============================================
    INTEGRATIONS SECTION — Animated AI Hub
    ============================================ */
-function IntegrationsSection() {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-
-  const platforms = [
-    { name: "WhatsApp", icon: <MessageSquare size={28} />, color: "#25D366" },
-    { name: "Instagram", icon: <Camera size={28} />, color: "#E1306C" },
-    { name: "Facebook", icon: <Users size={28} />, color: "#1877F2" },
-    { name: "Shopify", icon: <ShoppingBag size={28} />, color: "#96BF48" },
-    { name: "Websites", icon: <Globe size={28} />, color: "#00D2FF" },
-  ];
-
-  return (
-    <section className="section integrations-section" id="integrations" ref={ref}>
-      <div className="section-inner">
-        <div className="section-header animate-on-scroll">
-          <span className="badge badge-primary" style={{ marginBottom: 16 }}><Radio size={12} /> Integrations</span>
-          <h2 className="section-title-reveal">One AI, <span className="text-gradient-static">Every Channel</span></h2>
-          <p>Sellora connects to all your sales channels. One dashboard, one AI, zero missed messages.</p>
-        </div>
-
-        <motion.div className="integrations-hub" initial={{ opacity: 0, scale: 0.9 }} animate={isInView ? { opacity: 1, scale: 1 } : {}} transition={{ duration: 0.7 }}>
-          {/* Central AI hub */}
-          <div className="hub-center">
-            <div className="hub-pulse" />
-            <div className="hub-pulse hub-pulse-2" />
-            <div className="hub-core">
-              <Bot size={32} />
-              <span>AI</span>
-            </div>
-          </div>
-
-          {/* Platform nodes */}
-          {platforms.map((platform, i) => {
-            const angle = (i / platforms.length) * 360 - 90;
-            const rad = (angle * Math.PI) / 180;
-            const radius = 180;
-            const x = Math.cos(rad) * radius;
-            const y = Math.sin(rad) * radius;
-
-            return (
-              <motion.div
-                key={i}
-                className="hub-node"
-                style={{ transform: `translate(${x}px, ${y}px)` }}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={isInView ? { opacity: 1, scale: 1 } : {}}
-                transition={{ delay: 0.5 + i * 0.15, duration: 0.5, type: "spring" }}
-              >
-                {/* Connection line to center */}
-                <svg className="hub-connection" style={{ position: "absolute", top: "50%", left: "50%", width: Math.abs(x) + 40, height: Math.abs(y) + 40, transform: `translate(-50%, -50%)`, pointerEvents: "none" }}>
-                  <line x1="50%" y1="50%" x2={x > 0 ? "100%" : "0%"} y2={y > 0 ? "100%" : "0%"} stroke={platform.color} strokeWidth="1" strokeOpacity="0.3" strokeDasharray="4 4">
-                    <animate attributeName="stroke-dashoffset" from="8" to="0" dur="1.5s" repeatCount="indefinite" />
-                  </line>
-                </svg>
-                <div className="hub-node-icon" style={{ background: `${platform.color}20`, color: platform.color, borderColor: `${platform.color}40` }}>
-                  {platform.icon}
-                </div>
-                <span className="hub-node-label">{platform.name}</span>
-              </motion.div>
-            );
-          })}
-
-          {/* And more yet to come */}
-          <motion.div
-            className="hub-more-badge"
-            initial={{ opacity: 0, y: 10 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: 1.4, duration: 0.6 }}
-          >
-            <span className="dot-divider"><span /><span /><span /></span>
-            and more yet to come
-          </motion.div>
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
 /* ============================================
    MAIN HOME COMPONENT
    ============================================ */
@@ -857,6 +546,11 @@ export default function Home() {
       <BrandMarquee />
       <SVGWaveDivider />
 
+      {/* ===== AUTOMATED E-COMMERCE LIFECYCLE ===== */}
+      <section className="section" id="automated-lifecycle" style={{ background: "var(--bg-secondary)", padding: "60px 0" }}>
+        <AutomatedLifecycleTimeline />
+      </section>
+
       {/* ===== THE PROBLEM & INTERACTIVE SCRUBBER ===== */}
       <section className="section problem" id="problem" style={{ position: "relative", overflow: "hidden", padding: "80px 0" }}>
         <div className="section-inner" style={{ textAlign: "center", marginBottom: "40px" }}>
@@ -865,20 +559,6 @@ export default function Home() {
           <p className="designer-subtitle">Every unanswered message after 10 PM is a lost customer. Drag the slider below to see how Sellora transforms social commerce chaos into automated revenue.</p>
         </div>
         <BeforeAfterScrubber />
-      </section>
-
-      {/* ===== THE SOLUTION ===== */}
-      <SolutionSection />
-      <SVGWaveDivider flip />
-
-      {/* ===== INTERACTIVE SANDBOX SIMULATOR ===== */}
-      <section className="section" id="interactive-sandbox" style={{ background: "var(--bg-primary)", padding: "60px 0" }}>
-        <InteractiveSandbox />
-      </section>
-
-      {/* ===== AUTOMATED E-COMMERCE LIFECYCLE ===== */}
-      <section className="section" id="automated-lifecycle" style={{ background: "var(--bg-secondary)", padding: "60px 0" }}>
-        <AutomatedLifecycleTimeline />
       </section>
 
       {/* ===== 5 CHANNELS SHOWCASE — BOUNCE CARDS ===== */}
@@ -934,6 +614,11 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ===== INTERACTIVE SANDBOX SIMULATOR ===== */}
+      <section className="section" id="interactive-sandbox" style={{ background: "var(--bg-primary)", padding: "60px 0" }}>
+        <InteractiveSandbox />
+      </section>
+
       {/* ===== AI CAPABILITIES — SCROLL CARD SWAP ===== */}
       <section id="features" style={{ position: "relative", background: "var(--bg-primary)" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "80px", paddingBottom: "40px" }}>
@@ -974,61 +659,6 @@ export default function Home() {
       <section className="section" id="roi-calculator" style={{ background: "var(--bg-secondary)", padding: "60px 0" }}>
         <ROICalculator />
       </section>
-
-      {/* ===== FEATURES (ORIGINAL 6) ===== */}
-      <section className="section" style={{ background: "var(--bg-secondary)" }}>
-        <div className="section-inner">
-          <div className="section-header animate-on-scroll">
-            <span className="badge badge-primary" style={{ marginBottom: 16 }}><Zap size={12} />{t("features_badge")}</span>
-            <h2 className="section-title-reveal">{t("features_title_1")} <span className="text-gradient-static">{t("features_title_2")}</span></h2>
-            <p>{t("features_subtitle")}</p>
-          </div>
-          <div className="features-grid">
-            {features.map((f, i) => (
-              <motion.div key={i} className="glass-card feature-card" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
-                <div className={`feature-icon ${f.color}`}>{f.icon}</div>
-                <h3>{f.title}</h3>
-                <p>{f.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ===== LIVE DASHBOARD PREVIEW ===== */}
-      <LiveDashboardPreview />
-      <SVGWaveDivider />
-
-      {/* ===== INTEGRATIONS ===== */}
-      <IntegrationsSection />
-
-      {/* ===== AI CHAT DEMO ===== */}
-      <AIChatDemo />
-
-      {/* ===== HOW IT WORKS ===== */}
-      <section className="section how-it-works" id="how-it-works">
-        <div className="section-inner">
-          <div className="section-header animate-on-scroll">
-            <span className="badge badge-primary" style={{ marginBottom: 16 }}><Globe size={12} />{t("how_badge")}</span>
-            <h2 className="section-title-reveal">{t("how_title_1")} <span className="text-gradient-static">{t("how_title_2")}</span> {t("how_title_3")}</h2>
-          </div>
-          <div className="steps-container">
-            {[
-              { num: "1", title: "Connect WhatsApp", desc: "Link your WhatsApp Business number in 2 clicks. We handle all the technical setup." },
-              { num: "2", title: "Add Your Products", desc: "Upload your catalog or import from Instagram. Set prices, add photos, manage variants." },
-              { num: "3", title: "Start Selling 24/7", desc: "AI handles inquiries, shows products, takes orders, and sends payment links." },
-            ].map((step, i) => (
-              <motion.div key={i} className="step-card" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.2 }}>
-                <div className="step-number">{step.num}</div>
-                <h3>{step.title}</h3>
-                <p>{step.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      
 
       {/* ===== PRICING ===== */}
       <section className="section" id="pricing">
@@ -1106,40 +736,6 @@ export default function Home() {
                 })}
               </tbody>
             </table>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== PRICING FAQ ===== */}
-      <section className="section" id="faq" style={{ background: "var(--bg-secondary)" }}>
-        <div className="container">
-          <div className="section-header" style={{ marginBottom: 40 }}>
-            <span className="section-badge">FAQ</span>
-            <h2 className="section-title">Pricing Questions</h2>
-            <p className="section-subtitle">Everything you need to know about Sellora&apos;s pricing</p>
-          </div>
-          <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
-            {[
-              { q: "Is there a free trial?", a: "Yes! Every plan comes with a 14-day free trial. No credit card required. You get full access to all features during the trial." },
-              { q: "Do I need a WhatsApp Business account?", a: "Yes, you need a WhatsApp Business API account (via Meta Developer). We provide step-by-step instructions to set it up — it takes about 10 minutes." },
-              { q: "Can I cancel anytime?", a: "Yes, you can cancel your subscription at any time from the Billing page. No cancellation fees, no questions asked." },
-              { q: "What payment methods do you accept?", a: "We accept Paymob (Visa, Mastercard, Meeza, Vodafone Cash), Fawry, and InstaPay for EGP payments. Stripe is available for international USD payments." },
-              { q: "Is there a setup fee?", a: "No. There are no setup fees, no hidden costs. You only pay the monthly subscription." },
-              { q: "What happens if I exceed my plan limits?", a: "We'll notify you when you're approaching your limits. You can upgrade at any time. We never cut off service without warning." },
-              { q: "Do you offer custom enterprise plans?", a: "Yes! For teams with 10+ agents or custom requirements, contact us at support@sellora.app for a tailored plan." },
-              { q: "Can I switch plans later?", a: "Yes, you can upgrade or downgrade your plan at any time from the Billing page. Changes take effect immediately and we prorate the difference." },
-            ].map((faq, i) => (
-              <details key={i} style={{
-                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)",
-                borderRadius: 12, padding: "16px 20px", cursor: "pointer",
-              }}>
-                <summary style={{ fontSize: 15, fontWeight: 600, color: "#fff", listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  {faq.q}
-                  <span style={{ color: "var(--accent-primary-light)", fontSize: 18 }}>+</span>
-                </summary>
-                <p style={{ marginTop: 10, fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>{faq.a}</p>
-              </details>
-            ))}
           </div>
         </div>
       </section>
