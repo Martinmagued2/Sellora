@@ -137,7 +137,7 @@ export default function AutomatedLifecycleTimeline() {
         </div>
 
         {/* 7 Step Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "12px", position: "relative", zIndex: 2 }}>
+        <div className="lifecycle-steps-grid">
           {steps.map((s, i) => {
             const isActive = i === activeStep;
             const isPassed = i <= activeStep;

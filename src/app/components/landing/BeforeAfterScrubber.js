@@ -113,7 +113,7 @@ export default function BeforeAfterScrubber() {
   };
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", direction: dir }}>
+    <div className="scrubber-wrapper" style={{ maxWidth: "1000px", margin: "0 auto", direction: dir }}>
       <div
         ref={containerRef}
         className="scrubber-container"

@@ -110,7 +110,7 @@ export default function HonestTrustSection() {
           </p>
 
           {/* Skeleton Cards Row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", margin: "28px 0", opacity: 0.4 }}>
+          <div className="trust-skeleton-grid">
             {[1, 2, 3].map((item) => (
               <div key={item} style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.06)", borderRadius: "14px", padding: "20px", textAlign: dir === "rtl" ? "right" : "left" }}>
                 <div style={{ display: "flex", gap: "4px", marginBottom: "12px" }}>
@@ -135,7 +135,7 @@ export default function HonestTrustSection() {
         </div>
 
         {/* ================= 2. FOUNDER & BUILDER STORY SECTION ================= */}
-        <div style={{ background: "linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 27, 75, 0.6) 100%)", border: "1px solid rgba(99, 102, 241, 0.3)", borderRadius: "24px", padding: "48px", marginBottom: "64px", display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "40px", alignItems: "center", boxShadow: "0 25px 60px rgba(0,0,0,0.5)" }}>
+        <div className="trust-story-grid">
           <div style={{ textAlign: dir === "rtl" ? "right" : "left" }}>
             <div style={{ fontSize: "11px", fontWeight: 800, color: "#818cf8", textTransform: "uppercase", letterSpacing: "0.08em", display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
               <HeartHandshake size={14} /> {d.storyBadge}
@@ -183,7 +183,7 @@ export default function HonestTrustSection() {
             </h3>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "20px" }}>
+          <div className="trust-tech-grid">
             {[
               { icon: <Code2 size={22} color="#818cf8" />, title: d.t1Title, desc: d.t1Desc, border: "#6366f1" },
               { icon: <Server size={22} color="#34d399" />, title: d.t2Title, desc: d.t2Desc, border: "#10b981" },

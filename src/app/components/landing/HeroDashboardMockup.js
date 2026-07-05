@@ -221,7 +221,7 @@ export default function HeroDashboardMockup() {
       </div>
 
       {/* Main Body: Sidebar + Dashboard Content Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", flex: 1, minHeight: "440px" }}>
+      <div className="dash-body-grid">
         {/* ================= SIDEBAR ================= */}
         <div style={{ background: "#0c0d14", borderRight: dir === "rtl" ? "none" : "1px solid rgba(255, 255, 255, 0.06)", borderLeft: dir === "rtl" ? "1px solid rgba(255, 255, 255, 0.06)" : "none", padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", fontSize: "11.5px", color: "#94a3b8" }}>
           {[
@@ -275,7 +275,7 @@ export default function HeroDashboardMockup() {
           )}
           
           {/* Top 4 KPI Cards Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
+          <div className="dash-kpi-grid">
             {/* KPI 1: Revenue */}
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "10px 12px", position: "relative" }}>
               <div style={{ fontSize: "10px", color: "#94a3b8" }}>{d.kpiRevLabel}</div>
@@ -326,7 +326,7 @@ export default function HeroDashboardMockup() {
           </div>
 
           {/* Middle Row Grid (3 Panels: Recent Activity, Sales Channels, Copilot) */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.9fr 1.1fr", gap: "10px", minHeight: "170px" }}>
+          <div className="dash-mid-grid">
             {/* Panel 1: Recent Activity */}
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "10px 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10.5px", fontWeight: 700, color: "#fff", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "6px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
@@ -404,7 +404,7 @@ export default function HeroDashboardMockup() {
           </div>
 
           {/* Bottom 4 Panels Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr 1.1fr 1fr", gap: "10px" }}>
+          <div className="dash-bot-grid">
             {/* Panel 1: Store Switcher */}
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>

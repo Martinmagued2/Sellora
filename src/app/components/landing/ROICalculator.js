@@ -128,7 +128,7 @@ export default function ROICalculator() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: "32px", alignItems: "center" }}>
+      <div className="roi-grid">
         {/* ================= LEFT COLUMN: SLIDERS ================= */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px", textAlign: dir === "rtl" ? "right" : "left" }}>
           {/* Slider 1: Daily DMs */}
