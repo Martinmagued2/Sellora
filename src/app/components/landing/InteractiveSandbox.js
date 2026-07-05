@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Send, Bot, Check, Sparkles, MessageSquare, ShieldCheck, Zap, RefreshCw, ShoppingBag, Truck, CreditCard } from "lucide-react";
+import { Send, Bot, Check, Sparkles, MessageSquare, ShieldCheck, Zap, RefreshCw, ShoppingBag, Truck, CreditCard, ArrowRight } from "lucide-react";
 import "./landing.css";
 
 const PRESETS = [
