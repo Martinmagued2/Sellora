@@ -25,6 +25,7 @@ import HeroSection from "./components/landing/HeroSection";
 import BeforeAfterScrubber from "./components/landing/BeforeAfterScrubber";
 import InteractiveSandbox from "./components/landing/InteractiveSandbox";
 import ROICalculator from "./components/landing/ROICalculator";
+import NeuralNetworkGlobe3D from "./components/landing/NeuralNetworkGlobe3D";
 
 /* Dynamic import for 3D hero scene (SSR safe) */
 const HeroScene3D = lazy(() => import("./components/HeroScene3D"));
@@ -873,6 +874,11 @@ export default function Home() {
       {/* ===== INTERACTIVE SANDBOX SIMULATOR ===== */}
       <section className="section" id="interactive-sandbox" style={{ background: "var(--bg-primary)", padding: "60px 0" }}>
         <InteractiveSandbox />
+      </section>
+
+      {/* ===== 3D NEURAL NETWORK GLOBE ===== */}
+      <section className="section" id="network-globe" style={{ background: "var(--bg-secondary)", padding: "60px 0" }}>
+        <NeuralNetworkGlobe3D />
       </section>
 
       {/* ===== 5 CHANNELS SHOWCASE — BOUNCE CARDS ===== */}
