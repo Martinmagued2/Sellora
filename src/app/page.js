@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense, lazy } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
 import {
   MessageCircle, ShoppingBag, Users, BarChart3, Zap, Send, Bot, Package,
   CreditCard, TrendingUp, Check, Plus, ChevronRight, Star, ArrowRight,
@@ -857,7 +859,7 @@ export default function Home() {
       <nav className={`navbar ${isScrolled ? "scrolled" : ""}`} id="navbar">
         <div className="navbar-inner">
           <a href="#" className="navbar-logo">
-            <img src="/logo.png" alt="Sellora" className="navbar-logo-img" style={{ width: 32, height: 32, borderRadius: 8 }} />
+            <Image src="/logo.png" alt="Sellora" width={32} height={32} className="navbar-logo-img" style={{ width: 32, height: 32, borderRadius: 8 }} />
             <span>Sell<span className="text-gradient-static">ora</span></span>
           </a>
           <div className="navbar-links">
@@ -1041,7 +1043,7 @@ export default function Home() {
           <div className="section-header animate-on-scroll" style={{ marginBottom: 40 }}>
             <span className="badge badge-primary" style={{ marginBottom: 16 }}><MessageSquare size={12} /> Unified Inbox</span>
             <h2 className="section-title-reveal">5 Channels. <span className="text-gradient-static">One Inbox.</span></h2>
-            <p>Your customers are everywhere. Sellora's AI replies on all 5 — instantly, 24/7.</p>
+            <p>Your customers are everywhere. Sellora&apos;s AI replies on all 5 — instantly, 24/7.</p>
           </div>
 
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300, padding: "20px 0" }}>
@@ -1270,7 +1272,7 @@ export default function Home() {
           <div className="section-header" style={{ marginBottom: 40 }}>
             <span className="section-badge">FAQ</span>
             <h2 className="section-title">Pricing Questions</h2>
-            <p className="section-subtitle">Everything you need to know about Sellora's pricing</p>
+            <p className="section-subtitle">Everything you need to know about Sellora&apos;s pricing</p>
           </div>
           <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
             {[
@@ -1371,7 +1373,7 @@ export default function Home() {
           <div className="footer-top">
             <div className="footer-brand">
               <a href="#" className="navbar-logo">
-                <img src="/logo.png" alt="Sellora" style={{ width: 32, height: 32, borderRadius: 8 }} />
+                <Image src="/logo.png" alt="Sellora" width={32} height={32} style={{ width: 32, height: 32, borderRadius: 8 }} />
                 <span>Sell<span className="text-gradient-static">ora</span></span>
               </a>
               <p>{t("footer_desc")}</p>
@@ -1409,28 +1411,28 @@ export default function Home() {
               <a href="#pricing" onClick={preventNav}>{t("footer_pricing")}</a>
               <a href="#how-it-works" onClick={preventNav}>{t("footer_how")}</a>
               <a href="#integrations" onClick={preventNav}>{t("footer_integrations")}</a>
-              <a href="/api-docs" onClick={preventNav}>{t("footer_api")}</a>
+              <Link href="/api-docs" onClick={preventNav}>{t("footer_api")}</Link>
             </div>
             <div className="footer-col">
               <h4>{t("footer_company")}</h4>
-              <a href="/about" onClick={preventNav}>{t("footer_about")}</a>
-              <a href="/blog" onClick={preventNav}>{t("footer_blog")}</a>
-              <a href="/careers" onClick={preventNav}>{t("footer_careers")}</a>
+              <Link href="/about" onClick={preventNav}>{t("footer_about")}</Link>
+              <Link href="/blog" onClick={preventNav}>{t("footer_blog")}</Link>
+              <Link href="/careers" onClick={preventNav}>{t("footer_careers")}</Link>
               <a href="mailto:support@sellora.app" onClick={preventNav}>{t("footer_contact")}</a>
             </div>
             <div className="footer-col">
               <h4>{t("footer_legal")}</h4>
-              <a href="/privacy" onClick={preventNav}>{t("footer_privacy")}</a>
-              <a href="/terms" onClick={preventNav}>{t("footer_terms")}</a>
-              <a href="/gdpr" onClick={preventNav}>{t("footer_gdpr")}</a>
-              <a href="/security" onClick={preventNav}>{t("footer_security")}</a>
+              <Link href="/privacy" onClick={preventNav}>{t("footer_privacy")}</Link>
+              <Link href="/terms" onClick={preventNav}>{t("footer_terms")}</Link>
+              <Link href="/gdpr" onClick={preventNav}>{t("footer_gdpr")}</Link>
+              <Link href="/security" onClick={preventNav}>{t("footer_security")}</Link>
             </div>
           </div>
           <div className="footer-extra-links">
-            <a href="/help" onClick={preventNav}>Help Center</a>
-            <a href="/blog" onClick={preventNav}>Blog</a>
-            <a href="/affiliates" onClick={preventNav}>Affiliates</a>
-            <a href="/status" onClick={preventNav}>Status</a>
+            <Link href="/help" onClick={preventNav}>Help Center</Link>
+            <Link href="/blog" onClick={preventNav}>Blog</Link>
+            <Link href="/affiliates" onClick={preventNav}>Affiliates</Link>
+            <Link href="/status" onClick={preventNav}>Status</Link>
           </div>
           <div className="footer-bottom">
             <p>{t("footer_copyright")}</p>

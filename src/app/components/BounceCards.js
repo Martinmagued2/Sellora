@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Image from "next/image";
 import { gsap } from "gsap";
 import "./BounceCards.css";
 
@@ -125,7 +126,8 @@ export default function BounceCards({
       ref={containerRef}
       style={{
         position: "relative",
-        width: containerWidth,
+        width: typeof containerWidth === "number" ? `min(100%, ${containerWidth}px)` : containerWidth,
+        maxWidth: "100%",
         height: containerHeight,
       }}
     >
@@ -139,7 +141,14 @@ export default function BounceCards({
           onMouseEnter={() => pushSiblings(idx)}
           onMouseLeave={resetSiblings}
         >
-          <img className="image" src={src} alt={`card-${idx}`} />
+          <Image
+            className="image"
+            src={src}
+            alt={`Sellora channel integration ${idx}`}
+            width={160}
+            height={160}
+            style={{ objectFit: "contain", width: "100%", height: "100%" }}
+          />
         </div>
       ))}
     </div>

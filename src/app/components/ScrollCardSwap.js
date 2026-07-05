@@ -79,60 +79,23 @@ const ScrollCardSwap = ({
       const targetIndex = Math.min(Math.floor(progress * total), total - 1);
 
       if (targetIndex !== currentIndexRef.current) {
-        const diff = targetIndex - currentIndexRef.current;
-        const direction = diff > 0 ? "next" : "prev";
-        const steps = Math.abs(diff);
-
-        for (let i = 0; i < steps; i++) {
-          swapOne(direction);
-        }
-
         currentIndexRef.current = targetIndex;
+        for (let idx = 0; idx < total; idx++) {
+          const slotIdx = (idx - targetIndex + total) % total;
+          const el = refs[idx]?.current;
+          if (!el) continue;
+          const slot = makeSlot(slotIdx, cardDistance, verticalDistance, total);
+          gsap.to(el, {
+            x: slot.x,
+            y: slot.y,
+            z: slot.z,
+            zIndex: slot.zIndex,
+            duration: config.dur,
+            ease: config.ease,
+            overwrite: "auto",
+          });
+        }
       }
-    };
-
-    const swapOne = (direction) => {
-      if (total < 2) return;
-
-      // Current order: [0, 1, 2, 3, ...] where 0 is front
-      // We need to figure out the current visual order
-      // and rotate it
-      const currentOrder = [];
-      for (let i = 0; i < total; i++) {
-        // Find which card is in slot i by checking zIndex
-        const slot = makeSlot(i, cardDistance, verticalDistance, total);
-        let foundCard = -1;
-        refs.forEach((r, idx) => {
-          if (r.current) {
-            const z = parseInt(r.current.style.zIndex || "0");
-            if (z === slot.zIndex) foundCard = idx;
-          }
-        });
-        currentOrder.push(foundCard >= 0 ? foundCard : i);
-      }
-
-      let newOrder;
-      if (direction === "next") {
-        newOrder = [...currentOrder.slice(1), currentOrder[0]];
-      } else {
-        newOrder = [currentOrder[currentOrder.length - 1], ...currentOrder.slice(0, -1)];
-      }
-
-      // Animate each card to its new slot
-      newOrder.forEach((cardIdx, slotIdx) => {
-        const el = refs[cardIdx]?.current;
-        if (!el) return;
-        const slot = makeSlot(slotIdx, cardDistance, verticalDistance, total);
-        gsap.to(el, {
-          x: slot.x,
-          y: slot.y,
-          z: slot.z,
-          zIndex: slot.zIndex,
-          duration: config.dur,
-          ease: config.ease,
-          overwrite: "auto",
-        });
-      });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -148,12 +111,12 @@ const ScrollCardSwap = ({
       ? cloneElement(child, {
           key: i,
           ref: refs[i],
-          style: { width, height, ...(child.props.style ?? {}) },
+          style: { width: "100%", height: "100%", maxWidth: "100%", ...(child.props.style ?? {}) },
         })
       : child
   );
 
-  const totalHeight = `${childArr.length * 100}vh`;
+  const totalHeight = `${Math.max(300, childArr.length * 45)}vh`;
 
   return (
     <div ref={sectionRef} style={{ height: totalHeight, position: "relative" }}>
@@ -166,14 +129,16 @@ const ScrollCardSwap = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          padding: "0 16px",
         }}
       >
         <div
           ref={cardsRef}
           className="card-swap-container"
           style={{
-            width,
-            height,
+            width: typeof width === "number" ? `min(100%, ${width}px)` : width,
+            maxWidth: "90vw",
+            height: typeof height === "number" ? `min(80vh, ${height}px)` : height,
             position: "relative",
             transform: "none",
           }}
