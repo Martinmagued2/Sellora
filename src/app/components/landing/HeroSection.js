@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, Play, CheckCircle2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import HeroDashboardMockup from "./HeroDashboardMockup";
-import HeroWorkflowBanner from "./HeroWorkflowBanner";
 import "./landing.css";
 
 const DICT = {
@@ -113,9 +112,6 @@ export default function HeroSection() {
           </div>
 
         </div>
-
-        {/* Bottom Horizontal Workflow Banner */}
-        <HeroWorkflowBanner />
 
       </div>
     </section>

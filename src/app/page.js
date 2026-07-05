@@ -873,7 +873,7 @@ export default function Home() {
 
       {/* WhatsApp floating button — marketing site lead capture */}
       <a
-        href="https://wa.me/20128200932?text=Hi!%20I'm%20interested%20in%20Sellora%20for%20my%20business"
+        href="https://wa.me/201280552535?text=Hi!%20I'm%20interested%20in%20Sellora%20for%20my%20business"
         target="_blank"
         rel="noopener noreferrer"
         style={{
