@@ -21,6 +21,10 @@ import MagneticButton from "@/components/MagneticButton";
 import BounceCards from "./components/BounceCards";
 import CardSwap, { Card } from "./components/CardSwap";
 import ScrollCardSwap, { Card as ScrollCard } from "./components/ScrollCardSwap";
+import HeroSection from "./components/landing/HeroSection";
+import BeforeAfterScrubber from "./components/landing/BeforeAfterScrubber";
+import InteractiveSandbox from "./components/landing/InteractiveSandbox";
+import ROICalculator from "./components/landing/ROICalculator";
 
 /* Dynamic import for 3D hero scene (SSR safe) */
 const HeroScene3D = lazy(() => import("./components/HeroScene3D"));
@@ -909,133 +913,31 @@ export default function Home() {
         </div>
       )}
 
-      {/* ===== HERO — IMMERSIVE 3D ===== */}
-      <section className="hero" id="hero">
-        <MorphBlob color="purple" style={{ top: "-10%", right: "-5%", width: "60vw", maxWidth: 600, opacity: 0.8 }} />
-        <MorphBlob color="violet" style={{ top: "20%", left: "-8%", width: "40vw", maxWidth: 400, opacity: 0.6 }} />
-        <MorphBlob color="cyan" style={{ bottom: "-5%", left: "30%", width: "50vw", maxWidth: 500, opacity: 0.5 }} />
-        <div className="bg-glow hero-glow-1" />
-        <div className="bg-glow hero-glow-2" />
-        <div className="bg-grid" />
-
-        {/* SVG Data Flow Lines */}
-        <SVGDataFlow />
-
-        {/* 3D Hero Scene */}
-        <Suspense fallback={null}>
-          <HeroScene3D />
-        </Suspense>
-
-        {/* Floating notification elements */}
-        <div className="hero-float-elements">
-          <motion.div className="hero-float-el" animate={{ y: [0, -8, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}>
-            <div className="hero-float-icon green"><Check size={16} /></div><span>Order #1847 confirmed</span>
-          </motion.div>
-          <motion.div className="hero-float-el" animate={{ y: [0, 8, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}>
-            <div className="hero-float-icon blue"><Bot size={16} /></div><span>AI replied in 0.3s</span>
-          </motion.div>
-          <motion.div className="hero-float-el" animate={{ y: [0, -10, 0] }} transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}>
-            <div className="hero-float-icon purple"><TrendingUp size={16} /></div><span>Sales up 340%</span>
-          </motion.div>
-          <motion.div className="hero-float-el" animate={{ y: [0, 6, 0] }} transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}>
-            <div className="hero-float-icon orange"><CreditCard size={16} /></div><span>Payment received</span>
-          </motion.div>
-        </div>
-
-        <div className="hero-layout hero-layout-centered">
-          <motion.div className="hero-content" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, ease: "easeOut" }}>
-            <div className="hero-badge">
-              <span className="badge badge-primary"><Zap size={12} />{t("hero_badge")}</span>
-            </div>
-
-            <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.8 }}>
-              <span className="hero-word">Never</span>{" "}
-              <span className="hero-word">Lose</span>{" "}
-              <span className="hero-word">a</span>{" "}
-              <span className="hero-word">Customer</span>{" "}
-              <span className="hero-word">Because</span>{" "}
-              <span className="hero-word">You</span>{" "}
-              <span className="hero-word text-gradient">Replied</span>{" "}
-              <span className="hero-word text-gradient">Too</span>{" "}
-              <span className="hero-word text-gradient">Late.</span>
-            </motion.h1>
-
-            <motion.p className="hero-subtitle hero-subtitle-mask" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.8 }}>
-              {t("hero_subtitle")}
-            </motion.p>
-
-            <motion.div className="hero-cta" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.8 }}>
-              <MagneticButton className="hero-cta-btn">
-                <button className="btn btn-primary btn-lg magnetic-btn" onClick={() => router.push('/signup')}>
-                  Join the Waitlist <ArrowRight size={18} />
-                </button>
-              </MagneticButton>
-              <MagneticButton className="hero-cta-btn">
-                <button className="btn btn-secondary btn-lg" onClick={() => router.push('/login')}>
-                  Watch Demo <Play size={18} />
-                </button>
-              </MagneticButton>
-            </motion.div>
-
-            <motion.div className="hero-stats" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8, duration: 1 }}>
-              <div className="hero-stat"><div className="hero-stat-value text-gradient-static"><span className="stat-counter" data-target="5000">0</span>+</div><div className="hero-stat-label">{t("hero_stat_sellers")}</div></div>
-              <div className="hero-stat"><div className="hero-stat-value text-gradient-static"><span className="stat-counter" data-target="2500000">0</span>M+</div><div className="hero-stat-label">{t("hero_stat_messages")}</div></div>
-              <div className="hero-stat"><div className="hero-stat-value text-gradient-static">3x</div><div className="hero-stat-label">Avg Sales Increase</div></div>
-              <div className="hero-stat"><div className="hero-stat-value text-gradient-static"><span className="stat-counter" data-target="98">0</span>%</div><div className="hero-stat-label">{t("hero_stat_uptime")}</div></div>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+      {/* ===== HERO — IMMERSIVE 3D & APPLE GLASS APP ===== */}
+      <HeroSection />
 
       {/* ===== BRAND MARQUEE ===== */}
       <BrandMarquee />
       <SVGWaveDivider />
 
-      {/* ===== THE PROBLEM ===== */}
-      <section className="section problem" id="problem" style={{ position: "relative", overflow: "hidden" }}>
-        <SVGHexGrid />
-        <div className="section-inner">
-          <div className="problem-grid">
-            <motion.div className="problem-content problem-left" initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
-              <span className="badge badge-primary" style={{ marginBottom: 16 }}><AlertTriangle size={12} /> The Problem</span>
-              <h2 className="section-title-reveal">You&apos;re losing sales in your <span className="text-gradient-static">DMs</span> right now</h2>
-              <p>Every unanswered message is a lost customer. Every delayed reply is money left on the table. Here&apos;s what&apos;s happening:</p>
-              <div className="problem-list">
-                {[
-                  { icon: <Clock size={18} />, title: "Missed messages at night", desc: "60% of customers message between 10PM-2AM. You're asleep, they buy from someone else." },
-                  { icon: <Copy size={18} />, title: "Copy-pasting prices all day", desc: "You spend 3+ hours/day answering \"How much is this?\" and \"Is it available?\" manually." },
-                  { icon: <AlertTriangle size={18} />, title: "Lost orders in chat history", desc: "No tracking. No system. Orders get mixed up, customers get frustrated, you lose repeat business." },
-                ].map((item, i) => (
-                  <motion.div key={i} className="problem-item" initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.15 }}>
-                    <div className="problem-item-icon">{item.icon}</div>
-                    <div className="problem-item-text"><h4>{item.title}</h4><p>{item.desc}</p></div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-
-            <motion.div className="problem-visual problem-right" initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
-              <div className="problem-mockup">
-                <div className="problem-chat">
-                  <motion.div className="problem-chat-msg incoming" initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 }}>Hi, how much is the black bag? <span className="time">11:47 PM</span></motion.div>
-                  <motion.div className="problem-chat-msg incoming" initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.5 }}>Hello?<span className="time">11:52 PM</span></motion.div>
-                  <motion.div className="problem-chat-msg incoming" initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.8 }}>Is anyone there?<span className="time">12:15 AM</span></motion.div>
-                  <motion.div className="problem-chat-missed" initial={{ opacity: 0, scale: 0.8 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: 1.1 }}>
-                    <span className="missed-sticker">Missed</span>
-                    <span className="missed-duration">8+ hrs unanswered</span>
-                  </motion.div>
-                  <motion.div className="problem-chat-msg outgoing" initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 1.4 }}>Hi! Sorry I was asleep. The black bag is 450 EGP. Are you interested?<span className="time">8:30 AM</span></motion.div>
-                  <motion.div className="problem-chat-msg incoming problem-msg-lost" initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 1.7 }}>I already bought from someone else<span className="time">9:15 AM</span></motion.div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
+      {/* ===== THE PROBLEM & INTERACTIVE SCRUBBER ===== */}
+      <section className="section problem" id="problem" style={{ position: "relative", overflow: "hidden", padding: "80px 0" }}>
+        <div className="section-inner" style={{ textAlign: "center", marginBottom: "40px" }}>
+          <span className="designer-badge" style={{ marginBottom: "16px" }}><span className="dot" /> The Problem vs. Solution</span>
+          <h2 className="designer-title" style={{ fontSize: "2.8rem" }}>Why You&apos;re Losing Sales in Your <span style={{ color: "#818cf8" }}>DMs</span> Today</h2>
+          <p className="designer-subtitle">Every unanswered message after 10 PM is a lost customer. Drag the slider below to see how Sellora transforms social commerce chaos into automated revenue.</p>
         </div>
+        <BeforeAfterScrubber />
       </section>
 
       {/* ===== THE SOLUTION ===== */}
       <SolutionSection />
       <SVGWaveDivider flip />
+
+      {/* ===== INTERACTIVE SANDBOX SIMULATOR ===== */}
+      <section className="section" id="interactive-sandbox" style={{ background: "var(--bg-primary)", padding: "60px 0" }}>
+        <InteractiveSandbox />
+      </section>
 
       {/* ===== 5 CHANNELS SHOWCASE — BOUNCE CARDS ===== */}
       <section className="section" style={{ background: "var(--bg-primary)", overflow: "hidden" }}>
@@ -1124,6 +1026,11 @@ export default function Home() {
             </ScrollCard>
           ))}
         </ScrollCardSwap>
+      </section>
+
+      {/* ===== ROI CALCULATOR ===== */}
+      <section className="section" id="roi-calculator" style={{ background: "var(--bg-secondary)", padding: "60px 0" }}>
+        <ROICalculator />
       </section>
 
       {/* ===== FEATURES (ORIGINAL 6) ===== */}
