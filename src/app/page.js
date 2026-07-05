@@ -387,12 +387,12 @@ function SVGDotPattern() {
 function BrandMarquee() {
   const integrations = [
     "WhatsApp Business API", "Shopify Storefront", "Paymob Direct Webhooks", "InstaPay Egypt", 
-    "Fawry Invoicing", "Vodafone Cash", "Meta Business Partner", "Supabase RLS", 
-    "Groq Llama 4 Engine", "Google Gemini Flash"
+    "Fawry Invoicing", "Vodafone Cash", "Strict Data Isolation", "Supabase RLS", 
+    "Autonomous Reasoning Engine", "Sub-Second Dialect NLP"
   ];
   const certs = [
     "2FA SERVER ENFORCEMENT", "ENTERPRISE ROW-LEVEL SECURITY", "DIRECT BANKING WEBHOOKS", 
-    "SUB-SECOND NLP ROUTING", "VERIFIED META SOLUTION", "ZERO HUMAN DELAY"
+    "SUB-SECOND NLP ROUTING", "REAL-TIME DATA SYNCHRONIZATION", "ZERO HUMAN DELAY"
   ];
   const doubledIntegrations = [...integrations, ...integrations];
   const doubledCerts = [...certs, ...certs];
@@ -471,9 +471,9 @@ export default function Home() {
   ];
 
   const pricingPlans = [
-    { tier: "STARTER", name: "Starter", desc: "Perfect for solo sellers launching automated social commerce", price: isAnnual ? 799 : 999, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "1 Shopify store connection", "25 catalog products", "50 automated replies/day (Llama 4 Engine)", "100 conversations/mo", "30-day message history", "Basic analytics dashboard", "Email support"], cta: "Start Free Trial", featured: false },
-    { tier: "MOST POPULAR", name: "Professional", desc: "For growing e-commerce brands scaling social revenue", price: isAnnual ? 1999 : 2499, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "3 Shopify store connections", "Unlimited catalog products", "500 automated replies/day (Gemini 2.0 Flash Engine)", "1,000 conversations/mo", "6-month message history", "Full analytics dashboard + Webhooks", "3 team seats", "5 broadcast campaigns/mo", "Priority email support"], cta: "Start Free Trial", featured: true },
-    { tier: "BUSINESS", name: "Business", desc: "For teams managing multiple stores and high DM volume", price: isAnnual ? 4799 : 5999, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "Unlimited Shopify stores", "Unlimited catalog products", "Unlimited automated replies (Gemini 2.5 Flash Engine)", "Unlimited conversations", "Unlimited message history", "Full analytics + CSV export + Webhooks", "Unlimited team seats", "Unlimited broadcast campaigns", "Dedicated account manager"], cta: "Contact Sales", featured: false },
+    { tier: "STARTER", name: "Starter", desc: "Perfect for solo sellers launching automated social commerce", price: isAnnual ? 799 : 999, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "1 Shopify store connection", "25 catalog products", "50 automated replies/day (Fast Response Engine)", "100 conversations/mo", "30-day message history", "Basic analytics dashboard", "Email support"], cta: "Start Free Trial", featured: false },
+    { tier: "MOST POPULAR", name: "Professional", desc: "For growing e-commerce brands scaling social revenue", price: isAnnual ? 1999 : 2499, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "3 Shopify store connections", "Unlimited catalog products", "500 automated replies/day (Smart Reasoning Engine)", "1,000 conversations/mo", "6-month message history", "Full analytics dashboard + Webhooks", "3 team seats", "5 broadcast campaigns/mo", "Priority email support"], cta: "Start Free Trial", featured: true },
+    { tier: "BUSINESS", name: "Business", desc: "For teams managing multiple stores and high DM volume", price: isAnnual ? 4799 : 5999, features: ["All 5 connected channels (WA, IG, FB, TG, Email)", "Unlimited Shopify stores", "Unlimited catalog products", "Unlimited automated replies (Advanced Multi-Agent Engine)", "Unlimited conversations", "Unlimited message history", "Full analytics + CSV export + Webhooks", "Unlimited team seats", "Unlimited broadcast campaigns", "Dedicated account manager"], cta: "Contact Sales", featured: false },
   ];
 
   
@@ -726,7 +726,7 @@ export default function Home() {
               </tr></thead>
               <tbody>
                 {[
-                  { category: "AI & Automation" }, { label: "AI Reasoning Engine", starter: "Groq Llama 4 Scout", pro: "Gemini 2.0 Flash", biz: "Gemini 2.5 Flash Preview" },
+                  { category: "AI & Automation" }, { label: "AI Reasoning Engine", starter: "Fast Response Engine", pro: "Smart Reasoning Engine", biz: "Advanced Multi-Agent Engine" },
                   { label: "AI Replies / Day", starter: "50", pro: "500", biz: "Unlimited" },
                   { label: "Sandbox Testing / Day", starter: "10", pro: "50", biz: "Unlimited" },
                   { label: "Custom AI Personality", starter: false, pro: true, biz: true },
