@@ -289,70 +289,6 @@ function AIChatDemo() {
 }
 
 /* ============================================
-   ROI CALCULATOR
-   ============================================ */
-function ROICalculator() {
-  const [dms, setDms] = useState(50);
-  const [orderValue, setOrderValue] = useState(300);
-  const [hours, setHours] = useState(4);
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
-
-  const hoursSaved = Math.round(hours * 7 * 0.8);
-  const extraRevenue = Math.round(dms * 0.15 * orderValue * 30);
-  const responseBefore = hours > 0 ? Math.max(1, Math.round(hours * 0.5)) : 1;
-
-  const results = [
-    { icon: <Timer size={20} />, label: "Hours saved per week", value: hoursSaved, suffix: " hrs", color: "var(--accent-secondary)" },
-    { icon: <DollarSign size={20} />, label: "Extra monthly revenue", value: extraRevenue, suffix: " EGP", color: "var(--accent-green)" },
-    { icon: <Zap size={20} />, label: "Response time", value: `${responseBefore} hrs → 2 min`, suffix: "", color: "var(--accent-orange)" },
-    { icon: <Smile size={20} />, label: "Customer satisfaction", value: "+45%", suffix: "", color: "var(--accent-primary-light)" },
-  ];
-
-  return (
-    <section className="section roi-calculator-section" id="roi-calculator" ref={ref}>
-      <div className="section-inner">
-        <div className="section-header animate-on-scroll">
-          <span className="badge badge-primary" style={{ marginBottom: 16 }}><Calculator size={12} /> ROI Calculator</span>
-          <h2 className="section-title-reveal">See Your <span className="text-gradient-static">Potential ROI</span></h2>
-          <p>Estimate how much time and money Sellora can save you every month.</p>
-        </div>
-        <motion.div className="roi-calculator-card" initial={{ opacity: 0, y: 40 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: "easeOut" }}>
-          <div className="roi-calculator-inner">
-            <div className="roi-sliders-col">
-              {[
-                { label: "How many DMs do you receive per day?", value: dms, min: 10, max: 500, step: 1, set: setDms, display: `${dms}` },
-                { label: "Average order value (EGP)", value: orderValue, min: 50, max: 5000, step: 50, set: setOrderValue, display: `${orderValue.toLocaleString()} EGP` },
-                { label: "Hours spent replying per day", value: hours, min: 1, max: 12, step: 1, set: setHours, display: `${hours} hrs` },
-              ].map((s, i) => (
-                <div key={i} className="roi-slider-group">
-                  <div className="roi-slider-header"><label>{s.label}</label><span className="roi-slider-value">{s.display}</span></div>
-                  <input type="range" min={s.min} max={s.max} step={s.step} value={s.value} onChange={(e) => s.set(Number(e.target.value))} className="roi-slider" />
-                  <div className="roi-slider-range"><span>{s.min}</span><span>{s.max.toLocaleString()}</span></div>
-                </div>
-              ))}
-            </div>
-            <div className="roi-results-col">
-              {results.map((item, i) => (
-                <motion.div key={i} className="roi-result-card" initial={{ opacity: 0, x: 30 }} animate={isInView ? { opacity: 1, x: 0 } : {}} transition={{ duration: 0.5, delay: 0.3 + i * 0.15 }}>
-                  <div className="roi-result-icon" style={{ background: `${item.color}20`, color: item.color }}>{item.icon}</div>
-                  <div className="roi-result-text">
-                    <span className="roi-result-label">{item.label}</span>
-                    <span className="roi-result-value" style={{ color: item.color }}>
-                      {typeof item.value === "number" ? <><AnimatedCounter value={item.value} duration={1.2} />{item.suffix}</> : item.value}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================
    LIVE DASHBOARD PREVIEW
    ============================================ */
 function LiveDashboardPreview() {
@@ -1086,12 +1022,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== ROI CALCULATOR ===== */}
-      <section style={{ position: "relative", overflow: "hidden" }}>
-        <SVGDotPattern />
-        <ROICalculator />
-        <SVGWaveDivider flip />
-      </section>
+      
 
       {/* ===== PRICING ===== */}
       <section className="section" id="pricing">
