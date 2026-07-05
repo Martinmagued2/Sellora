@@ -399,3 +399,25 @@ html[data-theme="light"] .btn-designer-secondary:hover {
 html[data-theme="light"] .slider-input {
   background: rgba(0, 0, 0, 0.1);
 }
+
+/* --- Hero Split Grid Responsive & New Components Light Mode --- */
+@media (max-width: 1024px) {
+  .hero-split-grid {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+  }
+}
+
+html[data-theme="light"] .hero-workflow-banner {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.06) !important;
+}
+
+html[data-theme="light"] .hero-dash-mockup-wrapper {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.08), 0 0 40px rgba(99, 102, 241, 0.08) !important;
+  color: #0f172a !important;
+}
