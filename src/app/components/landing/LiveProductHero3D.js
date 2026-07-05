@@ -4,182 +4,264 @@ import React, { useRef, useState, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, Html, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
-import { Check, Zap, CreditCard, Sparkles, MessageSquare, ShieldCheck } from "lucide-react";
+import { Check, Zap, CreditCard, Sparkles, MessageSquare, ShieldCheck, ShoppingBag, Truck, BarChart3, TrendingUp, AlertCircle, Clock } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 
-const DICT = {
+const WORKSPACE_DICT = {
   en: {
-    vipHeader: "WhatsApp VIP • Live Inbox",
-    customerName: "Customer: Omar Khaled (+20 109 452 811)",
-    activePilot: "⚡ Auto-Pilot Active",
-    customerMsg: "Hi, can I get the price of the sneaker size 42 and shipping to Cairo? Is express delivery available?",
-    msgMeta: "10:14 AM • via WhatsApp Catalog",
-    typing: "Sellora AI analyzing Shopify catalog & Paymob inventory...",
-    aiHeader: "AI Automated Reply • 0.6s",
-    aiReply: "Welcome Omar! 👟 The price is 650 EGP and size 42 is in stock at Smouha branch. Express delivery to Cairo arrives within 24 hours! Would you like to confirm COD or pay via InstaPay?",
-    btnConfirm: "⚡ Confirm Order (+650 EGP)",
-    btnInsta: "💳 InstaPay Link",
-    orderSuccess: "Order #1084 confirmed! Fawry electronic invoice sent.",
-    footerSync: "Paymob & Shopify Live Sync",
-    footerVerified: "2FA Verified • Zero Human Delay",
-    toast: "✨ Paymob Checkout Link Auto-Sent • +650 EGP Added to Daily Revenue!",
-    productBoxLabel: "3D LIVE PRODUCT VIEW • SKU: SNK-42",
+    headerTitle: "Sellora Mission Control • Live Operating System",
+    headerStatus: "● 5 Channels Synchronized & Active",
+    kpiRevLabel: "Revenue Today",
+    kpiRevVal: "42,500 EGP",
+    kpiRevLift: "↑ 34%",
+    kpiOrdLabel: "Orders Today",
+    kpiOrdVal: "128 Orders",
+    kpiOrdLift: "+18%",
+    kpiAutoLabel: "Messages Automated",
+    kpiAutoVal: "96%",
+    kpiAutoSub: "0.8s Reply Time",
+    kpiWaitLabel: "Customers Waiting",
+    kpiWaitVal: "0",
+    kpiWaitSub: "100% Resolved",
+    feedTitle: "LIVE AUTONOMOUS COMMERCE FEED",
+    feed1: "✔ Instagram Order #1084 Confirmed • Omar Khaled (+650 EGP)",
+    feed2: "✔ Paymob InstaPay Checkout Auto-Verified #TX-9921",
+    feed3: "✔ Bosta Courier Scheduled • Pickup from Smouha Branch",
+    feed4: "✔ Nike Air Max Inventory Auto-Reserved • 14 left in stock",
+    feed5: "✔ WhatsApp Inquiry Deflected • Sent Official Fawry Invoice",
+    copilotTitle: "SELLORA COPILOT ENGINE",
+    copilotSub: "Quiet infrastructure running behind the scenes:",
+    c1: "✓ Customer inquired about size 42.",
+    c2: "✓ Checked Shopify & reserved stock.",
+    c3: "✓ Generated secure Paymob link.",
+    c4: "✓ Confirmed payment instantly.",
+    c5: "✓ Booked courier shipment.",
+    copilotStatus: "Status: All workflows completed without human intervention.",
+    footerSync: "Shopify • Meta • Paymob • Bosta Official Routing",
+    footerUptime: "2FA Security • 99.99% Uptime",
+    obj1: "Shopify Order #1084",
+    obj2: "Paymob • +650 EGP Paid",
+    obj3: "Bosta • Courier Booked",
+    obj4: "Nike Air Max • 14 Left",
   },
   ar: {
-    vipHeader: "واتساب VIP • صندوق الرسائل المباشر",
-    customerName: "العميل: عمر خالد (+20 109 452 811)",
-    activePilot: "⚡ الطيار الآلي يعمل",
-    customerMsg: "ممكن أعرف سعر الكوتشي المقاس 42 وعنوان فرع اسكندرية وهل في شحن سريع للقاهرة؟",
-    msgMeta: "10:14 صباحاً • عبر كتالوج واتساب",
-    typing: "نظام Sellora يحلل مخزون شوبيفاي ورصيد باي موب...",
-    aiHeader: "رد آلي فوري • 0.6 ثانية",
-    aiReply: "أهلاً بك يا أستاذ عمر! 👟 السعر 650 ج.م ومقاس 42 متاح في فرع سموحة. الشحن السريع للقاهرة بيوصل خلال 24 ساعة! تحب أكدلك الأوردر الدفع عند الاستلام ولا برابط InstaPay؟",
-    btnConfirm: "⚡ تأكيد الأوردر (+650 ج.م)",
-    btnInsta: "💳 رابط InstaPay",
-    orderSuccess: "تم إنشاء أوردر #1084 بنجاح وإرسال فاتورة فوري!",
-    footerSync: "مزامنة لحظية مع Paymob و Shopify",
-    footerVerified: "تحقق ثنائي • بدون تأخير بشري",
-    toast: "✨ تم إرسال رابط دفع Paymob أوتوماتيكياً • إضافة +650 ج.م للإيرادات!",
-    productBoxLabel: "عرض 3D حي للمنتج • SKU: SNK-42",
+    headerTitle: "مركز تحكم Sellora • نظام تشغيل التجارة الإلكترونية",
+    headerStatus: "● 5 قنوات متزامنة وتعمل الآن",
+    kpiRevLabel: "إيرادات اليوم",
+    kpiRevVal: "42,500 ج.م",
+    kpiRevLift: "↑ 34%",
+    kpiOrdLabel: "أوردرات اليوم",
+    kpiOrdVal: "128 أوردر",
+    kpiOrdLift: "+18%",
+    kpiAutoLabel: "أتمتة المحادثات",
+    kpiAutoVal: "96%",
+    kpiAutoSub: "0.8 ثانية سرعة الرد",
+    kpiWaitLabel: "عملاء في الانتظار",
+    kpiWaitVal: "0",
+    kpiWaitSub: "100% تم الرد عليهم",
+    feedTitle: "سجل العمليات الذاتية المباشر",
+    feed1: "✔ تأكيد أوردر إنستجرام #1084 • عمر خالد (+650 ج.م)",
+    feed2: "✔ توثيق دفع InstaPay أوتوماتيكياً عبر Paymob #TX-9921",
+    feed3: "✔ حجز مندوب شحن بوسطة • استلام من فرع سموحة",
+    feed4: "✔ حجز مخزون Nike Air Max أوتوماتيكياً • متبقي 14 قطعة",
+    feed5: "✔ الرد على استفسار واتساب • إرسال فاتورة فوري الرسمية",
+    copilotTitle: "محرك SELLORA COPILOT",
+    copilotSub: "البنية التحتية الذكية تعمل بهدوء في الخلفية:",
+    c1: "✓ العميل استفسر عن مقاس 42.",
+    c2: "✓ مراجعة شوبيفاي وحجز المقاس.",
+    c3: "✓ إصدار رابط دفع Paymob آمن.",
+    c4: "✓ تأكيد الدفع لحظياً.",
+    c5: "✓ حجز شحنة المندوب.",
+    copilotStatus: "الحالة: تم إنجاز كافة العمليات بنجاح دون أي تدخل بشري.",
+    footerSync: "ربط رسمي مع شوبيفاي • ميتا • Paymob • بوسطة",
+    footerUptime: "أمان ثنائي 2FA • استمرارية 99.99%",
+    obj1: "أوردر شوبيفاي #1084",
+    obj2: "Paymob • تم دفع +650 ج.م",
+    obj3: "بوسطة • تم حجز المندوب",
+    obj4: "Nike Air Max • متبقي 14",
   },
   fr: {
-    vipHeader: "WhatsApp VIP • Boîte Directe",
-    customerName: "Client : Omar Khaled (+20 109 452 811)",
-    activePilot: "⚡ Pilote Auto Actif",
-    customerMsg: "Bonjour, quel est le prix des baskets taille 42 et la livraison pour Le Caire ? Livraison express disponible ?",
-    msgMeta: "10:14 • via Catalogue WhatsApp",
-    typing: "L'IA Sellora analyse le catalogue Shopify & Paymob...",
-    aiHeader: "Réponse IA Auto • 0,6s",
-    aiReply: "Bienvenue Omar ! 👟 Le prix est de 650 EGP et la taille 42 est en stock à Alexandrie (Smouha). Livraison express au Caire en 24h ! Souhaitez-vous confirmer la commande ou payer par InstaPay ?",
-    btnConfirm: "⚡ Confirmer Commande (+650 EGP)",
-    btnInsta: "💳 Lien InstaPay",
-    orderSuccess: "Commande #1084 confirmée ! Facture Fawry expédiée.",
-    footerSync: "Synchro Live Paymob & Shopify",
-    footerVerified: "Vérifié 2FA • Zéro Délai Humain",
-    toast: "✨ Lien de paiement Paymob envoyé • +650 EGP ajoutés au revenu !",
-    productBoxLabel: "VUE PRODUIT 3D • SKU: SNK-42",
+    headerTitle: "Centre de Commande Sellora • OS Commerce Live",
+    headerStatus: "● 5 Canaux Synchronisés en Direct",
+    kpiRevLabel: "Revenus du Jour",
+    kpiRevVal: "42 500 EGP",
+    kpiRevLift: "↑ 34%",
+    kpiOrdLabel: "Commandes du Jour",
+    kpiOrdVal: "128 Commandes",
+    kpiOrdLift: "+18%",
+    kpiAutoLabel: "Messages Automatisés",
+    kpiAutoVal: "96%",
+    kpiAutoSub: "0,8s Temps de Réponse",
+    kpiWaitLabel: "Clients en Attente",
+    kpiWaitVal: "0",
+    kpiWaitSub: "100% Résolus",
+    feedTitle: "FLUX DE COMMERCE AUTONOME EN DIRECT",
+    feed1: "✔ Commande Instagram #1084 Confirmée • Omar K. (+650 EGP)",
+    feed2: "✔ Paiement InstaPay vérifié auto par Paymob #TX-9921",
+    feed3: "✔ Livreur Bosta programmé • Enlèvement agence Smouha",
+    feed4: "✔ Stock Nike Air Max réservé auto • 14 restants en stock",
+    feed5: "✔ Demande WhatsApp résolue • Facture Fawry expédiée",
+    copilotTitle: "MOTEUR SELLORA COPILOT",
+    copilotSub: "L'infrastructure invisible qui gère votre boutique :",
+    c1: "✓ Le client demande la taille 42.",
+    c2: "✓ Vérification stock Shopify.",
+    c3: "✓ Lien de paiement Paymob généré.",
+    c4: "✓ Paiement confirmé en 1 seconde.",
+    c5: "✓ Expédition livreur programmée.",
+    copilotStatus: "Statut : Toutes les tâches exécutées sans intervention humaine.",
+    footerSync: "Routage Officiel Shopify • Meta • Paymob • Bosta",
+    footerUptime: "Sécurité 2FA • Disponibilité 99,99%",
+    obj1: "Commande Shopify #1084",
+    obj2: "Paymob • +650 EGP Payé",
+    obj3: "Bosta • Livreur Réservé",
+    obj4: "Nike Air Max • 14 Restants",
   },
 };
 
 /**
- * Floating 3D Product Card & E-Commerce Cube — spins and reacts to mouse/click
+ * Floating Business Object Glass Cards orbiting around the command center
  */
-function FloatingProductBox3D({ lang, d }) {
-  const boxRef = useRef();
-  const ringRef = useRef();
-  const [hovered, setHovered] = useState(false);
+function FloatingBusinessObjects({ d, dir }) {
+  const obj1Ref = useRef();
+  const obj2Ref = useRef();
+  const obj3Ref = useRef();
+  const obj4Ref = useRef();
 
-  useFrame((state, delta) => {
-    if (boxRef.current) {
-      boxRef.current.rotation.y += delta * (hovered ? 1.5 : 0.4);
-      boxRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.8) * 0.15;
-      boxRef.current.position.y = Math.sin(state.clock.elapsedTime * 1.5) * 0.12 + 0.3;
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (obj1Ref.current) {
+      obj1Ref.current.position.y = Math.sin(t * 1.2) * 0.15 + 1.4;
+      obj1Ref.current.position.x = Math.cos(t * 0.8) * 0.2 - 2.8;
     }
-    if (ringRef.current) {
-      ringRef.current.rotation.z -= delta * 0.6;
-      ringRef.current.rotation.x += delta * 0.2;
+    if (obj2Ref.current) {
+      obj2Ref.current.position.y = Math.cos(t * 1.4) * 0.15 - 1.3;
+      obj2Ref.current.position.x = Math.sin(t * 0.9) * 0.2 - 2.6;
+    }
+    if (obj3Ref.current) {
+      obj3Ref.current.position.y = Math.sin(t * 1.1 + 1) * 0.15 + 1.3;
+      obj3Ref.current.position.x = Math.cos(t * 0.7 + 1) * 0.2 + 2.8;
+    }
+    if (obj4Ref.current) {
+      obj4Ref.current.position.y = Math.cos(t * 1.3 + 2) * 0.15 - 1.2;
+      obj4Ref.current.position.x = Math.sin(t * 0.8 + 2) * 0.2 + 2.6;
     }
   });
 
   return (
-    <group position={[2.6, 0.2, 0.4]} scale={0.75}>
-      {/* Outer Orbit Ring */}
-      <mesh ref={ringRef}>
-        <torusGeometry args={[1.3, 0.03, 16, 64]} />
-        <meshBasicMaterial color="#10b981" wireframe={true} transparent opacity={0.6} />
-      </mesh>
+    <group>
+      {/* Object 1: Shopify Order Card */}
+      <group ref={obj1Ref} position={[-2.8, 1.4, 0.3]} scale={0.8}>
+        <mesh>
+          <boxGeometry args={[1.8, 0.6, 0.04]} />
+          <meshPhysicalMaterial color="#1e1b4b" roughness={0.2} metalness={0.8} clearcoat={1} />
+        </mesh>
+        <Html transform position={[0, 0, 0.03]} distanceFactor={3.5}>
+          <div style={{ background: "rgba(30, 27, 75, 0.95)", border: "1px solid #6366f1", padding: "6px 12px", borderRadius: "8px", color: "#fff", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap", boxShadow: "0 8px 20px rgba(0,0,0,0.5)", direction: dir }}>
+            <ShoppingBag size={12} color="#818cf8" />
+            <span>{d.obj1}</span>
+            <span style={{ background: "#10b981", padding: "2px 6px", borderRadius: "4px", fontSize: "9px" }}>✔ Confirmed</span>
+          </div>
+        </Html>
+      </group>
 
-      {/* Spinning 3D E-Commerce Package Cube */}
-      <mesh
-        ref={boxRef}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-      >
-        <boxGeometry args={[1.2, 1.4, 1.2]} />
-        <meshPhysicalMaterial
-          color={hovered ? "#4f46e5" : "#1e1b4b"}
-          roughness={0.2}
-          metalness={0.7}
-          clearcoat={1}
-          clearcoatRoughness={0.1}
-          reflectivity={1}
-        />
-      </mesh>
+      {/* Object 2: Paymob Receipt */}
+      <group ref={obj2Ref} position={[-2.6, -1.3, 0.3]} scale={0.8}>
+        <mesh>
+          <boxGeometry args={[1.8, 0.6, 0.04]} />
+          <meshPhysicalMaterial color="#064e3b" roughness={0.2} metalness={0.8} clearcoat={1} />
+        </mesh>
+        <Html transform position={[0, 0, 0.03]} distanceFactor={3.5}>
+          <div style={{ background: "rgba(6, 78, 59, 0.95)", border: "1px solid #10b981", padding: "6px 12px", borderRadius: "8px", color: "#fff", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap", boxShadow: "0 8px 20px rgba(0,0,0,0.5)", direction: dir }}>
+            <CreditCard size={12} color="#34d399" />
+            <span>{d.obj2}</span>
+          </div>
+        </Html>
+      </group>
 
-      {/* Floating Price Tag HTML over the 3D Product Cube */}
-      <Html position={[0, -1.1, 0]} center distanceFactor={4}>
-        <div style={{ background: "rgba(16, 185, 129, 0.9)", color: "#fff", padding: "4px 10px", borderRadius: "8px", fontSize: "10px", fontWeight: 800, whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(16,185,129,0.4)", border: "1px solid #fff" }}>
-          👟 650 EGP • INSTAPAY READY
-        </div>
-      </Html>
+      {/* Object 3: Courier Booked */}
+      <group ref={obj3Ref} position={[2.8, 1.3, 0.3]} scale={0.8}>
+        <mesh>
+          <boxGeometry args={[1.8, 0.6, 0.04]} />
+          <meshPhysicalMaterial color="#451a03" roughness={0.2} metalness={0.8} clearcoat={1} />
+        </mesh>
+        <Html transform position={[0, 0, 0.03]} distanceFactor={3.5}>
+          <div style={{ background: "rgba(69, 26, 3, 0.95)", border: "1px solid #f59e0b", padding: "6px 12px", borderRadius: "8px", color: "#fff", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap", boxShadow: "0 8px 20px rgba(0,0,0,0.5)", direction: dir }}>
+            <Truck size={12} color="#fbbf24" />
+            <span>{d.obj3}</span>
+          </div>
+        </Html>
+      </group>
+
+      {/* Object 4: Low Stock Alert */}
+      <group ref={obj4Ref} position={[2.6, -1.2, 0.3]} scale={0.8}>
+        <mesh>
+          <boxGeometry args={[1.8, 0.6, 0.04]} />
+          <meshPhysicalMaterial color="#31102f" roughness={0.2} metalness={0.8} clearcoat={1} />
+        </mesh>
+        <Html transform position={[0, 0, 0.03]} distanceFactor={3.5}>
+          <div style={{ background: "rgba(49, 16, 47, 0.95)", border: "1px solid #ec4899", padding: "6px 12px", borderRadius: "8px", color: "#fff", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap", boxShadow: "0 8px 20px rgba(0,0,0,0.5)", direction: dir }}>
+            <AlertCircle size={12} color="#f472b6" />
+            <span>{d.obj4}</span>
+          </div>
+        </Html>
+      </group>
     </group>
   );
 }
 
-function GlassAppFrame({ onOrderConfirmed, lang, d, dir }) {
+function CommandCenterGlassFrame({ d, dir }) {
   const groupRef = useRef();
-  const [step, setStep] = useState(0);
-  const [typing, setTyping] = useState(false);
-  const [orderCreated, setOrderCreated] = useState(false);
+  const [ticker, setTicker] = useState(42500);
+  const [orderCount, setOrderCount] = useState(128);
 
-  // Auto-cycle chat animation
+  // Self-running autonomous ticker animation
   useEffect(() => {
-    const timer1 = setTimeout(() => setTyping(true), 1200);
-    const timer2 = setTimeout(() => {
-      setTyping(false);
-      setStep(1);
-    }, 2800);
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-    };
+    const interval = setInterval(() => {
+      setTicker((prev) => prev + 650);
+      setOrderCount((prev) => prev + 1);
+    }, 6000);
+    return () => clearInterval(interval);
   }, []);
 
-  // Smooth mouse follow (Linear / Vercel style tilt)
   useFrame((state) => {
     if (!groupRef.current) return;
     const { x, y } = state.pointer;
-    groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, x * 0.18, 0.06);
-    groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, -y * 0.12, 0.06);
+    groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, x * 0.12, 0.05);
+    groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, -y * 0.08, 0.05);
   });
 
-  const handleConfirmOrder = () => {
-    setOrderCreated(true);
-    if (onOrderConfirmed) onOrderConfirmed();
-  };
-
   return (
-    <group ref={groupRef} position={[-0.4, 0, 0]}>
-      <Float speed={1.5} rotationIntensity={0.12} floatIntensity={0.4}>
-        {/* 3D Glass Bezel Background */}
+    <group ref={groupRef}>
+      <Float speed={1.2} rotationIntensity={0.08} floatIntensity={0.3}>
+        {/* Main 3D Glass Dashboard Background */}
         <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[4.4, 3.2, 0.08]} />
+          <boxGeometry args={[5.2, 3.4, 0.06]} />
           <meshPhysicalMaterial
-            color="#12131a"
-            roughness={0.15}
-            metalness={0.8}
+            color="#0d0e14"
+            roughness={0.12}
+            metalness={0.85}
             clearcoat={1}
             clearcoatRoughness={0.1}
             wireframe={false}
           />
         </mesh>
 
-        {/* Glowing border frame */}
+        {/* Glowing Bezel */}
         <mesh position={[0, 0, -0.01]}>
-          <boxGeometry args={[4.44, 3.24, 0.06]} />
-          <meshBasicMaterial color="#6366f1" transparent opacity={0.3} />
+          <boxGeometry args={[5.24, 3.44, 0.04]} />
+          <meshBasicMaterial color="#6366f1" transparent opacity={0.35} />
         </mesh>
 
-        {/* Embedded High-Fidelity UI HTML Mockup */}
-        <Html transform position={[0, 0, 0.05]} distanceFactor={3.1}>
+        {/* Embedded High-Fidelity Business OS HTML */}
+        <Html transform position={[0, 0, 0.04]} distanceFactor={3.1}>
           <div
             style={{
-              width: "390px",
-              background: "rgba(13, 14, 20, 0.96)",
+              width: "480px",
+              background: "rgba(10, 11, 16, 0.96)",
               border: "1px solid rgba(255, 255, 255, 0.12)",
               borderRadius: "16px",
               padding: "16px",
-              boxShadow: "0 25px 60px rgba(0, 0, 0, 0.7)",
+              boxShadow: "0 30px 70px rgba(0, 0, 0, 0.8)",
               color: "#fff",
               fontFamily: "'Inter', sans-serif",
               userSelect: "none",
@@ -187,113 +269,103 @@ function GlassAppFrame({ onOrderConfirmed, lang, d, dir }) {
               textAlign: dir === "rtl" ? "right" : "left",
             }}
           >
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "12px", marginBottom: "14px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
+            {/* Top Command Bar */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "10px", marginBottom: "12px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "linear-gradient(135deg, #25D366, #128C7E)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <MessageSquare size={14} color="#fff" />
-                </div>
-                <div>
-                  <div style={{ fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-                    <span>{d.vipHeader}</span>
-                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10B981", boxShadow: "0 0 6px #10B981" }} />
-                  </div>
-                  <div style={{ fontSize: "10px", color: "#94A3B8" }}>{d.customerName}</div>
-                </div>
+                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10B981", boxShadow: "0 0 8px #10B981" }} />
+                <span style={{ fontSize: "12px", fontWeight: 800, color: "#f8fafc", letterSpacing: "0.02em" }}>{d.headerTitle}</span>
               </div>
-              <span style={{ fontSize: "10px", background: "rgba(99, 102, 241, 0.15)", color: "#818cf8", padding: "4px 8px", borderRadius: "20px", border: "1px solid rgba(99, 102, 241, 0.3)", fontWeight: 600 }}>
-                {d.activePilot}
+              <span style={{ fontSize: "10px", color: "#34d399", fontWeight: 600, background: "rgba(16,185,129,0.1)", padding: "3px 8px", borderRadius: "6px" }}>
+                {d.headerStatus}
               </span>
             </div>
 
-            {/* Chat Body */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", minHeight: "200px" }}>
-              {/* Customer Message */}
-              <div style={{ alignSelf: dir === "rtl" ? "flex-end" : "flex-start", background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255, 255, 255, 0.06)", padding: "10px 14px", borderRadius: "12px", borderTopLeftRadius: dir === "rtl" ? "12px" : "2px", borderTopRightRadius: dir === "rtl" ? "2px" : "12px", maxWidth: "85%" }}>
-                <p style={{ fontSize: "12px", lineHeight: 1.5, color: "#e2e8f0", margin: 0 }}>
-                  {d.customerMsg}
-                </p>
-                <span style={{ fontSize: "9px", color: "#64748b", marginTop: "4px", display: "block", textAlign: dir === "rtl" ? "left" : "right" }}>{d.msgMeta}</span>
+            {/* KPI Cards Row */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "14px" }}>
+              {/* Card 1: Revenue */}
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", padding: "8px 10px", borderRadius: "10px" }}>
+                <div style={{ fontSize: "9.5px", color: "#94a3b8" }}>{d.kpiRevLabel}</div>
+                <div style={{ fontSize: "14px", fontWeight: 900, color: "#fff", margin: "2px 0" }}>
+                  {ticker.toLocaleString()} <span style={{ fontSize: "10px", color: "#818cf8" }}>{dir === "rtl" ? "ج.م" : "EGP"}</span>
+                </div>
+                <div style={{ fontSize: "9px", color: "#34d399", fontWeight: 700 }}>{d.kpiRevLift}</div>
               </div>
 
-              {/* Typing Indicator */}
-              {typing && (
-                <div style={{ alignSelf: dir === "rtl" ? "flex-start" : "flex-end", background: "rgba(99, 102, 241, 0.2)", padding: "8px 14px", borderRadius: "12px", display: "flex", alignItems: "center", gap: "6px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-                  <span style={{ fontSize: "11px", color: "#818cf8" }}>{d.typing}</span>
-                </div>
-              )}
+              {/* Card 2: Orders */}
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", padding: "8px 10px", borderRadius: "10px" }}>
+                <div style={{ fontSize: "9.5px", color: "#94a3b8" }}>{d.kpiOrdLabel}</div>
+                <div style={{ fontSize: "14px", fontWeight: 900, color: "#fff", margin: "2px 0" }}>{orderCount}</div>
+                <div style={{ fontSize: "9px", color: "#34d399", fontWeight: 700 }}>{d.kpiOrdLift}</div>
+              </div>
 
-              {/* AI Copilot Reply */}
-              {step >= 1 && (
-                <div style={{ alignSelf: dir === "rtl" ? "flex-start" : "flex-end", background: "linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)", padding: "12px 14px", borderRadius: "12px", borderTopRightRadius: dir === "rtl" ? "12px" : "2px", borderTopLeftRadius: dir === "rtl" ? "2px" : "12px", maxWidth: "90%", boxShadow: "0 8px 20px rgba(79, 70, 229, 0.3)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-                    <Sparkles size={11} color="#c7d2fe" />
-                    <span style={{ fontSize: "9.5px", fontWeight: 700, color: "#c7d2fe", textTransform: "uppercase", letterSpacing: "0.05em" }}>{d.aiHeader}</span>
-                  </div>
-                  <p style={{ fontSize: "12px", lineHeight: 1.5, color: "#fff", margin: 0 }}>
-                    {d.aiReply}
-                  </p>
-                  
-                  {/* Quick Action Buttons inside Chat */}
-                  <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid rgba(255, 255, 255, 0.15)", display: "flex", flexWrap: "wrap", gap: "6px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-                    {!orderCreated ? (
-                      <>
-                        <button
-                          onClick={handleConfirmOrder}
-                          style={{
-                            background: "#fff",
-                            color: "#0f172a",
-                            border: "none",
-                            padding: "6px 12px",
-                            borderRadius: "6px",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            cursor: "pointer",
-                            boxShadow: "0 2px 8px rgba(255,255,255,0.2)",
-                            flexDirection: dir === "rtl" ? "row-reverse" : "row",
-                          }}
-                        >
-                          <Zap size={12} color="#4f46e5" /> {d.btnConfirm}
-                        </button>
-                        <button
-                          onClick={handleConfirmOrder}
-                          style={{
-                            background: "rgba(0,0,0,0.3)",
-                            color: "#fff",
-                            border: "1px solid rgba(255,255,255,0.2)",
-                            padding: "6px 10px",
-                            borderRadius: "6px",
-                            fontSize: "11px",
-                            fontWeight: 600,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            cursor: "pointer",
-                            flexDirection: dir === "rtl" ? "row-reverse" : "row",
-                          }}
-                        >
-                          <CreditCard size={12} /> {d.btnInsta}
-                        </button>
-                      </>
-                    ) : (
-                      <div style={{ background: "rgba(16, 185, 129, 0.2)", border: "1px solid #10b981", color: "#34d399", padding: "6px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px", width: "100%", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-                        <Check size={14} /> {d.orderSuccess}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* Card 3: Automated */}
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", padding: "8px 10px", borderRadius: "10px" }}>
+                <div style={{ fontSize: "9.5px", color: "#94a3b8" }}>{d.kpiAutoLabel}</div>
+                <div style={{ fontSize: "14px", fontWeight: 900, color: "#818cf8", margin: "2px 0" }}>{d.kpiAutoVal}</div>
+                <div style={{ fontSize: "9px", color: "#64748b" }}>{d.kpiAutoSub}</div>
+              </div>
+
+              {/* Card 4: Waiting */}
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", padding: "8px 10px", borderRadius: "10px" }}>
+                <div style={{ fontSize: "9.5px", color: "#94a3b8" }}>{d.kpiWaitLabel}</div>
+                <div style={{ fontSize: "14px", fontWeight: 900, color: "#34d399", margin: "2px 0" }}>{d.kpiWaitVal}</div>
+                <div style={{ fontSize: "9px", color: "#64748b" }}>{d.kpiWaitSub}</div>
+              </div>
             </div>
 
-            {/* Footer status */}
-            <div style={{ marginTop: "14px", paddingTop: "10px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "10px", color: "#64748b", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
+            {/* Split Workspace Body */}
+            <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: "10px", minHeight: "180px" }}>
+              {/* Left Column: Live Activity Feed */}
+              <div style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "12px", padding: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ fontSize: "9.5px", fontWeight: 700, color: "#818cf8", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "6px" }}>
+                  {d.feedTitle}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "5px", fontSize: "10px", color: "#cbd5e1" }}>
+                  <div style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", padding: "5px 8px", borderRadius: "6px", color: "#34d399", fontWeight: 600 }}>
+                    {d.feed1}
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.03)", padding: "5px 8px", borderRadius: "6px" }}>
+                    {d.feed2}
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.03)", padding: "5px 8px", borderRadius: "6px" }}>
+                    {d.feed3}
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.03)", padding: "5px 8px", borderRadius: "6px" }}>
+                    {d.feed4}
+                  </div>
+                  <div style={{ background: "rgba(255,255,255,0.03)", padding: "5px 8px", borderRadius: "6px" }}>
+                    {d.feed5}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Quiet Copilot Working */}
+              <div style={{ background: "linear-gradient(135deg, rgba(30, 27, 75, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%)", border: "1px solid rgba(99, 102, 241, 0.3)", borderRadius: "12px", padding: "10px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: "10px", fontWeight: 800, color: "#c7d2fe", display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
+                    <Sparkles size={12} color="#818cf8" /> {d.copilotTitle}
+                  </div>
+                  <div style={{ fontSize: "9px", color: "#94a3b8", marginBottom: "8px" }}>{d.copilotSub}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "9.5px", color: "#e2e8f0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Check size={11} color="#34d399" /> <span>{d.c1}</span></div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Check size={11} color="#34d399" /> <span>{d.c2}</span></div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Check size={11} color="#34d399" /> <span>{d.c3}</span></div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Check size={11} color="#34d399" /> <span>{d.c4}</span></div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}><Check size={11} color="#34d399" /> <span>{d.c5}</span></div>
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", paddingTop: "6px", borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: "8.5px", color: "#818cf8", fontWeight: 600 }}>
+                  {d.copilotStatus}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Status */}
+            <div style={{ marginTop: "12px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "9.5px", color: "#64748b", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
               <span style={{ display: "flex", alignItems: "center", gap: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
                 <ShieldCheck size={12} color="#10b981" /> {d.footerSync}
               </span>
-              <span>{d.footerVerified}</span>
+              <span>{d.footerUptime}</span>
             </div>
           </div>
         </Html>
@@ -303,52 +375,19 @@ function GlassAppFrame({ onOrderConfirmed, lang, d, dir }) {
 }
 
 export default function LiveProductHero3D() {
-  const [showToast, setShowToast] = useState(false);
   const { lang, dir } = useLanguage();
-  const d = DICT[lang] || DICT.en;
-
-  const handleOrderConfirmed = () => {
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 4000);
-  };
+  const d = WORKSPACE_DICT[lang] || WORKSPACE_DICT.en;
 
   return (
     <div style={{ width: "100%", height: "540px", position: "relative" }}>
-      {/* Floating Success Toast when order clicked */}
-      {showToast && (
-        <div
-          style={{
-            position: "absolute",
-            top: "16px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "linear-gradient(135deg, #10b981, #059669)",
-            color: "#fff",
-            padding: "10px 20px",
-            borderRadius: "999px",
-            fontSize: "13px",
-            fontWeight: 700,
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            boxShadow: "0 10px 30px rgba(16, 185, 129, 0.4)",
-            zIndex: 50,
-            animation: "slide-down 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-            flexDirection: dir === "rtl" ? "row-reverse" : "row",
-          }}
-        >
-          <Sparkles size={16} /> {d.toast}
-        </div>
-      )}
-
       <Canvas dpr={[1, 2]}>
-        <PerspectiveCamera makeDefault position={[0, 0, 5.2]} fov={50} />
+        <PerspectiveCamera makeDefault position={[0, 0, 5.5]} fov={50} />
         <ambientLight intensity={0.8} />
         <directionalLight position={[10, 10, 10]} intensity={1.5} />
         <pointLight position={[-10, -10, -10]} color="#6366f1" intensity={2} />
         <pointLight position={[10, -10, 10]} color="#00d2ff" intensity={1.5} />
-        <GlassAppFrame onOrderConfirmed={handleOrderConfirmed} lang={lang} d={d} dir={dir} />
-        <FloatingProductBox3D lang={lang} d={d} />
+        <CommandCenterGlassFrame d={d} dir={dir} />
+        <FloatingBusinessObjects d={d} dir={dir} />
       </Canvas>
     </div>
   );

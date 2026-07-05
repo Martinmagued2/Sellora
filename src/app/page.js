@@ -25,7 +25,7 @@ import HeroSection from "./components/landing/HeroSection";
 import BeforeAfterScrubber from "./components/landing/BeforeAfterScrubber";
 import InteractiveSandbox from "./components/landing/InteractiveSandbox";
 import ROICalculator from "./components/landing/ROICalculator";
-import NeuralNetworkGlobe3D from "./components/landing/NeuralNetworkGlobe3D";
+import AutomatedLifecycleTimeline from "./components/landing/AutomatedLifecycleTimeline";
 
 /* Dynamic import for 3D hero scene (SSR safe) */
 const HeroScene3D = lazy(() => import("./components/HeroScene3D"));
@@ -595,9 +595,9 @@ function SolutionSection() {
       <div className="section-inner">
         <div className="solution-grid">
           <motion.div className="solution-content solution-left" initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }}>
-            <span className="badge badge-green" style={{ marginBottom: 16 }}><Zap size={12} /> The Solution</span>
-            <h2 className="section-title-reveal">Sellora AI <span className="text-gradient-static">never sleeps</span></h2>
-            <p>While your competitors keep customers waiting, Sellora responds instantly. Every message answered. Every lead captured. Every sale closed — even at 3 AM.</p>
+            <span className="badge badge-green" style={{ marginBottom: 16 }}><Zap size={12} /> Business Automation</span>
+            <h2 className="section-title-reveal">Your Store <span className="text-gradient-static">Never Sleeps</span></h2>
+            <p>While your competitors lose track of DMs and spreadsheets, Sellora runs your entire commerce workflow autonomously—from inquiry to shipping.</p>
             <div className="solution-features">
               {[
                 { icon: <Zap size={18} />, label: "Instant replies", desc: "Under 2 seconds response time" },
@@ -876,9 +876,9 @@ export default function Home() {
         <InteractiveSandbox />
       </section>
 
-      {/* ===== 3D NEURAL NETWORK GLOBE ===== */}
-      <section className="section" id="network-globe" style={{ background: "var(--bg-secondary)", padding: "60px 0" }}>
-        <NeuralNetworkGlobe3D />
+      {/* ===== AUTOMATED E-COMMERCE LIFECYCLE ===== */}
+      <section className="section" id="automated-lifecycle" style={{ background: "var(--bg-secondary)", padding: "60px 0" }}>
+        <AutomatedLifecycleTimeline />
       </section>
 
       {/* ===== 5 CHANNELS SHOWCASE — BOUNCE CARDS ===== */}
@@ -937,9 +937,9 @@ export default function Home() {
       {/* ===== AI CAPABILITIES — SCROLL CARD SWAP ===== */}
       <section id="features" style={{ position: "relative", background: "var(--bg-primary)" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "80px", paddingBottom: "40px" }}>
-          <span className="badge badge-green" style={{ marginBottom: 16 }}><Sparkles size={12} /> AI Capabilities</span>
-          <h2 className="section-title-reveal" style={{ fontSize: "2.5rem", marginBottom: "10px" }}>Powered by <span className="text-gradient-static">Intelligence</span></h2>
-          <p style={{ color: "var(--text-secondary)", maxWidth: "600px", textAlign: "center" }}>Scroll to explore seven AI-powered capabilities that transform how you sell, support, and grow.</p>
+          <span className="badge badge-green" style={{ marginBottom: 16 }}><Sparkles size={12} /> Automated Workflows</span>
+          <h2 className="section-title-reveal" style={{ fontSize: "2.5rem", marginBottom: "10px" }}>Everything Sellora <span className="text-gradient-static">Automates</span></h2>
+          <p style={{ color: "var(--text-secondary)", maxWidth: "600px", textAlign: "center" }}>Scroll to explore how Sellora handles every stage of your social e-commerce business autonomously.</p>
         </div>
 
         <ScrollCardSwap
