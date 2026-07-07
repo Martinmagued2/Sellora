@@ -35,6 +35,58 @@ function getSupabase() {
 }
 
 /**
+ * Deliver a message to Telegram or Email channel.
+ * Returns true if delivered, false if not.
+ * For WhatsApp/IG/FB, this returns false (they're handled by the caller).
+ */
+async function deliverToTelegramOrEmail(channel, accountId, recipientId, message) {
+  if (channel === "telegram") {
+    const { data: tgAccount } = await getSupabase()
+      .from("accounts")
+      .select("telegram_bot_token")
+      .eq("id", accountId)
+      .maybeSingle();
+    if (tgAccount?.telegram_bot_token) {
+      const { sendTelegramMessage } = await import("@/lib/telegram");
+      await sendTelegramMessage({
+        botToken: tgAccount.telegram_bot_token,
+        chatId: recipientId,
+        text: message,
+      });
+      return true;
+    }
+    console.warn(`[PROCESSOR] No telegram_bot_token for account ${accountId}`);
+    return false;
+  }
+
+  if (channel === "email") {
+    const { data: emailAccount } = await getSupabase()
+      .from("accounts")
+      .select("email_inbound_address")
+      .eq("id", accountId)
+      .maybeSingle();
+    if (recipientId && recipientId.includes("@")) {
+      const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
+      if (isEmailConfigured()) {
+        await sendCustomEmail({
+          to: recipientId,
+          subject: "Re: Your message",
+          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;"><p style="font-size:15px;line-height:1.6;color:#374151;white-space:pre-wrap;">${message}</p></div>`,
+          replyTo: emailAccount?.email_inbound_address,
+          templateName: "ai_email_reply",
+          accountId,
+        });
+        return true;
+      }
+      console.warn(`[PROCESSOR] Email not configured`);
+    }
+    return false;
+  }
+
+  return false; // Not telegram or email
+}
+
+/**
  * Resolve the access token for a channel when it wasn't passed by the webhook handler.
  * This is crucial for delivering AI replies — without a valid token, replies are stored
  * but never delivered to the customer's Instagram/Facebook/WhatsApp inbox.
@@ -398,7 +450,10 @@ export async function processIncomingMessage({
         // Send greeting via the appropriate channel (best-effort)
         let greetingDelivered = false;
         try {
-          if (channel === "whatsapp") {
+          // Try Telegram/Email first
+          if (channel === "telegram" || channel === "email") {
+            greetingDelivered = await deliverToTelegramOrEmail(channel, account.id, senderId, greetingMessage);
+          } else if (channel === "whatsapp") {
             const waAccessToken = account.whatsapp_access_token || null;
             await sendWhatsAppMessage({
               to: senderId,
@@ -537,7 +592,10 @@ export async function processIncomingMessage({
             // Send the FAQ answer via the appropriate channel (best-effort)
             let faqDelivered = false;
             try {
-              if (channel === "whatsapp") {
+              // Try Telegram/Email first
+              if (channel === "telegram" || channel === "email") {
+                faqDelivered = await deliverToTelegramOrEmail(channel, account.id, senderId, bestMatch.answer);
+              } else if (channel === "whatsapp") {
                 const waAccessToken = account.whatsapp_access_token || null;
                 await sendWhatsAppMessage({
                   to: senderId,
@@ -629,7 +687,10 @@ export async function processIncomingMessage({
           // Send the auto-reply via the appropriate channel (best-effort)
           let keywordDelivered = false;
           try {
-            if (channel === "whatsapp") {
+            // Try Telegram/Email first
+            if (channel === "telegram" || channel === "email") {
+              keywordDelivered = await deliverToTelegramOrEmail(channel, account.id, senderId, matchedReply.response);
+            } else if (channel === "whatsapp") {
               const waAccessToken = account.whatsapp_access_token || null;
               await sendWhatsAppMessage({
                 to: senderId,
@@ -872,6 +933,50 @@ export async function processIncomingMessage({
                   accessToken: waAccessToken,
                 });
                 deliverySuccess = true;
+              } else if (channel === "telegram") {
+                // Telegram: use bot token to send reply
+                const { data: tgAccount } = await getSupabase()
+                  .from("accounts")
+                  .select("telegram_bot_token")
+                  .eq("id", account.id)
+                  .maybeSingle();
+                if (tgAccount?.telegram_bot_token) {
+                  const { sendTelegramMessage } = await import("@/lib/telegram");
+                  await sendTelegramMessage({
+                    botToken: tgAccount.telegram_bot_token,
+                    chatId: senderId,
+                    text: aiReply,
+                  });
+                  deliverySuccess = true;
+                } else {
+                  console.warn(`[PROCESSOR] No telegram_bot_token for account ${account.id} — AI reply stored but NOT delivered`);
+                }
+              } else if (channel === "email") {
+                // Email: use Resend to send reply
+                const { data: emailAccount } = await getSupabase()
+                  .from("accounts")
+                  .select("email_inbound_address")
+                  .eq("id", account.id)
+                  .maybeSingle();
+                const customerEmail = senderId; // For email channel, senderId is the customer's email
+                if (customerEmail && customerEmail.includes("@")) {
+                  const { sendCustomEmail, isEmailConfigured } = await import("@/lib/email");
+                  if (isEmailConfigured()) {
+                    await sendCustomEmail({
+                      to: customerEmail,
+                      subject: "Re: Your message",
+                      html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;"><p style="font-size:15px;line-height:1.6;color:#374151;white-space:pre-wrap;">${aiReply}</p></div>`,
+                      replyTo: emailAccount?.email_inbound_address,
+                      templateName: "ai_email_reply",
+                      accountId: account.id,
+                    });
+                    deliverySuccess = true;
+                  } else {
+                    console.warn(`[PROCESSOR] Email not configured — AI reply stored but NOT delivered`);
+                  }
+                } else {
+                  console.warn(`[PROCESSOR] No valid customer email for email channel — AI reply stored but NOT delivered`);
+                }
               } else {
                 // For Instagram/Facebook: try the provided accessToken first.
                 // If not provided (webhook handler couldn't find it), look it up
