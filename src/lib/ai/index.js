@@ -396,20 +396,44 @@ export async function generateAIReply({
 
       const { data: products } = await getSupabase()
         .from("products")
-        .select("name, price, description, category, stock, variants")
+        .select("id, name, price, description, category, stock, variants, sku, image_urls, status")
         .eq("account_id", accountId)
         .eq("status", "active")
-        .limit(30);
+        .order("created_at", { ascending: false })
+        .limit(50);
 
       if (products && products.length > 0) {
-        productContext = `\n\nYOUR CURRENT PRODUCT CATALOG:\n${products.map(p => {
-          let line = `• ${p.name} — ${p.price} ${currency} (Stock: ${p.stock}, Category: ${p.category || 'General'})`;
-          if (p.description) line += `\n  Description: ${p.description.slice(0, 150)}`;
+        productContext = `\n\n═══ YOUR COMPLETE PRODUCT CATALOG (${products.length} products) ═══\n`;
+        productContext += `You have INSTANT access to all product information below. Do NOT say "let me check" — you already know everything.\n\n`;
+
+        products.forEach((p, idx) => {
+          productContext += `📦 PRODUCT #${idx + 1}: ${p.name}\n`;
+          productContext += `   Price: ${p.price} ${currency}\n`;
+          productContext += `   Stock: ${p.stock} units${p.stock <= 5 ? ' ⚠️ LOW STOCK — mention scarcity!' : ''}\n`;
+          if (p.category) productContext += `   Category: ${p.category}\n`;
+          if (p.sku) productContext += `   SKU: ${p.sku}\n`;
+          if (p.description) productContext += `   Description: ${p.description.slice(0, 300)}\n`;
           if (p.variants && p.variants.length > 0) {
-            line += `\n  Variants: ${p.variants.map(v => `${v.name} (${v.price} ${currency}, ${v.stock} in stock)`).join(' | ')}`;
+            productContext += `   Variants:\n`;
+            p.variants.forEach(v => {
+              productContext += `     • ${v.name}: ${v.price || p.price} ${currency} (${v.stock || 0} in stock)\n`;
+            });
           }
-          return line;
-        }).join('\n')}\n\nIMPORTANT: When customers ask what you sell or about products, reference this catalog directly. Do NOT say you need to check — you already have this information. If a product has variants (sizes, colors, etc.), ALWAYS mention the available options to the customer. For example, if they ask 'what colors do you have?', check the variants and list them.`;
+          if (p.image_urls && p.image_urls.length > 0) {
+            productContext += `   Has images: Yes (${p.image_urls.length} images)\n`;
+          }
+          productContext += `\n`;
+        });
+
+        productContext += `CATALOG RULES:
+- When a customer asks "what do you sell?" → list 3-5 top products with names + prices
+- When they ask about a specific product → give full details from above
+- When they ask for recommendations → pick products that match their needs from the catalog
+- When a product has stock ≤ 5 → MENTION SCARCITY ("🔥 Only X left!")
+- When a product has variants → ALWAYS mention available options
+- NEVER say "I need to check our inventory" — the catalog is RIGHT HERE in your context
+- If a customer asks about a product NOT in the catalog → use search_products tool
+- Proactively suggest complementary products (e.g., "Since you're getting X, you might also like Y")`;
       } else {
         productContext = "\n\nNOTE: Your store currently has no products added yet. If the customer asks about products, let them know the store is still being set up.";
       }
@@ -463,6 +487,63 @@ export async function generateAIReply({
       console.warn("[generateAIReply] Business hours check failed:", e.message);
     }
 
+    // ─── Customer Context: Recent orders + customer info ───
+    let customerContext = "";
+    try {
+      if (customerId) {
+        const { data: customer } = await getSupabase()
+          .from("customers")
+          .select("name, phone, email, total_orders, total_spent, tags, notes, last_order_at, is_returning")
+          .eq("id", customerId)
+          .maybeSingle();
+
+        if (customer) {
+          customerContext = `\n\n═══ CUSTOMER PROFILE ═══\n`;
+          customerContext += `Name: ${customer.name || "Unknown"}\n`;
+          customerContext += `Phone: ${customer.phone || "N/A"}\n`;
+          customerContext += `Total Orders: ${customer.total_orders || 0}\n`;
+          customerContext += `Total Spent: ${customer.total_spent || 0} ${currency}\n`;
+          customerContext += `Returning Customer: ${customer.is_returning ? "Yes" : "No"}\n`;
+          if (customer.tags && customer.tags.length > 0) {
+            customerContext += `Tags: ${customer.tags.join(", ")}\n`;
+          }
+          if (customer.notes) {
+            customerContext += `Notes: ${customer.notes}\n`;
+          }
+          if (customer.last_order_at) {
+            customerContext += `Last Order: ${new Date(customer.last_order_at).toLocaleDateString()}\n`;
+          }
+
+          // Fetch last 3 orders
+          const { data: recentOrders } = await getSupabase()
+            .from("orders")
+            .select("order_number, total, status, payment_status, created_at, items")
+            .eq("customer_id", customerId)
+            .order("created_at", { ascending: false })
+            .limit(3);
+
+          if (recentOrders && recentOrders.length > 0) {
+            customerContext += `\nRecent Orders:\n`;
+            recentOrders.forEach(o => {
+              customerContext += `  • #${o.order_number} — ${o.total} ${currency} — ${o.status} — ${new Date(o.created_at).toLocaleDateString()}\n`;
+              if (o.items && Array.isArray(o.items)) {
+                customerContext += `    Items: ${o.items.map(i => `${i.name} ×${i.qty || 1}`).join(", ")}\n`;
+              }
+            });
+          }
+
+          customerContext += `\nCUSTOMER CONTEXT RULES:
+- If returning customer: acknowledge ("Welcome back, {name}!")
+- If VIP tag: treat as priority customer
+- If they have notes: use that info to personalize
+- Reference their past orders when relevant ("Last time you ordered X...")
+- Use their name in greetings`;
+        }
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Customer context fetch failed:", e.message);
+    }
+
     // ─── Feature 4: Arabic Dialect Injection ───
     let dialectContext = "";
     try {
@@ -506,7 +587,7 @@ export async function generateAIReply({
       console.warn("[generateAIReply] Scarcity fetch failed:", e.message);
     }
 
-    const fullSystemPrompt = systemPrompt + productContext + policyContext + afterHoursContext + dialectContext + scarcityContext;
+    const fullSystemPrompt = systemPrompt + productContext + customerContext + policyContext + afterHoursContext + dialectContext + scarcityContext;
 
     // 5. Try providers with robust fallback
     const providerChain = buildProviderChain();
