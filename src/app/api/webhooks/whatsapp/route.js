@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import { parseWebhookMessage, markMessageAsRead } from "@/lib/whatsapp";
+import { parseWebhookMessage, markMessageAsRead, fetchMediaUrl } from "@/lib/whatsapp";
 import { processIncomingMessage } from "@/lib/channels/processor";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
@@ -138,20 +138,32 @@ export async function POST(request) {
       console.warn(`[WA-WEBHOOK] Account lookup failed:`, acctErr.message);
     }
 
-    // Process through the shared pipeline — handles EVERYTHING:
-    // account lookup, customer upsert, conversation, message storage,
-    // auto-greeting, FAQ, keyword auto-reply, and AI auto-reply
+    // Fetch media URL if the message contains an image/video/document
+    let mediaUrls = [];
+    if (message.imageId && waAccessToken) {
+      const mediaUrl = await fetchMediaUrl({
+        mediaId: message.imageId,
+        accessToken: waAccessToken,
+        phoneNumberId: message.phoneNumberId,
+      }).catch(() => null);
+      if (mediaUrl) {
+        mediaUrls.push(mediaUrl);
+        console.log(`[WA-WEBHOOK] Fetched media URL for image ${message.imageId}`);
+      }
+    }
+
+    // Process through the shared pipeline
     await processIncomingMessage({
       senderId: message.from,
       senderName: message.contactName || null,
       senderProfilePic: null,
       text: message.text,
-      mediaUrls: [],
+      mediaUrls,
       channel: "whatsapp",
       pageId: message.phoneNumberId,
       platformMessageId: message.messageId,
       accessToken: waAccessToken,
-      accountId: accountId, // Pass accountId to avoid duplicate lookup in processor
+      accountId: accountId,
     });
 
     console.log(`[WA-WEBHOOK] Successfully processed message from ${message.from}`);

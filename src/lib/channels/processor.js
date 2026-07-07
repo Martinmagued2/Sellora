@@ -799,15 +799,57 @@ export async function processIncomingMessage({
 
         console.log(`[PROCESSOR] AI rate limit: ${aiCount}/${MAX_AI_PER_ACCOUNT_PER_DAY} (plan: ${account.plan})`);
 
-        if (MAX_AI_PER_ACCOUNT_PER_DAY !== -1 && aiCount >= MAX_AI_PER_ACCOUNT_PER_DAY) {
-          console.warn(`Account ${account.id} exceeded daily AI limit (${MAX_AI_PER_ACCOUNT_PER_DAY})`);
-          // Skip AI reply silently — message is still stored
+        // ─── Fix #7: Per-customer rate limit (prevent one customer from exhausting quota) ───
+        const MAX_AI_PER_CUSTOMER_PER_HOUR = plan === "starter" ? 20 : 50;
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        let customerAiCount = 0;
+        if (customerId) {
+          const { count: cCount } = await getSupabase()
+            .from("rate_limits")
+            .select("*", { count: "exact", head: true })
+            .eq("email", `customer_${customerId}`)
+            .eq("action", "ai_auto_reply")
+            .gte("created_at", oneHourAgo);
+          customerAiCount = cCount || 0;
+        }
+
+        const accountLimitHit = MAX_AI_PER_ACCOUNT_PER_DAY !== -1 && aiCount >= MAX_AI_PER_ACCOUNT_PER_DAY;
+        const customerLimitHit = customerAiCount >= MAX_AI_PER_CUSTOMER_PER_HOUR;
+
+        if (accountLimitHit) {
+          console.warn(`[PROCESSOR] Account ${account.id} exceeded daily AI limit (${MAX_AI_PER_ACCOUNT_PER_DAY})`);
+          // Fix #7: Send graceful fallback instead of silently skipping
+          try {
+            const gracefulMsg = "Thank you for your message! Our team is currently experiencing high volume. We've received your message and will get back to you as soon as possible. 🙏";
+            // Deliver via the appropriate channel
+            if (channel === "whatsapp") {
+              await sendWhatsAppMessage({ to: senderId, message: gracefulMsg, phoneNumberId: account.whatsapp_phone_number_id, accessToken: account.whatsapp_access_token });
+            } else if (channel === "telegram" || channel === "email") {
+              await deliverToTelegramOrEmail(channel, account.id, senderId, gracefulMsg);
+            } else {
+              await sendMessage({ recipientId: senderId, message: gracefulMsg, pageId, accessToken });
+            }
+            // Store the fallback message
+            await getSupabase().from("messages").insert({
+              conversation_id: conversation.id,
+              account_id: account.id,
+              direction: "outgoing",
+              content: gracefulMsg,
+              type: "text",
+              is_ai: false,
+            });
+          } catch (e) {
+            console.warn("[PROCESSOR] Graceful fallback delivery failed:", e.message);
+          }
+        } else if (customerLimitHit) {
+          console.warn(`[PROCESSOR] Customer ${customerId} exceeded hourly AI limit (${MAX_AI_PER_CUSTOMER_PER_HOUR}) — throttling`);
+          // Don't send AI reply for this chatty customer, but don't send fallback either (they're spamming)
         } else {
-          // Log the AI request
-          await getSupabase().from("rate_limits").insert({
-            email: account.id, // Using email column to store account_id for this action type
-            action: "ai_auto_reply",
-          });
+          // Log the AI request (both account-level and customer-level)
+          await getSupabase().from("rate_limits").insert([
+            { email: account.id, action: "ai_auto_reply" },
+            ...(customerId ? [{ email: `customer_${customerId}`, action: "ai_auto_reply" }] : []),
+          ]);
 
           console.log(`[PROCESSOR] Generating AI reply for account ${account.id}, conversation ${conversation.id}, message: "${text?.substring(0, 50)}..."`);
 
@@ -819,13 +861,14 @@ export async function processIncomingMessage({
             .eq("status", "active")
             .limit(50);
 
-          // Fetch recent conversation history for context
+          // Fetch recent conversation history for context (Fix #2: 22 for Pro, 8 for Starter)
+          const HISTORY_FETCH = account.plan === "starter" ? 8 : 22;
           const { data: recentMessages } = await getSupabase()
             .from("messages")
             .select("content, direction")
             .eq("conversation_id", conversation.id)
             .order("created_at", { ascending: false })
-            .limit(8);
+            .limit(HISTORY_FETCH);
 
           const history = (recentMessages || []).reverse();
 
@@ -896,14 +939,14 @@ export async function processIncomingMessage({
 
           console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
 
-          // ─── B5: Auto-escalate on negative sentiment ───
+          // ─── B5: Auto-escalate on negative/urgent sentiment (Fix #4) ───
           // If the customer is clearly angry/frustrated, route to a human
-          if (aiResult?.sentiment === "negative" && aiResult?.intent === "complaint") {
-            console.log(`[PROCESSOR] Negative sentiment + complaint → escalating to human`);
+          if (aiResult?.sentiment === "negative" || aiResult?.sentiment === "urgent") {
+            console.log(`[PROCESSOR] ${aiResult.sentiment} sentiment → escalating to human`);
             // Still send the AI's reply (it might be a good de-escalation), but flag for human follow-up
             await escalateToHuman(
               conversation.id,
-              "Auto-escalated: negative sentiment + complaint intent",
+              `Auto-escalated: ${aiResult.sentiment} sentiment detected`,
               account.id
             );
           }

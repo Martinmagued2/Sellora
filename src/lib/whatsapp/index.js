@@ -288,15 +288,61 @@ export function parseWebhookMessage(body) {
   const message = value.messages[0];
   const contact = value.contacts?.[0];
 
+  // Extract text from various message types (text, image caption, video caption)
+  let text = message.text?.body || null;
+  let imageId = null;
+  let imageMime = null;
+  let imageCaption = null;
+
+  if (message.type === "image" && message.image) {
+    imageId = message.image.id;
+    imageMime = message.image.mime_type;
+    imageCaption = message.image.caption;
+    if (imageCaption) text = imageCaption; // Use caption as text if available
+  } else if (message.type === "video" && message.video) {
+    imageId = message.video.id;
+    imageMime = message.video.mime_type;
+    imageCaption = message.video.caption;
+    if (imageCaption) text = imageCaption;
+  } else if (message.type === "document" && message.document) {
+    imageId = message.document.id;
+    imageMime = message.document.mime_type;
+    imageCaption = message.document.caption;
+    if (imageCaption) text = imageCaption;
+  }
+
   return {
     messageId: message.id,
     from: message.from,
     timestamp: message.timestamp,
     type: message.type,
-    text: message.text?.body || null,
+    text,
+    imageId,
+    imageMime,
+    imageCaption,
     contactName: contact?.profile?.name || null,
     phoneNumberId: value.metadata?.phone_number_id,
   };
+}
+
+/**
+ * Fetch a media URL from WhatsApp Cloud API by media ID.
+ * WhatsApp media URLs expire, so this must be called freshly.
+ */
+export async function fetchMediaUrl({ mediaId, accessToken, phoneNumberId }) {
+  if (!mediaId || !accessToken) return null;
+  try {
+    const WHATSAPP_API_URL = "https://graph.facebook.com/v21.0";
+    const res = await fetch(`${WHATSAPP_API_URL}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await res.json();
+    if (data?.url) return data.url;
+    return null;
+  } catch (e) {
+    console.error("[WA] Failed to fetch media URL:", e.message);
+    return null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════

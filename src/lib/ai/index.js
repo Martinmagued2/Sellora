@@ -463,11 +463,67 @@ export async function generateAIReply({
       console.warn("[generateAIReply] Failed to fetch policies for context:", e.message);
     }
 
-    // 4. Format History
-    const formattedMessages = conversationHistory.slice(-6).map((msg) => ({
-      role: msg.direction === "incoming" ? "user" : "assistant",
-      content: msg.content,
-    }));
+    // ─── Fix #9: Embed top FAQs in system prompt ───
+    let faqContext = "";
+    try {
+      const { data: faqs } = await getSupabase()
+        .from("faqs")
+        .select("question, answer")
+        .eq("account_id", accountId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(15);
+
+      if (faqs && faqs.length > 0) {
+        faqContext = `\n\n═══ FREQUENTLY ASKED QUESTIONS (${faqs.length} FAQs) ═══\n`;
+        faqContext += `When a customer asks any of these questions, answer directly from the FAQ. Do NOT say "let me check" — you already know the answer.\n\n`;
+        faqs.forEach((f, i) => {
+          faqContext += `Q${i + 1}: ${f.question}\nA: ${f.answer?.slice(0, 500) || "N/A"}\n\n`;
+        });
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] FAQ context fetch failed:", e.message);
+    }
+
+    // 4. Format History — Fix #2: Bump from 6 to 20 messages (Pro+)
+    //    Fix #8: For 20+ message conversations, summarize older messages
+    const HISTORY_LIMIT = plan === "starter" ? 8 : 20;
+    let formattedMessages = [];
+
+    if (conversationHistory.length > 20) {
+      // Summarize the older portion (everything except the last 12 messages)
+      const olderMessages = conversationHistory.slice(0, -12);
+      const recentMessages = conversationHistory.slice(-12);
+
+      // Build a simple summary from older messages (customer's key messages)
+      const customerMessages = olderMessages
+        .filter(m => m.direction === "incoming")
+        .map(m => m.content)
+        .filter(Boolean)
+        .slice(-10); // Last 10 customer messages from the older portion
+
+      const summary = customerMessages.length > 0
+        ? `[EARLIER IN THIS CONVERSATION — Customer said: "${customerMessages.join('" → "')}"]`
+        : "";
+
+      formattedMessages = recentMessages.map((msg) => ({
+        role: msg.direction === "incoming" ? "user" : "assistant",
+        content: msg.content,
+      }));
+
+      // Inject summary as context
+      if (summary) {
+        formattedMessages.unshift({
+          role: "system",
+          content: summary,
+        });
+      }
+    } else {
+      formattedMessages = conversationHistory.slice(-HISTORY_LIMIT).map((msg) => ({
+        role: msg.direction === "incoming" ? "user" : "assistant",
+        content: msg.content,
+      }));
+    }
     
     formattedMessages.push({ role: "user", content: customerMessage });
 
@@ -587,7 +643,7 @@ export async function generateAIReply({
       console.warn("[generateAIReply] Scarcity fetch failed:", e.message);
     }
 
-    const fullSystemPrompt = systemPrompt + productContext + customerContext + policyContext + afterHoursContext + dialectContext + scarcityContext;
+    const fullSystemPrompt = systemPrompt + productContext + customerContext + policyContext + faqContext + afterHoursContext + dialectContext + scarcityContext;
 
     // 5. Try providers with robust fallback
     const providerChain = buildProviderChain();
