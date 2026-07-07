@@ -145,7 +145,7 @@ const UI_DICT = {
     badge: "Interactive Live Simulator",
     title1: "Test Sellora's AI Right Here.",
     title2: "No Sign Up Required.",
-    subtitle: "Select a common e-commerce scenario below or type your own question to watch how Sellora's AI handles dialect, inventory, and instant payments.",
+    subtitle: "Select a common e-commerce scenario below to watch how Sellora's AI handles dialect, inventory, and instant checkouts.",
     step1: "1. Select a Customer Query Scenario:",
     or: "OR TYPE YOUR OWN",
     placeholder: "Type your inquiry here (e.g., Do you offer bulk discounts?)...",
@@ -164,7 +164,7 @@ const UI_DICT = {
     badge: "المحاكي التفاعلي المباشر",
     title1: "جرب ذكاء Sellora الآن بنفسك.",
     title2: "بدون تسجيل حساب.",
-    subtitle: "اختر أحد سيناريوهات التجارة الإلكترونية الشائعة أو اكتب سؤالك الخاص لتشاهد كيف يتعامل ذكاء Sellora مع اللهجة، والمخزون، والدفع الفوري.",
+    subtitle: "اختر أحد سيناريوهات التجارة الإلكترونية الشائعة أدناه لتشاهد كيف يتعامل ذكاء Sellora مع اللهجة، والمخزون، والدفع الفوري.",
     step1: "1. اختر سيناريو استفسار العميل:",
     or: "أو اكتب سؤالك الخاص",
     placeholder: "اكتب استفسارك هنا (مثال: هل في خصم على الكميات؟)...",
@@ -183,7 +183,7 @@ const UI_DICT = {
     badge: "Simulateur Interactif en Direct",
     title1: "Testez l'IA Sellora Ici.",
     title2: "Sans Inscription.",
-    subtitle: "Sélectionnez un scénario e-commerce ci-dessous ou posez votre propre question pour voir comment l'IA Sellora gère le dialecte, le stock et les paiements.",
+    subtitle: "Sélectionnez un scénario e-commerce ci-dessous pour voir comment l'IA Sellora gère le dialecte, le stock et les paiements.",
     step1: "1. Sélectionnez un Scénario Client :",
     or: "OU TAPEZ VOTRE QUESTION",
     placeholder: "Posez votre question ici (ex: Proposez-vous des remises en gros ?)...",
@@ -300,48 +300,7 @@ export default function InteractiveSandbox() {
             ))}
           </div>
 
-          <div style={{ margin: "12px 0", display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
-            <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>{u.or}</span>
-            <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
-          </div>
-
-          <form onSubmit={handleCustomSubmit} style={{ display: "flex", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-            <input
-              type="text"
-              value={customInput}
-              onChange={(e) => setCustomInput(e.target.value)}
-              placeholder={u.placeholder}
-              style={{
-                flex: 1,
-                padding: "12px 16px",
-                borderRadius: "10px",
-                background: "rgba(0, 0, 0, 0.4)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                color: "#fff",
-                fontSize: "13px",
-                outline: "none",
-                direction: dir,
-              }}
-            />
-            <button
-              type="submit"
-              style={{
-                background: "#6366f1",
-                color: "#fff",
-                border: "none",
-                padding: "0 18px",
-                borderRadius: "10px",
-                fontWeight: 700,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Send size={16} style={{ transform: dir === "rtl" ? "rotate(180deg)" : "none" }} />
-            </button>
-          </form>
+          
 
           {/* Backend Actions Real-Time Log */}
           <div style={{ marginTop: "16px", background: "rgba(0, 0, 0, 0.6)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "12px", padding: "16px" }}>

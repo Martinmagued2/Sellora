@@ -712,45 +712,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ===== COMPARISON TABLE ===== */}
-      <section className="section" id="comparison" style={{ paddingTop: 0 }}>
-        <div className="section-inner">
-          <div className="animate-on-scroll" style={{ overflowX: "auto" }}>
-            <h3 style={{ textAlign: "center", marginBottom: "var(--space-xl)", fontSize: "var(--font-size-xl)", fontWeight: 700 }}>Full Feature <span className="text-gradient-static">Comparison</span></h3>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--font-size-sm)" }}>
-              <thead><tr><th style={{ textAlign: "left", padding: "var(--space-md) var(--space-lg)", color: "var(--text-tertiary)", fontWeight: 600, borderBottom: "1px solid var(--border-subtle)" }}>Feature</th>
-                {[{ name: "Starter", color: "var(--accent-green)" }, { name: "Professional", color: "var(--accent-primary-light)" }, { name: "Business", color: "var(--accent-orange)" }].map((p) => (
-                  <th key={p.name} style={{ textAlign: "center", padding: "var(--space-md) var(--space-lg)", fontWeight: 700, color: p.color, borderBottom: "1px solid var(--border-subtle)", whiteSpace: "nowrap" }}>{p.name}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {[
-                  { category: "AI & Automation" }, { label: "AI Reasoning Engine", starter: "Fast Response Engine", pro: "Smart Reasoning Engine", biz: "Advanced Multi-Agent Engine" },
-                  { label: "AI Replies / Day", starter: "50", pro: "500", biz: "Unlimited" },
-                  { label: "Sandbox Testing / Day", starter: "10", pro: "50", biz: "Unlimited" },
-                  { label: "Custom AI Personality", starter: false, pro: true, biz: true },
-                  { category: "Scale & Limits" }, { label: "Connected Channels", starter: "All 5 Channels", pro: "All 5 Channels", biz: "All 5 Channels" },
-                  { label: "Shopify Stores", starter: "1 Store", pro: "3 Stores", biz: "Unlimited" },
-                  { label: "Products", starter: "25", pro: "Unlimited", biz: "Unlimited" },
-                  { label: "Conversations / Month", starter: "100", pro: "1,000", biz: "Unlimited" },
-                  { category: "Data & History" }, { label: "Message History", starter: "30 days", pro: "6 months", biz: "Unlimited" },
-                  { label: "Analytics", starter: "Basic", pro: "Full", biz: "Full + CSV Export" },
-                  { category: "Integrations & Team" }, { label: "Webhook Integrations", starter: false, pro: true, biz: true },
-                  { label: "Broadcast Campaigns / Mo", starter: "None", pro: "5", biz: "Unlimited" },
-                  { label: "Team Members", starter: "1 (Owner)", pro: "3", biz: "Unlimited" },
-                  { category: "Support" }, { label: "Support", starter: "Email", pro: "Priority Email", biz: "Dedicated" },
-                  { label: "14-Day Free Trial", starter: true, pro: true, biz: true },
-                ].map((row, i) => {
-                  if (row.category) return (<tr key={i}><td colSpan={4} style={{ padding: "var(--space-lg) var(--space-lg) var(--space-sm)", fontWeight: 700, fontSize: "var(--font-size-xs)", letterSpacing: "0.08em", color: "var(--text-tertiary)", textTransform: "uppercase", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-glass)" }}>{row.category}</td></tr>);
-                  const renderCell = (val) => { if (val === true) return <span style={{ color: "var(--accent-green)", fontWeight: 700, fontSize: 18 }}>&#10003;</span>; if (val === false) return <span style={{ color: "var(--text-tertiary)", fontSize: 16 }}>&mdash;</span>; return <span style={{ fontWeight: 500 }}>{val}</span>; };
-                  return (<tr key={i} style={{ borderBottom: "1px solid var(--border-subtle)" }}><td style={{ padding: "var(--space-md) var(--space-lg)", color: "var(--text-secondary)" }}>{row.label}</td><td style={{ padding: "var(--space-md)", textAlign: "center" }}>{renderCell(row.starter)}</td><td style={{ padding: "var(--space-md)", textAlign: "center", background: "rgba(79, 70, 229, 0.05)" }}>{renderCell(row.pro)}</td><td style={{ padding: "var(--space-md)", textAlign: "center" }}>{renderCell(row.biz)}</td></tr>);
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
       {/* ===== WHAT EARLY USERS ARE SAYING & BETA TRUST ===== */}
       <HonestTrustSection />
 
