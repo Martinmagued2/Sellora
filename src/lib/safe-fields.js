@@ -24,6 +24,9 @@ export const SAFE_ACCOUNT_FIELDS = [
   "auto_greeting", "auto_greeting_message", "greeting_per_channel",
   "instagram_greeting", "facebook_greeting", "whatsapp_greeting",
   "greeting_delay_seconds", "auto_follow_up_enabled",
+  "ai_dialect", "scarcity_threshold", "scarcity_enabled",
+  "business_hours", "after_hours_auto_pilot", "timezone",
+  "push_thresholds",
   // Abandoned Cart
   "abandoned_cart_enabled", "abandoned_cart_hours",
   "abandoned_cart_auto_reminder", "abandoned_cart_reminder_hours",

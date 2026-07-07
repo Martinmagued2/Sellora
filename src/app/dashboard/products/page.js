@@ -108,6 +108,32 @@ export default function ProductsPage() {
 
   useEffect(() => { ensureBuckets(); fetchProducts(); }, [ensureBuckets, fetchProducts]);
 
+  // Feature 5: Auto-sync products to WhatsApp catalog when sync is enabled
+  const syncToCatalog = async (productId) => {
+    try {
+      const { data: account } = await supabase
+        .from("accounts")
+        .select("whatsapp_catalog_sync_enabled")
+        .eq("id", effectiveAccountId || user?.id)
+        .maybeSingle();
+
+      if (!account?.whatsapp_catalog_sync_enabled) return; // Sync not enabled
+
+      const endpoint = productId === "all"
+        ? "/api/whatsapp/catalog"
+        : `/api/whatsapp/catalog/${productId}`;
+
+      await fetch(endpoint, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      console.log("[Products] Catalog sync triggered for:", productId);
+    } catch (e) {
+      console.warn("[Products] Catalog sync failed:", e.message);
+    }
+  };
+
   // Fetch active coupons for discount display
   useEffect(() => {
     const fetchActiveCoupons = async () => {
@@ -440,6 +466,8 @@ export default function ProductsPage() {
     if (!error) {
       closeModal();
       fetchProducts();
+      // Feature 5: Auto-sync to WhatsApp catalog if enabled
+      syncToCatalog(savedProduct?.id || "all");
     }
     setSaving(false);
   };
@@ -500,6 +528,8 @@ export default function ProductsPage() {
 
       toast.success("Product deleted");
       fetchProducts();
+      // Feature 5: Sync catalog after deletion
+      syncToCatalog("all");
     } catch (err) {
       console.error("Delete product error:", err);
       toast.error("Failed to delete product. Please try again.");

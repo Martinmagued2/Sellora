@@ -148,9 +148,51 @@ export async function notify(accountId, params) {
   }
 
   // 3. Push notification (best-effort, non-blocking)
+  // Feature 10: Check push thresholds before sending
   if (prefs.push) {
     try {
-      await sendPushNotification(db, accountId, title, message, actionUrl, priority);
+      let shouldPush = true;
+
+      // Check if push thresholds are configured for this account
+      const { data: acctThresholds } = await db
+        .from("accounts")
+        .select("push_thresholds")
+        .eq("id", accountId)
+        .maybeSingle();
+
+      const thresholds = acctThresholds?.push_thresholds || {};
+
+      // Category-specific threshold checks
+      if (thresholds[category]) {
+        const catThreshold = thresholds[category];
+
+        // Order amount threshold (e.g., only push for orders > 3000)
+        if (catThreshold.min_amount && data.amount) {
+          if (Number(data.amount) < Number(catThreshold.min_amount)) {
+            shouldPush = false;
+            console.log(`[notify] Push suppressed: ${category} amount ${data.amount} < threshold ${catThreshold.min_amount}`);
+          }
+        }
+
+        // VIP-only threshold
+        if (catThreshold.vip_only && !data.is_vip) {
+          shouldPush = false;
+          console.log(`[notify] Push suppressed: ${category} is not VIP`);
+        }
+
+        // Priority threshold (e.g., only push urgent)
+        if (catThreshold.min_priority) {
+          const priorityOrder = { low: 0, normal: 1, high: 2, urgent: 3 };
+          if ((priorityOrder[priority] || 0) < (priorityOrder[catThreshold.min_priority] || 0)) {
+            shouldPush = false;
+            console.log(`[notify] Push suppressed: priority ${priority} < ${catThreshold.min_priority}`);
+          }
+        }
+      }
+
+      if (shouldPush) {
+        await sendPushNotification(db, accountId, title, message, actionUrl, priority);
+      }
     } catch (e) {
       console.warn("[notify] Push failed:", e.message);
     }

@@ -364,7 +364,7 @@ export async function generateAIReply({
     try {
       const { data: accountData } = await getSupabase()
         .from("accounts")
-        .select("currency, ai_name, ai_avatar, ai_personality_type, ai_custom_description, ai_formality, ai_enthusiasm, ai_verbosity, ai_empathy, ai_max_response_length, ai_auto_suggest_products, ai_escalation_keywords, ai_forbidden_topics, ai_personality")
+        .select("currency, ai_name, ai_avatar, ai_personality_type, ai_custom_description, ai_formality, ai_enthusiasm, ai_verbosity, ai_empathy, ai_max_response_length, ai_auto_suggest_products, ai_escalation_keywords, ai_forbidden_topics, ai_personality, ai_dialect, scarcity_threshold, scarcity_enabled, business_hours, after_hours_auto_pilot, timezone")
         .eq("id", accountId)
         .single();
       
@@ -447,7 +447,66 @@ export async function generateAIReply({
     
     formattedMessages.push({ role: "user", content: customerMessage });
 
-    const fullSystemPrompt = systemPrompt + productContext + policyContext;
+    // ─── Feature 9: After-Hours Auto-Pilot Switch ───
+    let afterHoursContext = "";
+    try {
+      if (accountData?.after_hours_auto_pilot && accountData?.business_hours) {
+        const { isBusinessOpen } = await import("@/app/api/settings/business-hours/route");
+        const isOpen = isBusinessOpen(accountData.business_hours, accountData.timezone || "Africa/Cairo");
+
+        if (!isOpen) {
+          afterHoursContext = "\n\n⚠️ AFTER-HOURS MODE: The store is currently CLOSED and no human agents are available. You are in full AUTO-PILOT mode. Handle everything yourself — answer questions, recommend products, create orders, and process payments autonomously. If a customer asks to speak to a human, politely explain that the team is currently away but will follow up tomorrow during business hours, and you can help them with anything they need right now. Be extra helpful and proactive to compensate for the absence of human agents.";
+          console.log("[generateAIReply] After-hours auto-pilot ACTIVE — store is closed");
+        }
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Business hours check failed:", e.message);
+    }
+
+    // ─── Feature 4: Arabic Dialect Injection ───
+    let dialectContext = "";
+    try {
+      const { data: acctDialect } = await getSupabase()
+        .from("accounts")
+        .select("ai_dialect")
+        .eq("id", accountId)
+        .maybeSingle();
+
+      const dialect = acctDialect?.ai_dialect || "auto";
+      const dialectInstructions = {
+        egyptian: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST speak in Egyptian Arabic dialect (مصري عامي). Use Egyptian slang and expressions naturally: 'يا هلا', 'منورنا', 'يا فندم', 'خالص', 'ماشي', 'تمام', 'إحنا', 'دي', 'ده', 'عشان'. Be warm, friendly, and casual — like a helpful Egyptian shop owner chatting with a customer on WhatsApp. Never use stiff formal Arabic unless the customer explicitly speaks Fusha.",
+        gulf: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST speak in Gulf Arabic dialect (خليجي). Use Gulf expressions naturally: 'حياك الله', 'طويل العمر', 'ياللا', 'وايد', 'شسالفة', 'زين'. Be respectful, warm, and hospitable — like a premium Gulf brand concierge. Use 'أنتم' for plural address.",
+        levantine: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST speak in Levantine Arabic dialect (شامي). Use Levantine expressions naturally: 'أهلاً وسهلاً', 'تكرم عينك', 'لك', 'شو', 'هيك', 'منيح'. Be warm, friendly, and helpful — like a friendly Levantine shop owner.",
+        formal: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST speak in Formal Arabic (الفصحى). Use proper Modern Standard Arabic with correct grammar. Be professional, polite, and respectful — like a corporate customer service representative. Use 'حضرتك' for polite address.",
+        english: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST respond in English. Be professional and friendly. If the customer writes in Arabic, respond in English but acknowledge their message.",
+        auto: "", // Auto = detect customer's language and match it
+      };
+
+      if (dialect !== "auto" && dialectInstructions[dialect]) {
+        dialectContext = dialectInstructions[dialect];
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Dialect fetch failed:", e.message);
+    }
+
+    // ─── Feature 6: Low Stock Scarcity Trigger ───
+    let scarcityContext = "";
+    try {
+      const { data: acctScarcity } = await getSupabase()
+        .from("accounts")
+        .select("scarcity_threshold, scarcity_enabled")
+        .eq("id", accountId)
+        .maybeSingle();
+
+      if (acctScarcity?.scarcity_enabled !== false) {
+        const threshold = acctScarcity?.scarcity_threshold || 5;
+        scarcityContext = `\n\n⚠️ SCARCITY MARKETING RULE: When recommending or discussing ANY product that has stock ≤ ${threshold} units, you MUST proactively mention scarcity to create urgency. Examples: "🔥 Note: Only ${threshold} pieces left in stock! I recommend reserving yours today." or "Hurry! This item is selling fast — only ${threshold} remaining." This applies to both Arabic and English. Be natural — don't sound pushy, but DO mention it every time a low-stock product comes up.`;
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Scarcity fetch failed:", e.message);
+    }
+
+    const fullSystemPrompt = systemPrompt + productContext + policyContext + afterHoursContext + dialectContext + scarcityContext;
 
     // 5. Try providers with robust fallback
     const providerChain = buildProviderChain();
