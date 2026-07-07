@@ -380,6 +380,73 @@ export function buildVectorEngineProviders() {
   return providers;
 }
 
+/**
+ * Build OpenRouter providers with multi-key support.
+ * OpenRouter provides access to many models including free ones.
+ * API is OpenAI-compatible: https://openrouter.ai/api/v1
+ *
+ * Env vars:
+ *   OPENROUTER_API_KEY or OPENROUTER_API_KEYS (comma-separated)
+ *
+ * Models:
+ *   - openai/gpt-oss-20b:free (free GPT-OSS 20B — great for auto-replies)
+ *   - google/gemini-2.0-flash-exp:free (free Gemini)
+ *   - meta-llama/llama-3.3-70b-instruct:free (free Llama 70B)
+ */
+export function buildOpenRouterProviders(opts = {}) {
+  const { routingOnly = false } = opts;
+  const keys = collectKeys("OPENROUTER_API_KEY", "OPENROUTER_API_KEYS");
+  const providers = [];
+
+  if (keys.length === 0) return providers;
+
+  // Model selection
+  const models = routingOnly
+    ? [{ id: "openai/gpt-oss-20b:free", name: "openrouter-gpt-oss" }]
+    : [
+        { id: "openai/gpt-oss-20b:free", name: "openrouter-gpt-oss" },
+        { id: "meta-llama/llama-3.3-70b-instruct:free", name: "openrouter-llama70b" },
+      ];
+
+  keys.forEach((key, keyIndex) => {
+    if (isKeyUnhealthy("openrouter", keyIndex)) {
+      console.log(`[ProviderChain] Skipping unhealthy OpenRouter key ${keyIndex + 1}/${keys.length}`);
+      return;
+    }
+
+    const keyLabel = keys.length > 1 ? `-k${keyIndex + 1}` : "";
+
+    try {
+      const openrouter = createOpenAI({
+        apiKey: key,
+        baseURL: "https://openrouter.ai/api/v1",
+        compatibility: "compatible",
+        // Optional headers for OpenRouter rankings
+        headers: {
+          "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://www.sellorachat.com",
+          "X-Title": "Sellora",
+        },
+      });
+
+      for (const model of models) {
+        providers.push({
+          name: `${model.name}${keyLabel}`,
+          model: openrouter(model.id),
+          _provider: "openrouter",
+          _keyIndex: keyIndex,
+        });
+      }
+    } catch (e) {
+      console.warn(`[ProviderChain] OpenRouter key ${keyIndex + 1} setup failed:`, e?.message);
+    }
+  });
+
+  if (providers.length > 0) {
+    console.log(`[ProviderChain] OpenRouter: ${providers.length} provider(s) from ${keys.length} key(s)`);
+  }
+  return providers;
+}
+
 // ─── Full Chain Builders ───
 // These build the complete fallback chain in optimal order.
 
@@ -402,13 +469,16 @@ export function buildFullProviderChain(opts = {}) {
   // 2. NVIDIA NIM (free tier, high quality)
   providers.push(...buildNvidiaProviders());
 
-  // 3. Groq — lightweight mode for auto-replies (fast/cheap models)
+  // 3. OpenRouter (free models — GPT-OSS 20B, Llama 70B)
+  providers.push(...buildOpenRouterProviders({ routingOnly }));
+
+  // 4. Groq — lightweight mode for auto-replies (fast/cheap models)
   providers.push(...buildGroqProviders({ routingOnly, lightweight: !routingOnly }));
 
-  // 4. Google Gemini (generous free tier)
+  // 5. Google Gemini (generous free tier)
   providers.push(...buildGoogleProviders());
 
-  // 5. OpenAI (paid, last resort)
+  // 6. OpenAI (paid, last resort)
   providers.push(...buildOpenAIProviders());
 
   console.log(`[ProviderChain] Built full chain (auto-reply): ${providers.length} provider(s) total`);
@@ -434,6 +504,9 @@ export function buildStreamingProviderChain() {
   // Groq first (fastest for streaming)
   providers.push(...buildGroqProviders());
 
+  // OpenRouter (free models, good for streaming)
+  providers.push(...buildOpenRouterProviders());
+
   // Google Gemini (fast streaming)
   providers.push(...buildGoogleProviders());
 
@@ -458,12 +531,14 @@ export function getProviderChainSummary() {
   const nvidiaKeys = collectKeys("NVIDIA_API_KEY", "NVIDIA_API_KEYS");
   const googleKeys = collectKeys("GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEYS");
   const openaiKeys = collectKeys("OPENAI_API_KEY", "OPENAI_API_KEYS");
+  const openrouterKeys = collectKeys("OPENROUTER_API_KEY", "OPENROUTER_API_KEYS");
 
   return {
     groq: { keys: groqKeys.length, keysPreview: groqKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     nvidia: { keys: nvidiaKeys.length, keysPreview: nvidiaKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     google: { keys: googleKeys.length, keysPreview: googleKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     openai: { keys: openaiKeys.length, keysPreview: openaiKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
+    openrouter: { keys: openrouterKeys.length, keysPreview: openrouterKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     vectorengine: process.env.VECTORENGINE_API_KEY ? "configured" : "not set",
     keyHealth: getKeyHealthSummary(),
   };
