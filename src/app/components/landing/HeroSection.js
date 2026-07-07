@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { ArrowRight, Play, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import HeroDashboardMockup from "./HeroDashboardMockup";
 import "./landing.css";
@@ -61,7 +62,7 @@ export default function HeroSection() {
             {/* Top Live Badge */}
             <div style={{ marginBottom: "24px" }}>
               <span className="designer-badge" style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                <span className="dot" />
+                <Image src="/logo.png" alt="Sellora" width={20} height={20} style={{ borderRadius: 6 }} />
                 <span>{d.badge}</span>
               </span>
             </div>

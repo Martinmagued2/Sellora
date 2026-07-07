@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ShieldCheck, Code2, Server, Lock, Sparkles, ArrowRight, HeartHandshake, CheckCircle2, MessageSquareQuote, Layers, Terminal } from "lucide-react";
+import Image from "next/image";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import "./landing.css";
 
@@ -87,7 +88,7 @@ export default function HonestTrustSection() {
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <span className="designer-badge" style={{ marginBottom: "16px" }}>
-            <span className="dot" /> {d.badge}
+            <Image src="/logo.png" alt="Sellora" width={18} height={18} style={{ borderRadius: 4 }} /> {d.badge}
           </span>
           <h2 className="designer-title" style={{ fontSize: "2.8rem" }}>
             {d.title1} <span style={{ color: "#34d399" }}>{d.title2}</span>

@@ -7,6 +7,7 @@ import {
   Check, Sparkles, ArrowRight, ChevronRight, Star, AlertCircle, Home,
   Filter, Plus, Search, ShieldCheck, RefreshCw, FileText, Layers
 } from "lucide-react";
+import Image from "next/image";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import "./landing.css";
 
@@ -691,9 +692,7 @@ export default function HeroDashboardMockup() {
       {/* Top Window Bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", background: "#0e0f16", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-          <div style={{ width: "24px", height: "24px", borderRadius: "6px", background: "linear-gradient(135deg, #6366f1, #00d2ff)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: "12px", color: "#fff" }}>
-            S
-          </div>
+          <Image src="/logo.png" alt="Sellora" width={24} height={24} style={{ borderRadius: 6 }} />
           <span style={{ fontSize: "14px", fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>Sellora</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "14px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>

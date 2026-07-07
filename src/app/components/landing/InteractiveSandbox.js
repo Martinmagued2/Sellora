@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Send, Bot, Check, Sparkles, MessageSquare, ShieldCheck, Zap, RefreshCw, ShoppingBag, Truck, CreditCard, ArrowRight } from "lucide-react";
+import Image from "next/image";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import "./landing.css";
 
@@ -151,7 +152,7 @@ const UI_DICT = {
     placeholder: "Type your inquiry here (e.g., Do you offer bulk discounts?)...",
     logHeader: "BACKEND AUTOMATION EXECUTION LOG",
     logSpeed: "● Live 0.7s Avg",
-    waHeader: "WhatsApp Business UI Preview",
+    waHeader: "Unified Social Inbox (IG, Messenger & WhatsApp)",
     waOnline: "Online • Auto-Reply in 0.6s",
     simDevice: "Simulated Customer Device",
     aiTyping: "Sellora AI is crafting response & checking Shopify...",
@@ -170,7 +171,7 @@ const UI_DICT = {
     placeholder: "اكتب استفسارك هنا (مثال: هل في خصم على الكميات؟)...",
     logHeader: "سجل تنفيذ الأتمتة في الخلفية",
     logSpeed: "● استجابة 0.7 ثانية",
-    waHeader: "معاينة واجهة واتساب للأعمال",
+    waHeader: "صندوق المحادثات الموحد (إنستجرام وفيسبوك وواتساب)",
     waOnline: "متصل • رد تلقائي في 0.6 ثانية",
     simDevice: "محاكاة هاتف العميل",
     aiTyping: "نظام Sellora يحلل السؤال ويراجع شوبيفاي...",
@@ -189,7 +190,7 @@ const UI_DICT = {
     placeholder: "Posez votre question ici (ex: Proposez-vous des remises en gros ?)...",
     logHeader: "JOURNAL D'EXÉCUTION AUTOMATISÉE",
     logSpeed: "● Moy. 0,7s en direct",
-    waHeader: "Aperçu Interface WhatsApp Business",
+    waHeader: "Boîte Sociale Unifiée (IG, Messenger & WhatsApp)",
     waOnline: "En ligne • Réponse auto en 0,6s",
     simDevice: "Appareil Client Simulé",
     aiTyping: "L'IA Sellora rédige la réponse & vérifie Shopify...",
@@ -339,9 +340,7 @@ export default function InteractiveSandbox() {
         <div style={{ background: "#0c0c0e", border: "1px solid rgba(255, 255, 255, 0.12)", borderRadius: "16px", padding: "20px", display: "flex", flexDirection: "column", boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "14px", marginBottom: "16px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>
-              <div style={{ width: "32px", height: "32px", borderRadius: "10px", background: "#25D366", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <MessageSquare size={18} color="#fff" />
-              </div>
+              <Image src="/logo.png" alt="Sellora" width={32} height={32} style={{ borderRadius: 8 }} />
               <div>
                 <div style={{ fontSize: "13px", fontWeight: 700, color: "#fff" }}>{u.waHeader}</div>
                 <div style={{ fontSize: "11px", color: "#34d399", display: "flex", alignItems: "center", gap: "4px", flexDirection: dir === "rtl" ? "row-reverse" : "row" }}>

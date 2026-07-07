@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { MessageSquare, Bot, PackageCheck, CreditCard, CheckCircle2, Truck, Check, Sparkles, ArrowRight } from "lucide-react";
+import Image from "next/image";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import "./landing.css";
 
@@ -101,7 +102,7 @@ export default function AutomatedLifecycleTimeline() {
     <div className="designer-card" style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px", direction: dir }}>
       <div style={{ textAlign: "center", marginBottom: "36px" }}>
         <span className="designer-badge" style={{ marginBottom: "12px" }}>
-          <span className="dot" /> {d.badge}
+          <Image src="/logo.png" alt="Sellora" width={18} height={18} style={{ borderRadius: 4 }} /> {d.badge}
         </span>
         <h3 style={{ fontSize: "32px", fontWeight: 800, color: "#fff", marginBottom: "8px" }}>
           {d.title1} <span style={{ color: "#34d399" }}>{d.title2}</span>
