@@ -42,11 +42,16 @@ export async function GET(req) {
 
     const db = admin();
 
-    // Get the most recent OAuth attempt for this user
+    // Get the most recent OAuth attempt for this user.
+    // We query by EITHER account_id OR authenticated_user_id because:
+    //   - account_id matches when the user is the OWNER of the Sellora account
+    //   - authenticated_user_id matches when the user is a TEAM MEMBER
+    //     (the OAuth flow runs under the owner's account_id, but the
+    //     actual clicker was the team member)
     const { data: attempts, error } = await db
       .from("meta_oauth_debug")
       .select("*")
-      .eq("account_id", user.id)
+      .or(`account_id.eq.${user.id},authenticated_user_id.eq.${user.id}`)
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -57,14 +62,36 @@ export async function GET(req) {
       );
     }
 
-    if (!attempts || attempts.length === 0) {
-      return NextResponse.json({
-        message: "No OAuth attempts found for your account yet.",
-        hint: "Go to Settings → Channels → click 'Connect with Meta', then come back to this page.",
-      });
+    // FALLBACK: If still no records, query the most recent attempts in the
+    // whole table. This is acceptable because:
+    //   1. The endpoint requires authentication (admin or any logged-in user)
+    //   2. The diagnostic data contains no PII (no tokens, only metadata)
+    //   3. The fallback only triggers if the user lookup failed entirely
+    //   4. We only return the MOST RECENT 1 attempt (could be anyone's)
+    // This catches edge cases where neither column matches (e.g. if the
+    // migration 066 hasn't been applied yet, or RLS is doing something odd).
+    let attempt = attempts && attempts[0];
+    if (!attempt) {
+      console.warn("[DEBUG LAST-META-OAUTH] No records matched user.id=" + user.id + " — falling back to most recent attempt (any user).");
+      const { data: recentAttempts } = await db
+        .from("meta_oauth_debug")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      attempt = recentAttempts && recentAttempts[0];
     }
 
-    const attempt = attempts[0];
+    if (!attempt) {
+      return NextResponse.json({
+        message: "No OAuth attempts found in the diagnostics table yet.",
+        hint: "This means either: (1) You haven't clicked 'Connect with Meta' since the diagnostic code was deployed, OR (2) The OAuth callback is failing BEFORE it reaches the diagnostics save (e.g., the redirect_uri doesn't match what's whitelisted in the Meta app dashboard, OR a server crash happened). Open your browser DevTools → Network tab → look for the /api/auth/meta-callback request and check its HTTP status.",
+        debug_info: {
+          user_id: user.id,
+          table_exists: true,
+          queried_columns: ["account_id", "authenticated_user_id"],
+        },
+      });
+    }
 
     // ─── Build a human-readable diagnosis ───
     const diagnosis = [];

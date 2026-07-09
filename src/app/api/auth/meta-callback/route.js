@@ -155,6 +155,7 @@ export async function GET(request) {
   // ─── Initialize the diagnostics record that we'll save at the end ───
   const diag = {
     account_id: accountId,
+    authenticated_user_id: authenticatedUserId,  // The user who actually clicked "Connect"
     platform,
     token_exchange_short: null,
     token_exchange_long: null,
