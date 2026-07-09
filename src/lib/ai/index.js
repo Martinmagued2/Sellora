@@ -364,7 +364,7 @@ export async function generateAIReply({
     try {
       const { data: accountData } = await getSupabase()
         .from("accounts")
-        .select("currency, ai_name, ai_avatar, ai_personality_type, ai_custom_description, ai_formality, ai_enthusiasm, ai_verbosity, ai_empathy, ai_max_response_length, ai_auto_suggest_products, ai_escalation_keywords, ai_forbidden_topics, ai_personality")
+        .select("currency, ai_name, ai_avatar, ai_personality_type, ai_custom_description, ai_formality, ai_enthusiasm, ai_verbosity, ai_empathy, ai_max_response_length, ai_auto_suggest_products, ai_escalation_keywords, ai_forbidden_topics, ai_personality, ai_dialect, scarcity_threshold, scarcity_enabled, business_hours, after_hours_auto_pilot, timezone")
         .eq("id", accountId)
         .single();
       
@@ -396,20 +396,44 @@ export async function generateAIReply({
 
       const { data: products } = await getSupabase()
         .from("products")
-        .select("name, price, description, category, stock, variants")
+        .select("id, name, price, description, category, stock, variants, sku, image_urls, status")
         .eq("account_id", accountId)
         .eq("status", "active")
-        .limit(30);
+        .order("created_at", { ascending: false })
+        .limit(50);
 
       if (products && products.length > 0) {
-        productContext = `\n\nYOUR CURRENT PRODUCT CATALOG:\n${products.map(p => {
-          let line = `• ${p.name} — ${p.price} ${currency} (Stock: ${p.stock}, Category: ${p.category || 'General'})`;
-          if (p.description) line += `\n  Description: ${p.description.slice(0, 150)}`;
+        productContext = `\n\n═══ YOUR COMPLETE PRODUCT CATALOG (${products.length} products) ═══\n`;
+        productContext += `You have INSTANT access to all product information below. Do NOT say "let me check" — you already know everything.\n\n`;
+
+        products.forEach((p, idx) => {
+          productContext += `📦 PRODUCT #${idx + 1}: ${p.name}\n`;
+          productContext += `   Price: ${p.price} ${currency}\n`;
+          productContext += `   Stock: ${p.stock} units${p.stock <= 5 ? ' ⚠️ LOW STOCK — mention scarcity!' : ''}\n`;
+          if (p.category) productContext += `   Category: ${p.category}\n`;
+          if (p.sku) productContext += `   SKU: ${p.sku}\n`;
+          if (p.description) productContext += `   Description: ${p.description.slice(0, 300)}\n`;
           if (p.variants && p.variants.length > 0) {
-            line += `\n  Variants: ${p.variants.map(v => `${v.name} (${v.price} ${currency}, ${v.stock} in stock)`).join(' | ')}`;
+            productContext += `   Variants:\n`;
+            p.variants.forEach(v => {
+              productContext += `     • ${v.name}: ${v.price || p.price} ${currency} (${v.stock || 0} in stock)\n`;
+            });
           }
-          return line;
-        }).join('\n')}\n\nIMPORTANT: When customers ask what you sell or about products, reference this catalog directly. Do NOT say you need to check — you already have this information. If a product has variants (sizes, colors, etc.), ALWAYS mention the available options to the customer. For example, if they ask 'what colors do you have?', check the variants and list them.`;
+          if (p.image_urls && p.image_urls.length > 0) {
+            productContext += `   Has images: Yes (${p.image_urls.length} images)\n`;
+          }
+          productContext += `\n`;
+        });
+
+        productContext += `CATALOG RULES:
+- When a customer asks "what do you sell?" → list 3-5 top products with names + prices
+- When they ask about a specific product → give full details from above
+- When they ask for recommendations → pick products that match their needs from the catalog
+- When a product has stock ≤ 5 → MENTION SCARCITY ("🔥 Only X left!")
+- When a product has variants → ALWAYS mention available options
+- NEVER say "I need to check our inventory" — the catalog is RIGHT HERE in your context
+- If a customer asks about a product NOT in the catalog → use search_products tool
+- Proactively suggest complementary products (e.g., "Since you're getting X, you might also like Y")`;
       } else {
         productContext = "\n\nNOTE: Your store currently has no products added yet. If the customer asks about products, let them know the store is still being set up.";
       }
@@ -439,15 +463,187 @@ export async function generateAIReply({
       console.warn("[generateAIReply] Failed to fetch policies for context:", e.message);
     }
 
-    // 4. Format History
-    const formattedMessages = conversationHistory.slice(-6).map((msg) => ({
-      role: msg.direction === "incoming" ? "user" : "assistant",
-      content: msg.content,
-    }));
+    // ─── Fix #9: Embed top FAQs in system prompt ───
+    let faqContext = "";
+    try {
+      const { data: faqs } = await getSupabase()
+        .from("faqs")
+        .select("question, answer")
+        .eq("account_id", accountId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(15);
+
+      if (faqs && faqs.length > 0) {
+        faqContext = `\n\n═══ FREQUENTLY ASKED QUESTIONS (${faqs.length} FAQs) ═══\n`;
+        faqContext += `When a customer asks any of these questions, answer directly from the FAQ. Do NOT say "let me check" — you already know the answer.\n\n`;
+        faqs.forEach((f, i) => {
+          faqContext += `Q${i + 1}: ${f.question}\nA: ${f.answer?.slice(0, 500) || "N/A"}\n\n`;
+        });
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] FAQ context fetch failed:", e.message);
+    }
+
+    // 4. Format History — Fix #2: Bump from 6 to 20 messages (Pro+)
+    //    Fix #8: For 20+ message conversations, summarize older messages
+    const HISTORY_LIMIT = plan === "starter" ? 8 : 20;
+    let formattedMessages = [];
+
+    if (conversationHistory.length > 20) {
+      // Summarize the older portion (everything except the last 12 messages)
+      const olderMessages = conversationHistory.slice(0, -12);
+      const recentMessages = conversationHistory.slice(-12);
+
+      // Build a simple summary from older messages (customer's key messages)
+      const customerMessages = olderMessages
+        .filter(m => m.direction === "incoming")
+        .map(m => m.content)
+        .filter(Boolean)
+        .slice(-10); // Last 10 customer messages from the older portion
+
+      const summary = customerMessages.length > 0
+        ? `[EARLIER IN THIS CONVERSATION — Customer said: "${customerMessages.join('" → "')}"]`
+        : "";
+
+      formattedMessages = recentMessages.map((msg) => ({
+        role: msg.direction === "incoming" ? "user" : "assistant",
+        content: msg.content,
+      }));
+
+      // Inject summary as context
+      if (summary) {
+        formattedMessages.unshift({
+          role: "system",
+          content: summary,
+        });
+      }
+    } else {
+      formattedMessages = conversationHistory.slice(-HISTORY_LIMIT).map((msg) => ({
+        role: msg.direction === "incoming" ? "user" : "assistant",
+        content: msg.content,
+      }));
+    }
     
     formattedMessages.push({ role: "user", content: customerMessage });
 
-    const fullSystemPrompt = systemPrompt + productContext + policyContext;
+    // ─── Feature 9: After-Hours Auto-Pilot Switch ───
+    let afterHoursContext = "";
+    try {
+      if (accountData?.after_hours_auto_pilot && accountData?.business_hours) {
+        const { isBusinessOpen } = await import("@/app/api/settings/business-hours/route");
+        const isOpen = isBusinessOpen(accountData.business_hours, accountData.timezone || "Africa/Cairo");
+
+        if (!isOpen) {
+          afterHoursContext = "\n\n⚠️ AFTER-HOURS MODE: The store is currently CLOSED and no human agents are available. You are in full AUTO-PILOT mode. Handle everything yourself — answer questions, recommend products, create orders, and process payments autonomously. If a customer asks to speak to a human, politely explain that the team is currently away but will follow up tomorrow during business hours, and you can help them with anything they need right now. Be extra helpful and proactive to compensate for the absence of human agents.";
+          console.log("[generateAIReply] After-hours auto-pilot ACTIVE — store is closed");
+        }
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Business hours check failed:", e.message);
+    }
+
+    // ─── Customer Context: Recent orders + customer info ───
+    let customerContext = "";
+    try {
+      if (customerId) {
+        const { data: customer } = await getSupabase()
+          .from("customers")
+          .select("name, phone, email, total_orders, total_spent, tags, notes, last_order_at, is_returning")
+          .eq("id", customerId)
+          .maybeSingle();
+
+        if (customer) {
+          customerContext = `\n\n═══ CUSTOMER PROFILE ═══\n`;
+          customerContext += `Name: ${customer.name || "Unknown"}\n`;
+          customerContext += `Phone: ${customer.phone || "N/A"}\n`;
+          customerContext += `Total Orders: ${customer.total_orders || 0}\n`;
+          customerContext += `Total Spent: ${customer.total_spent || 0} ${currency}\n`;
+          customerContext += `Returning Customer: ${customer.is_returning ? "Yes" : "No"}\n`;
+          if (customer.tags && customer.tags.length > 0) {
+            customerContext += `Tags: ${customer.tags.join(", ")}\n`;
+          }
+          if (customer.notes) {
+            customerContext += `Notes: ${customer.notes}\n`;
+          }
+          if (customer.last_order_at) {
+            customerContext += `Last Order: ${new Date(customer.last_order_at).toLocaleDateString()}\n`;
+          }
+
+          // Fetch last 3 orders
+          const { data: recentOrders } = await getSupabase()
+            .from("orders")
+            .select("order_number, total, status, payment_status, created_at, items")
+            .eq("customer_id", customerId)
+            .order("created_at", { ascending: false })
+            .limit(3);
+
+          if (recentOrders && recentOrders.length > 0) {
+            customerContext += `\nRecent Orders:\n`;
+            recentOrders.forEach(o => {
+              customerContext += `  • #${o.order_number} — ${o.total} ${currency} — ${o.status} — ${new Date(o.created_at).toLocaleDateString()}\n`;
+              if (o.items && Array.isArray(o.items)) {
+                customerContext += `    Items: ${o.items.map(i => `${i.name} ×${i.qty || 1}`).join(", ")}\n`;
+              }
+            });
+          }
+
+          customerContext += `\nCUSTOMER CONTEXT RULES:
+- If returning customer: acknowledge ("Welcome back, {name}!")
+- If VIP tag: treat as priority customer
+- If they have notes: use that info to personalize
+- Reference their past orders when relevant ("Last time you ordered X...")
+- Use their name in greetings`;
+        }
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Customer context fetch failed:", e.message);
+    }
+
+    // ─── Feature 4: Arabic Dialect Injection ───
+    let dialectContext = "";
+    try {
+      const { data: acctDialect } = await getSupabase()
+        .from("accounts")
+        .select("ai_dialect")
+        .eq("id", accountId)
+        .maybeSingle();
+
+      const dialect = acctDialect?.ai_dialect || "auto";
+      const dialectInstructions = {
+        egyptian: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST speak in Egyptian Arabic dialect (مصري عامي). Use Egyptian slang and expressions naturally: 'يا هلا', 'منورنا', 'يا فندم', 'خالص', 'ماشي', 'تمام', 'إحنا', 'دي', 'ده', 'عشان'. Be warm, friendly, and casual — like a helpful Egyptian shop owner chatting with a customer on WhatsApp. Never use stiff formal Arabic unless the customer explicitly speaks Fusha.",
+        gulf: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST speak in Gulf Arabic dialect (خليجي). Use Gulf expressions naturally: 'حياك الله', 'طويل العمر', 'ياللا', 'وايد', 'شسالفة', 'زين'. Be respectful, warm, and hospitable — like a premium Gulf brand concierge. Use 'أنتم' for plural address.",
+        levantine: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST speak in Levantine Arabic dialect (شامي). Use Levantine expressions naturally: 'أهلاً وسهلاً', 'تكرم عينك', 'لك', 'شو', 'هيك', 'منيح'. Be warm, friendly, and helpful — like a friendly Levantine shop owner.",
+        formal: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST speak in Formal Arabic (الفصحى). Use proper Modern Standard Arabic with correct grammar. Be professional, polite, and respectful — like a corporate customer service representative. Use 'حضرتك' for polite address.",
+        english: "\n\n⚠️ CRITICAL LANGUAGE RULE: You MUST respond in English. Be professional and friendly. If the customer writes in Arabic, respond in English but acknowledge their message.",
+        auto: "", // Auto = detect customer's language and match it
+      };
+
+      if (dialect !== "auto" && dialectInstructions[dialect]) {
+        dialectContext = dialectInstructions[dialect];
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Dialect fetch failed:", e.message);
+    }
+
+    // ─── Feature 6: Low Stock Scarcity Trigger ───
+    let scarcityContext = "";
+    try {
+      const { data: acctScarcity } = await getSupabase()
+        .from("accounts")
+        .select("scarcity_threshold, scarcity_enabled")
+        .eq("id", accountId)
+        .maybeSingle();
+
+      if (acctScarcity?.scarcity_enabled !== false) {
+        const threshold = acctScarcity?.scarcity_threshold || 5;
+        scarcityContext = `\n\n⚠️ SCARCITY MARKETING RULE: When recommending or discussing ANY product that has stock ≤ ${threshold} units, you MUST proactively mention scarcity to create urgency. Examples: "🔥 Note: Only ${threshold} pieces left in stock! I recommend reserving yours today." or "Hurry! This item is selling fast — only ${threshold} remaining." This applies to both Arabic and English. Be natural — don't sound pushy, but DO mention it every time a low-stock product comes up.`;
+      }
+    } catch (e) {
+      console.warn("[generateAIReply] Scarcity fetch failed:", e.message);
+    }
+
+    const fullSystemPrompt = systemPrompt + productContext + customerContext + policyContext + faqContext + afterHoursContext + dialectContext + scarcityContext;
 
     // 5. Try providers with robust fallback
     const providerChain = buildProviderChain();

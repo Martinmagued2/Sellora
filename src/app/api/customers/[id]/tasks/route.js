@@ -325,17 +325,16 @@ export async function PATCH(req, { params }) {
               preheader: `Task ready for review: ${existingTask.title?.slice(0, 50) || 'Untitled'}`,
               bodyContent: `
                 <h1>Task ready for review 🔍</h1>
-                <p>Hi ${ownerName || 'there'},</p>
-                <p><strong>${actorName}</strong> finished a task and is requesting your review:</p>
-                <div class="info-box">
-                  <div class="info-label">Task</div>
-                  <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
-                </div>
-                <p>Open the task to review the work and mark it as Done or request changes.</p>
-                <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">Review Task →</a></p>
-                <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was submitted for your review on Sellora.</p>
-              `,
-            }),
+              <p>Hi ${ownerName || 'there'},</p>
+              <p><strong>${actorName}</strong> finished a task and is requesting your review:</p>
+              <div class="info-box">
+                <div class="info-label">Task</div>
+                <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
+              </div>
+              <p>Open the task to review the work and mark it as Done or request changes.</p>
+              <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">Review Task →</a></p>
+              <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was submitted for your review on Sellora.</p>
+            `,
             templateName: 'task_review_requested',
             accountId: existingTask.account_id,
             metadata: { taskId: task_id },

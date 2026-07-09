@@ -12,7 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
 import { canAccessAccount, getActorName, getTeamMembers } from "@/lib/team-auth";
 import { notify } from "@/lib/notifications";
-import { sendCustomEmail, isEmailConfigured, wrapInLayout } from "@/lib/email";
+import { sendCustomEmail, isEmailConfigured } from "@/lib/email";
 
 let _admin = null;
 function admin() {
@@ -133,23 +133,20 @@ export async function POST(req, { params }) {
           await sendCustomEmail({
             to: assigneeEmail,
             subject: `[Sellora] New customer assigned: ${custName}`,
-            html: wrapInLayout({
-              preheader: `New customer assigned: ${custName}`,
-              bodyContent: `
-                <h1>New customer assigned to you 👋</h1>
-                <p>Hi ${assigneeName || "there"},</p>
-                <p>${actorName} just assigned a customer to you on Sellora:</p>
-                <div class="info-box">
-                  <div class="info-label">Customer</div>
-                  <div class="info-text">
-                    <strong>${custName}</strong>${customer.email ? `<br>${customer.email}` : ""}
-                  </div>
+            html: `
+              <h1>New customer assigned to you 👋</h1>
+              <p>Hi ${assigneeName || "there"},</p>
+              <p>${actorName} just assigned a customer to you on Sellora:</p>
+              <div class="info-box">
+                <div class="info-label">Customer</div>
+                <div class="info-text">
+                  <strong>${custName}</strong>${customer.email ? `<br>${customer.email}` : ""}
                 </div>
-                <p>Open the customer profile to view their conversation history, orders, and tasks.</p>
-                <p><a href="${appUrl}/dashboard/customers/${customerId}" class="btn">Open Customer →</a></p>
-                <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a team member assigned a customer to you on Sellora.</p>
-              `,
-            }),
+              </div>
+              <p>Open the customer profile to view their conversation history, orders, and tasks.</p>
+              <p><a href="${appUrl}/dashboard/customers/${customerId}" class="btn">Open Customer →</a></p>
+              <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a team member assigned a customer to you on Sellora.</p>
+            `,
             templateName: "customer_assigned",
             accountId: customer.account_id,
             metadata: { customerId, customerName: custName },

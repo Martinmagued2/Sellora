@@ -91,12 +91,54 @@ export async function GET(request) {
   const [platform, ...accountIdParts] = state.split("_");
   const accountId = accountIdParts.join("_");
 
-  // SECURITY: Verify accountId from state matches the authenticated user
-  if (authenticatedUserId && accountId !== authenticatedUserId) {
-    console.error(`[META-CALLBACK] Account ID mismatch: state=${accountId}, auth=${authenticatedUserId}`);
-    return NextResponse.redirect(
-      redirectUrl("/dashboard/settings?tab=channels&error=auth_mismatch")
-    );
+  // SECURITY: Verify the authenticated user is allowed to manage this account.
+  // The state param comes from the frontend and is NOT trusted — a malicious user
+  // could craft a state with any accountId. We must verify server-side that the
+  // logged-in user is the owner OR an accepted team member of this account.
+  //
+  // We do a direct DB query (not canAccessAccount) to avoid any helper bugs.
+  if (authenticatedUserId) {
+    console.log("[META-CALLBACK] Security check:", {
+      authenticatedUserId,
+      accountId,
+      isOwner: authenticatedUserId === accountId,
+    });
+
+    // Case 1: User is the owner
+    if (authenticatedUserId === accountId) {
+      console.log("[META-CALLBACK] ✅ User is the owner");
+    } else {
+      // Case 2: User might be a team member — check directly in DB
+      const supabase = getSupabase();
+      const { data: membership, error: memberErr } = await supabase
+        .from("team_members")
+        .select("id, role, invite_status, status")
+        .eq("user_id", authenticatedUserId)
+        .eq("account_id", accountId)
+        .maybeSingle();
+
+      console.log("[META-CALLBACK] Team membership check:", {
+        found: !!membership,
+        error: memberErr?.message,
+        invite_status: membership?.invite_status,
+        status: membership?.status,
+      });
+
+      const isAcceptedMember = membership &&
+        membership.invite_status === "accepted" &&
+        (membership.status === "active" || membership.status === null || membership.status === undefined);
+
+      if (!isAcceptedMember) {
+        console.error(`[META-CALLBACK] ❌ User ${authenticatedUserId} is NOT authorized to manage account ${accountId}`);
+        return NextResponse.redirect(
+          redirectUrl("/dashboard/settings?tab=channels&error=auth_mismatch")
+        );
+      }
+
+      console.log(`[META-CALLBACK] ✅ Team member ${authenticatedUserId} authorized for account ${accountId}`);
+    }
+  } else {
+    console.warn("[META-CALLBACK] No authenticated user found in session — proceeding anyway (OAuth flow itself verifies Facebook identity)");
   }
 
   if (!["instagram", "facebook"].includes(platform) || !accountId) {
@@ -411,34 +453,51 @@ export async function GET(request) {
     }
 
     // ─── Step 5: Always connect Facebook Messenger ───
+    // CRITICAL: Save BOTH the Page token AND the long-lived User token.
+    // The User token is needed for Instagram Business Account lookup.
     const { error: fbUpdateError } = await supabase
       .from("accounts")
       .update({
         facebook_page_id: pageId,
         facebook_access_token: pageAccessToken,
         facebook_connected: true,
+        meta_user_access_token: longLivedToken, // Save user token for IG lookup
       })
       .eq("id", accountId);
 
     if (fbUpdateError) {
       console.error("[META-CALLBACK] Facebook DB update failed:", fbUpdateError);
     } else {
-      console.log(`[META-CALLBACK] Facebook connected: ${pageName}`);
+      console.log(`[META-CALLBACK] Facebook connected: ${pageName} (saved both page + user tokens)`);
     }
 
     // ─── Step 6: Try to connect Instagram via the Page's IG Business Account ───
     let instagramConnected = false;
     try {
+      // Log what permissions the token actually has
+      const permsCheck = await fetch(
+        `${META_API_URL}/me/permissions?access_token=${pageAccessToken}`,
+        { method: "GET" }
+      );
+      const permsCheckData = await permsCheck.json();
+      console.log("[META-CALLBACK] Page token permissions:", JSON.stringify(permsCheckData));
+
+      // First, try the page we already found
+      // CRITICAL: Use longLivedToken (User Token) here, NOT pageAccessToken.
+      // Page tokens often can't see the instagram_business_account field even with permissions.
+      console.log("[META-CALLBACK] Checking page", pageId, "for IG Business Account using USER token...");
       const igAccountResponse = await fetch(
-        `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${pageAccessToken}`,
+        `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${longLivedToken}`,
         { method: "GET" }
       );
 
       const igAccountData = await igAccountResponse.json();
-      console.log("[META-CALLBACK] IG account found:", igAccountData.instagram_business_account?.username || "yes");
+      console.log("[META-CALLBACK] IG lookup response (full):", JSON.stringify(igAccountData));
+      console.log("[META-CALLBACK] IG lookup response status:", igAccountResponse.status);
 
       if (igAccountData.instagram_business_account) {
         const igAccount = igAccountData.instagram_business_account;
+        console.log("[META-CALLBACK] ✅ Found IG Business Account:", igAccount.username || igAccount.id);
 
         const { error: igUpdateError } = await supabase
           .from("accounts")
@@ -456,10 +515,51 @@ export async function GET(request) {
           console.log(`[META-CALLBACK] Instagram connected: @${igAccount.username}`);
         }
       } else {
-        console.log("[META-CALLBACK] No Instagram Business Account linked to Page");
+        // The first page didn't have IG linked. Try ALL pages the user manages.
+        console.log("[META-CALLBACK] ❌ No IG on first page. Trying ALL pages with IG field...");
+        const allPagesResponse = await fetch(
+          `${META_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100&access_token=${longLivedToken}`,
+          { method: "GET" }
+        );
+        const allPagesData = await allPagesResponse.json();
+        console.log("[META-CALLBACK] All pages response (full):", JSON.stringify(allPagesData));
+        console.log("[META-CALLBACK] Pages found:", allPagesData.data?.length || 0);
+
+        if (allPagesData.data) {
+          for (const p of allPagesData.data) {
+            console.log(`[META-CALLBACK] Page: ${p.name} (${p.id}) → IG:`, p.instagram_business_account ? `@${p.instagram_business_account.username}` : "NONE");
+            if (p.instagram_business_account) {
+              console.log(`[META-CALLBACK] ✅ Found IG on page: ${p.name}`);
+              const { error: igUpdateError } = await supabase
+                .from("accounts")
+                .update({
+                  instagram_page_id: p.id,
+                  instagram_access_token: p.access_token,
+                  instagram_connected: true,
+                })
+                .eq("id", accountId);
+
+              if (!igUpdateError) {
+                instagramConnected = true;
+                console.log(`[META-CALLBACK] Instagram connected: @${p.instagram_business_account.username}`);
+                break;
+              }
+            }
+          }
+        }
+
+        if (!instagramConnected) {
+          console.log("[META-CALLBACK] ❌ No Instagram Business Account linked to ANY page");
+          console.log("[META-CALLBACK] LIKELY CAUSES:");
+          console.log("[META-CALLBACK]   1. Instagram product not added to Meta app → developers.facebook.com → your app → Add Product → Instagram");
+          console.log("[META-CALLBACK]   2. instagram_manage_messages permission not granted → check OAuth dialog");
+          console.log("[META-CALLBACK]   3. IG is linked to personal FB profile, not a FB Page → link via FB Page Settings");
+          console.log("[META-CALLBACK]   4. IG is a personal account, not Business/Creator → convert in IG app");
+        }
       }
     } catch (igErr) {
       console.warn("[META-CALLBACK] IG lookup error:", igErr.message);
+      console.warn("[META-CALLBACK] IG lookup stack:", igErr.stack);
     }
 
     // ─── Step 7: Redirect back to settings ───

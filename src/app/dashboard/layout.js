@@ -40,6 +40,8 @@ import {
   Smartphone,
   Store,
   Truck,
+  Rocket,
+  CheckSquare,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
@@ -47,8 +49,10 @@ import { StoreProvider } from "@/lib/store-context";
 import { useDevice } from "@/lib/use-device";
 import PageTransition from "@/components/PageTransition";
 import DashboardAnimations from "@/components/DashboardAnimations";
+import { EffectiveAccountProvider, useEffectiveAccount } from "@/lib/account-context";
 
 import CopilotPanel from "./components/CopilotPanel";
+import InviteAcceptPopup from "./components/InviteAcceptPopup";
 import NotificationBell from "./components/NotificationBell";
 import ToastProvider, { useToast } from "./components/ToastProvider";
 import ConfirmProvider from "./components/ConfirmProvider";
@@ -83,39 +87,45 @@ const sidebarLinks = [
   {
     section: "Main",
     links: [
-      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-      { href: "/dashboard/conversations", icon: MessageCircle, label: "Conversations", badgeKey: "conversations" },
-      { href: "/dashboard/orders", icon: ShoppingBag, label: "Orders", badgeKey: "orders" },
-      { href: "/dashboard/abandoned-carts", icon: ShoppingCart, label: "Abandoned Carts" },
-      { href: "/dashboard/notifications", icon: Bell, label: "Notifications" },
-      { href: "/dashboard/referrals", icon: Gift, label: "Referrals" },
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["owner", "admin", "agent"] },
+      { href: "/dashboard/conversations", icon: MessageCircle, label: "Conversations", badgeKey: "conversations", roles: ["owner", "admin", "agent"] },
+      { href: "/dashboard/orders", icon: ShoppingBag, label: "Orders", badgeKey: "orders", roles: ["owner", "admin", "agent"] },
+      { href: "/dashboard/abandoned-carts", icon: ShoppingCart, label: "Abandoned Carts", roles: ["owner", "admin"] },
+      { href: "/dashboard/tasks", icon: CheckSquare, label: "My Tasks", badgeKey: "tasks", roles: ["owner", "admin", "agent"] },
+      { href: "/dashboard/notifications", icon: Bell, label: "Notifications", roles: ["owner", "admin", "agent"] },
+      { href: "/dashboard/referrals", icon: Gift, label: "Referrals", roles: ["owner"] },
     ],
   },
   {
     section: "Manage",
     links: [
-      { href: "/dashboard/products", icon: Package, label: "Products" },
-      { href: "/dashboard/customers", icon: Users, label: "Customers" },
-      { href: "/dashboard/campaigns", icon: Megaphone, label: "Campaigns" },
-      { href: "/dashboard/segments", icon: Target, label: "Segments" },
-      { href: "/dashboard/coupons", icon: Tag, label: "Coupons" },
-      { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
-      { href: "/dashboard/webhooks", icon: Webhook, label: "Webhooks" },
-      { href: "/dashboard/automation", icon: Bot, label: "Automation" },
-      { href: "/dashboard/flows", icon: Zap, label: "Flow Builder" },
-      { href: "/dashboard/ai-personality", icon: Sparkles, label: "AI Personality" },
-      { href: "/dashboard/ab-tests", icon: FlaskConical, label: "A/B Tests" },
-      { href: "/dashboard/reviews", icon: Star, label: "Reviews" },
-      { href: "/dashboard/whatsapp-catalog", icon: Smartphone, label: "WA Catalog" },
-      { href: "/dashboard/stores", icon: Store, label: "Stores" },
-      { href: "/dashboard/shipping", icon: Truck, label: "Shipping" },
+      { href: "/dashboard/products", icon: Package, label: "Products", roles: ["owner", "admin", "agent"] },
+      { href: "/dashboard/customers", icon: Users, label: "Customers", roles: ["owner", "admin", "agent"] },
+      { href: "/dashboard/campaigns", icon: Megaphone, label: "Campaigns", roles: ["owner", "admin"] },
+      { href: "/dashboard/segments", icon: Target, label: "Segments", roles: ["owner", "admin"] },
+      { href: "/dashboard/coupons", icon: Tag, label: "Coupons", roles: ["owner", "admin"] },
+      { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics", roles: ["owner", "admin"] },
+      { href: "/dashboard/webhooks", icon: Webhook, label: "Webhooks", roles: ["owner"] },
+      { href: "/dashboard/automation", icon: Bot, label: "Automation", roles: ["owner", "admin"] },
+      { href: "/dashboard/revenue-automations", icon: Rocket, label: "Revenue Suite", roles: ["owner", "admin"] },
+      { href: "/dashboard/lifecycle-automations", icon: Sparkles, label: "Lifecycle & AI", roles: ["owner", "admin"] },
+      { href: "/dashboard/operational-automations", icon: Truck, label: "Operational & Advanced", roles: ["owner", "admin"] },
+      { href: "/dashboard/flows", icon: Zap, label: "Flow Builder", roles: ["owner", "admin"] },
+      { href: "/dashboard/ai-personality", icon: Sparkles, label: "AI Personality", roles: ["owner", "admin"] },
+      { href: "/dashboard/ai-safety", icon: Shield, label: "AI Safety Center", roles: ["owner", "admin"] },
+      { href: "/dashboard/ab-tests", icon: FlaskConical, label: "A/B Tests", roles: ["owner", "admin"] },
+      { href: "/dashboard/reviews", icon: Star, label: "Reviews", roles: ["owner", "admin", "agent"] },
+      { href: "/dashboard/whatsapp-catalog", icon: Smartphone, label: "WA Catalog", roles: ["owner", "admin"] },
+      { href: "/dashboard/stores", icon: Store, label: "Stores", roles: ["owner"] },
+      { href: "/dashboard/templates", icon: Sparkles, label: "Templates", roles: ["owner", "admin"] },
+      { href: "/dashboard/shipping", icon: Truck, label: "Shipping", roles: ["owner", "admin"] },
     ],
   },
   {
     section: "Settings",
     links: [
-      { href: "/dashboard/settings", icon: Settings, label: "Settings" },
-      { href: "/dashboard/billing", icon: CreditCard, label: "Billing" },
+      { href: "/dashboard/settings", icon: Settings, label: "Settings", roles: ["owner", "admin"] },
+      { href: "/dashboard/billing", icon: CreditCard, label: "Billing", roles: ["owner"] },
     ],
   },
 ];
@@ -127,6 +137,8 @@ const pageTitles = {
   "/dashboard/conversations": "Conversations",
   "/dashboard/orders": "Orders",
   "/dashboard/notifications": "Notifications",
+  "/dashboard/tasks": "My Tasks",
+  "/dashboard/tasks/[id]": "Task Details",
   "/dashboard/products": "Products",
   "/dashboard/customers": "Customers",
   "/dashboard/campaigns": "Campaigns",
@@ -136,13 +148,18 @@ const pageTitles = {
   "/dashboard/settings": "Settings",
   "/dashboard/billing": "Billing",
   "/dashboard/automation": "Automation",
+  "/dashboard/revenue-automations": "Revenue Automations",
+  "/dashboard/lifecycle-automations": "Lifecycle & AI Automations",
+  "/dashboard/operational-automations": "Operational & Advanced Automations",
   "/dashboard/abandoned-carts": "Abandoned Carts",
   "/dashboard/webhooks": "Webhooks",
   "/dashboard/ai-personality": "AI Personality",
+  "/dashboard/ai-safety": "AI Safety Center",
   "/dashboard/ab-tests": "A/B Tests",
   "/dashboard/whatsapp-catalog": "WA Catalog",
   "/dashboard/referrals": "Referrals",
   "/dashboard/stores": "Stores",
+  "/dashboard/templates": "Templates Marketplace",
   "/dashboard/shipping": "Shipping",
 };
 
@@ -156,7 +173,8 @@ export default function DashboardLayout({ children }) {
   const [user, setUser] = useState(null);
   const [accountStatus, setAccountStatus] = useState(null);
   const { isAdmin: isAdminUser } = useAdminAuth();
-  const [sidebarBadges, setSidebarBadges] = useState({ conversations: 0, orders: 0 });
+  const { role: userRole, effectiveAccountId } = useEffectiveAccount();
+  const [sidebarBadges, setSidebarBadges] = useState({ conversations: 0, orders: 0, tasks: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -195,13 +213,18 @@ export default function DashboardLayout({ children }) {
 
     const fetchBadges = async () => {
       try {
-        const [convRes, orderRes] = await Promise.all([
-          supabase.from("conversations").select("id", { count: "exact", head: true }).eq("account_id", user.id).in("status", ["new", "open"]),
-          supabase.from("orders").select("id", { count: "exact", head: true }).eq("account_id", user.id).in("status", ["pending", "confirmed"]),
+        // Use effectiveAccountId so team members see the owner's counts
+        const accId = effectiveAccountId || user.id;
+        const [convRes, orderRes, taskRes] = await Promise.all([
+          supabase.from("conversations").select("id", { count: "exact", head: true }).eq("account_id", accId).in("status", ["new", "open"]),
+          supabase.from("orders").select("id", { count: "exact", head: true }).eq("account_id", accId).in("status", ["pending", "confirmed"]),
+          // Tasks: count tasks assigned to ME that are pending
+          supabase.from("customer_tasks").select("id", { count: "exact", head: true }).eq("assigned_to", user.id).eq("status", "pending"),
         ]);
         setSidebarBadges({
           conversations: convRes.count || 0,
           orders: orderRes.count || 0,
+          tasks: taskRes.count || 0,
         });
       } catch (e) {
         // Silently fail — badges are nice-to-have
@@ -211,7 +234,7 @@ export default function DashboardLayout({ children }) {
     fetchBadges();
     const interval = setInterval(fetchBadges, 30000); // Refresh every 30s
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, effectiveAccountId]);
 
   // Global search handler
   useEffect(() => {
@@ -281,6 +304,7 @@ export default function DashboardLayout({ children }) {
 
   return (
     <StoreProvider>
+    <EffectiveAccountProvider>
     <ToastProvider>
     <ConfirmProvider>
     <ServiceWorkerRegistration />
@@ -289,6 +313,7 @@ export default function DashboardLayout({ children }) {
     <KeyboardShortcutsHelp />
     <ActionToastContainer />
     <DashboardAnimations />
+    <InviteAcceptPopup />
     <div className={`dashboard-layout${isMobile ? " mobile-layout" : ""}`}>
       {/* Sidebar — only on desktop / tablet */}
       {!isMobile && (
@@ -311,7 +336,13 @@ export default function DashboardLayout({ children }) {
           <nav className="sidebar-nav">
             {sidebarLinks.map((section, i) => {
               const isCollapsed = collapsedSections[section.section];
-              const hasActiveLink = section.links.some(l => pathname === l.href);
+              // Filter links by user's role
+              const visibleLinks = section.links.filter((link) => {
+                if (!link.roles) return true;
+                return link.roles.includes(userRole || "owner");
+              });
+              if (visibleLinks.length === 0) return null;
+              const hasActiveLink = visibleLinks.some(l => pathname === l.href);
               return (
               <div className="sidebar-section" key={i}>
                 <button
@@ -336,7 +367,7 @@ export default function DashboardLayout({ children }) {
                 </button>
                 {!isCollapsed && (
                   <>
-                    {section.links.map((link) => {
+                    {visibleLinks.map((link) => {
                       const Icon = link.icon;
                       const isActive = pathname === link.href;
                       return (
@@ -638,6 +669,7 @@ export default function DashboardLayout({ children }) {
     </div>
     </ConfirmProvider>
     </ToastProvider>
+    </EffectiveAccountProvider>
     </StoreProvider>
   );
 }
