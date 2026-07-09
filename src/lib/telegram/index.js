@@ -33,8 +33,14 @@ export async function getBotInfo({ botToken }) {
   return data.result;
 }
 
-export async function sendTelegramMessage({ botToken, chatId, text, parseMode = "HTML", replyMarkup = null }) {
-  const payload = { chat_id: chatId, text: text.slice(0, 4096), parse_mode: parseMode };
+export async function sendTelegramMessage({ botToken, chatId, text, parseMode, replyMarkup = null }) {
+  // Default to no parse_mode (plain text) — AI-generated text often contains
+  // <, >, & characters that break HTML parsing and cause Telegram to reject
+  // the message silently. Only use HTML when explicitly requested (buttons etc).
+  const payload = { chat_id: chatId, text: text.slice(0, 4096) };
+  if (parseMode) {
+    payload.parse_mode = parseMode;
+  }
   if (replyMarkup) {
     payload.reply_markup = replyMarkup;
   }
@@ -59,7 +65,7 @@ export async function sendTelegramMessage({ botToken, chatId, text, parseMode = 
  */
 export async function sendTelegramMessageWithButtons({ botToken, chatId, text, buttons, parseMode = "HTML" }) {
   return sendTelegramMessage({
-    botToken, chatId, text, parseMode,
+    botToken, chatId, text, parseMode: "HTML",
     replyMarkup: { inline_keyboard: buttons },
   });
 }
