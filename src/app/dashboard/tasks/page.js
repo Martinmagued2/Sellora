@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useEffectiveAccount } from "@/lib/account-context";
@@ -46,7 +46,7 @@ const ASSIGNEE_OPTIONS = [
 ];
 
 export default function TasksPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { effectiveAccountId, role } = useEffectiveAccount();
   const toast = useToast();
   const [user, setUser] = useState(null);
@@ -90,7 +90,8 @@ export default function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [effectiveAccountId, supabase, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveAccountId]);
 
   const loadTeamMembers = useCallback(async () => {
     try {
@@ -118,7 +119,7 @@ export default function TasksPage() {
         .limit(100)
         .then(({ data }) => setCustomers(data || []));
     }
-  }, [showCreate, effectiveAccountId, supabase, customers.length]);
+  }, [showCreate, effectiveAccountId, customers.length]);
 
   const getAssigneeInfo = (userId) => {
     if (!userId) return null;
