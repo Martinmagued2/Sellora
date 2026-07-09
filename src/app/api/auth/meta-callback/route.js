@@ -16,9 +16,26 @@ function getSupabase() {
 }
 
 /**
+ * Safe JSON fetch helper — captures both the parsed body AND the HTTP status,
+ * so we can log everything to the diagnostics table even when the response
+ * is an error.
+ */
+async function graphGet(url) {
+  const res = await fetch(url, { method: "GET" });
+  let body = null;
+  try { body = await res.json(); } catch { try { body = await res.text(); } catch {} }
+  return { status: res.status, body };
+}
+
+/**
  * GET /api/auth/meta-callback
  *
  * Meta OAuth callback handler for Instagram & Facebook connections.
+ *
+ * This version captures FULL raw Graph API responses at every step and
+ * saves them to the `meta_oauth_debug` table so the user can inspect
+ * exactly what Facebook returned — critical for debugging the
+ * "No Facebook Pages found" error.
  */
 export async function GET(request) {
   const url = new URL(request.url);
@@ -28,9 +45,7 @@ export async function GET(request) {
   const errorReason = url.searchParams.get("error_reason");
   const errorMessage = url.searchParams.get("error_message");
 
-  // Debug: Log callback receipt (no sensitive data)
   console.log("[META-CALLBACK] OAuth callback received");
-  console.log("[META-CALLBACK] Params received");
 
   // Determine the public base URL
   // On Vercel, the request.url origin is internal, so we use x-forwarded-host
@@ -41,7 +56,6 @@ export async function GET(request) {
     : url.origin;
 
   console.log("[META-CALLBACK] Base URL:", baseUrl);
-  console.log("[META-CALLBACK] x-forwarded-host:", forwardedHost);
 
   const redirectUrl = (path) => `${baseUrl}${path}`;
 
@@ -60,8 +74,7 @@ export async function GET(request) {
 
   // ─── Validate required params ───
   if (!code || !state) {
-    console.error("[META-CALLBACK] Missing code or state! This usually means the redirect_uri in Meta app doesn't match the callback URL, or Facebook is not sending the auth code.");
-    console.error("[META-CALLBACK] Make sure your Meta app's Valid OAuth Redirect URI includes:", redirectUrl("/api/auth/meta-callback"));
+    console.error("[META-CALLBACK] Missing code or state!");
     return NextResponse.redirect(
       redirectUrl("/dashboard/settings?tab=channels&error=missing_params")
     );
@@ -92,37 +105,17 @@ export async function GET(request) {
   const accountId = accountIdParts.join("_");
 
   // SECURITY: Verify the authenticated user is allowed to manage this account.
-  // The state param comes from the frontend and is NOT trusted — a malicious user
-  // could craft a state with any accountId. We must verify server-side that the
-  // logged-in user is the owner OR an accepted team member of this account.
-  //
-  // We do a direct DB query (not canAccessAccount) to avoid any helper bugs.
   if (authenticatedUserId) {
-    console.log("[META-CALLBACK] Security check:", {
-      authenticatedUserId,
-      accountId,
-      isOwner: authenticatedUserId === accountId,
-    });
-
-    // Case 1: User is the owner
     if (authenticatedUserId === accountId) {
       console.log("[META-CALLBACK] ✅ User is the owner");
     } else {
-      // Case 2: User might be a team member — check directly in DB
       const supabase = getSupabase();
-      const { data: membership, error: memberErr } = await supabase
+      const { data: membership } = await supabase
         .from("team_members")
         .select("id, role, invite_status, status")
         .eq("user_id", authenticatedUserId)
         .eq("account_id", accountId)
         .maybeSingle();
-
-      console.log("[META-CALLBACK] Team membership check:", {
-        found: !!membership,
-        error: memberErr?.message,
-        invite_status: membership?.invite_status,
-        status: membership?.status,
-      });
 
       const isAcceptedMember = membership &&
         membership.invite_status === "accepted" &&
@@ -134,11 +127,8 @@ export async function GET(request) {
           redirectUrl("/dashboard/settings?tab=channels&error=auth_mismatch")
         );
       }
-
       console.log(`[META-CALLBACK] ✅ Team member ${authenticatedUserId} authorized for account ${accountId}`);
     }
-  } else {
-    console.warn("[META-CALLBACK] No authenticated user found in session — proceeding anyway (OAuth flow itself verifies Facebook identity)");
   }
 
   if (!["instagram", "facebook"].includes(platform) || !accountId) {
@@ -159,10 +149,29 @@ export async function GET(request) {
     );
   }
 
-  // The redirect_uri MUST exactly match what was used in the OAuth dialog URL
-  // This is the URL Facebook redirected the user to after authorization
   const callbackUrl = redirectUrl("/api/auth/meta-callback");
   console.log("[META-CALLBACK] Token exchange redirect_uri:", callbackUrl);
+
+  // ─── Initialize the diagnostics record that we'll save at the end ───
+  const diag = {
+    account_id: accountId,
+    platform,
+    token_exchange_short: null,
+    token_exchange_long: null,
+    granular_scopes: null,
+    permissions: null,
+    user_profile: null,
+    strategy_accounts_short: null,   // Strategy F (NEW)
+    strategy_accounts_long: null,    // Strategy A/B
+    strategy_user_accounts: null,    // Strategy C
+    strategy_businesses: null,       // Strategy D
+    strategy_granular_pages: null,   // Strategy E
+    final_page_id: null,
+    final_page_name: null,
+    final_outcome: null,
+    error_detail: null,
+    winning_strategy: null,
+  };
 
   try {
     // ─── Step 1: Exchange code for short-lived user access token ───
@@ -177,9 +186,21 @@ export async function GET(request) {
     console.log("[META-CALLBACK] Exchanging code for token...");
     const tokenResponse = await fetch(tokenUrl, { method: "GET" });
     const tokenData = await tokenResponse.json();
+    diag.token_exchange_short = {
+      status: tokenResponse.status,
+      // Don't log the actual token value, just metadata
+      has_access_token: !!tokenData.access_token,
+      token_type: tokenData.token_type,
+      expires_in: tokenData.expires_in,
+      granular_scopes: tokenData.granular_scopes,
+      error: tokenData.error,
+    };
 
     if (tokenData.error) {
       console.error("[META-CALLBACK] Token exchange failed:", JSON.stringify(tokenData.error));
+      diag.final_outcome = "error";
+      diag.error_detail = `Token exchange failed: ${tokenData.error.message || JSON.stringify(tokenData.error)}`;
+      await saveDiagnostics(diag);
       return NextResponse.redirect(
         redirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(tokenData.error.message || "token_exchange_failed")}`)
       );
@@ -189,10 +210,9 @@ export async function GET(request) {
     console.log("[META-CALLBACK] Token exchange successful");
 
     // Extract page IDs from granular_scopes if available
-    // Facebook includes the specific page IDs the user authorized in granular_scopes
     let pageIdsFromScopes = [];
     if (tokenData.granular_scopes) {
-      console.log("[META-CALLBACK] Granular scopes:", JSON.stringify(tokenData.granular_scopes));
+      diag.granular_scopes = tokenData.granular_scopes;
       for (const scope of tokenData.granular_scopes) {
         if (scope.target_ids && scope.target_ids.length > 0) {
           for (const tid of scope.target_ids) {
@@ -205,9 +225,8 @@ export async function GET(request) {
       console.log("[META-CALLBACK] Page IDs from granular_scopes:", pageIdsFromScopes);
     }
 
-    console.log("[META-CALLBACK] Got short-lived token, exchanging for long-lived...");
-
     // ─── Step 2: Exchange for a long-lived user access token ───
+    console.log("[META-CALLBACK] Got short-lived token, exchanging for long-lived...");
     const longLivedResponse = await fetch(
       `${META_API_URL}/oauth/access_token?` +
       `grant_type=fb_exchange_token&` +
@@ -219,14 +238,21 @@ export async function GET(request) {
 
     const longLivedData = await longLivedResponse.json();
     const longLivedToken = longLivedData.access_token || userAccessToken;
+    diag.token_exchange_long = {
+      status: longLivedResponse.status,
+      has_access_token: !!longLivedData.access_token,
+      token_type: longLivedData.token_type,
+      expires_in: longLivedData.expires_in,
+      error: longLivedData.error,
+    };
     console.log("[META-CALLBACK] Got long-lived token");
 
     // ─── Step 3: Check what permissions were actually granted ───
-    const permsResponse = await fetch(
-      `${META_API_URL}/me/permissions?access_token=${longLivedToken}`,
-      { method: "GET" }
+    const permsCheck = await graphGet(
+      `${META_API_URL}/me/permissions?access_token=${longLivedToken}`
     );
-    const permsData = await permsResponse.json();
+    diag.permissions = permsCheck;
+    const permsData = permsCheck.body || {};
     const grantedPerms = (permsData.data || []).filter(p => p.status === 'granted').map(p => p.permission);
     const declinedPerms = (permsData.data || []).filter(p => p.status === 'declined').map(p => p.permission);
     console.log("[META-CALLBACK] Granted:", grantedPerms.join(", "));
@@ -234,103 +260,127 @@ export async function GET(request) {
       console.warn("[META-CALLBACK] Declined:", declinedPerms.join(", "));
     }
 
+    // Also fetch /me to confirm WHO the user is
+    const meCheck = await graphGet(
+      `${META_API_URL}/me?fields=id,name,email&access_token=${longLivedToken}`
+    );
+    diag.user_profile = meCheck;
+    console.log("[META-CALLBACK] User profile:", meCheck.body?.id, meCheck.body?.name, meCheck.body?.email);
+
     // ─── Step 4: Get the user's Facebook Pages (multiple fallback strategies) ───
 
     let pageId = null;
     let pageAccessToken = null;
     let pageName = null;
 
-    // Strategy A: Standard /me/accounts endpoint
-    const pagesResponse = await fetch(
-      `${META_API_URL}/me/accounts?fields=id,name,access_token,picture{url}&access_token=${longLivedToken}`,
-      { method: "GET" }
-    );
-    const pagesData = await pagesResponse.json();
-    console.log("[META-CALLBACK] Strategy A (/me/accounts):", pagesData.data?.length || 0, "pages");
-
-    if (pagesData.data && pagesData.data.length > 0) {
-      const page = pagesData.data[0];
-      pageId = page.id;
-      pageAccessToken = page.access_token;
-      pageName = page.name;
-      console.log(`[META-CALLBACK] Found Page via Strategy A: ${pageName} (${pageId})`);
-    }
-
-    // Strategy B: Try /me/accounts with broader fields (sometimes needed for New Pages Experience)
-    if (!pageId) {
-      console.log("[META-CALLBACK] Strategy A failed, trying Strategy B...");
-      const pagesResponse2 = await fetch(
-        `${META_API_URL}/me/accounts?fields=id,name,access_token&limit=100&access_token=${longLivedToken}`,
-        { method: "GET" }
+    // ───── Strategy F (NEW): Try /me/accounts with the SHORT-LIVED token ─────
+    // The long-lived exchange sometimes loses the granular context that lets
+    // /me/accounts return pages. Try the short-lived token first.
+    {
+      console.log("[META-CALLBACK] Strategy F: /me/accounts with SHORT-LIVED token...");
+      const r = await graphGet(
+        `${META_API_URL}/me/accounts?fields=id,name,access_token,picture{url}&access_token=${userAccessToken}`
       );
-      const pagesData2 = await pagesResponse2.json();
-      console.log("[META-CALLBACK] Strategy B result:", pagesData2.data?.length || 0, "pages");
+      diag.strategy_accounts_short = r;
+      console.log("[META-CALLBACK] Strategy F result:", r.body?.data?.length || 0, "pages");
 
-      if (pagesData2.data && pagesData2.data.length > 0) {
-        const page = pagesData2.data[0];
+      if (r.body?.data && r.body.data.length > 0) {
+        const page = r.body.data[0];
         pageId = page.id;
         pageAccessToken = page.access_token;
         pageName = page.name;
+        diag.winning_strategy = "F";
+        console.log(`[META-CALLBACK] Found Page via Strategy F: ${pageName} (${pageId})`);
+      }
+    }
+
+    // ───── Strategy A: Standard /me/accounts endpoint (long-lived token) ─────
+    if (!pageId) {
+      console.log("[META-CALLBACK] Strategy A: /me/accounts with long-lived token...");
+      const r = await graphGet(
+        `${META_API_URL}/me/accounts?fields=id,name,access_token,picture{url}&access_token=${longLivedToken}`
+      );
+      diag.strategy_accounts_long = r;
+      console.log("[META-CALLBACK] Strategy A result:", r.body?.data?.length || 0, "pages");
+
+      if (r.body?.data && r.body.data.length > 0) {
+        const page = r.body.data[0];
+        pageId = page.id;
+        pageAccessToken = page.access_token;
+        pageName = page.name;
+        diag.winning_strategy = "A";
+        console.log(`[META-CALLBACK] Found Page via Strategy A: ${pageName} (${pageId})`);
+      }
+    }
+
+    // ───── Strategy B: Try /me/accounts with broader fields + limit=100 ─────
+    if (!pageId) {
+      console.log("[META-CALLBACK] Strategy B: /me/accounts limit=100...");
+      const r = await graphGet(
+        `${META_API_URL}/me/accounts?fields=id,name,access_token&limit=100&access_token=${longLivedToken}`
+      );
+      // Merge into the same diagnostic slot as A (they're the same endpoint, just different params)
+      if (!diag.strategy_accounts_long) diag.strategy_accounts_long = r;
+      else diag.strategy_accounts_long_strategy_b = r;
+      console.log("[META-CALLBACK] Strategy B result:", r.body?.data?.length || 0, "pages");
+
+      if (r.body?.data && r.body.data.length > 0) {
+        const page = r.body.data[0];
+        pageId = page.id;
+        pageAccessToken = page.access_token;
+        pageName = page.name;
+        diag.winning_strategy = "B";
         console.log(`[META-CALLBACK] Found Page via Strategy B: ${pageName} (${pageId})`);
       }
     }
 
-    // Strategy C: Get user ID first, then try /{user-id}/accounts
+    // ───── Strategy C: Get user ID first, then /{user-id}/accounts ─────
     if (!pageId) {
-      console.log("[META-CALLBACK] Strategy B failed, trying Strategy C (user-id based)...");
-      const meResponse = await fetch(
-        `${META_API_URL}/me?fields=id,name&access_token=${longLivedToken}`,
-        { method: "GET" }
-      );
-      const meData = await meResponse.json();
-      console.log("[META-CALLBACK] User ID:", meData.id);
-
-      if (meData.id) {
-        const userPagesResponse = await fetch(
-          `${META_API_URL}/${meData.id}/accounts?fields=id,name,access_token&access_token=${longLivedToken}`,
-          { method: "GET" }
+      console.log("[META-CALLBACK] Strategy C: /{user-id}/accounts...");
+      const userId = meCheck.body?.id;
+      if (userId) {
+        const r = await graphGet(
+          `${META_API_URL}/${userId}/accounts?fields=id,name,access_token&access_token=${longLivedToken}`
         );
-        const userPagesData = await userPagesResponse.json();
-        console.log("[META-CALLBACK] Strategy C result:", userPagesData.data?.length || 0, "pages");
+        diag.strategy_user_accounts = r;
+        console.log("[META-CALLBACK] Strategy C result:", r.body?.data?.length || 0, "pages");
 
-        if (userPagesData.data && userPagesData.data.length > 0) {
-          const page = userPagesData.data[0];
+        if (r.body?.data && r.body.data.length > 0) {
+          const page = r.body.data[0];
           pageId = page.id;
           pageAccessToken = page.access_token;
           pageName = page.name;
+          diag.winning_strategy = "C";
           console.log(`[META-CALLBACK] Found Page via Strategy C: ${pageName} (${pageId})`);
         }
       }
     }
 
-    // Strategy D: Try /me/businesses → owned_pages (for Business Manager accounts)
+    // ───── Strategy D: /me/businesses → owned_pages ─────
     if (!pageId) {
-      console.log("[META-CALLBACK] Strategy C failed, trying Strategy D (Business Manager)...");
+      console.log("[META-CALLBACK] Strategy D: Business Manager → owned_pages...");
       try {
-        const bizResponse = await fetch(
-          `${META_API_URL}/me/businesses?fields=id,name,owned_pages{id,name,access_token}&access_token=${longLivedToken}`,
-          { method: "GET" }
+        const r = await graphGet(
+          `${META_API_URL}/me/businesses?fields=id,name,owned_pages{id,name,access_token}&access_token=${longLivedToken}`
         );
-        const bizData = await bizResponse.json();
-        console.log("[META-CALLBACK] Strategy D result:", bizData.data?.length || 0, "businesses");
+        diag.strategy_businesses = r;
+        console.log("[META-CALLBACK] Strategy D result:", r.body?.data?.length || 0, "businesses");
 
-        if (bizData.data) {
-          for (const biz of bizData.data) {
+        if (r.body?.data) {
+          for (const biz of r.body.data) {
             if (biz.owned_pages?.data?.length > 0) {
               const page = biz.owned_pages.data[0];
               pageId = page.id;
               pageName = page.name;
-              // owned_pages may not return access_token, try to get it separately
               if (page.access_token) {
                 pageAccessToken = page.access_token;
               } else {
-                const tokenRes = await fetch(
-                  `${META_API_URL}/${page.id}?fields=access_token&access_token=${longLivedToken}`,
-                  { method: "GET" }
+                const tokenRes = await graphGet(
+                  `${META_API_URL}/${page.id}?fields=access_token&access_token=${longLivedToken}`
                 );
-                const tokenData = await tokenRes.json();
-                pageAccessToken = tokenData.access_token;
+                pageAccessToken = tokenRes.body?.access_token;
               }
+              diag.winning_strategy = "D";
               console.log(`[META-CALLBACK] Found Page via Strategy D: ${pageName} (${pageId})`);
               break;
             }
@@ -341,39 +391,40 @@ export async function GET(request) {
       }
     }
 
-    // Strategy E: Use page IDs from granular_scopes (New Pages Experience)
-    // When Facebook includes granular_scopes in the token response, the target_ids
-    // are the Page IDs the user authorized. Access them directly.
+    // ───── Strategy E: Use page IDs from granular_scopes (NPE) ─────
     if (!pageId && pageIdsFromScopes.length > 0) {
-      console.log("[META-CALLBACK] Trying Strategy E (direct page ID from granular_scopes)...");
+      console.log("[META-CALLBACK] Strategy E: direct page lookup via granular_scopes target_ids...");
+      const eResults = [];
       for (const pid of pageIdsFromScopes) {
         try {
-          const pageInfoResponse = await fetch(
-            `${META_API_URL}/${pid}?fields=id,name,access_token&access_token=${longLivedToken}`,
-            { method: "GET" }
+          const r = await graphGet(
+            `${META_API_URL}/${pid}?fields=id,name,access_token&access_token=${longLivedToken}`
           );
-          const pageInfoData = await pageInfoResponse.json();
-          console.log("[META-CALLBACK] Strategy E page:", pageInfoData.id, pageInfoData.name || "unnamed");
+          eResults.push({ page_id: pid, response: r });
+          console.log("[META-CALLBACK] Strategy E page:", r.body?.id, r.body?.name || "unnamed");
 
-          if (pageInfoData.id && !pageInfoData.error) {
-            pageId = pageInfoData.id;
-            pageName = pageInfoData.name || "Sellora Page";
-            // Try to get page access token
-            if (pageInfoData.access_token) {
-              pageAccessToken = pageInfoData.access_token;
+          if (r.body?.id && !r.body?.error) {
+            pageId = r.body.id;
+            pageName = r.body.name || "Sellora Page";
+            if (r.body.access_token) {
+              pageAccessToken = r.body.access_token;
             } else {
               // For New Pages Experience, the user token IS the page token
               pageAccessToken = longLivedToken;
             }
+            diag.winning_strategy = "E";
             console.log(`[META-CALLBACK] Found Page via Strategy E: ${pageName} (${pageId})`);
             break;
           }
         } catch (e) {
+          eResults.push({ page_id: pid, error: e.message });
           console.warn(`[META-CALLBACK] Strategy E error for page ${pid}:`, e.message);
         }
       }
+      diag.strategy_granular_pages = eResults;
     }
 
+    // ─── If we STILL have no page, save diagnostics and redirect with error ───
     if (!pageId) {
       console.warn("[META-CALLBACK] ALL strategies failed. User has no accessible Facebook Pages.");
 
@@ -382,6 +433,11 @@ export async function GET(request) {
       const pagesPermDeclined = declinedPerms.some(p =>
         ['pages_show_list', 'pages_messaging', 'pages_read_engagement'].includes(p)
       );
+
+      diag.final_outcome = pagesPermDeclined ? "pages_perm_declined" : "no_pages";
+      diag.error_detail = debugInfo;
+      await saveDiagnostics(diag);
+
       if (pagesPermDeclined) {
         return NextResponse.redirect(
           redirectUrl(`/dashboard/settings?tab=channels&error=pages_perm_declined&debug=${encodeURIComponent(debugInfo)}`)
@@ -393,14 +449,13 @@ export async function GET(request) {
     }
 
     console.log(`[META-CALLBACK] Using Page: ${pageName} (${pageId})`);
+    diag.final_page_id = pageId;
+    diag.final_page_name = pageName;
 
     const supabase = getSupabase();
 
     // ─── Step 4.5: Prevent duplicate page_id connections ───
-    // Before saving, check if any OTHER account already has this page_id.
-    // If so, clear it from the old account first to avoid duplicate routing issues.
     try {
-      // Check for accounts with the same facebook_page_id
       const { data: existingFbAccounts } = await supabase
         .from("accounts")
         .select("id, email, business_name")
@@ -410,7 +465,6 @@ export async function GET(request) {
       if (existingFbAccounts && existingFbAccounts.length > 0) {
         console.warn(`[META-CALLBACK] Page ${pageId} is currently connected to ${existingFbAccounts.length} other account(s). Clearing them.`);
         for (const existingAcct of existingFbAccounts) {
-          console.log(`[META-CALLBACK] Clearing Meta connection from: ${existingAcct.email} (${existingAcct.business_name})`);
           await supabase
             .from("accounts")
             .update({
@@ -425,7 +479,6 @@ export async function GET(request) {
         }
       }
 
-      // Also check for accounts with the same instagram_page_id
       const { data: existingIgAccounts } = await supabase
         .from("accounts")
         .select("id, email, business_name")
@@ -433,11 +486,8 @@ export async function GET(request) {
         .neq("id", accountId);
 
       if (existingIgAccounts && existingIgAccounts.length > 0) {
-        console.warn(`[META-CALLBACK] IG page ${pageId} is currently connected to ${existingIgAccounts.length} other account(s). Clearing them.`);
         for (const existingAcct of existingIgAccounts) {
-          // Skip if already cleared above
           if (existingFbAccounts?.some(a => a.id === existingAcct.id)) continue;
-          console.log(`[META-CALLBACK] Clearing IG connection from: ${existingAcct.email} (${existingAcct.business_name})`);
           await supabase
             .from("accounts")
             .update({
@@ -453,15 +503,13 @@ export async function GET(request) {
     }
 
     // ─── Step 5: Always connect Facebook Messenger ───
-    // CRITICAL: Save BOTH the Page token AND the long-lived User token.
-    // The User token is needed for Instagram Business Account lookup.
     const { error: fbUpdateError } = await supabase
       .from("accounts")
       .update({
         facebook_page_id: pageId,
         facebook_access_token: pageAccessToken,
         facebook_connected: true,
-        meta_user_access_token: longLivedToken, // Save user token for IG lookup
+        meta_user_access_token: longLivedToken,
       })
       .eq("id", accountId);
 
@@ -474,17 +522,6 @@ export async function GET(request) {
     // ─── Step 6: Try to connect Instagram via the Page's IG Business Account ───
     let instagramConnected = false;
     try {
-      // Log what permissions the token actually has
-      const permsCheck = await fetch(
-        `${META_API_URL}/me/permissions?access_token=${pageAccessToken}`,
-        { method: "GET" }
-      );
-      const permsCheckData = await permsCheck.json();
-      console.log("[META-CALLBACK] Page token permissions:", JSON.stringify(permsCheckData));
-
-      // First, try the page we already found
-      // CRITICAL: Use longLivedToken (User Token) here, NOT pageAccessToken.
-      // Page tokens often can't see the instagram_business_account field even with permissions.
       console.log("[META-CALLBACK] Checking page", pageId, "for IG Business Account using USER token...");
       const igAccountResponse = await fetch(
         `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${longLivedToken}`,
@@ -493,7 +530,6 @@ export async function GET(request) {
 
       const igAccountData = await igAccountResponse.json();
       console.log("[META-CALLBACK] IG lookup response (full):", JSON.stringify(igAccountData));
-      console.log("[META-CALLBACK] IG lookup response status:", igAccountResponse.status);
 
       if (igAccountData.instagram_business_account) {
         const igAccount = igAccountData.instagram_business_account;
@@ -515,19 +551,15 @@ export async function GET(request) {
           console.log(`[META-CALLBACK] Instagram connected: @${igAccount.username}`);
         }
       } else {
-        // The first page didn't have IG linked. Try ALL pages the user manages.
         console.log("[META-CALLBACK] ❌ No IG on first page. Trying ALL pages with IG field...");
         const allPagesResponse = await fetch(
           `${META_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}&limit=100&access_token=${longLivedToken}`,
           { method: "GET" }
         );
         const allPagesData = await allPagesResponse.json();
-        console.log("[META-CALLBACK] All pages response (full):", JSON.stringify(allPagesData));
-        console.log("[META-CALLBACK] Pages found:", allPagesData.data?.length || 0);
 
         if (allPagesData.data) {
           for (const p of allPagesData.data) {
-            console.log(`[META-CALLBACK] Page: ${p.name} (${p.id}) → IG:`, p.instagram_business_account ? `@${p.instagram_business_account.username}` : "NONE");
             if (p.instagram_business_account) {
               console.log(`[META-CALLBACK] ✅ Found IG on page: ${p.name}`);
               const { error: igUpdateError } = await supabase
@@ -550,19 +582,16 @@ export async function GET(request) {
 
         if (!instagramConnected) {
           console.log("[META-CALLBACK] ❌ No Instagram Business Account linked to ANY page");
-          console.log("[META-CALLBACK] LIKELY CAUSES:");
-          console.log("[META-CALLBACK]   1. Instagram product not added to Meta app → developers.facebook.com → your app → Add Product → Instagram");
-          console.log("[META-CALLBACK]   2. instagram_manage_messages permission not granted → check OAuth dialog");
-          console.log("[META-CALLBACK]   3. IG is linked to personal FB profile, not a FB Page → link via FB Page Settings");
-          console.log("[META-CALLBACK]   4. IG is a personal account, not Business/Creator → convert in IG app");
         }
       }
     } catch (igErr) {
       console.warn("[META-CALLBACK] IG lookup error:", igErr.message);
-      console.warn("[META-CALLBACK] IG lookup stack:", igErr.stack);
     }
 
-    // ─── Step 7: Redirect back to settings ───
+    // ─── Step 7: Save diagnostics and redirect ───
+    diag.final_outcome = (platform === "instagram" && !instagramConnected) ? "no_instagram_account" : "success";
+    await saveDiagnostics(diag);
+
     if (platform === "instagram" && !instagramConnected) {
       return NextResponse.redirect(
         redirectUrl("/dashboard/settings?tab=channels&error=no_instagram_account")
@@ -575,8 +604,31 @@ export async function GET(request) {
 
   } catch (err) {
     console.error("[META-CALLBACK] Unhandled error:", err);
+    diag.final_outcome = "error";
+    diag.error_detail = err.message;
+    await saveDiagnostics(diag);
     return NextResponse.redirect(
       redirectUrl(`/dashboard/settings?tab=channels&error=${encodeURIComponent(err.message || "unknown_error")}`)
     );
+  }
+}
+
+/**
+ * Save the diagnostics record to the meta_oauth_debug table.
+ * Failures here are non-fatal — we still want the OAuth flow to complete.
+ */
+async function saveDiagnostics(diag) {
+  try {
+    const supabase = getSupabase();
+    const { error } = await supabase
+      .from("meta_oauth_debug")
+      .insert(diag);
+    if (error) {
+      console.warn("[META-CALLBACK] Failed to save diagnostics:", error.message);
+    } else {
+      console.log("[META-CALLBACK] ✅ Diagnostics saved to meta_oauth_debug");
+    }
+  } catch (e) {
+    console.warn("[META-CALLBACK] Diagnostics save error (non-fatal):", e.message);
   }
 }

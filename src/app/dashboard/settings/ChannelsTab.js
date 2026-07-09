@@ -210,13 +210,47 @@ export default function ChannelsTab({
             background: metaStatus.type === 'success' ? 'rgba(0, 200, 83, 0.1)' : 'rgba(255, 82, 82, 0.1)',
             border: `1px solid ${metaStatus.type === 'success' ? 'rgba(0, 200, 83, 0.3)' : 'rgba(255, 82, 82, 0.3)'}`,
             color: metaStatus.type === 'success' ? 'var(--accent-green)' : 'var(--accent-red)',
-            display: "flex", alignItems: "center", justifyContent: "space-between",
             fontWeight: 500, fontSize: "var(--font-size-sm)",
           }}>
-            <span>{metaStatus.message}</span>
-            <button onClick={() => setMetaStatus(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 4 }}>
-              <X size={16} />
-            </button>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>{metaStatus.message}</div>
+                {metaStatus.details && metaStatus.details.length > 0 && (
+                  <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.6, fontWeight: 400, opacity: 0.95 }}>
+                    {metaStatus.details.map((line, i) => (
+                      <div key={i} style={line === '' ? { height: 6 } : {}}>{line}</div>
+                    ))}
+                  </div>
+                )}
+                {metaStatus.debugUrl && (
+                  <a
+                    href={metaStatus.debugUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-block',
+                      marginTop: 10,
+                      padding: '6px 12px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#fff',
+                      background: 'var(--accent-red)',
+                      borderRadius: 6,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    View detailed diagnostics →
+                  </a>
+                )}
+              </div>
+              <button
+                onClick={() => setMetaStatus(null)}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 4, flexShrink: 0 }}
+                aria-label="Dismiss"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
         )}
 

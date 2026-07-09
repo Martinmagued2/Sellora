@@ -154,18 +154,55 @@ function SettingsContent() {
         window.history.replaceState({}, '', '/dashboard/settings?tab=channels');
       } else if (errorParam) {
         const debugParam = searchParams.get('debug') || '';
+        // Each error entry can have: message (string), debugUrl (string|null),
+        // and details (array of strings for multi-line guidance).
         const errorMessages = {
-          no_pages: `No Facebook Pages found. Debug info: ${debugParam || 'none'}. This means either: (1) You don't have a Facebook Business Page — create one at facebook.com/pages/create, or (2) You didn't select your Page in the Facebook dialog — remove Sellora from facebook.com/settings?tab=apps and try again, this time checking the box next to your Page.`,
-          pages_perm_declined: `Page permissions were declined. Debug: ${debugParam || 'none'}. Remove Sellora from facebook.com/settings?tab=apps and reconnect, making sure to allow ALL permissions and SELECT your Page.`,
-          no_instagram_account: 'No Instagram Business Account linked to your Facebook Page. Make sure your Instagram is a Business/Creator account linked to your Facebook Page.',
-          token_exchange_failed: 'Failed to exchange authorization code. Please try again.',
-          server_config: 'Server is not configured for Meta integration. Make sure META_APP_ID and META_APP_SECRET are set in Vercel.',
-          invalid_state: 'Invalid OAuth state. Please try connecting again.',
-          missing_params: 'Facebook authorization incomplete — no code was received. Remove Sellora from facebook.com/settings?tab=apps and try again. Click "Edit settings" if you see "Continue with previous settings".',
-          user_denied: 'You denied the permission request.',
-          db_update_failed: 'Failed to save connection. Please try again.',
+          no_pages: {
+            message: 'No Facebook Pages found for your Facebook account.',
+            debugUrl: '/api/debug/last-meta-oauth',
+            details: [
+              'Common causes:',
+              '• You logged in with a personal Facebook account that is NOT an admin of any Page → log out of Facebook, click Connect with Meta again, and log in with the account that owns the Page.',
+              '• You\'re using "New Pages Experience" → open your Page at facebook.com/pages → Settings → Switch to Classic Pages Experience (this makes /me/accounts work).',
+              '• You don\'t have a Facebook Page at all (only a personal profile) → create one at facebook.com/pages/create.',
+              '• The Sellora Meta app is in Development Mode and your Facebook account isn\'t a listed tester/admin/developer → contact Sellora support.',
+              '',
+              'Click "View detailed diagnostics" below to see exactly what Facebook returned at each step.',
+            ],
+          },
+          pages_perm_declined: {
+            message: 'Page permissions were declined.',
+            debugUrl: '/api/debug/last-meta-oauth',
+            details: [
+              'Remove Sellora from facebook.com/settings?tab=apps and click "Connect with Meta" again.',
+              'When the Facebook dialog appears, accept ALL permissions and make sure to SELECT your Page in the page picker step.',
+            ],
+          },
+          no_instagram_account: {
+            message: 'No Instagram Business Account linked to your Facebook Page.',
+            details: [
+              'To receive Instagram DMs in Sellora:',
+              '1. Open the Instagram app → Settings → Account type and tools → Switch to Business/Creator account.',
+              '2. Open your Facebook Page → Settings → Linked Accounts → Instagram → connect your IG account.',
+              '3. Click "Connect with Meta" again.',
+            ],
+          },
+          token_exchange_failed: { message: 'Failed to exchange authorization code. Please try again.' },
+          server_config: { message: 'Server is not configured for Meta integration. Contact Sellora support.' },
+          invalid_state: { message: 'Invalid OAuth state. Please try connecting again.' },
+          missing_params: {
+            message: 'Facebook authorization incomplete — no code was received.',
+            details: [
+              'Remove Sellora from facebook.com/settings?tab=apps and try again.',
+              'If you see "Continue with previous settings" in the Facebook dialog, click "Edit settings" first.',
+            ],
+          },
+          user_denied: { message: 'You denied the permission request.' },
+          db_update_failed: { message: 'Failed to save connection. Please try again.' },
+          auth_mismatch: { message: 'Security check failed: the logged-in Sellora user does not match the account in the connection request. Sign out and sign back in, then try again.' },
         };
-        setMetaStatus({ type: 'error', platform: null, message: errorMessages[errorParam] || `Connection failed: ${errorParam}` });
+        const errEntry = errorMessages[errorParam] || { message: `Connection failed: ${errorParam}` };
+        setMetaStatus({ type: 'error', platform: null, ...errEntry });
         window.history.replaceState({}, '', '/dashboard/settings?tab=channels');
       }
 
