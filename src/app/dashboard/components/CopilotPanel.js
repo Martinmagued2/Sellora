@@ -5,30 +5,40 @@ import { useRouter } from "next/navigation";
 import { Sparkles, X, Send, Bot, Loader2, TrendingUp, Package, FileText, Users, DollarSign, ChevronRight, Trash2, AlertTriangle, ExternalLink, Mic, MicOff } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 import VoiceRecorder from "./VoiceRecorder";
+import MentionInput from "./MentionInput";
+
+// Mention encoding regex — strips @[Display Name](type:uuid) → @Display Name
+// for display in the chat UI. The full encoded form is preserved in the
+// underlying message text so /api/chat/route.js can parse it for the LLM.
+const MENTION_DISPLAY_REGEX = /@\[([^\]]+)\]\((?:team_member|customer):[a-f0-9-]+\)/g;
+function stripMentionEncoding(text) {
+  if (!text || typeof text !== "string") return text;
+  return text.replace(MENTION_DISPLAY_REGEX, "@$1");
+}
 
 // Helper: extract text content from a UIMessage
 // Handles ALL possible formats: parts array, content string, content array
 // Also checks for text within tool-invocation steps (streamText format)
 function getMessageText(msg) {
+  let raw = "";
   // 1. Try parts first (AI SDK v6 format from streamText)
   if (msg.parts && Array.isArray(msg.parts)) {
-    const textFromParts = msg.parts
+    raw = msg.parts
       .filter((p) => p.type === "text")
       .map((p) => p.text)
       .join("");
-    if (textFromParts) return textFromParts;
   }
   // 2. Content as a plain string (older format)
-  if (typeof msg.content === "string" && msg.content.trim()) return msg.content;
+  if (!raw && typeof msg.content === "string" && msg.content.trim()) raw = msg.content;
   // 3. Content as array of content parts
-  if (Array.isArray(msg.content)) {
-    const textParts = msg.content
+  if (!raw && Array.isArray(msg.content)) {
+    raw = msg.content
       .filter((c) => c.type === "text")
       .map((c) => c.text)
       .join("");
-    if (textParts) return textParts;
   }
-  return "";
+  // Strip mention encoding for display (user sees @Display Name, not the encoded form)
+  return stripMentionEncoding(raw);
 }
 
 // Helper: generate fallback text from tool outputs when no text part exists
@@ -658,11 +668,17 @@ export default function CopilotPanel() {
               }}
               disabled={isLoading}
             />
-            <input
-              type="text"
-              placeholder="Ask Sellora Agent anything..."
+            <MentionInput
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={setInput}
+              onKeyDown={(e) => {
+                // Enter (without Shift) submits the form
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+              placeholder="Ask Sellora Agent anything... (type @ to mention a team member or customer)"
               disabled={isLoading}
               id="copilot-input"
             />

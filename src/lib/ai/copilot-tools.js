@@ -1821,5 +1821,267 @@ export const createCopilotTools = (accountId) => {
         };
       },
     }),
+
+    // ─── TASK MANAGEMENT TOOLS ───
+    // These tools work together with @ mentions from the Copilot input.
+    // When a user mentions a team_member, the LLM gets the team_member's UUID
+    // via context preamble and can pass it directly to create_task.assigned_to
+    // or assign_task.assigned_to.
+
+    list_team_members: tool({
+      description: "List all team members (and the owner) for the current account. Use this when the seller wants to see who they can assign tasks to, or to resolve a team member's name to their user ID. The 'id' field returned can be used as 'assigned_to' in create_task and assign_task.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          // Owner
+          const { data: owner } = await supabase
+            .from("accounts")
+            .select("id, email, owner_name")
+            .eq("id", accountId)
+            .maybeSingle();
+
+          // Team members
+          const { data: members, error: mErr } = await supabase
+            .from("team_members")
+            .select("id, user_id, name, display_name, email, role, status, invite_status, avatar_url")
+            .eq("account_id", accountId)
+            .order("created_at", { ascending: true });
+
+          if (mErr) {
+            return { success: false, error: `Failed to fetch team members: ${mErr.message}` };
+          }
+
+          const team = [];
+          if (owner) {
+            team.push({
+              id: owner.id,
+              name: owner.owner_name || owner.email,
+              display_name: owner.owner_name || owner.email,
+              email: owner.email,
+              role: "owner",
+              status: "active",
+            });
+          }
+          for (const m of (members || [])) {
+            if (m.invite_status !== "accepted") continue;
+            if (m.status && m.status !== "active") continue;
+            team.push({
+              id: m.user_id || m.id,
+              name: m.display_name || m.name || m.email,
+              display_name: m.display_name || m.name || m.email,
+              email: m.email,
+              role: m.role || "member",
+              status: m.status || "active",
+            });
+          }
+
+          return {
+            success: true,
+            count: team.length,
+            team_members: team,
+          };
+        } catch (e) {
+          return { success: false, error: "Failed to list team members: " + e.message };
+        }
+      },
+    }),
+
+    create_task: tool({
+      description: "Create a task and assign it to a team member (or to the current user by default). Use this when the seller says 'assign a task to @name', 'create a task for @name', 'remind @name to do X', or 'follow up with the customer about Y by Z'. The task is always tied to a customer — if the seller mentions a customer via @, use their id as customer_id. If they only mention an order, look up the order's customer first using get_order_details.",
+      inputSchema: z.object({
+        customer_id: z.string().describe("UUID of the customer this task is about. If the user @-mentioned a customer, use their id here. If they only mentioned an order, call get_order_details first to find the customer id."),
+        title: z.string().describe("Short title for the task (e.g. 'Follow up with customer about order #1234')"),
+        description: z.string().optional().describe("Longer description of what needs to be done"),
+        due_date: z.string().optional().describe("Due date in ISO 8601 format (e.g. '2026-07-15T17:00:00Z'). If the user says 'tomorrow', compute tomorrow's date. If they say 'next Monday', compute that date."),
+        priority: z.enum(["low", "normal", "high", "urgent"]).optional().describe("Priority level (default: normal)"),
+        assigned_to: z.string().optional().describe("UUID of the team member to assign the task to. If the user @-mentioned a team member, use their id here. If omitted, the task is assigned to the current user."),
+      }),
+      execute: async ({ customer_id, title, description, due_date, priority, assigned_to }) => {
+        try {
+          if (!customer_id || !title) {
+            return { success: false, error: "customer_id and title are required" };
+          }
+
+          // Verify the customer exists and belongs to this account
+          const { data: customer, error: cErr } = await supabase
+            .from("customers")
+            .select("id, name, account_id")
+            .eq("id", customer_id)
+            .eq("account_id", accountId)
+            .maybeSingle();
+
+          if (cErr || !customer) {
+            return { success: false, error: `Customer not found (id: ${customer_id}). Make sure the customer belongs to your account.` };
+          }
+
+          // If assigned_to was provided, verify they're a team member or owner
+          let assignedName = null;
+          if (assigned_to) {
+            // Check if it's the owner
+            const { data: owner } = await supabase
+              .from("accounts")
+              .select("id, email, owner_name")
+              .eq("id", accountId)
+              .maybeSingle();
+
+            if (owner && owner.id === assigned_to) {
+              assignedName = owner.owner_name || owner.email;
+            } else {
+              const { data: member } = await supabase
+                .from("team_members")
+                .select("id, user_id, name, display_name, email, role, invite_status, status")
+                .eq("account_id", accountId)
+                .or(`user_id.eq.${assigned_to},id.eq.${assigned_to}`)
+                .maybeSingle();
+
+              if (!member || member.invite_status !== "accepted") {
+                return { success: false, error: `Team member not found (id: ${assigned_to}). Call list_team_members to see valid assignee IDs.` };
+              }
+              assignedName = member.display_name || member.name || member.email;
+            }
+          }
+
+          // Insert the task
+          const insertData = {
+            account_id: accountId,
+            customer_id,
+            title,
+            description: description || null,
+            due_date: due_date || null,
+            priority: priority || "normal",
+            status: assigned_to ? "unseen" : "in_progress",  // unseen if assigned to someone else, in_progress if self
+            assigned_to: assigned_to || null,
+            assigned_name: assignedName,
+          };
+
+          const { data: task, error: insertErr } = await supabase
+            .from("customer_tasks")
+            .insert(insertData)
+            .select()
+            .single();
+
+          if (insertErr) {
+            return { success: false, error: `Failed to create task: ${insertErr.message}` };
+          }
+
+          // Log to customer timeline
+          try {
+            await supabase
+              .from("customer_timeline")
+              .insert({
+                account_id: accountId,
+                customer_id,
+                event_type: "task",
+                title: `Task created: ${title}`,
+                description: description || null,
+                metadata: { task_id: task.id, assigned_to, assigned_name: assignedName, due_date, priority },
+              });
+          } catch (timelineErr) {
+            console.warn("[CREATE_TASK] timeline log failed:", timelineErr.message);
+          }
+
+          const dueStr = due_date ? ` due ${new Date(due_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}` : "";
+          const assignStr = assignedName ? ` assigned to ${assignedName}` : " assigned to you";
+
+          return {
+            success: true,
+            message: `✅ Task created: "${title}"${assignStr}${dueStr}.`,
+            task: {
+              id: task.id,
+              title: task.title,
+              customer: customer.name,
+              assigned_to: assignedName || "self",
+              due_date: task.due_date,
+              priority: task.priority,
+              status: task.status,
+            },
+            _action: { type: "navigate", path: "/dashboard/tasks", label: "View Tasks" },
+          };
+        } catch (e) {
+          return { success: false, error: "Failed to create task: " + e.message };
+        }
+      },
+    }),
+
+    assign_task: tool({
+      description: "Reassign an existing task to a different team member. Use this when the seller says 'reassign this task to @name' or 'give this task to @name'. You need the task_id (from a previous create_task call or from the customer's task list). If the seller only mentions a task by description, you may need to ask for clarification or look up the task by customer.",
+      inputSchema: z.object({
+        task_id: z.string().describe("UUID of the task to reassign"),
+        assigned_to: z.string().describe("UUID of the team member to assign the task to. If the user @-mentioned a team member, use their id here."),
+      }),
+      execute: async ({ task_id, assigned_to }) => {
+        try {
+          if (!task_id || !assigned_to) {
+            return { success: false, error: "task_id and assigned_to are required" };
+          }
+
+          // Verify the task exists and belongs to this account
+          const { data: task, error: tErr } = await supabase
+            .from("customer_tasks")
+            .select("id, title, account_id, assigned_to, assigned_name")
+            .eq("id", task_id)
+            .eq("account_id", accountId)
+            .maybeSingle();
+
+          if (tErr || !task) {
+            return { success: false, error: `Task not found (id: ${task_id}).` };
+          }
+
+          // Verify the new assignee is a team member or owner
+          let assignedName = null;
+          const { data: owner } = await supabase
+            .from("accounts")
+            .select("id, email, owner_name")
+            .eq("id", accountId)
+            .maybeSingle();
+
+          if (owner && owner.id === assigned_to) {
+            assignedName = owner.owner_name || owner.email;
+          } else {
+            const { data: member } = await supabase
+              .from("team_members")
+              .select("id, user_id, name, display_name, email, role, invite_status, status")
+              .eq("account_id", accountId)
+              .or(`user_id.eq.${assigned_to},id.eq.${assigned_to}`)
+              .maybeSingle();
+
+            if (!member || member.invite_status !== "accepted") {
+              return { success: false, error: `Team member not found (id: ${assigned_to}). Call list_team_members to see valid assignee IDs.` };
+            }
+            assignedName = member.display_name || member.name || member.email;
+          }
+
+          // Update the task
+          const { error: updateErr } = await supabase
+            .from("customer_tasks")
+            .update({
+              assigned_to,
+              assigned_name: assignedName,
+              status: "unseen",  // Reset to unseen when reassigned
+              reassigned_by: null,  // We don't have the acting user's id here; the API does
+              reassigned_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", task_id);
+
+          if (updateErr) {
+            return { success: false, error: `Failed to reassign task: ${updateErr.message}` };
+          }
+
+          return {
+            success: true,
+            message: `✅ Task "${task.title}" reassigned to ${assignedName}.`,
+            task: {
+              id: task.id,
+              title: task.title,
+              assigned_to: assignedName,
+            },
+            _action: { type: "navigate", path: "/dashboard/tasks", label: "View Tasks" },
+          };
+        } catch (e) {
+          return { success: false, error: "Failed to reassign task: " + e.message };
+        }
+      },
+    }),
   };
 };

@@ -93,6 +93,20 @@ export async function POST(req) {
     }
 
     const { messages } = body;
+
+    // ─── Mention parsing ───
+    // The Copilot's MentionInput encodes mentions as @[Display Name](type:uuid)
+    // in the message text. We parse these out and inject a structured context
+    // block BEFORE the user's actual message so the LLM knows:
+    //   1. Which entities are being mentioned
+    //   2. What TYPE each entity is (team_member vs customer)
+    //   3. The exact UUID to pass to tools like create_task / message_customer
+    //
+    // Without this, the LLM would try to guess the type from the name —
+    // e.g. trying message_customer for a team member (which fails because
+    // team members aren't in the customers table).
+    const MENTION_REGEX = /@\[([^\]]+)\]\((team_member|customer):([a-f0-9-]+)\)/g;
+
     const coreMessages = (messages || []).map((msg) => {
       let content = "";
       if (msg.parts && Array.isArray(msg.parts)) {
@@ -104,6 +118,40 @@ export async function POST(req) {
       if (!content && typeof msg.content === "string") {
         content = msg.content;
       }
+
+      // If this is a user message with mentions, inject context preamble
+      if (msg.role === "user" && content) {
+        const mentions = [];
+        let match;
+        const regex = new RegExp(MENTION_REGEX.source, "g");
+        while ((match = regex.exec(content)) !== null) {
+          mentions.push({
+            display_name: match[1],
+            type: match[2],         // "team_member" or "customer"
+            id: match[3],           // UUID
+          });
+        }
+
+        if (mentions.length > 0) {
+          const lines = [
+            `[CONTEXT — The user mentioned ${mentions.length} entit${mentions.length === 1 ? "y" : "ies"} using @ mentions. Use these exact IDs when calling tools. Do NOT search for these people by name — use the IDs directly.]`,
+          ];
+          for (const m of mentions) {
+            if (m.type === "team_member") {
+              lines.push(
+                `- @${m.display_name} is a TEAM MEMBER (id: ${m.id}). This is a person who works at the business, NOT a customer. Use this id as the 'assigned_to' parameter in create_task or assign_task. Do NOT call message_customer with this name.`
+              );
+            } else if (m.type === "customer") {
+              lines.push(
+                `- @${m.display_name} is a CUSTOMER (id: ${m.id}). Use this id as the 'customer_id' parameter in create_task, or pass this name to message_customer to send them a message.`
+              );
+            }
+          }
+          lines.push("", "User's message:", content);
+          content = lines.join("\n");
+        }
+      }
+
       return {
         role: msg.role === "user" ? "user" : "assistant",
         content: content || "",
@@ -125,9 +173,16 @@ CORE CAPABILITIES:
 - Customer Insights: Analyze customer data, show top spenders, returning customer stats
 - Conversation Overview: Check recent conversations, see unread messages
 - Send Messages: Send messages directly to customers via their channel (WhatsApp, Instagram, Facebook). When the seller asks to message a customer, ALWAYS use the message_customer tool — it finds the conversation and delivers the message in ONE step. Do NOT use find_conversation + send_message_to_customer separately; use message_customer instead.
+- Task Management: Create and assign tasks to team members. When the seller says "assign a task to [name]", "remind [name] to do X", "follow up with the customer about Y", use create_task. Tasks are always tied to a customer, so if the seller mentions an order, call get_order_details first to find the customer_id. If they want to reassign an existing task, use assign_task. Use list_team_members if you need to look up a team member's UUID by name.
 - Coupon Management: Create new coupon codes (percentage off, fixed amount off, free shipping), list existing coupons, with plan limit enforcement
 - Plan Comparison: Compare Starter, Professional, and Business plans. When the seller asks about plans, pricing, plan limits, upgrading, or "what's the difference between plans", ALWAYS use the compare_plans tool. Do NOT fire off unrelated tools like analytics or inventory — just use compare_plans and then explain the results clearly.
 - Search & Filter: Search products by name/category, filter inventory
+
+@ MENTIONS (IMPORTANT):
+The seller can mention team members and customers in their messages using @-mention syntax. When they do, you'll see a [CONTEXT] block at the top of their message listing each mentioned entity with its type (team_member or customer) and UUID. Use these UUIDs directly in tool calls:
+- For a mentioned team_member, use their UUID as the 'assigned_to' parameter in create_task or assign_task. NEVER call message_customer with a team member's name — they are NOT a customer.
+- For a mentioned customer, use their UUID as the 'customer_id' parameter in create_task. You can also call message_customer with their display name.
+If the user types a name WITHOUT @-mentioning them, you cannot be sure whether it's a team member or a customer. If they say "assign a task to Martin" without @-mentioning him, ASK the user to use @ to mention the right person, or call list_team_members to check if the name matches a team member first.
 
 SELLORA APP KNOWLEDGE BASE:
 You are an expert on every feature, button, and interaction in the Sellora dashboard. When the business owner asks about the app — "where is X?", "how do I do Y?", "what does this button do?", "how does X work?" — answer with precise, actionable detail. Use the navigate_to tool when they want to go somewhere.
