@@ -531,7 +531,7 @@ export async function generateAIReply({
     let afterHoursContext = "";
     try {
       if (accountData?.after_hours_auto_pilot && accountData?.business_hours) {
-        const { isBusinessOpen } = await import("@/app/api/settings/business-hours/route");
+        const { isBusinessOpen } = await import("@/lib/business-hours");
         const isOpen = isBusinessOpen(accountData.business_hours, accountData.timezone || "Africa/Cairo");
 
         if (!isOpen) {

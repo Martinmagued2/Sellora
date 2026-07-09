@@ -1,22 +1,12 @@
 /**
  * GET/PUT /api/settings/business-hours
  * Manages business hours + after-hours auto-pilot setting.
- *
- * GET: returns { business_hours, after_hours_auto_pilot, timezone }
- * PUT: { business_hours, after_hours_auto_pilot, timezone }
- *
- * business_hours format:
- * {
- *   "monday": { "start": "09:00", "end": "18:00", "enabled": true },
- *   "tuesday": { ... },
- *   ...
- *   "friday": { "enabled": false }  // weekend
- * }
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
 import { resolveEffectiveAccount } from "@/lib/team-auth";
+export { isBusinessOpen } from "@/lib/business-hours";
 
 let _admin = null;
 function admin() {
@@ -78,38 +68,4 @@ export async function PUT(req) {
   }
 }
 
-/**
- * Check if the business is currently open based on business_hours + timezone.
- * Returns true if open, false if closed (after-hours).
- */
-export function isBusinessOpen(businessHours, timezone = "Africa/Cairo") {
-  if (!businessHours || Object.keys(businessHours).length === 0) return true; // No hours set = always open
-
-  const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-  try {
-    const now = new Date();
-    // Get current day + time in the business's timezone
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      weekday: "long",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    const parts = formatter.formatToParts(now);
-    const weekday = parts.find((p) => p.type === "weekday")?.value?.toLowerCase() || days[now.getDay()];
-    const timeStr = `${parts.find((p) => p.type === "hour")?.value || "00"}:${parts.find((p) => p.type === "minute")?.value || "00"}`;
-
-    const todayHours = businessHours[weekday];
-    if (!todayHours || !todayHours.enabled) return false; // Closed today
-
-    const currentMinutes = parseInt(timeStr.slice(0, 2)) * 60 + parseInt(timeStr.slice(3, 5));
-    const startMinutes = parseInt((todayHours.start || "00:00").slice(0, 2)) * 60 + parseInt((todayHours.start || "00:00").slice(3, 5));
-    const endMinutes = parseInt((todayHours.end || "23:59").slice(0, 2)) * 60 + parseInt((todayHours.end || "23:59").slice(3, 5));
-
-    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-  } catch (e) {
-    console.warn("[BUSINESS-HOURS] check failed:", e.message);
-    return true; // On error, assume open
-  }
-}
+// isBusinessOpen is now imported from @/lib/business-hours (re-exported above)
