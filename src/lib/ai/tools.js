@@ -736,79 +736,19 @@ export const createSalesTools = (accountId, customerId) => {
           });
         }
 
-        const result = {
-          success: true,
-          message: `✅ Order #${order.order_number} created successfully!\n📦 Items: ${dbItems.map(i => `${i.name} ×${i.qty}`).join(", ")}\n💰 Total: ${total.toFixed(2)} ${currency}`,
+        const result = { 
+          success: true, 
+          message: "Order created successfully", 
           order_number: order.order_number,
           subtotal: subtotal,
           total,
           currency,
-          payment_method: finalPaymentMethod,
         };
 
         if (discountAmount > 0) {
           result.discount_amount = discountAmount;
           result.coupon_code = coupon_code.trim().toUpperCase();
-          result.message += `\n🎟️ Coupon ${coupon_code.trim().toUpperCase()} applied! ${discountAmount.toFixed(2)} ${currency} discount.`;
-        }
-
-        // ─── Fix #3: Auto-generate Paymob payment link for digital payments ───
-        const digitalMethods = ["instapay", "paymob", "vodafone_cash", "card", "online"];
-        if (digitalMethods.includes(finalPaymentMethod) && process.env.PAYMOB_API_KEY) {
-          try {
-            const { createCheckout } = await import("@/lib/paymob");
-            const checkout = await createCheckout({
-              amountCents: Math.round(total * 100),
-              merchantOrderId: `ord_${order.order_number}_${Date.now()}`,
-              items: dbItems.map(i => ({
-                name: i.name,
-                amount_cents: Math.round(i.price * 100),
-                quantity: i.qty,
-              })),
-              billingData: {
-                firstName: customer_name || "Customer",
-                lastName: "Store",
-                email: customer_email || "customer@sellora.com",
-                phoneNumber: customer_phone || "0000000000",
-              },
-            });
-            if (checkout?.checkoutUrl) {
-              result.payment_link = checkout.checkoutUrl;
-              result.message += `\n🔗 Pay here: ${checkout.checkoutUrl}`;
-              // Save payment link to order
-              await getSupabase().from("orders").update({
-                payment_link: checkout.checkoutUrl,
-                paymob_order_id: checkout.paymobOrderId,
-              }).eq("order_number", order.order_number);
-            }
-          } catch (payErr) {
-            console.warn("[create_order] Paymob link generation failed:", payErr.message);
-            result.message += `\n⚠️ Payment link will be sent shortly. Please complete your payment via ${finalPaymentMethod}.`;
-          }
-        } else if (finalPaymentMethod === "cod") {
-          result.message += `\n💵 Payment: Cash on Delivery\n🚚 We'll ship within 24-48 hours.`;
-        }
-
-        // ─── Fix #5: Post-order follow-up ───
-        result.message += `\n\nThank you for your order! 🎉 We'll send you a tracking number once your order ships.`;
-
-        // Send order confirmation email if customer email exists
-        if (customer_email) {
-          try {
-            const { sendOrderConfirmationEmail } = await import("@/lib/email");
-            await sendOrderConfirmationEmail({
-              to: customer_email,
-              orderNumber: order.order_number,
-              customerName: customer_name || "Customer",
-              items: dbItems,
-              total,
-              currency,
-              accountId,
-              customerEmail,
-            });
-          } catch (emailErr) {
-            console.warn("[create_order] Confirmation email failed:", emailErr.message);
-          }
+          result.message += ` Coupon ${coupon_code.trim().toUpperCase()} applied! ${discountAmount.toFixed(2)} ${currency} discount.`;
         }
 
         // Dispatch webhook for order.created
@@ -824,7 +764,6 @@ export const createSalesTools = (accountId, customerId) => {
           customerId,
           status: "pending",
           source: "ai_agent",
-          payment_link: result.payment_link || null,
         }).catch(err => console.error("[ORDER] Webhook dispatch failed:", err.message));
 
         return result;

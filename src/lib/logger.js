@@ -19,8 +19,7 @@ async function getSentry() {
   if (Sentry !== null) return Sentry;
   if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
     try {
-      const pkg = "@sentry/nextjs";
-      Sentry = (await import(/* webpackIgnore: true */ pkg)).default;
+      Sentry = (await import("@sentry/nextjs")).default;
     } catch (e) {
       Sentry = false;
     }

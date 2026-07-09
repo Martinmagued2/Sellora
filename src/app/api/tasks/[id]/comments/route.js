@@ -10,7 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getAuthUser } from "@/lib/auth-helper";
 import { canAccessAccount, getActorName } from "@/lib/team-auth";
 import { notify } from "@/lib/notifications";
-import { sendCustomEmail, isEmailConfigured } from "@/lib/email";
+import { sendCustomEmail, isEmailConfigured, wrapInLayout } from "@/lib/email";
 
 let _admin = null;
 function admin() {
@@ -178,20 +178,23 @@ export async function POST(req, { params }) {
           await sendCustomEmail({
             to: otherEmail,
             subject: `[Sellora] New comment on: ${task.title?.slice(0, 50) || "task"}`,
-            html: `
-              <h1>New comment on a task 💬</h1>
-              <p>Hi ${otherName || "there"},</p>
-              <p><strong>${authorName}</strong> commented on a task you're involved in:</p>
-              <div class="info-box">
-                <div class="info-label">Task</div>
-                <div class="info-text"><strong>${task.title || "Untitled"}</strong></div>
-              </div>
-              ${text ? `<p style="color:#374151;font-size:14px;line-height:1.6;">${text.replace(/\n/g, "<br>")}</p>` : ""}
-              ${linkHtml}
-              ${attachmentHtml}
-              <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${taskId}" class="btn">Open Task →</a></p>
-              <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because you are involved in this task on Sellora.</p>
-            `,
+            html: wrapInLayout({
+              preheader: `New comment on: ${task.title?.slice(0, 50) || "task"}`,
+              bodyContent: `
+                <h1>New comment on a task 💬</h1>
+                <p>Hi ${otherName || "there"},</p>
+                <p><strong>${authorName}</strong> commented on a task you're involved in:</p>
+                <div class="info-box">
+                  <div class="info-label">Task</div>
+                  <div class="info-text"><strong>${task.title || "Untitled"}</strong></div>
+                </div>
+                ${text ? `<p style="color:#374151;font-size:14px;line-height:1.6;">${text.replace(/\n/g, "<br>")}</p>` : ""}
+                ${linkHtml}
+                ${attachmentHtml}
+                <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${taskId}" class="btn">Open Task →</a></p>
+                <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because you are involved in this task on Sellora.</p>
+              `,
+            }),
             templateName: "task_comment",
             accountId: task.account_id,
             metadata: { taskId, commentId: comment.id },

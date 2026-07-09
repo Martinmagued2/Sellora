@@ -454,3 +454,17 @@ export async function sendCustomEmail({ to, subject, html, from, replyTo }) {
 export function isEmailConfigured() {
   return !!process.env.RESEND_API_KEY;
 }
+
+/**
+ * Wrap raw HTML body content in the branded Sellora email layout.
+ * Use this for emails that need the logo + branding but don't have
+ * a dedicated template function.
+ *
+ * @param {string} preheader - Preview text
+ * @param {string} bodyContent - Raw HTML for the body section
+ * @param {string} [footerNote] - Optional footer note
+ * @returns {string} Full HTML email with branding
+ */
+export function wrapInLayout({ preheader, bodyContent, footerNote }) {
+  return layout({ preheader, bodyContent, footerNote });
+}

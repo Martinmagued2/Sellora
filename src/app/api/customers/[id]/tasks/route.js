@@ -177,29 +177,32 @@ export async function POST(req, { params }) {
       // ALWAYS send email for task assignments (bypass prefs)
       if (assigneeEmail) {
         try {
-          const { sendCustomEmail, isEmailConfigured } = await import('@/lib/email');
+          const { sendCustomEmail, isEmailConfigured, wrapInLayout } = await import('@/lib/email');
           if (isEmailConfigured()) {
             const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
             await sendCustomEmail({
               to: assigneeEmail,
               subject: `[Sellora] New task assigned: ${title.slice(0, 60)}`,
-              html: `
-                <h1>New task assigned to you ✅</h1>
-                <p>Hi ${assigneeEmailName || 'there'},</p>
-                <p>${creatorName} assigned you a task on Sellora:</p>
-                <div class="info-box">
-                  <div class="info-label">Task</div>
-                  <div class="info-text"><strong>${title}</strong></div>
-                </div>
-                ${description ? `<p style="color:#374151;font-size:14px;">${description}</p>` : ''}
-                <table class="data">
-                  <tr><td class="label">Customer</td><td class="value">${customer.name || customer.email || 'N/A'}</td></tr>
-                  <tr><td class="label">Due</td><td class="value">${due_date ? new Date(due_date).toLocaleDateString() : 'No due date'}</td></tr>
-                  <tr><td class="label">Priority</td><td class="value" style="text-transform:capitalize;">${priority}</td></tr>
-                </table>
-                <p style="margin-top:20px;"><a href="${appUrl}/dashboard/customers/${id}" class="btn">Open Task →</a></p>
-                <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was assigned to you on Sellora.</p>
-              `,
+              html: wrapInLayout({
+                preheader: `New task assigned: ${title.slice(0, 50)}`,
+                bodyContent: `
+                  <h1>New task assigned to you ✅</h1>
+                  <p>Hi ${assigneeEmailName || 'there'},</p>
+                  <p>${creatorName} assigned you a task on Sellora:</p>
+                  <div class="info-box">
+                    <div class="info-label">Task</div>
+                    <div class="info-text"><strong>${title}</strong></div>
+                  </div>
+                  ${description ? `<p style="color:#374151;font-size:14px;">${description}</p>` : ''}
+                  <table class="data">
+                    <tr><td class="label">Customer</td><td class="value">${customer.name || customer.email || 'N/A'}</td></tr>
+                    <tr><td class="label">Due</td><td class="value">${due_date ? new Date(due_date).toLocaleDateString() : 'No due date'}</td></tr>
+                    <tr><td class="label">Priority</td><td class="value" style="text-transform:capitalize;">${priority}</td></tr>
+                  </table>
+                  <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks" class="btn">Open Task →</a></p>
+                  <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was assigned to you on Sellora.</p>
+                `,
+              }),
               templateName: 'task_assigned',
               accountId: customer.account_id,
               metadata: { taskId: task.id, customerId: id, title },
@@ -313,23 +316,26 @@ export async function PATCH(req, { params }) {
         });
 
         if (ownerEmail && isEmailConfiguredViaImport()) {
-          const { sendCustomEmail } = await import('@/lib/email');
+          const { sendCustomEmail, wrapInLayout } = await import('@/lib/email');
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
           await sendCustomEmail({
             to: ownerEmail,
             subject: `[Sellora] Task ready for review: ${existingTask.title?.slice(0, 60) || 'Untitled'}`,
-            html: `
-              <h1>Task ready for review 🔍</h1>
-              <p>Hi ${ownerName || 'there'},</p>
-              <p><strong>${actorName}</strong> finished a task and is requesting your review:</p>
-              <div class="info-box">
-                <div class="info-label">Task</div>
-                <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
-              </div>
-              <p>Open the task to review the work and mark it as Done or request changes.</p>
-              <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">Review Task →</a></p>
-              <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was submitted for your review on Sellora.</p>
-            `,
+            html: wrapInLayout({
+              preheader: `Task ready for review: ${existingTask.title?.slice(0, 50) || 'Untitled'}`,
+              bodyContent: `
+                <h1>Task ready for review 🔍</h1>
+                <p>Hi ${ownerName || 'there'},</p>
+                <p><strong>${actorName}</strong> finished a task and is requesting your review:</p>
+                <div class="info-box">
+                  <div class="info-label">Task</div>
+                  <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
+                </div>
+                <p>Open the task to review the work and mark it as Done or request changes.</p>
+                <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">Review Task →</a></p>
+                <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was submitted for your review on Sellora.</p>
+              `,
+            }),
             templateName: 'task_review_requested',
             accountId: existingTask.account_id,
             metadata: { taskId: task_id },
@@ -374,25 +380,28 @@ export async function PATCH(req, { params }) {
         });
 
         if (assigneeEmail && isEmailConfiguredViaImport()) {
-          const { sendCustomEmail } = await import('@/lib/email');
+          const { sendCustomEmail, wrapInLayout } = await import('@/lib/email');
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
           const statusIcon = status === 'rejected' ? '🔄' : '✅';
           const statusTitle = status === 'rejected' ? 'Task needs changes' : 'Task approved!';
           await sendCustomEmail({
             to: assigneeEmail,
             subject: `[Sellora] ${statusTitle}: ${existingTask.title?.slice(0, 60) || 'Untitled'}`,
-            html: `
-              <h1>${statusIcon} ${statusTitle}</h1>
-              <p>Hi ${assigneeName || 'there'},</p>
-              <p><strong>${actorName}</strong> ${actionLabel} your task:</p>
-              <div class="info-box">
-                <div class="info-label">Task</div>
-                <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
-              </div>
-              ${review_notes ? `<div class="alert-box"><div class="alert-label">Reviewer Notes</div><div class="alert-text">${review_notes}</div></div>` : ''}
-              <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">View Task →</a></p>
-              <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because your task was reviewed on Sellora.</p>
-            `,
+            html: wrapInLayout({
+              preheader: `${statusTitle}: ${existingTask.title?.slice(0, 50) || 'Untitled'}`,
+              bodyContent: `
+                <h1>${statusIcon} ${statusTitle}</h1>
+                <p>Hi ${assigneeName || 'there'},</p>
+                <p><strong>${actorName}</strong> ${actionLabel} your task:</p>
+                <div class="info-box">
+                  <div class="info-label">Task</div>
+                  <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
+                </div>
+                ${review_notes ? `<div class="alert-box"><div class="alert-label">Reviewer Notes</div><div class="alert-text">${review_notes}</div></div>` : ''}
+                <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">View Task →</a></p>
+                <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because your task was reviewed on Sellora.</p>
+              `,
+            }),
             templateName: status === 'rejected' ? 'task_rejected' : 'task_completed',
             accountId: existingTask.account_id,
             metadata: { taskId: task_id, status },
@@ -441,22 +450,25 @@ export async function PATCH(req, { params }) {
         // ALWAYS send email for task reassignment (bypass prefs)
         if (assigneeEmail && isEmailConfiguredViaImport()) {
           try {
-            const { sendCustomEmail } = await import('@/lib/email');
+            const { sendCustomEmail, wrapInLayout } = await import('@/lib/email');
             const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sellorachat.com';
             await sendCustomEmail({
               to: assigneeEmail,
               subject: `[Sellora] Task reassigned: ${existingTask.title?.slice(0, 60) || 'Untitled'}`,
-              html: `
-                <h1>Task reassigned to you 🔄</h1>
-                <p>Hi ${newAssigneeName || 'there'},</p>
-                <p>${actorName} reassigned a task to you on Sellora:</p>
-                <div class="info-box">
-                  <div class="info-label">Task</div>
-                  <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
-                </div>
-                <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">Open Task →</a></p>
-                <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was reassigned to you on Sellora.</p>
-              `,
+              html: wrapInLayout({
+                preheader: `Task reassigned: ${existingTask.title?.slice(0, 50) || 'Untitled'}`,
+                bodyContent: `
+                  <h1>Task reassigned to you 🔄</h1>
+                  <p>Hi ${newAssigneeName || 'there'},</p>
+                  <p>${actorName} reassigned a task to you on Sellora:</p>
+                  <div class="info-box">
+                    <div class="info-label">Task</div>
+                    <div class="info-text"><strong>${existingTask.title || 'Untitled'}</strong></div>
+                  </div>
+                  <p style="margin-top:20px;"><a href="${appUrl}/dashboard/tasks/${task_id}" class="btn">Open Task →</a></p>
+                  <p style="font-size:13px;color:#6b7280;margin-top:16px;">You received this email because a task was reassigned to you on Sellora.</p>
+                `,
+              }),
               templateName: 'task_reassigned',
               accountId: existingTask.account_id,
               metadata: { taskId: task_id },

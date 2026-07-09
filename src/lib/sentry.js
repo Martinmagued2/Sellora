@@ -13,8 +13,7 @@ let _initialized = false;
 async function loadSentry() {
   if (Sentry !== null) return Sentry;
   try {
-    const pkg = "@sentry/nextjs";
-    Sentry = (await import(/* webpackIgnore: true */ pkg)).default;
+    Sentry = (await import("@sentry/nextjs")).default;
   } catch (e) {
     // Package not installed — Sentry is disabled
     Sentry = false;

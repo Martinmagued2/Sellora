@@ -32,24 +32,19 @@ function ChatBubble({ position, scale, color, speed, distort }) {
   );
 }
 
-const seededRandom = (seed) => {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-};
-
 function FloatingParticles() {
   const particlesRef = useRef();
   const count = 60;
 
   const particles = useMemo(() => {
-    return Array.from({ length: count }, (_, i) => ({
+    return Array.from({ length: count }, () => ({
       position: [
-        (seededRandom(i * 5 + 1) - 0.5) * 20,
-        (seededRandom(i * 5 + 2) - 0.5) * 14,
-        (seededRandom(i * 5 + 3) - 0.5) * 10,
+        (Math.random() - 0.5) * 20,
+        (Math.random() - 0.5) * 14,
+        (Math.random() - 0.5) * 10,
       ],
-      scale: seededRandom(i * 5 + 4) * 0.06 + 0.02,
-      speed: seededRandom(i * 5 + 5) * 0.5 + 0.2,
+      scale: Math.random() * 0.06 + 0.02,
+      speed: Math.random() * 0.5 + 0.2,
     }));
   }, []);
 
@@ -85,14 +80,14 @@ function ConnectionLines() {
     for (let i = 0; i < 12; i++) {
       pts.push({
         start: [
-          (seededRandom(100 + i * 6 + 1) - 0.5) * 16,
-          (seededRandom(100 + i * 6 + 2) - 0.5) * 10,
-          (seededRandom(100 + i * 6 + 3) - 0.5) * 6,
+          (Math.random() - 0.5) * 16,
+          (Math.random() - 0.5) * 10,
+          (Math.random() - 0.5) * 6,
         ],
         end: [
-          (seededRandom(100 + i * 6 + 4) - 0.5) * 16,
-          (seededRandom(100 + i * 6 + 5) - 0.5) * 10,
-          (seededRandom(100 + i * 6 + 6) - 0.5) * 6,
+          (Math.random() - 0.5) * 16,
+          (Math.random() - 0.5) * 10,
+          (Math.random() - 0.5) * 6,
         ],
       });
     }

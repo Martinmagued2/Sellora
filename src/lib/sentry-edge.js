@@ -9,8 +9,7 @@ export async function registerEdgeSentry() {
   if (!process.env.NEXT_PUBLIC_SENTRY_DSN) return;
 
   try {
-    const pkg = "@sentry/nextjs";
-    const Sentry = (await import(/* webpackIgnore: true */ pkg)).default;
+    const Sentry = (await import("@sentry/nextjs")).default;
     Sentry.init({
       dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
       tracesSampleRate: 0.1,

@@ -13,15 +13,10 @@ export async function POST(req) {
     const { email, source = "homepage_footer" } = await req.json();
     if (!email || !email.includes("@")) return NextResponse.json({ error: "Valid email required" }, { status: 400 });
 
-    try {
-      const admin = getAdmin();
-      await admin.from("newsletter_subscribers").upsert({ email, source }, { onConflict: "email" });
-    } catch (dbErr) {
-      // fallback if DB table or credentials not initialized yet during beta
-    }
+    const admin = getAdmin();
+    const { error } = await admin.from("newsletter_subscribers").upsert({ email, source }, { onConflict: "email" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ success: true, message: "Subscribed!" });
-  } catch (e) {
-    return NextResponse.json({ success: true, message: "Subscribed!" });
-  }
+  } catch (e) { return NextResponse.json({ error: "Server error" }, { status: 500 }); }
 }

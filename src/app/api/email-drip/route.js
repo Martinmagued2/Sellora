@@ -13,7 +13,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sendCustomEmail } from "@/lib/email";
+import { sendCustomEmail, wrapInLayout } from "@/lib/email";
 
 let _supabase = null;
 function getSupabase() {
@@ -24,23 +24,23 @@ function getSupabase() {
 const DRIP_STEPS = [
   {
     day: 1,
-    subject: "Welcome to Sellora! 🎉 Here's how to get started",
-    html: `<h2>Welcome to Sellora!</h2><p>You're just 3 steps away from automating your WhatsApp sales:</p><ol><li><strong>Connect WhatsApp</strong> — Go to Settings → Channels → Connect WhatsApp</li><li><strong>Add a product</strong> — Go to Products → Add your first item</li><li><strong>Test the AI</strong> — Send a message to your WhatsApp number</li></ol><p>That's it! The AI will start replying to customers automatically.</p><p><a href="https://sellora-ruby.vercel.app/dashboard" style="background:#5865F2;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Go to Dashboard</a></p>`,
+    subject: "Welcome to Sellora! Here's how to get started",
+    bodyContent: `<h1>Welcome to Sellora! 🎉</h1><p>You're just 3 steps away from automating your WhatsApp sales:</p><ol><li><strong>Connect WhatsApp</strong> — Go to Settings → Channels → Connect WhatsApp</li><li><strong>Add a product</strong> — Go to Products → Add your first item</li><li><strong>Test the AI</strong> — Send a message to your WhatsApp number</li></ol><p>That's it! The AI will start replying to customers automatically.</p><p><a href="https://sellorachat.com/dashboard" class="btn">Go to Dashboard →</a></p>`,
   },
   {
     day: 3,
-    subject: "Have you added your products yet? 📦",
-    html: `<h2>Your AI needs products to sell!</h2><p>Adding products takes 30 seconds and lets your AI agent recommend items, check stock, and create orders automatically.</p><p><strong>Quick tip:</strong> Add a description for each product — the AI uses it to answer customer questions.</p><p><a href="https://sellora-ruby.vercel.app/dashboard/products" style="background:#5865F2;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Add Products Now</a></p>`,
+    subject: "Have you added your products yet?",
+    bodyContent: `<h1>Your AI needs products to sell! 📦</h1><p>Adding products takes 30 seconds and lets your AI agent recommend items, check stock, and create orders automatically.</p><div class="info-box"><div class="info-label">Quick Tip</div><div class="info-text">Add a description for each product — the AI uses it to answer customer questions naturally.</div></div><p><a href="https://sellorachat.com/dashboard/products" class="btn">Add Products Now →</a></p>`,
   },
   {
     day: 5,
-    subject: "Did you know? Your AI can create orders 💰",
-    html: `<h2>The AI does more than just reply</h2><p>Your Sellora AI can:</p><ul><li>✅ Build multi-item carts</li><li>✅ Apply coupon codes automatically</li><li>✅ Create orders mid-conversation</li><li>✅ Send payment links</li><li>✅ Remember customer preferences</li></ul><p>This means customers can go from "How much?" to "Order placed" without you lifting a finger.</p><p><a href="https://sellora-ruby.vercel.app/dashboard/conversations" style="background:#5865F2;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Try the AI Copilot</a></p>`,
+    subject: "Did you know? Your AI can create orders",
+    bodyContent: `<h1>Your AI does more than just reply 💰</h1><p>Your Sellora AI can:</p><ul style="line-height:2;color:#374151;font-size:15px;"><li>✅ Build multi-item carts</li><li>✅ Apply coupon codes automatically</li><li>✅ Create orders mid-conversation</li><li>✅ Send payment links</li><li>✅ Remember customer preferences</li></ul><p>This means customers can go from <em>"How much?"</em> to <em>"Order placed"</em> without you lifting a finger.</p><p><a href="https://sellorachat.com/dashboard/conversations" class="btn">Try the AI Copilot →</a></p>`,
   },
   {
     day: 7,
-    subject: "How's it going? We're here to help 🙏",
-    html: `<h2>Checking in!</h2><p>It's been a week since you joined Sellora. How's it going?</p><p>If you have any questions — about WhatsApp setup, AI personality, products, or anything else — just reply to this email or message us on WhatsApp.</p><p>We're here to help you succeed.</p><p><strong>Pro tip:</strong> Customize your AI's personality in Settings → AI Personality to match your brand's tone.</p><p><a href="https://sellora-ruby.vercel.app/dashboard/settings" style="background:#5865F2;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Customize Your AI</a></p>`,
+    subject: "How's it going? We're here to help",
+    bodyContent: `<h1>Checking in! 🙏</h1><p>It's been a week since you joined Sellora. How's it going?</p><p>If you have any questions — about WhatsApp setup, AI personality, products, or anything else — just reply to this email. We're here to help you succeed.</p><div class="info-box"><div class="info-label">Pro Tip</div><div class="info-text">Customize your AI's personality in Settings → AI Personality to match your brand's tone.</div></div><p><a href="https://sellorachat.com/dashboard/settings" class="btn">Customize Your AI →</a></p>`,
   },
 ];
 
@@ -80,7 +80,10 @@ export async function POST(req) {
         await sendCustomEmail({
           to: account.email,
           subject: step.subject,
-          html: step.html,
+          html: wrapInLayout({
+            preheader: step.subject,
+            bodyContent: step.bodyContent,
+          }),
         });
 
         await supabase.from("email_drip_logs").insert({
