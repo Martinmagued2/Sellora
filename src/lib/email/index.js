@@ -82,54 +82,113 @@ async function send({ to, subject, html, replyTo, from }) {
 // ────────────────────────────────────────────────────────
 //  Shared layout wrapper (branding, header, footer)
 // ────────────────────────────────────────────────────────
-function layout({ preheader, bodyContent }) {
+function layout({ preheader, bodyContent, footerNote }) {
+  const year = new Date().getFullYear();
+  const logoUrl = `${APP_URL}/logo.png`;
   return `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${preheader}</title>
+  <meta name="x-apple-disable-message-reformatting">
+  <title>${escapeHtml(preheader)}</title>
+  <!--[if mso]>
   <style>
-    body { margin:0; padding:0; background:#f4f5f7; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
-    .wrapper { max-width:600px; margin:0 auto; background:#ffffff; border-radius:16px; overflow:hidden; margin-top:24px; margin-bottom:24px; }
-    .header { background:linear-gradient(135deg,#6C5CE7,#a855f7); padding:32px 40px; }
-    .header h1 { color:#fff; margin:0; font-size:22px; font-weight:800; letter-spacing:-0.3px; }
-    .header p { color:rgba(255,255,255,0.85); margin:8px 0 0; font-size:14px; }
-    .body { padding:32px 40px; }
+    table { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; padding:0; background:#0f0a1f; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+    .preheader { display:none; max-height:0; overflow:hidden; opacity:0; color:transparent; }
+    .wrapper { max-width:600px; margin:0 auto; background:#ffffff; border-radius:0; overflow:hidden; }
+    .header { background:linear-gradient(135deg,#6C5CE7 0%,#8B5CF6 50%,#a855f7 100%); padding:36px 40px; position:relative; }
+    .header::after { content:""; position:absolute; bottom:0; left:0; right:0; height:4px; background:linear-gradient(90deg,#a855f7,#ec4899,#a855f7); }
+    .logo { display:flex; align-items:center; gap:14px; }
+    .logo-img { width:52px; height:52px; border-radius:12px; background:rgba(255,255,255,0.95); padding:6px; box-shadow:0 4px 14px rgba(0,0,0,0.15); border:1px solid rgba(255,255,255,0.3); object-fit:contain; display:block; }
+    .logo-text { color:#fff; font-size:22px; font-weight:800; letter-spacing:-0.5px; line-height:1; }
+    .logo-text .ai { color:rgba(255,255,255,0.75); font-weight:600; font-size:13px; margin-left:6px; letter-spacing:1.5px; }
+    .tagline { color:rgba(255,255,255,0.85); margin:14px 0 0; font-size:13px; font-weight:500; letter-spacing:0.2px; }
+    .body { padding:36px 40px 8px; }
+    .body h1, .body h2, .body h3 { color:#0f0a1f; font-weight:800; letter-spacing:-0.4px; margin:0 0 14px; }
+    .body h1 { font-size:24px; }
+    .body h2 { font-size:20px; }
+    .body h3 { font-size:16px; }
     .body p { color:#374151; font-size:15px; line-height:1.7; margin:0 0 16px; }
-    .body table { width:100%; border-collapse:collapse; font-size:14px; }
-    .body table td { padding:8px 0; }
-    .body table .label { color:#6b7280; width:130px; vertical-align:top; }
-    .body table .value { color:#111827; font-weight:600; }
-    .btn { display:inline-block; padding:14px 28px; background:#6C5CE7; color:#fff!important; text-decoration:none; border-radius:10px; font-weight:700; font-size:15px; margin:8px 0; }
-    .btn:hover { background:#5a4bd1; }
-    .alert-box { background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:16px; margin:16px 0; }
-    .alert-box .alert-label { color:#DC2626; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; }
-    .alert-box .alert-text { color:#991B1B; font-size:14px; margin-top:4px; }
-    .info-box { background:#F3F0FF; border:1px solid #DDD6FE; border-radius:10px; padding:16px; margin:16px 0; }
-    .info-box .info-label { color:#6C5CE7; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; }
-    .info-box .info-text { color:#4C1D95; font-size:14px; margin-top:4px; }
-    .success-box { background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; padding:16px; margin:16px 0; }
-    .success-box .success-label { color:#059669; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; }
-    .success-box .success-text { color:#065F46; font-size:14px; margin-top:4px; }
-    .footer { padding:24px 40px; border-top:1px solid #f3f4f6; }
-    .footer p { color:#9ca3af; font-size:12px; line-height:1.5; margin:0; }
-    .footer a { color:#6C5CE7; text-decoration:none; }
+    .body a { color:#6C5CE7; }
+    .body strong { color:#0f0a1f; }
+    .body table.data { width:100%; border-collapse:collapse; font-size:14px; margin:8px 0 16px; }
+    .body table.data td { padding:10px 0; border-bottom:1px solid #f3f4f6; }
+    .body table.data .label { color:#6b7280; width:140px; vertical-align:top; font-weight:500; }
+    .body table.data .value { color:#111827; font-weight:600; }
+    .btn { display:inline-block; padding:14px 32px; background:linear-gradient(135deg,#6C5CE7,#a855f7); color:#ffffff!important; text-decoration:none; border-radius:10px; font-weight:700; font-size:15px; margin:8px 0; box-shadow:0 4px 14px rgba(108,92,231,0.3); }
+    .btn:hover { background:linear-gradient(135deg,#5a4bd1,#9333ea); }
+    .btn-secondary { display:inline-block; padding:10px 20px; background:#f3f0ff; color:#6C5CE7!important; text-decoration:none; border-radius:8px; font-weight:600; font-size:13px; margin:8px 0; }
+    .alert-box { background:#FEF2F2; border-left:4px solid #DC2626; border-radius:8px; padding:16px 20px; margin:16px 0; }
+    .alert-box .alert-label { color:#DC2626; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px; }
+    .alert-box .alert-text { color:#991B1B; font-size:14px; line-height:1.5; }
+    .info-box { background:linear-gradient(135deg,#F3F0FF,#FAF5FF); border-left:4px solid #6C5CE7; border-radius:8px; padding:16px 20px; margin:16px 0; }
+    .info-box .info-label { color:#6C5CE7; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px; }
+    .info-box .info-text { color:#4C1D95; font-size:14px; line-height:1.6; }
+    .success-box { background:linear-gradient(135deg,#ECFDF5,#F0FDF4); border-left:4px solid #059669; border-radius:8px; padding:16px 20px; margin:16px 0; }
+    .success-box .success-label { color:#059669; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px; }
+    .success-box .success-text { color:#065F46; font-size:14px; line-height:1.6; }
+    .stat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:16px 0; }
+    .stat-card { background:#FAFAFB; border:1px solid #f3f4f6; border-radius:10px; padding:16px; text-align:center; }
+    .stat-card .stat-value { font-size:22px; font-weight:800; color:#0f0a1f; line-height:1; }
+    .stat-card .stat-label { font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; margin-top:6px; font-weight:600; }
+    .items-table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+    .items-table th { text-align:left; padding:10px 12px; background:#FAFAFB; color:#6b7280; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; border-bottom:2px solid #e5e7eb; }
+    .items-table th.right { text-align:right; }
+    .items-table th.center { text-align:center; }
+    .items-table td { padding:12px; border-bottom:1px solid #f3f4f6; color:#111827; }
+    .items-table td.right { text-align:right; font-weight:600; }
+    .items-table td.center { text-align:center; }
+    .items-table tfoot td { padding:14px 12px; font-weight:800; border-top:2px solid #e5e7eb; color:#0f0a1f; }
+    .items-table tfoot td.total-value { color:#6C5CE7; font-size:17px; }
+    .footer { background:#0f0a1f; padding:32px 40px; }
+    .footer .footer-brand { display:flex; align-items:center; gap:10px; color:#fff; font-weight:800; font-size:16px; margin-bottom:8px; }
+    .footer .footer-brand .ai { color:#a855f7; font-weight:600; font-size:12px; margin-left:4px; }
+    .footer p { color:rgba(255,255,255,0.6); font-size:12px; line-height:1.6; margin:0 0 8px; }
+    .footer a { color:#a855f7; text-decoration:none; }
+    .footer .footer-links { margin:12px 0; }
+    .footer .footer-links a { color:rgba(255,255,255,0.8); font-size:12px; margin-right:16px; }
+    .divider { height:1px; background:#f3f4f6; margin:24px 0; }
+    @media only screen and (max-width: 480px) {
+      .header, .body, .footer { padding:24px 20px; }
+      .stat-grid { grid-template-columns:1fr; }
+      .btn { display:block; text-align:center; }
+    }
   </style>
 </head>
 <body>
+  <div class="preheader">${escapeHtml(preheader)}</div>
   <div class="wrapper">
     <div class="header">
-      <h1>Sellora</h1>
-      <p>Smart commerce, on autopilot</p>
+      <div class="logo">
+        <img src="${logoUrl}" alt="Sellora" class="logo-img" width="52" height="52" />
+        <div class="logo-text">Sellora<span class="ai">AI</span></div>
+      </div>
+      <p class="tagline">Smart commerce, on autopilot</p>
     </div>
     <div class="body">
       ${bodyContent}
     </div>
     <div class="footer">
-      <p>Sellora Inc. &mdash; AI-powered e-commerce dashboard</p>
-      <p>You received this email because you have an account on <a href="${APP_URL}">Sellora</a>.</p>
+      <div class="footer-brand">
+        <img src="${logoUrl}" alt="Sellora" width="28" height="28" style="vertical-align:middle;margin-right:10px;border-radius:6px;background:rgba(255,255,255,0.1);padding:3px;" />
+        Sellora<span class="ai">AI</span>
+      </div>
+      <p>AI-powered conversational commerce for modern brands.</p>
+      ${footerNote ? `<p>${footerNote}</p>` : ""}
+      <div class="footer-links">
+        <a href="${APP_URL}">Dashboard</a>
+        <a href="${APP_URL}/dashboard/settings">Settings</a>
+        <a href="mailto:support@sellorachat.com">Support</a>
+      </div>
+      <p>&copy; ${year} Sellora Inc. All rights reserved.</p>
+      <p>You received this email because you have an account on <a href="${APP_URL}">sellorachat.com</a>.</p>
     </div>
   </div>
 </body>
@@ -347,205 +406,38 @@ export async function sendPlanUpgradeEmail({ to, planName, amount, currency = "U
  * 7. Weekly Summary — sent to business owners with their week's stats
  */
 export async function sendWeeklySummaryEmail({ to, businessName, stats }) {
-  const s = stats || {};
-  const currency = s.currency || "EGP";
-  const fmt = (n) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
-  const fmtTime = (sec) => {
-    if (!sec && sec !== 0) return "N/A";
-    if (sec < 60) return `${sec}s`;
-    return `${Math.floor(sec / 60)}m ${sec % 60}s`;
-  };
-  const changeArrow = (n) => n > 0 ? `▲ +${n}%` : n < 0 ? `▼ ${n}%` : "→ 0%";
-  const changeColor = (n) => n > 0 ? "#10b981" : n < 0 ? "#ef4444" : "#9ca3af";
-
-  // Channel label map
-  const channelLabel = (ch) => ({
-    whatsapp: "WhatsApp",
-    instagram: "Instagram",
-    facebook: "Facebook",
-    telegram: "Telegram",
-    email: "Email",
-    unknown: "Other",
-  })[ch] || ch || "Other";
-
-  // ─── Build sections ───
-
-  // Hero stats: 4 cards
-  const heroStats = `
-    <div class="stat-grid" style="grid-template-columns:repeat(2,1fr);">
-      <div class="stat-card">
-        <div class="stat-value">${fmt(s.revenue)}</div>
-        <div class="stat-label">${currency} Revenue</div>
-        <div style="font-size:10px;color:${changeColor(s.revenueChange)};margin-top:4px;font-weight:700;">${changeArrow(s.revenueChange)} vs last week</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${s.ordersCount || 0}</div>
-        <div class="stat-label">Paid Orders</div>
-        <div style="font-size:10px;color:${changeColor(s.ordersChange)};margin-top:4px;font-weight:700;">${changeArrow(s.ordersChange)} vs last week</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${s.totalConversations || 0}</div>
-        <div class="stat-label">Conversations</div>
-        <div style="font-size:10px;color:${changeColor(s.convsChange)};margin-top:4px;font-weight:700;">${changeArrow(s.convsChange)} vs last week</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${s.newCustomers || 0}</div>
-        <div class="stat-label">New Customers</div>
-        <div style="font-size:10px;color:#9ca3af;margin-top:4px;font-weight:600;">This week</div>
-      </div>
-    </div>`;
-
-  // AI performance box
-  const aiBox = `
-    <div class="info-box">
-      <div class="info-label">🤖 AI Performance</div>
-      <div class="info-text">
-        Your AI assistant handled <strong>${s.aiReplies || 0}</strong> of ${s.totalConversations || 0} conversations
-        (${s.deflectionRate || 0}% deflection rate). Estimated cost savings: <strong>$${s.aiCostSavings || "0.00"}</strong>
-        vs human-only support.
-        <br>Avg response time: <strong>${fmtTime(s.avgResponseTime)}</strong>
-        (fastest ${fmtTime(s.fastestResponse)} / slowest ${fmtTime(s.slowestResponse)})
-      </div>
-    </div>`;
-
-  // Channel breakdown
-  const channelEntries = Object.entries(s.channelBreakdown || {});
-  const channelTotal = channelEntries.reduce((sum, [_, n]) => sum + n, 0) || 1;
-  const channelHtml = channelEntries.length > 0 ? `
-    <h3>📍 Conversations by Channel</h3>
-    <table class="items-table" style="margin-bottom:16px;">
-      <thead><tr><th>Channel</th><th class="right">Conversations</th><th class="right">Share</th></tr></thead>
-      <tbody>
-        ${channelEntries
-          .sort((a, b) => b[1] - a[1])
-          .map(([ch, n]) => `<tr><td>${channelLabel(ch)}</td><td class="right">${n}</td><td class="right">${Math.round((n / channelTotal) * 100)}%</td></tr>`)
-          .join("")}
-      </tbody>
-    </table>` : "";
-
-  // Top products
-  const topProductsHtml = (s.topProducts && s.topProducts.length > 0) ? `
-    <h3>🏆 Top Products This Week</h3>
-    <table class="items-table" style="margin-bottom:16px;">
-      <thead><tr><th>Product</th><th class="right">Units Sold</th><th class="right">Revenue</th></tr></thead>
-      <tbody>
-        ${s.topProducts.map((p) => `<tr><td>${escapeHtml(p.name)}</td><td class="right">${p.units}</td><td class="right">${currency} ${fmt(p.revenue)}</td></tr>`).join("")}
-      </tbody>
-    </table>` : "";
-
-  // Top customers
-  const topCustomersHtml = (s.topCustomers && s.topCustomers.length > 0) ? `
-    <h3>💎 Top Customers</h3>
-    <table class="items-table" style="margin-bottom:16px;">
-      <thead><tr><th>Customer</th><th class="right">Total Spent</th><th class="right">Orders</th></tr></thead>
-      <tbody>
-        ${s.topCustomers.map((c) => `<tr><td>${escapeHtml(c.name)}</td><td class="right">${currency} ${fmt(c.totalSpent)}</td><td class="right">${c.totalOrders}</td></tr>`).join("")}
-      </tbody>
-    </table>` : "";
-
-  // Abandoned carts
-  const cartsHtml = (s.abandonedCarts > 0) ? `
-    <div class="alert-box" style="margin-bottom:16px;">
-      <div class="alert-label">🛒 Abandoned Carts</div>
-      <div class="alert-text">
-        ${s.abandonedCarts} cart${s.abandonedCarts > 1 ? "s were" : " was"} abandoned this week.
-        ${s.recoveredCarts > 0 ? `<strong>${s.recoveredCarts} recovered</strong> (${currency} ${fmt(s.recoveredRevenue)} revenue saved).` : "<strong>0 recovered</strong> — consider enabling cart recovery automations."}
-      </div>
-    </div>` : "";
-
-  // Pending tasks + reviews
-  const pendingHtml = ((s.pendingTasks || 0) + (s.pendingReviews || 0) + (s.overdueTasks || 0) > 0) ? `
-    <div class="alert-box" style="margin-bottom:16px;">
-      <div class="alert-label">📋 Pending Items</div>
-      <div class="alert-text">
-        ${s.overdueTasks > 0 ? `🔴 ${s.overdueTasks} overdue task${s.overdueTasks > 1 ? "s" : ""}<br>` : ""}
-        ${s.pendingTasks > 0 ? `• ${s.pendingTasks} pending task${s.pendingTasks > 1 ? "s" : ""} in progress<br>` : ""}
-        ${s.pendingReviews > 0 ? `• ${s.pendingReviews} customer review${s.pendingReviews > 1 ? "s" : ""} awaiting response<br>` : ""}
-      </div>
-    </div>` : "";
-
-  // Low stock
-  const lowStockHtml = (s.lowStockProducts && s.lowStockProducts.length > 0) ? `
-    <div class="alert-box" style="margin-bottom:16px;">
-      <div class="alert-label">📦 Low Stock Alert</div>
-      <div class="alert-text">
-        ${s.lowStockProducts.map((p) => `• ${escapeHtml(p.name)} — ${p.stock} left`).join("<br>")}
-      </div>
-    </div>` : "";
-
-  // Team performance
-  const teamHtml = (s.teamPerformance && s.teamPerformance.length > 0) ? `
-    <h3>👥 Team Performance</h3>
-    <table class="items-table" style="margin-bottom:16px;">
-      <thead><tr><th>Member</th><th>Role</th><th class="right">Conversations</th></tr></thead>
-      <tbody>
-        ${s.teamPerformance.map((m) => `<tr><td>${escapeHtml(m.name)}</td><td style="text-transform:capitalize;">${m.role}</td><td class="right">${m.conversationsHandled}</td></tr>`).join("")}
-      </tbody>
-    </table>` : "";
-
-  // Action items
-  const actionItemsHtml = `
-    <div class="info-box" style="margin-top:16px;">
-      <div class="info-label">🎯 Recommended Actions</div>
-      <div class="info-text">
-        ${(s.actionItems || []).map((a) => {
-          const icon = a.priority === "high" ? "🔴" : a.priority === "medium" ? "🟡" : "🟢";
-          return `${icon} ${escapeHtml(a.text)}`;
-        }).join("<br><br>")}
-      </div>
-    </div>`;
-
-  // Conversion rate box
-  const conversionHtml = `
-    <div class="info-box" style="margin-bottom:16px;">
-      <div class="info-label">📊 Conversion Funnel</div>
-      <div class="info-text">
-        <strong>${s.totalConversations || 0}</strong> conversations → <strong>${s.convertedCount || 0}</strong> converted
-        (<strong>${s.conversionRate || 0}%</strong> conversion rate).
-        Average order value: <strong>${currency} ${fmt(s.aov)}</strong>.
-        ${s.pendingRevenue > 0 ? `Pending revenue (unpaid orders): <strong>${currency} ${fmt(s.pendingRevenue)}</strong>.` : ""}
-      </div>
-    </div>`;
+  const {
+    totalConversations = 0,
+    aiReplies = 0,
+    newCustomers = 0,
+    ordersCount = 0,
+    revenue = 0,
+    currency = "EGP",
+    avgResponseTime = "N/A",
+  } = stats || {};
 
   const html = layout({
-    preheader: `Your Monday morning briefing — ${businessName}`,
+    preheader: `Your weekly summary — ${businessName}`,
     bodyContent: `
-      <h1>Good morning! ☀️</h1>
-      <p>Here's your weekly briefing for <strong>${escapeHtml(businessName)}</strong> — covering the last 7 days of activity.</p>
-
-      ${heroStats}
-
-      ${conversionHtml}
-      ${aiBox}
-
-      ${cartsHtml}
-      ${pendingHtml}
-      ${lowStockHtml}
-
-      ${channelHtml}
-      ${topProductsHtml}
-      ${topCustomersHtml}
-      ${teamHtml}
-
-      ${actionItemsHtml}
-
-      <p style="margin-top:24px;">
-        <a href="${APP_URL}/dashboard" class="btn">Open Dashboard →</a>
-        <a href="${APP_URL}/dashboard/tasks" class="btn-secondary">View Tasks</a>
+      <p>Here's how <strong>${escapeHtml(businessName)}</strong> performed this week:</p>
+      <table style="margin-top:12px;">
+        <tr><td class="label">Conversations</td><td class="value">${totalConversations}</td></tr>
+        <tr><td class="label">AI Replies</td><td class="value">${aiReplies}</td></tr>
+        <tr><td class="label">New Customers</td><td class="value">${newCustomers}</td></tr>
+        <tr><td class="label">Orders</td><td class="value">${ordersCount}</td></tr>
+        <tr><td class="label">Revenue</td><td class="value" style="color:#059669;">${currency} ${revenue.toFixed(2)}</td></tr>
+        <tr><td class="label">Avg Response</td><td class="value">${avgResponseTime}</td></tr>
+      </table>
+      <p style="margin-top:20px;">
+        <a href="${APP_URL}/dashboard" class="btn">View Dashboard</a>
       </p>
     `,
-    footerNote: `<p style="color:rgba(255,255,255,0.4);font-size:11px;">Don't want these weekly summaries? <a href="${APP_URL}/dashboard/settings" style="color:rgba(255,255,255,0.6);">Manage notification preferences</a> or <a href="#" style="color:rgba(255,255,255,0.6);">unsubscribe</a>.</p>`,
   });
 
   return send({
     to,
-    subject: `[Sellora] Weekly briefing — ${s.totalConversations || 0} convs, ${currency} ${fmt(s.revenue)} revenue, ${s.deflectionRate || 0}% AI deflection`,
+    subject: `Your weekly summary — ${totalConversations} conversations, ${currency} ${revenue.toFixed(2)} revenue`,
     html,
-    templateName: "weekly_summary",
-    accountId: s.accountId,
-    allowUnsubscribe: true,
-    unsubscribeType: "weekly_summary",
-    metadata: { businessName, stats: { revenue: s.revenue, conversations: s.totalConversations, orders: s.ordersCount } },
   });
 }
 
