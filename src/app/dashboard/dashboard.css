@@ -4268,12 +4268,14 @@ select.form-input {
 }
 
 /* MentionInput textarea — same styling as input, but supports multi-line */
-.copilot-input-area textarea {
+.copilot-input-area textarea,
+.copilot-input-area .copilot-mention-textarea {
   flex: 1;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 14px 18px;
+  padding-right: 48px;  /* leave room for the @ button */
   color: var(--text-primary);
   font-family: inherit;
   font-size: 14.5px;
@@ -4284,17 +4286,35 @@ select.form-input {
   min-height: 50px;
   max-height: 120px;
   line-height: 1.4;
+  width: 100%;
 }
 
-.copilot-input-area textarea:focus {
+.copilot-input-area textarea:focus,
+.copilot-input-area .copilot-mention-textarea:focus {
   border-color: rgba(108, 92, 231, 0.5);
   background: var(--bg-card);
   box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.1);
 }
 
-.copilot-input-area textarea:disabled {
+.copilot-input-area textarea:disabled,
+.copilot-input-area .copilot-mention-textarea:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Make the @ button clearly visible */
+.copilot-input-area .mention-trigger-btn {
+  background: rgba(108, 92, 231, 0.15);
+  color: #6c5ce7;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copilot-input-area .mention-trigger-btn:hover {
+  background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+  color: #fff;
+  transform: scale(1.1);
 }
 
 .copilot-input-area button {
