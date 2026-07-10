@@ -158,6 +158,8 @@ export async function GET(request) {
     authenticated_user_id: authenticatedUserId,  // The user who actually clicked "Connect"
     platform,
     token_exchange_short: null,
+    debug_token_short: null,        // NEW: debug_token response for short-lived token
+    debug_token_long: null,         // NEW: debug_token response for long-lived token
     token_exchange_long: null,
     granular_scopes: null,
     permissions: null,
@@ -210,6 +212,33 @@ export async function GET(request) {
     const userAccessToken = tokenData.access_token;
     console.log("[META-CALLBACK] Token exchange successful");
 
+    // ─── Step 1.5: Inspect the short-lived token with debug_token ───
+    // This tells us EXACTLY what scopes + type + app the token has, which
+    // is critical for debugging "No Facebook Pages found" — if the token
+    // is missing business_management or has the wrong type, /me/accounts
+    // returns [] even when the user has Pages.
+    try {
+      const debugUrl = `${META_API_URL}/debug_token?input_token=${encodeURIComponent(userAccessToken)}&access_token=${encodeURIComponent(META_APP_ID + "|" + META_APP_SECRET)}`;
+      const debugRes = await fetch(debugUrl, { method: "GET" });
+      const debugData = await debugRes.json();
+      diag.debug_token_short = {
+        status: debugRes.status,
+        data: debugData.data,  // contains: scopes, type, app_id, expires_at, is_valid, etc.
+        error: debugData.error,
+      };
+      console.log("[META-CALLBACK] debug_token (short-lived):", JSON.stringify({
+        type: debugData.data?.type,
+        scopes: debugData.data?.scopes,
+        app_id: debugData.data?.app_id,
+        is_valid: debugData.data?.is_valid,
+        expires_at: debugData.data?.expires_at,
+        data_access_expires_at: debugData.data?.data_access_expires_at,
+      }));
+    } catch (debugErr) {
+      console.warn("[META-CALLBACK] debug_token call failed:", debugErr.message);
+      diag.debug_token_short = { error: debugErr.message };
+    }
+
     // Extract page IDs from granular_scopes if available
     let pageIdsFromScopes = [];
     if (tokenData.granular_scopes) {
@@ -247,6 +276,37 @@ export async function GET(request) {
       error: longLivedData.error,
     };
     console.log("[META-CALLBACK] Got long-lived token");
+
+    // ─── Step 2.5: Inspect the long-lived token with debug_token ───
+    // Sometimes the long-lived exchange drops scopes (e.g. business_management).
+    // Comparing debug_token_short vs debug_token_long will reveal this.
+    try {
+      const debugUrl = `${META_API_URL}/debug_token?input_token=${encodeURIComponent(longLivedToken)}&access_token=${encodeURIComponent(META_APP_ID + "|" + META_APP_SECRET)}`;
+      const debugRes = await fetch(debugUrl, { method: "GET" });
+      const debugData = await debugRes.json();
+      diag.debug_token_long = {
+        status: debugRes.status,
+        data: debugData.data,
+        error: debugData.error,
+      };
+      console.log("[META-CALLBACK] debug_token (long-lived):", JSON.stringify({
+        type: debugData.data?.type,
+        scopes: debugData.data?.scopes,
+        is_valid: debugData.data?.is_valid,
+        expires_at: debugData.data?.expires_at,
+      }));
+
+      // ⚠️ If scopes differ between short and long, log a warning
+      const shortScopes = diag.debug_token_short?.data?.scopes || [];
+      const longScopes = debugData.data?.scopes || [];
+      const missingInLong = shortScopes.filter(s => !longScopes.includes(s));
+      if (missingInLong.length > 0) {
+        console.warn("[META-CALLBACK] ⚠️ Long-lived token is MISSING scopes that short-lived had:", missingInLong);
+      }
+    } catch (debugErr) {
+      console.warn("[META-CALLBACK] debug_token (long) call failed:", debugErr.message);
+      diag.debug_token_long = { error: debugErr.message };
+    }
 
     // ─── Step 3: Check what permissions were actually granted ───
     const permsCheck = await graphGet(

@@ -96,6 +96,73 @@ export async function GET(req) {
     // ─── Build a human-readable diagnosis ───
     const diagnosis = [];
 
+    // 0. debug_token inspection (NEW — most useful for "No Facebook Pages found")
+    const shortScopes = attempt.debug_token_short?.data?.scopes || [];
+    const longScopes = attempt.debug_token_long?.data?.scopes || [];
+    const requiredScopes = [
+      "pages_show_list",
+      "pages_messaging",
+      "pages_read_engagement",
+      "pages_manage_metadata",
+      "instagram_manage_messages",
+      "business_management",
+      "instagram_basic",
+    ];
+
+    if (attempt.debug_token_short) {
+      if (attempt.debug_token_short.error) {
+        diagnosis.push({
+          level: "ERROR",
+          message: `debug_token call failed: ${attempt.debug_token_short.error.message || JSON.stringify(attempt.debug_token_short.error)}`,
+          fix: "Check that META_APP_ID and META_APP_SECRET are set correctly in Vercel env vars.",
+        });
+      } else {
+        const d = attempt.debug_token_short.data;
+        const missingFromShort = requiredScopes.filter(s => !shortScopes.includes(s));
+        if (missingFromShort.length > 0) {
+          diagnosis.push({
+            level: "ERROR",
+            message: `Short-lived token is MISSING required scopes: ${missingFromShort.join(", ")}`,
+            fix: "The OAuth dialog URL doesn't request these scopes OR Facebook didn't grant them. Remove Sellora from facebook.com/settings?tab=apps and reconnect. Also confirm in Meta App Dashboard → App Review → Permissions and Features that each scope is at least Standard Access.",
+          });
+        } else {
+          diagnosis.push({
+            level: "OK",
+            message: `Short-lived token has all required scopes (${shortScopes.length} total): ${shortScopes.join(", ")}`,
+          });
+        }
+        if (d?.type) {
+          diagnosis.push({
+            level: "INFO",
+            message: `Short-lived token type: ${d.type} (should be USER)`,
+          });
+        }
+        if (d?.app_id) {
+          diagnosis.push({
+            level: "INFO",
+            message: `Token issued by app_id: ${d.app_id} (should match your Sellora Meta app)`,
+          });
+        }
+      }
+    }
+
+    // Compare short vs long scopes
+    if (shortScopes.length > 0 && longScopes.length > 0) {
+      const missingInLong = shortScopes.filter(s => !longScopes.includes(s));
+      if (missingInLong.length > 0) {
+        diagnosis.push({
+          level: "ERROR",
+          message: `Long-lived token is MISSING scopes that short-lived had: ${missingInLong.join(", ")}`,
+          fix: "The fb_exchange_token grant sometimes drops scopes. This is a Meta bug. Workaround: don't exchange for long-lived — use the short-lived token for /me/accounts (Strategy F already does this).",
+        });
+      } else {
+        diagnosis.push({
+          level: "OK",
+          message: "Long-lived token has the SAME scopes as short-lived (good).",
+        });
+      }
+    }
+
     // 1. Token exchange
     if (attempt.token_exchange_short?.error) {
       diagnosis.push({
