@@ -106,7 +106,6 @@ export async function GET(req) {
       "pages_manage_metadata",
       "instagram_manage_messages",
       "business_management",
-      "instagram_basic",
     ];
 
     if (attempt.debug_token_short) {
