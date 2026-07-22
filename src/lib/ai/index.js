@@ -804,7 +804,43 @@ export async function generateAIReply({
       console.log(`[generateAIReply] Using fallback reply for intent: ${intent}`);
     }
 
-    return { reply: text, intent, sentiment, toolCalls, needsHumanAttention, escalationReason, abTestVariant: abTestVariant?.name || null, abTestId };
+    // ─── Confidence scoring ───
+    // Heuristic confidence score (0-100) based on reply quality signals.
+    // Used by the AI Auto Reply Approval feature: if confidence < threshold,
+    // the reply is queued for human approval instead of being sent automatically.
+    let confidence = 85;  // Default high confidence
+    if (!text || !text.trim()) {
+      confidence = 0;
+    } else {
+      const lowerText = text.toLowerCase();
+      // Lower confidence for hedge words / uncertainty
+      if (/i'm not sure|i don't know|i cannot|unfortunately|i'm unable|let me check|i think|maybe|perhaps/.test(lowerText)) {
+        confidence -= 25;
+      }
+      // Lower confidence for very short replies (likely unhelpful)
+      if (text.trim().length < 20) {
+        confidence -= 20;
+      }
+      // Lower confidence for fallback replies (provider failures)
+      if (lastError && !toolCalls) {
+        confidence -= 30;
+      }
+      // Higher confidence for replies that include product/order specifics
+      if (toolCalls && toolCalls.length > 0) {
+        confidence += 5;  // Tool usage = grounded response
+      }
+      // Higher confidence for appropriate length (50-500 chars)
+      if (text.trim().length >= 50 && text.trim().length <= 500) {
+        confidence += 5;
+      }
+      // Lower confidence if escalation is needed
+      if (needsHumanAttention) {
+        confidence -= 20;
+      }
+    }
+    confidence = Math.max(0, Math.min(100, confidence));
+
+    return { reply: text, intent, sentiment, toolCalls, needsHumanAttention, escalationReason, confidence, abTestVariant: abTestVariant?.name || null, abTestId };
   } catch (err) {
     console.error("Error generating AI reply:", err);
     // CRITICAL: Never return null reply — the customer must always get some response.

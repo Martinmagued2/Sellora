@@ -938,7 +938,60 @@ export async function processIncomingMessage({
             return;
           }
 
-          console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}`);
+          console.log(`[PROCESSOR] AI result: reply=${!!aiResult?.reply}, intent=${aiResult?.intent}, sentiment=${aiResult?.sentiment}, replyLength=${aiResult?.reply?.length}, confidence=${aiResult?.confidence}`);
+
+          // ─── B4: AI Auto Reply Approval Queue ───
+          // If the account has ai_confidence_threshold set and the AI's
+          // confidence is below that threshold, queue the reply for human
+          // approval instead of sending it automatically.
+          const confidenceThreshold = account.ai_confidence_threshold || 0;
+          if (confidenceThreshold > 0 && (aiResult?.confidence ?? 100) < confidenceThreshold) {
+            console.log(`[PROCESSOR] AI confidence ${aiResult.confidence} < threshold ${confidenceThreshold} → queuing for human approval`);
+
+            // Save the proposed reply as a pending action for human review
+            try {
+              await getSupabase().from("pending_actions").insert({
+                account_id: account.id,
+                conversation_id: conversation.id,
+                customer_id: customer.id,
+                type: "ai_reply_approval",
+                status: "pending",
+                content: JSON.stringify({
+                  proposed_reply: aiResult.reply,
+                  confidence: aiResult.confidence,
+                  confidence_threshold: confidenceThreshold,
+                  intent: aiResult.intent,
+                  sentiment: aiResult.sentiment,
+                  original_message: text?.slice(0, 500),
+                  customer_name: customer.name,
+                  channel,
+                }),
+                created_at: new Date().toISOString(),
+              });
+
+              // Notify the team that a reply needs approval
+              try {
+                await getSupabase().from("notifications").insert({
+                  account_id: account.id,
+                  category: "ai_approval",
+                  type: "ai_reply_pending",
+                  title: `AI reply needs approval (${aiResult.confidence}% confidence)`,
+                  message: `Reply to ${customer.name}: "${aiResult.reply.slice(0, 80)}..."`,
+                  action_url: `/dashboard/conversations?id=${conversation.id}`,
+                  priority: "medium",
+                  created_at: new Date().toISOString(),
+                });
+              } catch (notifErr) {
+                console.warn("[PROCESSOR] Failed to send approval notification:", notifErr.message);
+              }
+            } catch (queueErr) {
+              console.warn("[PROCESSOR] Failed to queue AI reply for approval:", queueErr.message);
+              // If queueing fails, fall through to auto-send (don't leave customer without a reply)
+            }
+
+            // Don't auto-send — wait for human approval
+            return;
+          }
 
           // ─── B5: Auto-escalate on negative/urgent sentiment (Fix #4) ───
           // If the customer is clearly angry/frustrated, route to a human
