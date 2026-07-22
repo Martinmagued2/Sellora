@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 import { processIncomingMessage } from '@/lib/channels/processor';
 import { notify } from '@/lib/notifications';
 
@@ -15,7 +16,15 @@ function admin() {
  * Inbound email webhook — receives emails forwarded from an email service
  * (e.g., Resend Inbound, Mailgun, Postmark, or a custom forwarding rule).
  *
- * The email service should be configured to POST parsed email data here:
+ * SECURITY: Verifies an HMAC-SHA256 signature using EMAIL_WEBHOOK_SECRET.
+ * The email forwarder must send the header `x-email-signature` containing
+ * base64(HMAC-SHA256(EMAIL_WEBHOOK_SECRET, rawRequestBody)).
+ *
+ * If EMAIL_WEBHOOK_SECRET is not set, the webhook rejects all requests
+ * (fail closed). Do NOT allow "development mode" bypass — attackers can
+ * inject fake customer messages into any account otherwise.
+ *
+ * Body shape:
  * {
  *   from: "customer@example.com",
  *   fromName: "John Doe",
@@ -30,7 +39,50 @@ function admin() {
  */
 export async function POST(req) {
   try {
-    const body = await req.json();
+    // SECURITY: Read raw body for signature verification BEFORE parsing.
+    const rawBody = await req.text();
+    if (!rawBody) {
+      return NextResponse.json({ error: 'Empty body' }, { status: 400 });
+    }
+
+    const webhookSecret = process.env.EMAIL_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error('[EMAIL-WEBHOOK] EMAIL_WEBHOOK_SECRET is not set — rejecting (fail closed).');
+      return NextResponse.json(
+        { error: 'Webhook secret not configured. Set EMAIL_WEBHOOK_SECRET in env vars and configure your email forwarder to send the x-email-signature header.' },
+        { status: 500 }
+      );
+    }
+
+    // Verify HMAC-SHA256 signature
+    const providedSig = req.headers.get('x-email-signature') || '';
+    const expectedSig = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(rawBody)
+      .digest('base64');
+
+    let signatureValid = false;
+    try {
+      const a = Buffer.from(providedSig);
+      const b = Buffer.from(expectedSig);
+      if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+        signatureValid = true;
+      }
+    } catch {
+      // signature decode failed
+    }
+
+    if (!signatureValid) {
+      console.warn('[EMAIL-WEBHOOK] Invalid signature — rejecting.');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
 
     const { from, fromName, to, subject, text, html, attachments = [] } = body;
 

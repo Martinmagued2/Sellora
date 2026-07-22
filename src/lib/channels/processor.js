@@ -13,6 +13,7 @@ import { sendMessage } from "@/lib/channels/meta";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { decryptToken } from "@/lib/token-encryption";
 import {
   isAiPaused,
   showTypingIndicator,
@@ -103,7 +104,7 @@ async function resolveChannelToken(accountId, channel) {
       .eq("id", accountId)
       .single();
     if (data?.whatsapp_connected && data?.whatsapp_access_token) {
-      return { accessToken: data.whatsapp_access_token, pageId: data.whatsapp_phone_number_id };
+      return { accessToken: decryptToken(data.whatsapp_access_token), pageId: data.whatsapp_phone_number_id };
     }
     return { accessToken: null, pageId: null };
   }
@@ -115,7 +116,7 @@ async function resolveChannelToken(accountId, channel) {
     .eq("id", accountId)
     .single();
   return {
-    accessToken: data?.[tokenColumn] || null,
+    accessToken: data?.[tokenColumn] ? decryptToken(data[tokenColumn]) : null,
     pageId: data?.[pageIdColumn] || null,
   };
 }
@@ -454,7 +455,7 @@ export async function processIncomingMessage({
           if (channel === "telegram" || channel === "email") {
             greetingDelivered = await deliverToTelegramOrEmail(channel, account.id, senderId, greetingMessage);
           } else if (channel === "whatsapp") {
-            const waAccessToken = account.whatsapp_access_token || null;
+            const waAccessToken = account.whatsapp_access_token ? decryptToken(account.whatsapp_access_token) : null;
             await sendWhatsAppMessage({
               to: senderId,
               message: greetingMessage,
@@ -596,7 +597,7 @@ export async function processIncomingMessage({
               if (channel === "telegram" || channel === "email") {
                 faqDelivered = await deliverToTelegramOrEmail(channel, account.id, senderId, bestMatch.answer);
               } else if (channel === "whatsapp") {
-                const waAccessToken = account.whatsapp_access_token || null;
+                const waAccessToken = account.whatsapp_access_token ? decryptToken(account.whatsapp_access_token) : null;
                 await sendWhatsAppMessage({
                   to: senderId,
                   message: bestMatch.answer,
@@ -691,7 +692,7 @@ export async function processIncomingMessage({
             if (channel === "telegram" || channel === "email") {
               keywordDelivered = await deliverToTelegramOrEmail(channel, account.id, senderId, matchedReply.response);
             } else if (channel === "whatsapp") {
-              const waAccessToken = account.whatsapp_access_token || null;
+              const waAccessToken = account.whatsapp_access_token ? decryptToken(account.whatsapp_access_token) : null;
               await sendWhatsAppMessage({
                 to: senderId,
                 message: matchedReply.response,
@@ -968,7 +969,7 @@ export async function processIncomingMessage({
             try {
               if (channel === "whatsapp") {
                 // Use the account's WhatsApp token if available, otherwise fall back to env var
-                const waAccessToken = account.whatsapp_access_token || null;
+                const waAccessToken = account.whatsapp_access_token ? decryptToken(account.whatsapp_access_token) : null;
                 await sendWhatsAppMessage({
                   to: senderId,
                   message: aiReply,

@@ -1,0 +1,22 @@
+-- 069_token_encryption_readme.sql
+-- This migration is a README only — the actual token encryption happens in
+-- application code (src/lib/token-encryption.js), not at the DB level.
+--
+-- WHY: Postgres-level encryption (pgcrypto) would require either:
+--   (a) Storing the encryption key in the DB (defeats the purpose), OR
+--   (b) Passing the key per-query (complex, error-prone)
+--
+-- INSTEAD: Application code encrypts tokens before INSERT/UPDATE and decrypts
+-- after SELECT. The encrypted format is "enc:v1:<iv>.<authTag>.<ciphertext>"
+-- which is transparent to the DB (just a TEXT column).
+--
+-- MIGRATION PATH:
+--   1. Set TOKEN_ENCRYPTION_KEY in Vercel env vars (any random string, 32+ chars)
+--   2. Deploy this code — new tokens are encrypted on save
+--   3. Old tokens remain plaintext (decryptToken() handles both)
+--   4. Run the migration endpoint /api/admin/encrypt-tokens (admin-only) to
+--      re-encrypt existing tokens in bulk
+--
+-- This file exists so the migration sequence is documented. No SQL to run.
+
+SELECT 'Token encryption is application-level. See src/lib/token-encryption.js' as info;

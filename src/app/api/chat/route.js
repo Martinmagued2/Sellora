@@ -5,6 +5,7 @@ import { createCopilotTools } from "@/lib/ai/copilot-tools";
 import { getPlanLimits } from "@/lib/plan-limits";
 import { createClient } from "@supabase/supabase-js";
 import { buildStreamingProviderChain, recordKeyFailure, recordKeySuccess } from "@/lib/ai/provider-chain";
+import { checkAiChatRateLimit } from "@/lib/distributed-rate-limit";
 
 // Lazy-init Supabase admin client to avoid build-time errors (env vars not available during build)
 let _adminClient = null;
@@ -67,6 +68,16 @@ export async function POST(req) {
 
     if (maxMsgs === 0) {
       return Response.json({ error: "Sellora Agent is not available on your current plan. Please upgrade." }, { status: 403 });
+    }
+
+    // Distributed per-minute rate limit (Upstash Redis or in-memory fallback)
+    // Prevents rapid-fire abuse of expensive AI calls
+    const rateLimit = await checkAiChatRateLimit(user.id);
+    if (rateLimit.limited) {
+      return Response.json(
+        { error: "Too many messages. Please slow down and try again in a minute." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
     }
 
     // Basic rate limit check (skip in development)

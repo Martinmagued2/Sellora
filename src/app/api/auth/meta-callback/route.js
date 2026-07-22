@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { encryptToken } from "@/lib/token-encryption";
 
 const META_API_URL = "https://graph.facebook.com/v21.0";
 
@@ -104,31 +105,39 @@ export async function GET(request) {
   const [platform, ...accountIdParts] = state.split("_");
   const accountId = accountIdParts.join("_");
 
+  // SECURITY: Require authenticated session. Do NOT skip the check when
+  // authenticatedUserId is null — that allows an attacker to complete OAuth
+  // while unauthenticated and have their FB token saved to a victim's account.
+  if (!authenticatedUserId) {
+    console.error("[META-CALLBACK] No authenticated user session — rejecting.");
+    return NextResponse.redirect(
+      redirectUrl("/dashboard/settings?tab=channels&error=auth_required")
+    );
+  }
+
   // SECURITY: Verify the authenticated user is allowed to manage this account.
-  if (authenticatedUserId) {
-    if (authenticatedUserId === accountId) {
-      console.log("[META-CALLBACK] ✅ User is the owner");
-    } else {
-      const supabase = getSupabase();
-      const { data: membership } = await supabase
-        .from("team_members")
-        .select("id, role, invite_status, status")
-        .eq("user_id", authenticatedUserId)
-        .eq("account_id", accountId)
-        .maybeSingle();
+  if (authenticatedUserId === accountId) {
+    console.log("[META-CALLBACK] ✅ User is the owner");
+  } else {
+    const supabase = getSupabase();
+    const { data: membership } = await supabase
+      .from("team_members")
+      .select("id, role, invite_status, status")
+      .eq("user_id", authenticatedUserId)
+      .eq("account_id", accountId)
+      .maybeSingle();
 
-      const isAcceptedMember = membership &&
-        membership.invite_status === "accepted" &&
-        (membership.status === "active" || membership.status === null || membership.status === undefined);
+    const isAcceptedMember = membership &&
+      membership.invite_status === "accepted" &&
+      (membership.status === "active" || membership.status === null || membership.status === undefined);
 
-      if (!isAcceptedMember) {
-        console.error(`[META-CALLBACK] ❌ User ${authenticatedUserId} is NOT authorized to manage account ${accountId}`);
-        return NextResponse.redirect(
-          redirectUrl("/dashboard/settings?tab=channels&error=auth_mismatch")
-        );
-      }
-      console.log(`[META-CALLBACK] ✅ Team member ${authenticatedUserId} authorized for account ${accountId}`);
+    if (!isAcceptedMember) {
+      console.error(`[META-CALLBACK] ❌ User ${authenticatedUserId} is NOT authorized to manage account ${accountId}`);
+      return NextResponse.redirect(
+        redirectUrl("/dashboard/settings?tab=channels&error=auth_mismatch")
+      );
     }
+    console.log(`[META-CALLBACK] ✅ Team member ${authenticatedUserId} authorized for account ${accountId}`);
   }
 
   if (!["instagram", "facebook"].includes(platform) || !accountId) {
@@ -568,16 +577,16 @@ export async function GET(request) {
       .from("accounts")
       .update({
         facebook_page_id: pageId,
-        facebook_access_token: pageAccessToken,
+        facebook_access_token: encryptToken(pageAccessToken),
         facebook_connected: true,
-        meta_user_access_token: longLivedToken,
+        meta_user_access_token: encryptToken(longLivedToken),
       })
       .eq("id", accountId);
 
     if (fbUpdateError) {
       console.error("[META-CALLBACK] Facebook DB update failed:", fbUpdateError);
     } else {
-      console.log(`[META-CALLBACK] Facebook connected: ${pageName} (saved both page + user tokens)`);
+      console.log(`[META-CALLBACK] Facebook connected: ${pageName}`);
     }
 
     // ─── Step 6: Try to connect Instagram via the Page's IG Business Account ───
@@ -585,7 +594,7 @@ export async function GET(request) {
     try {
       console.log("[META-CALLBACK] Checking page", pageId, "for IG Business Account using USER token...");
       const igAccountResponse = await fetch(
-        `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${longLivedToken}`,
+        `${META_API_URL}/${pageId}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${pageAccessToken}`,
         { method: "GET" }
       );
 
@@ -594,13 +603,12 @@ export async function GET(request) {
 
       if (igAccountData.instagram_business_account) {
         const igAccount = igAccountData.instagram_business_account;
-        console.log("[META-CALLBACK] ✅ Found IG Business Account:", igAccount.username || igAccount.id);
 
         const { error: igUpdateError } = await supabase
           .from("accounts")
           .update({
             instagram_page_id: pageId,
-            instagram_access_token: pageAccessToken,
+            instagram_access_token: encryptToken(pageAccessToken),
             instagram_connected: true,
           })
           .eq("id", accountId);
@@ -627,7 +635,7 @@ export async function GET(request) {
                 .from("accounts")
                 .update({
                   instagram_page_id: p.id,
-                  instagram_access_token: p.access_token,
+                  instagram_access_token: encryptToken(p.access_token),
                   instagram_connected: true,
                 })
                 .eq("id", accountId);

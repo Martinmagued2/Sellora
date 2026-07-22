@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { getAuthUser } from "@/lib/auth-helper";
 
 function getAdminClient() {
   return createAdminClient(
@@ -10,11 +11,24 @@ function getAdminClient() {
 
 export async function POST(request) {
   try {
-    const { referralCode, referredEmail, referredId } = await request.json();
+    // SECURITY: Require authentication. Previously this endpoint was
+    // unauthenticated — anyone could mint $5 referral credits by repeatedly
+    // POSTing with different `referredId` UUIDs.
+    const user = await getAuthUser(request);
+    if (!user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { referralCode } = await request.json();
 
     if (!referralCode) {
       return Response.json({ error: "Referral code is required" }, { status: 400 });
     }
+
+    // SECURITY: Use the authenticated user's ID as referredId.
+    // Do NOT accept referredId from the request body.
+    const referredId = user.id;
+    const referredEmail = user.email;
 
     const supabase = await createClient();
     const adminClient = getAdminClient();
@@ -46,6 +60,25 @@ export async function POST(request) {
 
       if (existing) {
         return Response.json({ message: "Already referred", referralId: existing.id });
+      }
+    }
+
+    // SECURITY: Also dedupe by referred_id — prevents the same user from
+    // being referred multiple times (which would multiply the credit award).
+    if (referredId) {
+      const { data: existingById } = await adminClient
+        .from("referrals")
+        .select("id, referrer_id")
+        .eq("referred_id", referredId)
+        .maybeSingle();
+
+      if (existingById) {
+        // Already referred (by this or another referrer) — return without re-awarding
+        return Response.json({
+          message: "User already referred",
+          referralId: existingById.id,
+          alreadyReferred: true,
+        });
       }
     }
 
