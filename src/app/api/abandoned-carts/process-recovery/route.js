@@ -108,10 +108,11 @@ async function sendRecoveryMessage({
 }
 
 export async function POST(req) {
-  // Auth: CRON_SECRET for server-to-server
-  const authHeader = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // Auth: CRON_SECRET for server-to-server.
+  // SECURITY: Fail closed if CRON_SECRET is unset — must NOT skip auth when env var is missing.
+  const authHeader = req.headers.get("authorization") || "";
+  const cronSecret = process.env.CRON_SECRET || "";
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

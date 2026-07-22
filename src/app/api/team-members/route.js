@@ -4,6 +4,10 @@
  *
  * Uses resolveEffectiveAccount so team members can also fetch the list
  * (they'll see the same list as the owner).
+ *
+ * Previously this endpoint did .eq("account_id", user.id) which ONLY worked
+ * for owners. Team members (whose user.id is NOT the account_id) got an
+ * empty list — breaking the assignee dropdown, the @ mention feature, etc.
  */
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth-helper";
@@ -16,7 +20,11 @@ export async function GET(req) {
 
     const { effectiveAccountId } = await resolveEffectiveAccount(user);
     if (!effectiveAccountId) {
-      return NextResponse.json({ error: "No account found" }, { status: 404 });
+      // FALLBACK: try user.id directly (covers the case where the user is an
+      // owner with no team_members entries — resolveEffectiveAccount may return
+      // null in edge cases).
+      const assignees = await getTeamMembers(user.id);
+      return NextResponse.json({ assignees });
     }
 
     const assignees = await getTeamMembers(effectiveAccountId);

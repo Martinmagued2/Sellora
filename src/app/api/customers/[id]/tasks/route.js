@@ -225,16 +225,26 @@ export async function POST(req, { params }) {
 // New status workflow:
 //   unseen → seen → in_progress → review → done | rejected
 // Plus legacy: pending, completed, cancelled (still work)
+// SECURITY: Whitelist allowed fields to prevent mass-assignment of account_id,
+// customer_id, completed_by (forged), reviewed_by (forged), etc.
+const TASK_ALLOWED_UPDATES = new Set([
+  'title', 'description', 'due_date', 'priority',
+]);
+
 export async function PATCH(req, { params }) {
   try {
     const user = await getAuthUser(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { task_id, status, assigned_to, review_notes, ...otherUpdates } = body;
+    const { task_id, status, assigned_to, review_notes, ...rawUpdates } = body;
     if (!task_id) return NextResponse.json({ error: 'task_id required' }, { status: 400 });
 
-    const updates = { ...otherUpdates, updated_at: new Date().toISOString() };
+    // SECURITY: Filter rawUpdates to only allowed fields (no account_id, customer_id, etc.)
+    const updates = { updated_at: new Date().toISOString() };
+    for (const [key, value] of Object.entries(rawUpdates)) {
+      if (TASK_ALLOWED_UPDATES.has(key)) updates[key] = value;
+    }
 
     // Status workflow tracking
     if (status) {

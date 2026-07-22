@@ -4,6 +4,7 @@ import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { getAuthUser } from "@/lib/auth-helper";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -60,6 +61,12 @@ function buildProviderChain() {
  */
 export async function POST(req) {
   try {
+    // SECURITY: Require authentication to prevent AI credit abuse.
+    const user = await getAuthUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const { product_name, features, category, tone, language } = body;
 

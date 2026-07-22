@@ -84,18 +84,28 @@ export async function POST(req, { params }) {
 }
 
 // PATCH — update a note (pin/unpin, edit body)
+// SECURITY: Whitelist allowed fields to prevent mass-assignment of account_id,
+// customer_id, author_id, etc. (which would let users steal notes from other accounts).
+const NOTE_ALLOWED_FIELDS = new Set(['note', 'is_pinned', 'is_internal', 'tags']);
 export async function PATCH(req, { params }) {
   try {
     const user = await getAuthUser(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { note_id, ...updates } = body;
+    const { note_id, ...rawUpdates } = body;
     if (!note_id) return NextResponse.json({ error: 'note_id required' }, { status: 400 });
+
+    // Filter to only allowed fields
+    const updates = {};
+    for (const [key, value] of Object.entries(rawUpdates)) {
+      if (NOTE_ALLOWED_FIELDS.has(key)) updates[key] = value;
+    }
+    updates.updated_at = new Date().toISOString();
 
     const db = admin();
     const { data: note, error } = await db.from('customer_notes')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq('id', note_id).eq('account_id', user.id).select().single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

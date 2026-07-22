@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/auth-helper";
+import { canAccessAccount } from "@/lib/team-auth";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -28,6 +30,14 @@ function getSupabase() {
  */
 export async function GET(request) {
   try {
+    // SECURITY: Require auth + verify the user can access this account.
+    // Without this, ANY anonymous user could read abandoned carts (which contain
+    // customer names, emails, phones, and cart contents) by passing any account_id.
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("account_id");
     const status = searchParams.get("status");
@@ -38,6 +48,12 @@ export async function GET(request) {
 
     if (!accountId) {
       return NextResponse.json({ error: "account_id is required" }, { status: 400 });
+    }
+
+    // SECURITY: Verify the user owns or is a team member of this account.
+    const hasAccess = await canAccessAccount(user, accountId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "You do not have access to this account" }, { status: 403 });
     }
 
     const supabase = getSupabase();

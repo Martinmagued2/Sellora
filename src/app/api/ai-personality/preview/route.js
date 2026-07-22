@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { getAuthUser } from "@/lib/auth-helper";
 
 const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ? createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })
@@ -10,6 +11,12 @@ const google = process.env.GOOGLE_GENERATIVE_AI_API_KEY
 // POST: Generate a preview AI response using current personality settings
 export async function POST(request) {
   try {
+    // SECURITY: Require auth to prevent AI credit abuse.
+    const user = await getAuthUser(request);
+    if (!user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const {
       aiName = "Sellora AI",

@@ -4,6 +4,8 @@ import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { getAuthUser } from "@/lib/auth-helper";
+import { resolveEffectiveAccount } from "@/lib/team-auth";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -60,6 +62,20 @@ function buildProviderChain() {
  */
 export async function POST(req) {
   try {
+    // SECURITY: Require auth + verify the conversation belongs to the user's account.
+    // Without this, ANY user could enumerate conversation UUIDs and read private
+    // customer chats by calling this endpoint.
+    const user = await getAuthUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Resolve effective account (works for both owners and team members).
+    const { effectiveAccountId } = await resolveEffectiveAccount(user);
+    if (!effectiveAccountId) {
+      return NextResponse.json({ error: "No account found" }, { status: 404 });
+    }
+
     const body = await req.json().catch(() => ({}));
     const { conversation_id } = body;
 
@@ -69,11 +85,12 @@ export async function POST(req) {
 
     const supabase = getSupabase();
 
-    // Fetch conversation with messages
+    // Fetch conversation with messages — scoped to the user's account to prevent IDOR.
     const { data: conversation, error: convError } = await supabase
       .from("conversations")
       .select("id, channel, status, tags, summary, customer:customers(name)")
       .eq("id", conversation_id)
+      .eq("account_id", effectiveAccountId)  // SECURITY: ownership check
       .single();
 
     if (convError || !conversation) {

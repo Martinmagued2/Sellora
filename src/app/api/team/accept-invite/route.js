@@ -50,10 +50,23 @@ export async function POST(req) {
       return NextResponse.json({ error: `Invitation is ${invite.invite_status}` }, { status: 400 });
     }
 
+    // SECURITY: Verify the authenticated user's email matches the invited email.
+    // Without this check, ANY authenticated user who learns/guesses an invite
+    // UUID could join that team and gain access to the account's data.
+    const invitedEmail = (invite.invited_email || '').toLowerCase().trim();
+    const userEmail = (user.email || '').toLowerCase().trim();
+    if (!invitedEmail || invitedEmail !== userEmail) {
+      return NextResponse.json(
+        { error: `This invitation was sent to ${invite.invited_email}. Sign in with that email address to accept it.` },
+        { status: 403 }
+      );
+    }
+
     // 3. Accept the invite — link the user ID to the team member row
+    // SECURITY: Always use the authenticated user's ID, not a body-supplied userId.
     const { error: updateErr } = await db.from('team_members')
       .update({
-        user_id: userId || user.id,
+        user_id: user.id,
         invite_status: 'accepted',
         status: 'active',
         email: user.email,
@@ -76,7 +89,7 @@ export async function POST(req) {
     //    don't have one, and don't touch role on existing rows.
     const { data: existingAccount } = await db.from('accounts')
       .select('id, role, plan')
-      .eq('id', userId || user.id)
+      .eq('id', user.id)
       .maybeSingle();
 
     if (!existingAccount) {
@@ -85,7 +98,7 @@ export async function POST(req) {
       // we use team_members.role for actual permissions).
       // Plan is 'team_member' so billing knows not to charge them.
       await db.from('accounts').insert({
-        id: userId || user.id,
+        id: user.id,
         email: user.email,
         plan: 'team_member',
         // Don't set role — let it default
