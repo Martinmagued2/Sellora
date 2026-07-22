@@ -10,6 +10,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useEffectiveAccount } from "@/lib/account-context";
 import InventoryAlerts from "@/app/dashboard/components/InventoryAlerts";
+import AICommandCenter from "@/app/dashboard/components/AICommandCenter";
 import OnboardingChecklist from "@/app/dashboard/components/OnboardingChecklist";
 import AnimatedStatCard from "@/app/dashboard/components/AnimatedStatCard";
 import EmptyState from "@/app/dashboard/components/EmptyState";
@@ -169,6 +170,7 @@ export default function DashboardHome() {
       <OnboardingChecklist />
       <MilestoneTracker stats={stats} />
       <SmartGreeting user={user} stats={stats} />
+      {stats && stats.totalMessages > 0 && <AICommandCenter />}
       {stats && stats.totalMessages > 0 && <QuickStatsBar stats={stats} />}
       {stats.totalMessages === 0 && stats.totalOrders === 0 ? (
         <div style={{ marginTop: "var(--space-2xl)" }}>

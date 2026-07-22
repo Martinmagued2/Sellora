@@ -2083,5 +2083,179 @@ export const createCopilotTools = (accountId) => {
         }
       },
     }),
+
+    // ─── AI WRITING TOOLS ───
+    // These let the AI help operators draft, rewrite, and translate messages
+    // directly in conversations. Also exposed as quick-action buttons in the
+    // conversations composer.
+
+    draft_reply: tool({
+      description: "Draft a reply to a customer's message. Use when the seller says 'draft a reply', 'help me respond', 'what should I say to', or when they need help composing a professional response. The draft is returned for review — it is NOT sent automatically.",
+      inputSchema: z.object({
+        customer_message: z.string().describe("The customer's message that you're replying to"),
+        customer_name: z.string().optional().describe("The customer's name (for personalization)"),
+        tone: z.enum(["friendly", "professional", "apologetic", "enthusiastic", "formal"]).optional().describe("Tone of the reply (default: friendly)"),
+        context: z.string().optional().describe("Additional context — e.g., the product they're asking about, their order history, or any relevant info"),
+        language: z.string().optional().describe("Language code (en, ar, fr, etc.) — defaults to the customer's language"),
+      }),
+      execute: async ({ customer_message, customer_name, tone, context, language }) => {
+        try {
+          const { generateText } = await import("ai");
+          const { createGroq } = await import("@ai-sdk/groq");
+          const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+
+          let model = null;
+          if (process.env.GROQ_API_KEY) {
+            model = createGroq({ apiKey: process.env.GROQ_API_KEY })("llama-3.3-70b-versatile");
+          } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+            model = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })("gemini-1.5-flash");
+          }
+
+          if (!model) {
+            return { success: false, error: "No AI provider configured" };
+          }
+
+          const toneInstruction = {
+            friendly: "warm and approachable, like a friend helping out",
+            professional: "polite and business-appropriate",
+            apologetic: "sincere and empathetic, acknowledging any inconvenience",
+            enthusiastic: "excited and energetic, showing genuine enthusiasm",
+            formal: "respectful and formal, using proper titles and structure",
+          }[tone || "friendly"];
+
+          const prompt = `Draft a reply to this customer message.
+
+Customer name: ${customer_name || "there"}
+Tone: ${toneInstruction}
+${context ? `Context: ${context}` : ""}
+${language ? `Language: ${language}` : "Language: match the customer's language"}
+
+Customer's message:
+"${customer_message}"
+
+Write ONLY the reply (no preamble, no "Here's your draft:"). The reply should be concise, helpful, and sound natural. Address the customer by name if provided.`;
+
+          const result = await generateText({
+            model,
+            prompt,
+            temperature: 0.7,
+            maxTokens: 300,
+          });
+
+          return {
+            success: true,
+            draft: result.text.trim(),
+            tone: tone || "friendly",
+            _action: { type: "draft_reply", text: result.text.trim() },
+          };
+        } catch (e) {
+          return { success: false, error: "Failed to draft reply: " + e.message };
+        }
+      },
+    }),
+
+    rewrite_reply: tool({
+      description: "Rewrite an existing message draft in a different tone or style. Use when the seller says 'rewrite this', 'make it more professional', 'shorten this', 'make it friendlier', or wants to adjust a draft they've written.",
+      inputSchema: z.object({
+        text: z.string().describe("The message text to rewrite"),
+        instruction: z.string().describe("How to rewrite it — e.g., 'more professional', 'shorter', 'more empathetic', 'add urgency', 'simplify'"),
+        language: z.string().optional().describe("Language code (en, ar, fr, etc.) — keep the same language by default"),
+      }),
+      execute: async ({ text, instruction, language }) => {
+        try {
+          const { generateText } = await import("ai");
+          const { createGroq } = await import("@ai-sdk/groq");
+          const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+
+          let model = null;
+          if (process.env.GROQ_API_KEY) {
+            model = createGroq({ apiKey: process.env.GROQ_API_KEY })("llama-3.3-70b-versatile");
+          } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+            model = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })("gemini-1.5-flash");
+          }
+
+          if (!model) {
+            return { success: false, error: "No AI provider configured" };
+          }
+
+          const prompt = `Rewrite this message. Instruction: ${instruction}.
+
+Original message:
+"${text}"
+
+${language ? `Keep it in ${language}.` : "Keep the same language."}
+
+Write ONLY the rewritten message (no preamble). Preserve the core meaning but apply the requested change.`;
+
+          const result = await generateText({
+            model,
+            prompt,
+            temperature: 0.6,
+            maxTokens: 300,
+          });
+
+          return {
+            success: true,
+            rewritten: result.text.trim(),
+            original: text,
+            instruction,
+            _action: { type: "rewrite_reply", text: result.text.trim() },
+          };
+        } catch (e) {
+          return { success: false, error: "Failed to rewrite: " + e.message };
+        }
+      },
+    }),
+
+    translate_message: tool({
+      description: "Translate a message to another language. Use when the seller says 'translate this', 'what does this say', 'say this in Arabic/English/French', or when they need to communicate with a customer in a different language.",
+      inputSchema: z.object({
+        text: z.string().describe("The text to translate"),
+        target_language: z.string().describe("Target language — full name (Arabic, English, French, Spanish, German) or code (ar, en, fr, es, de)"),
+        source_language: z.string().optional().describe("Source language (auto-detected if omitted)"),
+      }),
+      execute: async ({ text, target_language, source_language }) => {
+        try {
+          const { generateText } = await import("ai");
+          const { createGroq } = await import("@ai-sdk/groq");
+          const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+
+          let model = null;
+          if (process.env.GROQ_API_KEY) {
+            model = createGroq({ apiKey: process.env.GROQ_API_KEY })("llama-3.3-70b-versatile");
+          } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+            model = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })("gemini-1.5-flash");
+          }
+
+          if (!model) {
+            return { success: false, error: "No AI provider configured" };
+          }
+
+          const prompt = `Translate this text to ${target_language}.${source_language ? ` (from ${source_language})` : ""}
+
+Text:
+"${text}"
+
+Write ONLY the translation, no preamble. Preserve the tone, intent, and any names or product references.`;
+
+          const result = await generateText({
+            model,
+            prompt,
+            temperature: 0.3,
+            maxTokens: 500,
+          });
+
+          return {
+            success: true,
+            translated: result.text.trim(),
+            original: text,
+            target_language,
+            _action: { type: "translate_message", text: result.text.trim() },
+          };
+        } catch (e) {
+          return { success: false, error: "Failed to translate: " + e.message };
+        }
+      },
+    }),
   };
 };

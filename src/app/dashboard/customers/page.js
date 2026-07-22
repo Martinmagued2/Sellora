@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Users, Search, X, Edit, Phone, Mail, MapPin, Target,
   MessageCircle, ShoppingBag, Clock, Loader2, Save,
-  Plus
+  Plus, Sparkles
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentStore } from "@/lib/store-context";
@@ -19,6 +19,39 @@ export default function CustomersPage() {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Magic Search (AI-powered natural language search)
+  const [magicSearch, setMagicSearch] = useState("");
+  const [magicMode, setMagicMode] = useState(false);
+  const [magicSearching, setMagicSearching] = useState(false);
+  const [magicExplanation, setMagicExplanation] = useState("");
+
+  const runMagicSearch = useCallback(async (query) => {
+    if (!query.trim()) {
+      setMagicMode(false);
+      setMagicExplanation("");
+      return;
+    }
+    setMagicSearching(true);
+    setMagicMode(true);
+    try {
+      const res = await fetch("/api/ai/magic-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Search failed");
+      setCustomers(data.customers || []);
+      setMagicExplanation(data.explanation || "");
+      toast.success(`Found ${data.customers?.length || 0} customers`);
+    } catch (e) {
+      toast.error("Magic search failed: " + e.message);
+      setMagicMode(false);
+    } finally {
+      setMagicSearching(false);
+    }
+  }, [toast]);
 
   // Enrichment Panel
   const [activeCustomer, setActiveCustomer] = useState(null);
@@ -218,7 +251,61 @@ export default function CustomersPage() {
             <Search size={14} />
             <input type="text" placeholder="Search customers..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+
+          {/* Magic Search — AI-powered natural language search */}
+          <div style={{
+            display: "flex", gap: 8, alignItems: "center",
+            background: "linear-gradient(135deg, rgba(108, 92, 231, 0.08) 0%, rgba(162, 155, 254, 0.04) 100%)",
+            border: "1px solid rgba(108, 92, 231, 0.2)",
+            borderRadius: 12, padding: "6px 12px", flex: 1, maxWidth: 400,
+          }}>
+            <Sparkles size={14} color="#6c5ce7" />
+            <input
+              type="text"
+              placeholder='Try: "customers who spent over $200" or "angry customers"'
+              value={magicSearch}
+              onChange={(e) => setMagicSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") runMagicSearch(magicSearch); }}
+              style={{
+                background: "transparent", border: "none", outline: "none",
+                flex: 1, fontSize: 13, color: "var(--text-primary)", fontFamily: "inherit",
+              }}
+            />
+            {magicSearching && <Loader2 size={14} className="spin" color="#6c5ce7" />}
+            <button
+              onClick={() => runMagicSearch(magicSearch)}
+              disabled={magicSearching || !magicSearch.trim()}
+              style={{
+                background: "linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%)",
+                border: "none", borderRadius: 8, padding: "4px 10px",
+                color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                opacity: magicSearching || !magicSearch.trim() ? 0.5 : 1,
+              }}
+            >
+              Ask AI
+            </button>
+          </div>
         </div>
+
+        {/* Magic Search explanation banner */}
+        {magicMode && magicExplanation && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "8px 14px", marginBottom: 12,
+            background: "rgba(108, 92, 231, 0.05)",
+            border: "1px solid rgba(108, 92, 231, 0.2)",
+            borderRadius: 8, fontSize: 12, color: "var(--text-secondary)",
+          }}>
+            <Sparkles size={12} color="#6c5ce7" />
+            <span><strong>AI search:</strong> {magicExplanation}</span>
+            <button
+              onClick={() => { setMagicSearch(""); setMagicMode(false); setMagicExplanation(""); }}
+              style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--text-tertiary)", fontSize: 11 }}
+            >
+              ✕ Clear
+            </button>
+          </div>
+        )}
 
         <div className="dashboard-panel">
           <div className="dashboard-panel-body" style={{ padding: 0 }}>
