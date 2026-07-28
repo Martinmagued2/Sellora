@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { generateProductImage } from "@/lib/ai/image-generator";
+import { buildStandaloneProvider } from "@/lib/ai/standalone-provider";
 
 /**
  * Format an order into a rich, human-readable response that the AI can
@@ -2101,16 +2102,7 @@ export const createCopilotTools = (accountId) => {
       execute: async ({ customer_message, customer_name, tone, context, language }) => {
         try {
           const { generateText } = await import("ai");
-          const { createGroq } = await import("@ai-sdk/groq");
-          const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-
-          let model = null;
-          if (process.env.GROQ_API_KEY) {
-            model = createGroq({ apiKey: process.env.GROQ_API_KEY })("llama-3.3-70b-versatile");
-          } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-            model = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })("gemini-1.5-flash");
-          }
-
+          const model = buildStandaloneProvider();
           if (!model) {
             return { success: false, error: "No AI provider configured" };
           }
@@ -2164,16 +2156,7 @@ Write ONLY the reply (no preamble, no "Here's your draft:"). The reply should be
       execute: async ({ text, instruction, language }) => {
         try {
           const { generateText } = await import("ai");
-          const { createGroq } = await import("@ai-sdk/groq");
-          const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-
-          let model = null;
-          if (process.env.GROQ_API_KEY) {
-            model = createGroq({ apiKey: process.env.GROQ_API_KEY })("llama-3.3-70b-versatile");
-          } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-            model = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })("gemini-1.5-flash");
-          }
-
+          const model = buildStandaloneProvider();
           if (!model) {
             return { success: false, error: "No AI provider configured" };
           }
@@ -2217,16 +2200,7 @@ Write ONLY the rewritten message (no preamble). Preserve the core meaning but ap
       execute: async ({ text, target_language, source_language }) => {
         try {
           const { generateText } = await import("ai");
-          const { createGroq } = await import("@ai-sdk/groq");
-          const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-
-          let model = null;
-          if (process.env.GROQ_API_KEY) {
-            model = createGroq({ apiKey: process.env.GROQ_API_KEY })("llama-3.3-70b-versatile");
-          } else if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-            model = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })("gemini-1.5-flash");
-          }
-
+          const model = buildStandaloneProvider();
           if (!model) {
             return { success: false, error: "No AI provider configured" };
           }

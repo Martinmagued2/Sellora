@@ -1,11 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { generateText } from "ai";
-import { createGroq } from "@ai-sdk/groq";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { getAuthUser } from "@/lib/auth-helper";
 import { resolveEffectiveAccount } from "@/lib/team-auth";
+import { buildStandaloneProvider } from "@/lib/ai/standalone-provider";
 
 // Service role client (lazy-initialized)
 let _supabase = null;
@@ -19,47 +17,6 @@ function getSupabase() {
   return _supabase;
 }
 
-/**
- * Build provider chain for text generation
- */
-function buildProviderChain() {
-  const providers = [];
-
-  if (process.env.VECTORENGINE_API_KEY) {
-    const customOpenAI = createOpenAI({
-      apiKey: process.env.VECTORENGINE_API_KEY,
-      baseURL: process.env.VECTORENGINE_BASE_URL || "https://api.vectorengine.ai/v1",
-      compatibility: "compatible",
-    });
-    providers.push({ name: 'vectorengine', model: customOpenAI("gpt-5.5-pro") });
-  }
-
-  if (process.env.GROQ_API_KEY) {
-    const groqProvider = createGroq();
-    providers.push({ name: 'groq', model: groqProvider("meta-llama/llama-4-scout-17b-16e-instruct") });
-  }
-
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    try {
-      const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
-      providers.push({ name: 'google', model: google("gemini-2.0-flash") });
-    } catch (e) {}
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      const { openai } = require("@ai-sdk/openai");
-      providers.push({ name: 'openai', model: openai("gpt-4o-mini") });
-    } catch (e) {}
-  }
-
-  return providers;
-}
-
-/**
- * POST /api/ai/summarize-conversation
- * Generates a summary of a conversation with a customer.
- */
 export async function POST(req) {
   try {
     // SECURITY: Require auth + verify the conversation belongs to the user's account.

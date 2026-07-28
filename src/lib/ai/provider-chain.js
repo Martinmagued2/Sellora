@@ -382,31 +382,41 @@ export function buildVectorEngineProviders() {
 
 /**
  * Build OpenRouter providers with multi-key support.
- * OpenRouter provides access to many models including free ones.
- * API is OpenAI-compatible: https://openrouter.ai/api/v1
+ *
+ * OpenRouter is an aggregator that provides access to 100+ models (Claude,
+ * GPT-4, Llama, Gemini, etc.) through a single OpenAI-compatible API.
  *
  * Env vars:
  *   OPENROUTER_API_KEY or OPENROUTER_API_KEYS (comma-separated)
+ *   OPENROUTER_MODEL (optional — default: "anthropic/claude-3.5-sonnet")
+ *   OPENROUTER_BASE_URL (optional — default: "https://openrouter.ai/api/v1")
  *
- * Models:
- *   - openai/gpt-oss-20b:free (free GPT-OSS 20B — great for auto-replies)
- *   - google/gemini-2.0-flash-exp:free (free Gemini)
- *   - meta-llama/llama-3.3-70b-instruct:free (free Llama 70B)
+ * Model examples:
+ *   - "anthropic/claude-3.5-sonnet" (premium, best quality)
+ *   - "openai/gpt-4o-mini" (cheap, fast)
+ *   - "openai/gpt-4o" (premium, smart)
+ *   - "meta-llama/llama-3.3-70b-instruct" (open source)
+ *   - "google/gemini-flash-1.5" (cheap, fast)
+ *   - "meta-llama/llama-3.3-70b-instruct:free" (FREE tier — rate limited)
+ *
+ * OpenRouter also requires these optional headers (passed via createOpenAI's
+ * `headers` option):
+ *   - HTTP-Referer: your site URL (for ranking)
+ *   - X-Title: your app name (for ranking)
  */
-export function buildOpenRouterProviders(opts = {}) {
-  const { routingOnly = false } = opts;
+export function buildOpenRouterProviders() {
   const keys = collectKeys("OPENROUTER_API_KEY", "OPENROUTER_API_KEYS");
   const providers = [];
 
   if (keys.length === 0) return providers;
 
-  // Model selection
-  const models = routingOnly
-    ? [{ id: "openai/gpt-oss-20b:free", name: "openrouter-gpt-oss" }]
-    : [
-        { id: "openai/gpt-oss-20b:free", name: "openrouter-gpt-oss" },
-        { id: "meta-llama/llama-3.3-70b-instruct:free", name: "openrouter-llama70b" },
-      ];
+  // Default to Claude 3.5 Sonnet if no model specified (best quality)
+  // Users can override with OPENROUTER_MODEL env var
+  const model = process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
+  const baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+
+  // Optional: configure a fast/cheap model for lightweight tasks
+  const fastModel = process.env.OPENROUTER_FAST_MODEL || "openai/gpt-4o-mini";
 
   keys.forEach((key, keyIndex) => {
     if (isKeyUnhealthy("openrouter", keyIndex)) {
@@ -419,19 +429,28 @@ export function buildOpenRouterProviders(opts = {}) {
     try {
       const openrouter = createOpenAI({
         apiKey: key,
-        baseURL: "https://openrouter.ai/api/v1",
+        baseURL,
         compatibility: "compatible",
-        // Optional headers for OpenRouter rankings
+        // OpenRouter-specific headers (for app ranking on their leaderboard)
         headers: {
           "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://www.sellorachat.com",
           "X-Title": "Sellora",
         },
       });
 
-      for (const model of models) {
+      // Primary model (smart)
+      providers.push({
+        name: `openrouter-${model.split("/")[0]}${keyLabel}`,
+        model: openrouter(model),
+        _provider: "openrouter",
+        _keyIndex: keyIndex,
+      });
+
+      // Fast/cheap model (for routing + lightweight tasks)
+      if (fastModel !== model) {
         providers.push({
-          name: `${model.name}${keyLabel}`,
-          model: openrouter(model.id),
+          name: `openrouter-${fastModel.split("/")[0]}-fast${keyLabel}`,
+          model: openrouter(fastModel),
           _provider: "openrouter",
           _keyIndex: keyIndex,
         });
@@ -442,7 +461,7 @@ export function buildOpenRouterProviders(opts = {}) {
   });
 
   if (providers.length > 0) {
-    console.log(`[ProviderChain] OpenRouter: ${providers.length} provider(s) from ${keys.length} key(s)`);
+    console.log(`[ProviderChain] OpenRouter: ${providers.length} provider(s) from ${keys.length} key(s), model: ${model}`);
   }
   return providers;
 }
@@ -452,9 +471,12 @@ export function buildOpenRouterProviders(opts = {}) {
 
 /**
  * Build the COMPLETE provider fallback chain for AI reply generation.
- * Order: VectorEngine → NVIDIA → Groq → Google → OpenAI
+ * Order: OpenRouter → VectorEngine → NVIDIA → Groq → Google → OpenAI
  * Each provider may have multiple keys × multiple models.
- * 
+ *
+ * OpenRouter is first because it's the most flexible (supports Claude, GPT,
+ * Llama, etc. through one key) and the user is most likely to have it configured.
+ *
  * @param {Object} opts
  * @param {boolean} opts.routingOnly - If true, use fast/cheap models only (for intent routing)
  * @returns {Array<{name: string, model: object, _provider: string, _keyIndex: number}>}
@@ -463,14 +485,14 @@ export function buildFullProviderChain(opts = {}) {
   const { routingOnly = false } = opts;
   const providers = [];
 
-  // 1. VectorEngine (if available — premium, fast)
+  // 1. OpenRouter (if available — supports Claude, GPT, Llama, etc.)
+  providers.push(...buildOpenRouterProviders());
+
+  // 2. VectorEngine (if available — premium, fast)
   providers.push(...buildVectorEngineProviders());
 
-  // 2. NVIDIA NIM (free tier, high quality)
+  // 3. NVIDIA NIM (free tier, high quality)
   providers.push(...buildNvidiaProviders());
-
-  // 3. OpenRouter (free models — GPT-OSS 20B, Llama 70B)
-  providers.push(...buildOpenRouterProviders({ routingOnly }));
 
   // 4. Groq — lightweight mode for auto-replies (fast/cheap models)
   providers.push(...buildGroqProviders({ routingOnly, lightweight: !routingOnly }));
@@ -495,17 +517,18 @@ export function buildRoutingProviderChain() {
 
 /**
  * Build the streaming provider chain for Copilot/Agent.
- * Same providers but in a different order optimized for streaming UX:
- * Groq first (fastest streaming) → Google → NVIDIA → OpenAI
+ * Order optimized for streaming UX:
+ *   OpenRouter first (user's primary, supports tool calling) → Groq (fastest) →
+ *   Google → NVIDIA → VectorEngine → OpenAI
  */
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // Groq first (fastest for streaming)
-  providers.push(...buildGroqProviders());
-
-  // OpenRouter (free models, good for streaming)
+  // OpenRouter first (user's primary provider — supports Claude, GPT, etc.)
   providers.push(...buildOpenRouterProviders());
+
+  // Groq (fastest streaming)
+  providers.push(...buildGroqProviders());
 
   // Google Gemini (fast streaming)
   providers.push(...buildGoogleProviders());
@@ -534,11 +557,16 @@ export function getProviderChainSummary() {
   const openrouterKeys = collectKeys("OPENROUTER_API_KEY", "OPENROUTER_API_KEYS");
 
   return {
+    openrouter: {
+      keys: openrouterKeys.length,
+      keysPreview: openrouterKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)),
+      model: process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet",
+      fastModel: process.env.OPENROUTER_FAST_MODEL || "openai/gpt-4o-mini",
+    },
     groq: { keys: groqKeys.length, keysPreview: groqKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     nvidia: { keys: nvidiaKeys.length, keysPreview: nvidiaKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     google: { keys: googleKeys.length, keysPreview: googleKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     openai: { keys: openaiKeys.length, keysPreview: openaiKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
-    openrouter: { keys: openrouterKeys.length, keysPreview: openrouterKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     vectorengine: process.env.VECTORENGINE_API_KEY ? "configured" : "not set",
     keyHealth: getKeyHealthSummary(),
   };

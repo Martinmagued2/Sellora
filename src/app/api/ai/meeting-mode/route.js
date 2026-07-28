@@ -44,11 +44,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
-import { createGroq } from "@ai-sdk/groq";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { getAuthUser } from "@/lib/auth-helper";
 import { resolveEffectiveAccount } from "@/lib/team-auth";
+import { buildStandaloneProvider } from "@/lib/ai/standalone-provider";
 
 let _admin = null;
 function admin() {
@@ -59,19 +57,6 @@ function admin() {
     );
   }
   return _admin;
-}
-
-function buildProvider() {
-  if (process.env.GROQ_API_KEY) {
-    return createGroq({ apiKey: process.env.GROQ_API_KEY })("llama-3.3-70b-versatile");
-  }
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    return createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })("gemini-1.5-flash");
-  }
-  if (process.env.OPENAI_API_KEY) {
-    return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })("gpt-4o-mini");
-  }
-  return null;
 }
 
 export async function POST(req) {
@@ -101,7 +86,7 @@ export async function POST(req) {
     }
 
     // Try AI analysis
-    const model = buildProvider();
+    const model = buildStandaloneProvider();
     if (!model) {
       const ruleBased = ruleBasedMeeting(transcript, meeting_title, customer);
       return NextResponse.json({ ...ruleBased, ai_powered: false });

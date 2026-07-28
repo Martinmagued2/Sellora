@@ -34,11 +34,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateText } from "ai";
-import { createGroq } from "@ai-sdk/groq";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { getAuthUser } from "@/lib/auth-helper";
 import { resolveEffectiveAccount } from "@/lib/team-auth";
+import { buildStandaloneProvider } from "@/lib/ai/standalone-provider";
 
 let _admin = null;
 function admin() {
@@ -50,31 +48,6 @@ function admin() {
   }
   return _admin;
 }
-
-function buildProvider() {
-  if (process.env.GROQ_API_KEY) {
-    return createGroq({ apiKey: process.env.GROQ_API_KEY })("llama-3.3-70b-versatile");
-  }
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    return createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY })("gemini-1.5-flash");
-  }
-  if (process.env.OPENAI_API_KEY) {
-    return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })("gpt-4o-mini");
-  }
-  return null;
-}
-
-const CATEGORIES = ["hot_lead", "ready_to_buy", "angry", "needs_attention", "loyal", "cold", "new_lead"];
-
-const CATEGORY_META = {
-  hot_lead: { label: "🔥 Hot Leads", color: "#ff6b35", description: "Showing buying signals" },
-  ready_to_buy: { label: "💰 Ready to Buy", color: "#00c853", description: "High purchase intent" },
-  angry: { label: "😡 Angry Customers", color: "#ff5252", description: "Needs immediate care" },
-  needs_attention: { label: "🚨 Needs Attention", color: "#ffc107", description: "Escalated or waiting" },
-  loyal: { label: "❤️ Loyal Customers", color: "#e91e63", description: "Repeat buyers" },
-  cold: { label: "❄️ Cold Leads", color: "#90a4ae", description: "Low engagement" },
-  new_lead: { label: "✨ New Leads", color: "#2196f3", description: "First-time contact" },
-};
 
 export async function GET(req) {
   try {
@@ -133,7 +106,7 @@ export async function GET(req) {
     );
 
     // Try AI categorization
-    const model = buildProvider();
+    const model = buildStandaloneProvider();
     let categoryMap = {};  // conversation_id → category
     let aiPowered = false;
 
