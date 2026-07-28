@@ -23,6 +23,7 @@ import { createOpenAI } from "@ai-sdk/openai";
  *
  * Priority order:
  *   1. OpenRouter (if OPENROUTER_API_KEY is set) — uses OPENROUTER_MODEL
+ *      (default: "openai/gpt-oss-20b:free" — free tier, no cost)
  *   2. Groq (if GROQ_API_KEY is set) — uses llama-3.3-70b-versatile
  *   3. Google (if GOOGLE_GENERATIVE_AI_API_KEY is set) — uses gemini-1.5-flash
  *   4. OpenAI (if OPENAI_API_KEY is set) — uses gpt-4o-mini
@@ -33,7 +34,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 export function buildStandaloneProvider() {
   // 1. OpenRouter (highest priority — user's primary)
   if (process.env.OPENROUTER_API_KEY) {
-    const model = process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
+    const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free";
     const baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
     try {
       const openrouter = createOpenAI({

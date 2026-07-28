@@ -388,7 +388,7 @@ export function buildVectorEngineProviders() {
  *
  * Env vars:
  *   OPENROUTER_API_KEY or OPENROUTER_API_KEYS (comma-separated)
- *   OPENROUTER_MODEL (optional — default: "anthropic/claude-3.5-sonnet")
+ *   OPENROUTER_MODEL (optional — default: "openai/gpt-oss-20b:free")
  *   OPENROUTER_BASE_URL (optional — default: "https://openrouter.ai/api/v1")
  *
  * Model examples:
@@ -410,13 +410,14 @@ export function buildOpenRouterProviders() {
 
   if (keys.length === 0) return providers;
 
-  // Default to Claude 3.5 Sonnet if no model specified (best quality)
+  // Default to gpt-oss-20b:free (free tier — no cost, good quality)
   // Users can override with OPENROUTER_MODEL env var
-  const model = process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
+  const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free";
   const baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
 
   // Optional: configure a fast/cheap model for lightweight tasks
-  const fastModel = process.env.OPENROUTER_FAST_MODEL || "openai/gpt-4o-mini";
+  // Defaults to the same free model to avoid extra costs
+  const fastModel = process.env.OPENROUTER_FAST_MODEL || "openai/gpt-oss-20b:free";
 
   keys.forEach((key, keyIndex) => {
     if (isKeyUnhealthy("openrouter", keyIndex)) {
@@ -560,8 +561,8 @@ export function getProviderChainSummary() {
     openrouter: {
       keys: openrouterKeys.length,
       keysPreview: openrouterKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)),
-      model: process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet",
-      fastModel: process.env.OPENROUTER_FAST_MODEL || "openai/gpt-4o-mini",
+      model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
+      fastModel: process.env.OPENROUTER_FAST_MODEL || "openai/gpt-oss-20b:free",
     },
     groq: { keys: groqKeys.length, keysPreview: groqKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     nvidia: { keys: nvidiaKeys.length, keysPreview: nvidiaKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
