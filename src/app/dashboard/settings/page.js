@@ -148,9 +148,30 @@ function SettingsContent() {
       // Check for Meta OAuth callback feedback
       const connected = searchParams.get('connected');
       const errorParam = searchParams.get('error');
+      const igWarning = searchParams.get('ig_warning');
       if (connected) {
         const platformName = connected === 'instagram' ? 'Instagram' : 'Facebook';
-        setMetaStatus({ type: 'success', platform: connected, message: `${platformName} connected successfully!` });
+        if (igWarning === 'no_ig_business_account') {
+          // Facebook connected successfully, but IG Business Account wasn't found.
+          // Show a WARNING (not error) — Facebook works, IG can be linked later.
+          setMetaStatus({
+            type: 'success',
+            platform: 'facebook',
+            message: 'Facebook Messenger connected successfully!',
+            details: [
+              '⚠️ Instagram DMs are NOT connected yet — no Instagram Business Account was found linked to your Facebook Page.',
+              '',
+              'To connect Instagram DMs:',
+              '1. Open the Instagram app → Settings → Account type and tools → Switch to Business/Creator account.',
+              '2. Open your Facebook Page → Settings → Linked Accounts → Instagram → connect your IG account.',
+              '3. Click "Connect with Meta" again.',
+              '',
+              'Facebook Messenger is working now — you can receive Facebook messages immediately.',
+            ],
+          });
+        } else {
+          setMetaStatus({ type: 'success', platform: connected, message: `${platformName} connected successfully!` });
+        }
         window.history.replaceState({}, '', '/dashboard/settings?tab=channels');
       } else if (errorParam) {
         const debugParam = searchParams.get('debug') || '';

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { verifyAdmin } from "@/lib/admin-auth";
+import { getAuthUser } from "@/lib/auth-helper";
+import { canAccessAccount } from "@/lib/team-auth";
+import { encryptToken } from "@/lib/token-encryption";
 
 // Server-side admin client (bypasses RLS)
 let _supabase = null;
@@ -16,17 +18,21 @@ function getSupabase() {
 
 /**
  * POST /api/meta/connect
- * 
+ *
  * Manually connect Instagram or Facebook by providing Page ID and Access Token.
- * Uses admin (service role) client to bypass RLS.
- * 
+ * This is the fallback when the OAuth flow doesn't work (e.g., New Pages
+ * Experience issues, missing permissions, etc.).
+ *
+ * SECURITY: Requires authentication + canAccessAccount. The user must be
+ * the owner or a team member of the account they're connecting to.
+ *
  * Body: { accountId, platform, pageId, accessToken }
  */
 export async function POST(request) {
-  // 🔒 SECURITY: Require admin auth — anyone could connect pages to any account
-  const { isAdmin } = await verifyAdmin(request);
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Unauthorized — admin access required" }, { status: 401 });
+  // Require authentication
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized — please sign in" }, { status: 401 });
   }
 
   try {
@@ -38,6 +44,12 @@ export async function POST(request) {
 
     if (!["instagram", "facebook"].includes(platform)) {
       return NextResponse.json({ error: "Platform must be 'instagram' or 'facebook'" }, { status: 400 });
+    }
+
+    // SECURITY: Verify the user can access this account (owner or team member)
+    const hasAccess = await canAccessAccount(user, accountId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "You do not have access to this account" }, { status: 403 });
     }
 
     const supabase = getSupabase();
@@ -106,7 +118,7 @@ export async function POST(request) {
 
     if (platform === "instagram") {
       updates.instagram_page_id = pageId;
-      updates.instagram_access_token = accessToken;
+      updates.instagram_access_token = encryptToken(accessToken);
       updates.instagram_connected = true;
 
       // Try to resolve the Instagram Business Account ID
@@ -126,7 +138,7 @@ export async function POST(request) {
       }
     } else if (platform === "facebook") {
       updates.facebook_page_id = pageId;
-      updates.facebook_access_token = accessToken;
+      updates.facebook_access_token = encryptToken(accessToken);
       updates.facebook_connected = true;
     }
 

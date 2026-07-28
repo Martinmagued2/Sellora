@@ -658,12 +658,26 @@ export async function GET(request) {
     }
 
     // ─── Step 7: Save diagnostics and redirect ───
-    diag.final_outcome = (platform === "instagram" && !instagramConnected) ? "no_instagram_account" : "success";
+    // Facebook is ALWAYS connected at this point (Step 5 succeeded).
+    // Instagram may or may not be connected (depends on whether the Page
+    // has an IG Business Account linked).
+    //
+    // For Instagram connects where IG wasn't found, we show a WARNING
+    // (not an error) — Facebook is still connected, and the user can
+    // link their IG Business Account later.
+    if (platform === "instagram" && !instagramConnected) {
+      diag.final_outcome = "facebook_connected_ig_not_found";
+    } else {
+      diag.final_outcome = "success";
+    }
     await saveDiagnostics(diag);
 
     if (platform === "instagram" && !instagramConnected) {
+      // Redirect with a warning param (not error) — Facebook is connected,
+      // but IG Business Account wasn't found. The settings page will show
+      // a friendly message explaining how to link IG.
       return NextResponse.redirect(
-        redirectUrl("/dashboard/settings?tab=channels&error=no_instagram_account")
+        redirectUrl("/dashboard/settings?tab=channels&connected=facebook&ig_warning=no_ig_business_account")
       );
     }
 
