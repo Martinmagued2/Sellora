@@ -173,9 +173,14 @@ export function buildGroqProviders(opts = {}) {
   if (keys.length === 0) return providers;
   
   // Model selection based on use case:
-  // - Default (Copilot): Llama 4 Scout (smartest) → Llama 3.3 70B (fallback)
+  // - Default (Copilot): Compound Beta (smartest, tool-calling) → Llama 4 Scout → Llama 3.3 70B
   // - Lightweight (auto-replies): Llama 3.1 8B (fast, cheap) → Mixtral (fallback)
   // - Routing only: Llama 3.1 8B + Gemma 2 (cheapest, fastest)
+  //
+  // Compound Beta is Groq's agentic model — it supports tool calling,
+  // web browsing, code execution, and multi-step reasoning natively.
+  // It's the BEST model for the Copilot because it can actually USE the
+  // tools (create_product, message_customer, etc.) without issues.
   let primaryModels;
   if (routingOnly) {
     primaryModels = [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "gemma2-9b-it", name: "groq-gemma2" }];
@@ -183,8 +188,12 @@ export function buildGroqProviders(opts = {}) {
     // Auto-replies: fast & cheap to conserve rate limits for Copilot
     primaryModels = [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "mixtral-8x7b-32768", name: "groq-mixtral" }];
   } else {
-    // Copilot: smartest model first
-    primaryModels = [{ id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "groq-llama4scout" }, { id: "llama-3.3-70b-versatile", name: "groq-llama70b" }];
+    // Copilot: Compound Beta first (best for tool calling), then fallbacks
+    primaryModels = [
+      { id: "compound-beta", name: "groq-compound" },
+      { id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "groq-llama4scout" },
+      { id: "llama-3.3-70b-versatile", name: "groq-llama70b" },
+    ];
   }
   
   const fastModels = fastModel && !routingOnly && !lightweight
@@ -522,18 +531,22 @@ export function buildRoutingProviderChain() {
 
 /**
  * Build the streaming provider chain for Copilot/Agent.
- * Order optimized for streaming UX:
- *   OpenRouter first (user's primary, supports tool calling) → Groq (fastest) →
- *   Google → NVIDIA → VectorEngine → OpenAI
+ * Order optimized for streaming UX + tool calling:
+ *   Groq first (Compound Beta — best tool calling, fastest streaming) →
+ *   OpenRouter (Claude/GPT fallback) → Google → NVIDIA → VectorEngine → OpenAI
+ *
+ * Compound Beta is first because it's specifically designed for agentic
+ * workflows with tool calling — it can actually USE the Copilot tools
+ * (create_product, message_customer, etc.) without issues.
  */
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // OpenRouter first (user's primary provider — supports Claude, GPT, etc.)
-  providers.push(...buildOpenRouterProviders());
-
-  // Groq (fastest streaming)
+  // Groq first (Compound Beta — best for tool calling + fast streaming)
   providers.push(...buildGroqProviders());
+
+  // OpenRouter (user's primary fallback — supports Claude, GPT, etc.)
+  providers.push(...buildOpenRouterProviders());
 
   // Google Gemini (fast streaming)
   providers.push(...buildGoogleProviders());
