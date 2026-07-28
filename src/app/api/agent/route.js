@@ -162,7 +162,8 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
         const result = await streamText({
           model: providerEntry.model,
           maxSteps: 5,
-          temperature: 0.2,
+          temperature: 0.7,  // Raised from 0.2 — more natural, detailed
+          maxTokens: 2000,
           system: systemPrompt,
           messages: coreMessages,
           tools,
@@ -186,7 +187,8 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
         const result = await streamText({
           model: providerEntry.model,
           maxSteps: 1,
-          temperature: 0.2,
+          temperature: 0.7,
+          maxTokens: 2000,
           system: systemPrompt,
           messages: coreMessages,
         });

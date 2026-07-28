@@ -256,7 +256,7 @@ export function buildNvidiaProviders() {
       for (const model of nvidiaModels) {
         providers.push({
           name: `${model.name}${keyLabel}`,
-          model: nvidia(model.id),
+          model: nvidia.chat(model.id),  // .chat() forces Chat Completions API (avoids 'Invalid Responses API request')
           _provider: "nvidia",
           _keyIndex: keyIndex,
         });
@@ -339,7 +339,7 @@ export function buildOpenAIProviders() {
       const openai = createOpenAI({ apiKey: key });
       providers.push({
         name: `openai-gpt4o-mini${keyLabel}`,
-        model: openai("gpt-4o-mini"),
+        model: openai.chat("gpt-4o-mini"),  // .chat() forces Chat Completions API
         _provider: "openai",
         _keyIndex: keyIndex,
       });
@@ -369,7 +369,7 @@ export function buildVectorEngineProviders() {
     });
     providers.push({
       name: "vectorengine",
-      model: customOpenAI("gpt-5.5-pro"),
+      model: customOpenAI.chat("gpt-5.5-pro"),  // .chat() forces Chat Completions API
       _provider: "vectorengine",
       _keyIndex: 0,
     });
@@ -440,9 +440,13 @@ export function buildOpenRouterProviders() {
       });
 
       // Primary model (smart)
+      // CRITICAL: Use .chat() to force the Chat Completions API.
+      // Calling openrouter(model) directly defaults to the Responses API
+      // in newer @ai-sdk/openai versions, which OpenRouter doesn't support
+      // → "Invalid Responses API request" error.
       providers.push({
         name: `openrouter-${model.split("/")[0]}${keyLabel}`,
-        model: openrouter(model),
+        model: openrouter.chat(model),
         _provider: "openrouter",
         _keyIndex: keyIndex,
       });
@@ -451,7 +455,7 @@ export function buildOpenRouterProviders() {
       if (fastModel !== model) {
         providers.push({
           name: `openrouter-${fastModel.split("/")[0]}-fast${keyLabel}`,
-          model: openrouter(fastModel),
+          model: openrouter.chat(fastModel),
           _provider: "openrouter",
           _keyIndex: keyIndex,
         });

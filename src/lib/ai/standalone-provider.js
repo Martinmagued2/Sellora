@@ -46,7 +46,11 @@ export function buildStandaloneProvider() {
           "X-Title": "Sellora",
         },
       });
-      return openrouter(model);
+      // CRITICAL: Use .chat() to force the Chat Completions API.
+      // Calling openrouter(model) directly defaults to the Responses API
+      // in newer @ai-sdk/openai versions, which OpenRouter doesn't support
+      // → "Invalid Responses API request" error.
+      return openrouter.chat(model);
     } catch (e) {
       console.warn("[STANDALONE-PROVIDER] OpenRouter setup failed:", e?.message);
     }
@@ -73,7 +77,7 @@ export function buildStandaloneProvider() {
   // 4. OpenAI
   if (process.env.OPENAI_API_KEY) {
     try {
-      return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })("gpt-4o-mini");
+      return createOpenAI({ apiKey: process.env.OPENAI_API_KEY }).chat("gpt-4o-mini");
     } catch (e) {
       console.warn("[STANDALONE-PROVIDER] OpenAI setup failed:", e?.message);
     }

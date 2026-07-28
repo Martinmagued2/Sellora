@@ -74,7 +74,7 @@ export async function analyzeImage(imageUrl, context = "") {
           const mimeType = imgResp.headers.get("content-type") || "image/jpeg";
 
           const result = await generateText({
-            model: nvidia("meta/llama-3.2-90b-vision-instruct"),
+            model: nvidia.chat("meta/llama-3.2-90b-vision-instruct"),  // .chat() forces Chat Completions API
             messages: [{
               role: "user",
               content: [
@@ -735,7 +735,7 @@ export async function generateAIReply({
             ...formattedMessages,
           ],
           temperature: 0.7,
-          max_tokens: 500,
+          max_tokens: 1500,  // Raised from 500 — allow detailed responses
         });
         const fallbackText = completion.choices?.[0]?.message?.content;
         if (fallbackText && fallbackText.trim()) {

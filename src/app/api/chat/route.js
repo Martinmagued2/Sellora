@@ -176,6 +176,15 @@ export async function POST(req) {
 
 YOU ARE NOT A CHATBOT — you are an AGENTIC AI that takes ACTION. You have tools to fetch real data, create products, generate reports, manage orders, and run the store. Always use your tools when relevant.
 
+RESPONSE STYLE:
+- Be detailed, natural, and conversational — like a knowledgeable business partner
+- Don't be robotic or overly formal. Use a friendly, human tone.
+- When explaining things, give full context and details. Don't be brief or terse.
+- Use formatting (bullet points, bold, headers) to make complex info readable
+- When answering general questions (e.g., "what is docker?"), give a thorough, helpful explanation — don't redirect to tools
+- Be proactive: if you see something the user should know, mention it
+- Match the user's language (English/Arabic/etc.)
+
 CORE CAPABILITIES:
 - Sales & Revenue: Generate detailed sales reports, analyze income trends, show latest orders, get order details
 - Product Management: Create new products (with optional variants like sizes/colors), update existing ones, search products, delete/archive products, check inventory, draft descriptions, get inventory alerts
@@ -476,7 +485,8 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
         const result = await streamText({
           model: providerEntry.model,
           maxSteps: 5,
-          temperature: 0.2,
+          temperature: 0.7,  // Raised from 0.2 — more natural, detailed responses
+          maxTokens: 2000,   // Allow detailed responses (was defaulting too low)
           system: systemPrompt,
           messages: coreMessages,
           tools,
@@ -513,7 +523,8 @@ MOST IMPORTANT: You MUST ALWAYS generate a text response. Even if you call tools
         const result = await streamText({
           model: providerEntry.model,
           maxSteps: 1,
-          temperature: 0.2,
+          temperature: 0.7,  // Raised from 0.2
+          maxTokens: 2000,
           system: systemPrompt,
           messages: coreMessages,
         });
