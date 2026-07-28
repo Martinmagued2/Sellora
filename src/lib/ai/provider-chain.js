@@ -535,22 +535,21 @@ export function buildRoutingProviderChain() {
 
 /**
  * Build the streaming provider chain for Copilot/Agent.
- * Order optimized for streaming UX + tool calling:
- *   Groq first (Compound Beta — best tool calling, fastest streaming) →
- *   OpenRouter (Claude/GPT fallback) → Google → NVIDIA → VectorEngine → OpenAI
+ * Order optimized for the user's configured providers:
+ *   OpenRouter first (gpt-oss-20b:free — user's primary, supports tool calling) →
+ *   Groq (if configured) → Google → NVIDIA → VectorEngine → OpenAI
  *
- * Compound Beta is first because it's specifically designed for agentic
- * workflows with tool calling — it can actually USE the Copilot tools
- * (create_product, message_customer, etc.) without issues.
+ * OpenRouter is first because it's the user's primary provider. The default
+ * model (openai/gpt-oss-20b:free) is free tier and supports tool calling.
  */
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // Groq first (Compound Beta — best for tool calling + fast streaming)
-  providers.push(...buildGroqProviders());
-
-  // OpenRouter (user's primary fallback — supports Claude, GPT, etc.)
+  // OpenRouter first (user's primary — gpt-oss-20b:free supports tool calling)
   providers.push(...buildOpenRouterProviders());
+
+  // Groq (if configured — fast streaming + tool support)
+  providers.push(...buildGroqProviders());
 
   // Google Gemini (fast streaming)
   providers.push(...buildGoogleProviders());
