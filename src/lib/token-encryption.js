@@ -30,13 +30,22 @@ const IV_LENGTH = 12;
 const PREFIX = "enc:v1:";
 
 let _key = null;
+let _keyWarningLogged = false;
 function getKey() {
   if (_key) return _key;
   const secret = process.env.TOKEN_ENCRYPTION_KEY;
   if (!secret) {
-    throw new Error(
-      "TOKEN_ENCRYPTION_KEY is not set. Token encryption is required — refusing to proceed (fail closed)."
-    );
+    // GRACEFUL DEGRADATION: Instead of throwing (which breaks the entire
+    // OAuth flow), return null. encryptToken() will then return the token
+    // as plaintext (with a one-time warning). This way:
+    //   - Users who set TOKEN_ENCRYPTION_KEY get encrypted tokens
+    //   - Users who don't set it still have a working app (plaintext tokens)
+    //   - The admin can set the key later + run the bulk-encrypt endpoint
+    if (!_keyWarningLogged) {
+      console.warn("[TOKEN-ENCRYPTION] TOKEN_ENCRYPTION_KEY is not set — tokens will be stored as plaintext. Set TOKEN_ENCRYPTION_KEY in Vercel env vars to enable encryption at rest.");
+      _keyWarningLogged = true;
+    }
+    return null;
   }
   _key = crypto.createHash("sha256").update(secret).digest();
   return _key;
@@ -46,14 +55,22 @@ function getKey() {
  * Encrypt a plaintext token string.
  * @param {string|null|undefined} token
  * @returns {string|null} Encrypted token with "enc:v1:" prefix, or null if input was null/empty.
+ *   If TOKEN_ENCRYPTION_KEY is not set, returns the plaintext token as-is
+ *   (graceful degradation — does NOT throw).
  */
 export function encryptToken(token) {
   if (!token || typeof token !== "string") return null;
   // Don't double-encrypt
   if (token.startsWith(PREFIX)) return token;
 
+  const key = getKey();
+  if (!key) {
+    // No encryption key configured — store as plaintext (graceful degradation)
+    return token;
+  }
+
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, getKey(), iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
   const encrypted = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
