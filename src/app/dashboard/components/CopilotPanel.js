@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, X, Send, Bot, Loader2, TrendingUp, Package, FileText, Users, DollarSign, ChevronRight, Trash2, AlertTriangle, ExternalLink, Mic, MicOff } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import VoiceRecorder from "./VoiceRecorder";
 import MentionInput from "./MentionInput";
 
@@ -348,6 +350,44 @@ export default function CopilotPanel() {
     return "Let me look into that for you...";
   };
 
+  // Rotating "thinking" messages — shown while the AI is processing.
+  // Cycles through these every 2.5 seconds to give the user feedback that
+  // the AI is actively working on their request.
+  const THINKING_ROTATION = [
+    "Thinking...",
+    "Getting the best answer...",
+    "Analyzing your data...",
+    "Crafting a response...",
+    "Almost there...",
+  ];
+  const [thinkingRotationIndex, setThinkingRotationIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setThinkingRotationIndex(0);
+      return;
+    }
+    // Rotate the thinking message every 2.5 seconds
+    const interval = setInterval(() => {
+      setThinkingRotationIndex(idx => (idx + 1) % THINKING_ROTATION.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  // The full thinking text: either the contextual message OR the rotating
+  // message, whichever feels more natural. We show the contextual message
+  // first, then rotate to generic "Thinking..." messages after a few seconds.
+  const [thinkingStage, setThinkingStage] = useState(0);
+  useEffect(() => {
+    if (!isLoading) {
+      setThinkingStage(0);
+      return;
+    }
+    // After 4 seconds, switch from the specific message to the rotating messages
+    const stageTimer = setTimeout(() => setThinkingStage(1), 4000);
+    return () => clearTimeout(stageTimer);
+  }, [isLoading]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -520,7 +560,39 @@ export default function CopilotPanel() {
                           </div>
                         )}
                         {/* Show text content (from stream or fallback from tool output) */}
-                        {displayText && <div className="copilot-text-content">{displayText}</div>}
+                        {/* Markdown rendering supports bold, italic, tables, lists, headers, code */}
+                        {displayText && (
+                          <div className="copilot-text-content">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                              // Custom renderers for better styling in the chat bubble
+                              p: ({children}) => <p style={{ margin: "0 0 8px 0", lineHeight: 1.6, fontSize: 14 }}>{children}</p>,
+                              h1: ({children}) => <h1 style={{ fontSize: 18, fontWeight: 700, margin: "12px 0 8px 0", color: "var(--text-primary)" }}>{children}</h1>,
+                              h2: ({children}) => <h2 style={{ fontSize: 16, fontWeight: 700, margin: "10px 0 6px 0", color: "var(--text-primary)" }}>{children}</h2>,
+                              h3: ({children}) => <h3 style={{ fontSize: 15, fontWeight: 600, margin: "8px 0 4px 0", color: "var(--text-primary)" }}>{children}</h3>,
+                              ul: ({children}) => <ul style={{ margin: "4px 0 8px 0", paddingLeft: 20, lineHeight: 1.6, fontSize: 14 }}>{children}</ul>,
+                              ol: ({children}) => <ol style={{ margin: "4px 0 8px 0", paddingLeft: 20, lineHeight: 1.6, fontSize: 14 }}>{children}</ol>,
+                              li: ({children}) => <li style={{ marginBottom: 2 }}>{children}</li>,
+                              strong: ({children}) => <strong style={{ fontWeight: 700, color: "var(--text-primary)" }}>{children}</strong>,
+                              em: ({children}) => <em style={{ fontStyle: "italic" }}>{children}</em>,
+                              code: ({children}) => <code style={{ background: "rgba(108, 92, 231, 0.1)", color: "#6c5ce7", padding: "2px 6px", borderRadius: 4, fontSize: 13, fontFamily: "monospace" }}>{children}</code>,
+                              pre: ({children}) => <pre style={{ background: "rgba(0,0,0,0.05)", padding: 12, borderRadius: 8, overflowX: "auto", fontSize: 13, margin: "8px 0" }}>{children}</pre>,
+                              blockquote: ({children}) => <blockquote style={{ borderLeft: "3px solid #6c5ce7", paddingLeft: 12, margin: "8px 0", fontStyle: "italic", color: "var(--text-secondary)" }}>{children}</blockquote>,
+                              a: ({children, href}) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "#6c5ce7", textDecoration: "underline" }}>{children}</a>,
+                              table: ({children}) => (
+                                <div style={{ overflowX: "auto", margin: "8px 0" }}>
+                                  <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, border: "1px solid var(--border-medium)" }}>{children}</table>
+                                </div>
+                              ),
+                              thead: ({children}) => <thead style={{ background: "rgba(108, 92, 231, 0.08)" }}>{children}</thead>,
+                              th: ({children}) => <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, borderBottom: "2px solid var(--border-medium)", color: "var(--text-primary)" }}>{children}</th>,
+                              td: ({children}) => <td style={{ padding: "6px 12px", borderBottom: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>{children}</td>,
+                              tr: ({children}) => <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>{children}</tr>,
+                              hr: () => <hr style={{ border: "none", borderTop: "1px solid var(--border-subtle)", margin: "12px 0" }} />,
+                            }}>
+                              {displayText}
+                            </ReactMarkdown>
+                          </div>
+                        )}
                         {/* Show generated product images */}
                         {generatedImages.length > 0 && (
                           <div className="copilot-images">
@@ -552,6 +624,8 @@ export default function CopilotPanel() {
                 })}
 
                 {/* Optimistic thinking message — appears instantly while server processes */}
+                {/* Shows the contextual message first, then rotates through */}
+                {/* "Thinking...", "Getting the best answer...", etc. after 4s */}
                 {isLoading && thinkingText && (
                   <div className="copilot-msg assistant">
                     <div className="copilot-msg-avatar">
@@ -560,7 +634,10 @@ export default function CopilotPanel() {
                     <div className="copilot-msg-bubble">
                       <div className="copilot-thinking-text">
                         <Loader2 size={12} className="spin" style={{ marginRight: 6, verticalAlign: "middle" }} />
-                        {thinkingText}
+                        {thinkingStage === 0
+                          ? thinkingText
+                          : THINKING_ROTATION[thinkingRotationIndex]
+                        }
                       </div>
                     </div>
                   </div>
