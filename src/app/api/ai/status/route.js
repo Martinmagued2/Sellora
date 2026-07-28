@@ -20,6 +20,12 @@ export async function GET() {
   
   // ─── 1. Environment Variable Check ───
   const envCheck = {
+    // OpenRouter (PRIMARY — most likely to be configured)
+    OPENROUTER_API_KEY: boolStr(process.env.OPENROUTER_API_KEY),
+    OPENROUTER_API_KEYS: boolStr(process.env.OPENROUTER_API_KEYS),
+    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "(default: openai/gpt-oss-20b:free)",
+    OPENROUTER_FAST_MODEL: process.env.OPENROUTER_FAST_MODEL || "(default: openai/gpt-oss-20b:free)",
+
     // Groq
     GROQ_API_KEY: boolStr(process.env.GROQ_API_KEY),
     GROQ_API_KEY_2: boolStr(process.env.GROQ_API_KEY_2),
@@ -55,7 +61,14 @@ export async function GET() {
   const googleKeys = collectKeys("GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEYS");
   const openaiKeys = collectKeys("OPENAI_API_KEY", "OPENAI_API_KEYS");
 
+  const openrouterKeys = collectKeys("OPENROUTER_API_KEY", "OPENROUTER_API_KEYS");
+
   const keySummary = {
+    openrouter: {
+      totalKeys: openrouterKeys.length,
+      previews: openrouterKeys.map(k => maskKey(k)),
+      model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
+    },
     groq: { totalKeys: groqKeys.length, previews: groqKeys.map(k => maskKey(k)) },
     nvidia: { totalKeys: nvidiaKeys.length, previews: nvidiaKeys.map(k => maskKey(k)) },
     google: { totalKeys: googleKeys.length, previews: googleKeys.map(k => maskKey(k)) },

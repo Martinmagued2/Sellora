@@ -750,6 +750,57 @@ export async function generateAIReply({
       }
     }
 
+    // ─── Direct OpenRouter fetch() fallback ───
+    // If all AI SDK providers + ZAI SDK failed, try a raw HTTP call to
+    // OpenRouter's Chat Completions API. This bypasses the AI SDK entirely
+    // and is the most reliable fallback — it works even if the AI SDK has
+    // compatibility issues with the model.
+    if ((!text || !text.trim()) && process.env.OPENROUTER_API_KEY) {
+      try {
+        console.log("[generateAIReply] All SDK providers failed — trying direct OpenRouter fetch()");
+        const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free";
+        const baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+
+        const messages = [
+          { role: "system", content: fullSystemPrompt },
+          ...formattedMessages,
+        ];
+
+        const response = await fetch(`${baseURL}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://www.sellorachat.com",
+            "X-Title": "Sellora",
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.7,
+            max_tokens: 1000,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const directText = data.choices?.[0]?.message?.content;
+          if (directText && directText.trim()) {
+            text = directText.trim();
+            console.log(`[generateAIReply] ✅ Direct OpenRouter fetch succeeded (${text.length} chars)`);
+          } else {
+            console.warn("[generateAIReply] Direct OpenRouter returned empty response");
+          }
+        } else {
+          const errBody = await response.text();
+          console.warn(`[generateAIReply] Direct OpenRouter HTTP ${response.status}: ${errBody.slice(0, 200)}`);
+        }
+      } catch (directErr) {
+        console.warn(`[generateAIReply] Direct OpenRouter fetch failed: ${directErr.message}`);
+        lastError = directErr;
+      }
+    }
+
     // 5.5. Check for escalation tag in AI reply
     let needsHumanAttention = false;
     let escalationReason = null;
