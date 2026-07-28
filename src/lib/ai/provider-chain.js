@@ -173,14 +173,16 @@ export function buildGroqProviders(opts = {}) {
   if (keys.length === 0) return providers;
   
   // Model selection based on use case:
-  // - Default (Copilot): Compound Beta (smartest, tool-calling) → Llama 4 Scout → Llama 3.3 70B
+  // - Default (Copilot): Llama 4 Scout (tool-calling) → Llama 3.3 70B (tool-calling) → Compound Beta (no tools, but smart)
   // - Lightweight (auto-replies): Llama 3.1 8B (fast, cheap) → Mixtral (fallback)
   // - Routing only: Llama 3.1 8B + Gemma 2 (cheapest, fastest)
   //
-  // Compound Beta is Groq's agentic model — it supports tool calling,
-  // web browsing, code execution, and multi-step reasoning natively.
-  // It's the BEST model for the Copilot because it can actually USE the
-  // tools (create_product, message_customer, etc.) without issues.
+  // IMPORTANT: Compound Beta does NOT support external tool calling via the
+  // standard API. It has its own built-in tools (web browsing, code execution)
+  // but can't call user-defined tools like create_product or message_customer.
+  // So it must go AFTER the tool-supporting models — it's only tried as a
+  // fallback when the tool-supporting models fail, and only in the no-tools
+  // fallback path.
   let primaryModels;
   if (routingOnly) {
     primaryModels = [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "gemma2-9b-it", name: "groq-gemma2" }];
@@ -188,11 +190,13 @@ export function buildGroqProviders(opts = {}) {
     // Auto-replies: fast & cheap to conserve rate limits for Copilot
     primaryModels = [{ id: "llama-3.1-8b-instant", name: "groq-llama8b" }, { id: "mixtral-8x7b-32768", name: "groq-mixtral" }];
   } else {
-    // Copilot: Compound Beta first (best for tool calling), then fallbacks
+    // Copilot: tool-supporting models FIRST, then Compound Beta as fallback
+    // Llama 4 Scout and Llama 3.3 70B both support tool calling natively.
+    // Compound Beta is smarter but can't call tools — it's last resort.
     primaryModels = [
-      { id: "compound-beta", name: "groq-compound" },
       { id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "groq-llama4scout" },
       { id: "llama-3.3-70b-versatile", name: "groq-llama70b" },
+      { id: "compound-beta", name: "groq-compound" },
     ];
   }
   
