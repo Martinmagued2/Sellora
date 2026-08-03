@@ -440,8 +440,8 @@ export default function CopilotPanel() {
     <>
       <button
         className={`copilot-fab ${isOpen ? "active" : ""}`}
-        onClick={() => setIsOpen(!isOpen)}
-        title="Sellora Agent"
+        onClick={() => router.push("/dashboard/copilot")}
+        title="Open Sellora Agent"
         id="copilot-toggle"
       >
         <div className="copilot-fab-inner">
