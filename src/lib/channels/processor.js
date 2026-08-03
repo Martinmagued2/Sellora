@@ -804,11 +804,11 @@ export async function processIncomingMessage({
         const MAX_AI_PER_CUSTOMER_PER_HOUR = account.plan === "starter" ? 20 : 50;
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         let customerAiCount = 0;
-        if (customerId) {
+        if (customer?.id) {
           const { count: cCount } = await getSupabase()
             .from("rate_limits")
             .select("*", { count: "exact", head: true })
-            .eq("email", `customer_${customerId}`)
+            .eq("email", `customer_${customer.id}`)
             .eq("action", "ai_auto_reply")
             .gte("created_at", oneHourAgo);
           customerAiCount = cCount || 0;
@@ -843,13 +843,13 @@ export async function processIncomingMessage({
             console.warn("[PROCESSOR] Graceful fallback delivery failed:", e.message);
           }
         } else if (customerLimitHit) {
-          console.warn(`[PROCESSOR] Customer ${customerId} exceeded hourly AI limit (${MAX_AI_PER_CUSTOMER_PER_HOUR}) — throttling`);
+          console.warn(`[PROCESSOR] Customer ${customer?.id || 'unknown'} exceeded hourly AI limit (${MAX_AI_PER_CUSTOMER_PER_HOUR}) — throttling`);
           // Don't send AI reply for this chatty customer, but don't send fallback either (they're spamming)
         } else {
           // Log the AI request (both account-level and customer-level)
           await getSupabase().from("rate_limits").insert([
             { email: account.id, action: "ai_auto_reply" },
-            ...(customerId ? [{ email: `customer_${customerId}`, action: "ai_auto_reply" }] : []),
+            ...(customer?.id ? [{ email: `customer_${customer.id}`, action: "ai_auto_reply" }] : []),
           ]);
 
           console.log(`[PROCESSOR] Generating AI reply for account ${account.id}, conversation ${conversation.id}, message: "${text?.substring(0, 50)}..."`);
