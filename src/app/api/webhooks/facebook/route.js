@@ -5,6 +5,7 @@ import { processIncomingMessage } from "@/lib/channels/processor";
 import { createClient } from "@supabase/supabase-js";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
+import { decryptToken } from "@/lib/token-encryption";
 import crypto from 'crypto';
 
 let _supabase = null;
@@ -141,19 +142,25 @@ export async function POST(request) {
       // Prefer the account that has a valid access token
       const account = accounts.find(a => a.facebook_access_token) || accounts[0];
 
-      if (!account?.facebook_access_token) {
+      // Decrypt the token (no-op if plaintext — backward compatible)
+      const fbAccessToken = account?.facebook_access_token
+        ? decryptToken(account.facebook_access_token)
+        : null;
+
+      if (!fbAccessToken) {
         console.warn("[FB-WEBHOOK] No Facebook token found for page:", event.pageId);
         console.warn("[FB-WEBHOOK] Message will still be processed & stored, but replies cannot be delivered");
-        // DON'T skip — still process the message so it's stored and AI can generate a reply
+      } else {
+        console.log("[FB-WEBHOOK] ✅ Facebook token found and decrypted for page:", event.pageId);
       }
 
       // Try to get the sender's profile (only if we have a token)
       let profile = null;
-      if (account?.facebook_access_token) {
+      if (fbAccessToken) {
         try {
           profile = await getUserProfile({
             userId: event.senderId,
-            accessToken: account.facebook_access_token,
+            accessToken: fbAccessToken,
           });
         } catch (profileErr) {
           console.warn("[FB-WEBHOOK] Could not fetch profile:", profileErr.message);
@@ -167,9 +174,7 @@ export async function POST(request) {
         .filter(Boolean);
 
       // Process through the shared pipeline — ALWAYS, even without token
-      // When accessToken is null, the processor will still store the message and generate
-      // an AI reply, but won't be able to deliver it to FB. The reply is saved in DB.
-      // Pass accountId so processor uses the correct account (handles duplicate page_ids)
+      // Pass the DECRYPTED token so the processor can deliver replies
       await processIncomingMessage({
         senderId: event.senderId,
         senderName: profile?.name || null,
@@ -179,7 +184,7 @@ export async function POST(request) {
         channel: "facebook",
         pageId: event.pageId,
         platformMessageId: event.messageId,
-        accessToken: account.facebook_access_token || null,
+        accessToken: fbAccessToken,
         accountId: account.id,
       });
 
