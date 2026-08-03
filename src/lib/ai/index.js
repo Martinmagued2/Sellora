@@ -398,11 +398,17 @@ export async function generateAIReply({
         .from("products")
         .select("id, name, price, description, category, stock, variants, sku, image_urls, status")
         .eq("account_id", accountId)
-        .eq("status", "active")
         .order("created_at", { ascending: false })
         .limit(50);
 
+      console.log(`[generateAIReply] Product fetch: accountId=${accountId}, found=${products?.length || 0} products`);
+
       if (products && products.length > 0) {
+        // Log first 3 product names for debugging
+        products.slice(0, 3).forEach((p, i) => {
+          console.log(`[generateAIReply]   Product ${i+1}: ${p.name} (${p.price}) [status: ${p.status}]`);
+        });
+
         productContext = `\n\n═══ YOUR COMPLETE PRODUCT CATALOG (${products.length} products) ═══\n`;
         productContext += `You have INSTANT access to all product information below. Do NOT say "let me check" — you already know everything.\n\n`;
 
