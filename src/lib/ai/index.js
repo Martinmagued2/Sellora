@@ -659,29 +659,39 @@ export async function generateAIReply({
       // ─── Smart Failover: Track success/failure per key ───
       // If a key is rate-limited or broken, we record it and the next
       // buildProviderChain() call will skip it automatically.
-      
+
       // Attempt 1: With tools (for advanced interactions like order creation)
-      try {
-        const result = await generateText({
-          model: provider.model,
-          system: fullSystemPrompt,
-          messages: formattedMessages,
-          tools: tools,
-          maxSteps: plan === "starter" ? 2 : 4,
-        });
-        text = result.text;
-        toolCalls = result.toolCalls;
-        if (text && text.trim()) {
-          // ✅ Success — record it so this key stays healthy
-          if (provider._provider !== undefined) recordKeySuccess(provider._provider, provider._keyIndex);
-          break;
+      // Skip this for OpenRouter free models — they often don't support tool calling
+      // and the error wastes time + rate limit budget.
+      const isFreeModel = provider._provider === "openrouter" &&
+        (process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free").includes(":free");
+      const skipTools = isFreeModel;
+
+      if (!skipTools) {
+        try {
+          const result = await generateText({
+            model: provider.model,
+            system: fullSystemPrompt,
+            messages: formattedMessages,
+            tools: tools,
+            maxSteps: plan === "starter" ? 2 : 4,
+          });
+          text = result.text;
+          toolCalls = result.toolCalls;
+          if (text && text.trim()) {
+            // ✅ Success — record it so this key stays healthy
+            if (provider._provider !== undefined) recordKeySuccess(provider._provider, provider._keyIndex);
+            break;
+          }
+          console.warn(`[generateAIReply] ${provider.name} with tools returned empty text`);
+        } catch (providerError) {
+          lastError = providerError;
+          console.warn(`[generateAIReply] ${provider.name} with tools failed: ${providerError.message}`);
+          // ❌ Failure — record it so this key gets deprioritized
+          if (provider._provider !== undefined) recordKeyFailure(provider._provider, provider._keyIndex, providerError);
         }
-        console.warn(`[generateAIReply] ${provider.name} with tools returned empty text`);
-      } catch (providerError) {
-        lastError = providerError;
-        console.warn(`[generateAIReply] ${provider.name} with tools failed: ${providerError.message}`);
-        // ❌ Failure — record it so this key gets deprioritized
-        if (provider._provider !== undefined) recordKeyFailure(provider._provider, provider._keyIndex, providerError);
+      } else {
+        console.log(`[generateAIReply] Skipping tools for ${provider.name} (free model)`);
       }
 
       // Attempt 2: Without tools — guaranteed text response
@@ -702,6 +712,57 @@ export async function generateAIReply({
         lastError = providerError;
         console.warn(`[generateAIReply] ${provider.name} without tools failed: ${providerError.message}`);
         if (provider._provider !== undefined) recordKeyFailure(provider._provider, provider._keyIndex, providerError);
+      }
+    }
+
+    // ─── Direct OpenRouter fetch() fallback ───
+    // If all AI SDK providers failed, try a raw HTTP call to OpenRouter's
+    // Chat Completions API. This bypasses the AI SDK entirely and is the
+    // most reliable fallback — it works even if the AI SDK has compatibility
+    // issues with the model (e.g., free models that reject the tools param).
+    if ((!text || !text.trim()) && process.env.OPENROUTER_API_KEY) {
+      try {
+        console.log("[generateAIReply] All SDK providers failed — trying direct OpenRouter fetch()");
+        const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free";
+        const baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+
+        const messages = [
+          { role: "system", content: fullSystemPrompt },
+          ...formattedMessages,
+        ];
+
+        const response = await fetch(`${baseURL}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://www.sellorachat.com",
+            "X-Title": "Sellora",
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.7,
+            max_tokens: 1000,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const directText = data.choices?.[0]?.message?.content;
+          if (directText && directText.trim()) {
+            text = directText.trim();
+            console.log(`[generateAIReply] ✅ Direct OpenRouter fetch succeeded (${text.length} chars)`);
+          } else {
+            console.warn("[generateAIReply] Direct OpenRouter returned empty response");
+          }
+        } else {
+          const errBody = await response.text();
+          console.warn(`[generateAIReply] Direct OpenRouter HTTP ${response.status}: ${errBody.slice(0, 200)}`);
+        }
+      } catch (directErr) {
+        console.warn(`[generateAIReply] Direct OpenRouter fetch failed: ${directErr.message}`);
+        lastError = directErr;
       }
     }
 
@@ -747,57 +808,6 @@ export async function generateAIReply({
       } catch (zaiErr) {
         console.warn(`[generateAIReply] ZAI SDK direct fallback failed: ${zaiErr.message}`);
         lastError = zaiErr;
-      }
-    }
-
-    // ─── Direct OpenRouter fetch() fallback ───
-    // If all AI SDK providers + ZAI SDK failed, try a raw HTTP call to
-    // OpenRouter's Chat Completions API. This bypasses the AI SDK entirely
-    // and is the most reliable fallback — it works even if the AI SDK has
-    // compatibility issues with the model.
-    if ((!text || !text.trim()) && process.env.OPENROUTER_API_KEY) {
-      try {
-        console.log("[generateAIReply] All SDK providers failed — trying direct OpenRouter fetch()");
-        const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free";
-        const baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
-
-        const messages = [
-          { role: "system", content: fullSystemPrompt },
-          ...formattedMessages,
-        ];
-
-        const response = await fetch(`${baseURL}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://www.sellorachat.com",
-            "X-Title": "Sellora",
-          },
-          body: JSON.stringify({
-            model,
-            messages,
-            temperature: 0.7,
-            max_tokens: 1000,
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const directText = data.choices?.[0]?.message?.content;
-          if (directText && directText.trim()) {
-            text = directText.trim();
-            console.log(`[generateAIReply] ✅ Direct OpenRouter fetch succeeded (${text.length} chars)`);
-          } else {
-            console.warn("[generateAIReply] Direct OpenRouter returned empty response");
-          }
-        } else {
-          const errBody = await response.text();
-          console.warn(`[generateAIReply] Direct OpenRouter HTTP ${response.status}: ${errBody.slice(0, 200)}`);
-        }
-      } catch (directErr) {
-        console.warn(`[generateAIReply] Direct OpenRouter fetch failed: ${directErr.message}`);
-        lastError = directErr;
       }
     }
 
