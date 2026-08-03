@@ -1032,19 +1032,25 @@ export async function processIncomingMessage({
                 deliverySuccess = true;
               } else if (channel === "telegram") {
                 // Telegram: use bot token to send reply
+                console.log(`[PROCESSOR] Delivering AI reply to Telegram (chatId: ${senderId}, reply length: ${aiReply.length})`);
                 const { data: tgAccount } = await getSupabase()
                   .from("accounts")
                   .select("telegram_bot_token")
                   .eq("id", account.id)
                   .maybeSingle();
                 if (tgAccount?.telegram_bot_token) {
-                  const { sendTelegramMessage } = await import("@/lib/telegram");
-                  await sendTelegramMessage({
-                    botToken: tgAccount.telegram_bot_token,
-                    chatId: senderId,
-                    text: aiReply,
-                  });
-                  deliverySuccess = true;
+                  try {
+                    const { sendTelegramMessage } = await import("@/lib/telegram");
+                    await sendTelegramMessage({
+                      botToken: tgAccount.telegram_bot_token,
+                      chatId: senderId,
+                      text: aiReply,
+                    });
+                    deliverySuccess = true;
+                    console.log(`[PROCESSOR] ✅ Telegram reply delivered successfully`);
+                  } catch (tgErr) {
+                    console.error(`[PROCESSOR] ❌ Telegram delivery failed:`, tgErr.message);
+                  }
                 } else {
                   console.warn(`[PROCESSOR] No telegram_bot_token for account ${account.id} — AI reply stored but NOT delivered`);
                 }

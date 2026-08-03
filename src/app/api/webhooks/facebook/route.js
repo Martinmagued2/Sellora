@@ -30,6 +30,8 @@ export async function GET(request) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
+  console.log("[FB-WEBHOOK] Verification request:", { mode, hasToken: !!token, hasChallenge: !!challenge });
+
   if (mode === "subscribe" && token) {
     const expectedTokens = [
       process.env.META_WEBHOOK_VERIFY_TOKEN,
@@ -41,19 +43,38 @@ export async function GET(request) {
       return NextResponse.json({ error: "Webhook verify token not configured on server" }, { status: 500 });
     }
 
+    console.log("[FB-WEBHOOK] Configured tokens:", expectedTokens.length, "token(s)");
+    console.log("[FB-WEBHOOK] Received token length:", token.length);
+    expectedTokens.forEach((t, i) => console.log(`[FB-WEBHOOK] Expected token ${i+1} length:`, t.length));
+
     for (const expectedToken of expectedTokens) {
-      try {
-        if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
-          console.log("[FB-WEBHOOK] Webhook verified successfully");
-          return new Response(challenge, { status: 200 });
+      // Use plain string comparison first (more reliable than timingSafeEqual
+      // which throws on length mismatch)
+      if (token === expectedToken) {
+        console.log("[FB-WEBHOOK] ✅ Webhook verified successfully (exact match)");
+        return new Response(challenge, { status: 200 });
+      }
+      // Also try timingSafeEqual for tokens of the same length
+      if (token.length === expectedToken.length) {
+        try {
+          if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
+            console.log("[FB-WEBHOOK] ✅ Webhook verified successfully (timingSafeEqual)");
+            return new Response(challenge, { status: 200 });
+          }
+        } catch (e) {
+          // Ignore — will fall through to "not equal"
         }
-      } catch (e) {
-        // Length mismatch — try next token
       }
     }
+
+    console.warn("[FB-WEBHOOK] ❌ Verification failed — token mismatch");
+    console.warn("[FB-WEBHOOK] Received:", token.substring(0, 4) + "..." + token.slice(-4));
+    expectedTokens.forEach((t, i) => {
+      console.warn(`[FB-WEBHOOK] Expected ${i+1}:`, t.substring(0, 4) + "..." + t.slice(-4));
+    });
   }
 
-  console.warn("[FB-WEBHOOK] Verification failed");
+  console.warn("[FB-WEBHOOK] ❌ Verification failed — mode or token missing");
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 

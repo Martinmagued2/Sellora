@@ -32,6 +32,8 @@ export async function GET(request) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
+  console.log("[IG-WEBHOOK] Verification request:", { mode, hasToken: !!token });
+
   if (mode === "subscribe" && token) {
     const expectedTokens = [
       process.env.META_WEBHOOK_VERIFY_TOKEN,
@@ -44,18 +46,24 @@ export async function GET(request) {
     }
 
     for (const expectedToken of expectedTokens) {
-      try {
-        if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
-          console.log("[IG-WEBHOOK] Webhook verified successfully");
-          return new Response(challenge, { status: 200 });
-        }
-      } catch (e) {
-        // Length mismatch — try next token
+      if (token === expectedToken) {
+        console.log("[IG-WEBHOOK] ✅ Webhook verified successfully");
+        return new Response(challenge, { status: 200 });
+      }
+      if (token.length === expectedToken.length) {
+        try {
+          if (crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))) {
+            console.log("[IG-WEBHOOK] ✅ Webhook verified successfully");
+            return new Response(challenge, { status: 200 });
+          }
+        } catch (e) {}
       }
     }
+
+    console.warn("[IG-WEBHOOK] ❌ Verification failed — token mismatch");
+    console.warn("[IG-WEBHOOK] Received:", token.substring(0, 4) + "..." + token.slice(-4));
   }
 
-  console.warn("[IG-WEBHOOK] Verification failed");
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
