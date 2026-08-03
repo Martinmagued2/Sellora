@@ -801,7 +801,7 @@ export async function processIncomingMessage({
         console.log(`[PROCESSOR] AI rate limit: ${aiCount}/${MAX_AI_PER_ACCOUNT_PER_DAY} (plan: ${account.plan})`);
 
         // ─── Fix #7: Per-customer rate limit (prevent one customer from exhausting quota) ───
-        const MAX_AI_PER_CUSTOMER_PER_HOUR = plan === "starter" ? 20 : 50;
+        const MAX_AI_PER_CUSTOMER_PER_HOUR = account.plan === "starter" ? 20 : 50;
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         let customerAiCount = 0;
         if (customerId) {
