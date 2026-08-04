@@ -394,14 +394,28 @@ export async function generateAIReply({
         }
       }
 
-      const { data: products } = await getSupabase()
+      const { data: products, error: productError } = await getSupabase()
         .from("products")
-        .select("id, name, price, description, category, stock, variants, sku, image_urls, status")
+        .select("id, name, price, description, category, stock, variants, sku, image_urls, status, account_id, store_id")
         .eq("account_id", accountId)
         .order("created_at", { ascending: false })
         .limit(50);
 
-      console.log(`[generateAIReply] Product fetch: accountId=${accountId}, found=${products?.length || 0} products`);
+      console.log(`[generateAIReply] Product fetch: accountId=${accountId}, found=${products?.length || 0} products, error=${productError?.message || "none"}`);
+
+      // If no products found with account_id filter, try fetching ALL products
+      // to see if they exist under a different account_id (debugging)
+      if (!products || products.length === 0) {
+        const { data: allProducts, error: allErr } = await getSupabase()
+          .from("products")
+          .select("id, name, account_id, store_id, status")
+          .order("created_at", { ascending: false })
+          .limit(5);
+        console.log(`[generateAIReply] DEBUG: Total products in DB (any account): ${allProducts?.length || 0}`);
+        if (allProducts && allProducts.length > 0) {
+          console.log(`[generateAIReply] DEBUG: Sample product account_ids:`, allProducts.map(p => ({ name: p.name, account_id: p.account_id, store_id: p.store_id, status: p.status })));
+        }
+      }
 
       if (products && products.length > 0) {
         // Log first 3 product names for debugging
