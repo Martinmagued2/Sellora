@@ -127,8 +127,21 @@ export default function CopilotPage() {
   useEffect(() => { fetchChats(); }, [fetchChats]);
 
   // ─── Create new chat ───
+  const MAX_CHATS = 3; // Limit: 3 chats per account
   const createNewChat = async () => {
     try {
+      // Check if we've hit the chat limit (excluding pinned chats)
+      const nonPinnedChats = chats.filter(c => !c.pinned);
+      if (nonPinnedChats.length >= MAX_CHATS) {
+        // Delete the oldest non-pinned chat to make room
+        const oldest = nonPinnedChats[nonPinnedChats.length - 1];
+        if (oldest) {
+          console.log(`[Copilot] Chat limit reached — deleting oldest chat: ${oldest.title}`);
+          await fetch(`/api/copilot/chats/${oldest.id}`, { method: "DELETE" });
+          setChats(prev => prev.filter(c => c.id !== oldest.id));
+        }
+      }
+
       const res = await fetch("/api/copilot/chats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,7 +149,7 @@ export default function CopilotPage() {
       });
       const data = await res.json();
       if (data.chat) {
-        setChats(prev => [data.chat, ...prev]);
+        setChats(prev => [data.chat, ...prev.filter(c => c.id !== data.chat.id)]);
         setActiveChatId(data.chat.id);
         setChatMessages([]);
         setMessages([]);
@@ -204,19 +217,27 @@ export default function CopilotPage() {
   };
 
   // ─── Delete a chat ───
-  const deleteChat = async (chatId, e) => {
-    e.stopPropagation();
+  const deleteChat = async (chatId, event) => {
+    event.stopPropagation();
     if (!confirm("Delete this chat? This cannot be undone.")) return;
     try {
-      await fetch(`/api/copilot/chats/${chatId}`, { method: "DELETE" });
+      const res = await fetch(`/api/copilot/chats/${chatId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+      // Remove from local state immediately
       setChats(prev => prev.filter(c => c.id !== chatId));
       if (activeChatId === chatId) {
         setActiveChatId(null);
         setChatMessages([]);
         setMessages([]);
       }
-    } catch (e) {
-      console.error("[Copilot] Failed to delete chat:", e);
+      // Re-fetch to ensure local state matches DB
+      setTimeout(() => fetchChats(), 500);
+    } catch (err) {
+      console.error("[Copilot] Failed to delete chat:", err);
+      alert("Failed to delete chat: " + err.message);
     }
   };
 
@@ -294,26 +315,41 @@ export default function CopilotPage() {
   };
 
   // ─── Submit handler ───
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    // Create a chat if none is active
-    if (!activeChatId) {
-      createNewChat().then(() => {
-        // Will be called after chat is created — but we need the ID synchronously
-        // For now, just create and send
-      });
-      return;
+    const userInput = input;
+
+    // Create a chat if none is active, then send the message
+    let chatId = activeChatId;
+    if (!chatId) {
+      try {
+        const res = await fetch("/api/copilot/chats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "New Chat" }),
+        });
+        const data = await res.json();
+        if (data.chat) {
+          setChats(prev => [data.chat, ...prev]);
+          setActiveChatId(data.chat.id);
+          chatId = data.chat.id;
+        }
+      } catch (err) {
+        console.error("[Copilot] Failed to create chat:", err);
+        return;
+      }
     }
 
+    if (!chatId) return;
+
     clearError?.();
-    const userInput = input;
-    setThinkingText(getThinkingMessage(input));
-    sendMessage({ text: input });
+    setThinkingText(getThinkingMessage(userInput));
+    sendMessage({ text: userInput });
 
     // Save user message to DB
-    saveMessage(activeChatId, "user", userInput);
+    saveMessage(chatId, "user", userInput);
     setInput("");
   };
 
@@ -597,8 +633,16 @@ export default function CopilotPage() {
             </div>
           ) : (
             <div style={{ maxWidth: 900, margin: "0 auto" }}>
-              {/* Render messages from useChat (live) or chatMessages (persisted) */}
-              {(messages.length > 0 ? messages : []).map((msg) => {
+              {/* Render messages from useChat (live) — when loading a saved chat,
+                  messages are loaded into useChat via setMessages() in loadChat() */}
+              {/* If useChat is empty but we have persisted messages, render those */}
+              {(() => {
+                const displayMessages = messages.length > 0 ? messages : chatMessages.map(m => ({
+                  id: m.id,
+                  role: m.role,
+                  parts: [{ type: "text", text: m.content }],
+                }));
+                return displayMessages.map((msg) => {
                 const text = getMessageText(msg);
                 const toolInvs = getToolInvocations(msg);
 
@@ -706,7 +750,8 @@ export default function CopilotPage() {
                     </div>
                   </div>
                 );
-              })}
+              });
+              })()}
 
               {/* Thinking indicator */}
               {isLoading && (

@@ -60,6 +60,24 @@ export async function POST(req) {
     const title = body.title || "New Chat";
 
     const db = admin();
+
+    // ─── Enforce 3-chat limit ───
+    // Count non-pinned chats. If at limit, delete the oldest non-pinned chat.
+    const MAX_CHATS = 3;
+    const { data: existingChats } = await db
+      .from("copilot_chats")
+      .select("id, pinned, updated_at")
+      .eq("account_id", effectiveAccountId)
+      .eq("pinned", false)
+      .order("updated_at", { ascending: true });
+
+    if (existingChats && existingChats.length >= MAX_CHATS) {
+      // Delete the oldest non-pinned chat
+      const oldest = existingChats[0];
+      console.log(`[COPILOT-CHATS] Chat limit reached — deleting oldest chat: ${oldest.id}`);
+      await db.from("copilot_chats").delete().eq("id", oldest.id);
+    }
+
     const { data: chat, error } = await db
       .from("copilot_chats")
       .insert({
