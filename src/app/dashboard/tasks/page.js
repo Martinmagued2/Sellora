@@ -47,7 +47,7 @@ const ASSIGNEE_OPTIONS = [
 
 export default function TasksPage() {
   const supabase = useMemo(() => createClient(), []);
-  const { effectiveAccountId, role } = useEffectiveAccount();
+  const { effectiveAccountId, role, loading: accountLoading } = useEffectiveAccount();
   const toast = useToast();
   const [user, setUser] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -73,7 +73,14 @@ export default function TasksPage() {
   }, [supabase]);
 
   const loadTasks = useCallback(async () => {
-    if (!effectiveAccountId) return;
+    if (!effectiveAccountId) {
+      // If account context isn't ready yet, don't set loading=false
+      // (it will retry when effectiveAccountId changes)
+      if (!accountLoading) {
+        setLoading(false); // Context resolved but no account — stop loading
+      }
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -91,7 +98,7 @@ export default function TasksPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveAccountId]);
+  }, [effectiveAccountId, accountLoading]);
 
   const loadTeamMembers = useCallback(async () => {
     try {
