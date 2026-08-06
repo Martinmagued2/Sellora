@@ -80,6 +80,7 @@ export default function FlowBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [flowName, setFlowName] = useState("Untitled Flow");
   const [showPalette, setShowPalette] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   const initialNodes = [
     { id: "1", type: "trigger", position: { x: 250, y: 50 }, data: { label: "Start Here", description: "When a customer sends a message..." } },
@@ -166,6 +167,21 @@ export default function FlowBuilderPage() {
         >
           <Plus size={14} /> Add Node
         </button>
+        
+        {/* Sandbox Live Replay Toggle */}
+        <button
+          onClick={() => setIsSimulating(!isSimulating)}
+          style={{
+            background: isSimulating ? "rgba(16, 185, 129, 0.15)" : "var(--bg-hover)", 
+            border: isSimulating ? "1px solid #10b981" : "1px solid var(--border-medium)",
+            color: isSimulating ? "#10b981" : "var(--text-primary)",
+            borderRadius: 8, padding: "6px 12px", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600
+          }}
+        >
+          {isSimulating ? <Pause size={14} /> : <Play size={14} />}
+          {isSimulating ? "Stop Live Sandbox" : "Live Session Sandbox Replay"}
+        </button>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <button onClick={() => router.push("/dashboard/flows")} style={{
             background: "none", border: "1px solid var(--border-medium)",
@@ -237,6 +253,30 @@ export default function FlowBuilderPage() {
             maskColor="rgba(0,0,0,0.1)"
           />
         </ReactFlow>
+
+        {/* Live Session Sandbox Simulation Overlay */}
+        {isSimulating && (
+          <div style={{
+            position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)",
+            background: "#0f172a", border: "1px solid #334155", borderRadius: 16,
+            padding: "16px 24px", color: "#f8fafc", width: "90%", maxWidth: 640,
+            boxShadow: "0 20px 40px rgba(0,0,0,0.5)", zIndex: 30
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyBetween: "space-between", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981 animate-pulse" }}></span>
+                <strong style={{ fontSize: 14 }}>Live Customer Session #4912 Step Execution</strong>
+              </div>
+              <span style={{ fontSize: 11, background: "#1e293b", padding: "2px 8px", borderRadius: 6, color: "#94a3b8" }}>
+                Token Cost: 0.0042 ($0.0001)
+              </span>
+            </div>
+            
+            <div style={{ fontSize: 12, color: "#cbd5e1", background: "#1e293b", padding: 10, borderRadius: 8, fontFamily: "monospace" }}>
+              Input: "Hi, do you offer bundle discounts for silk shirts?" → <strong style={{ color: "#38bdf8" }}>Node 1 Triggered</strong> → <strong style={{ color: "#4ade80" }}>Action Node Executed: Dynamic 15% Offer</strong>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

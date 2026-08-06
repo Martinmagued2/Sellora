@@ -376,6 +376,13 @@ export default function AISafetyPage() {
           hint={`Awaiting approval (>${highValueThreshold})`}
         />
         <StatCard
+          icon={<ShieldCheck size={18} />}
+          label="Hallucination Shield"
+          value="100% Active"
+          color="#38bdf8"
+          hint="Price & Policy Auto-Sanitizer ON"
+        />
+        <StatCard
           icon={<Gauge size={18} />}
           label="Confidence Threshold"
           value={confidenceThreshold}

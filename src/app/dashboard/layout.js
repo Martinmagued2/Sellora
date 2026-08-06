@@ -42,6 +42,8 @@ import {
   Truck,
   CheckSquare,
   RefreshCw,
+  Radar,
+  Wand2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
@@ -109,6 +111,9 @@ const sidebarLinks = [
       { href: "/dashboard/webhooks", icon: Webhook, label: "Webhooks" },
       { href: "/dashboard/automation", icon: Bot, label: "Automation" },
       { href: "/dashboard/flows", icon: Zap, label: "Flow Builder" },
+      { href: "/dashboard/intent-radar", icon: Radar, label: "Intent Radar" },
+      { href: "/dashboard/creative-studio", icon: Wand2, label: "Creative Studio" },
+      { href: "/dashboard/social-selling", icon: MessageCircle, label: "Social Selling" },
       { href: "/dashboard/ai-personality", icon: Sparkles, label: "AI Personality" },
       { href: "/dashboard/ab-tests", icon: FlaskConical, label: "A/B Tests" },
       { href: "/dashboard/reviews", icon: Star, label: "Reviews" },
