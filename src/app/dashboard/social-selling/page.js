@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   MessageSquare, ShieldCheck, DollarSign, Zap, Link, 
-  CheckCircle, Sliders, ShoppingBag, ArrowUpRight 
+  CheckCircle, Sliders, ShoppingBag, ArrowUpRight, Loader2
 } from 'lucide-react';
+import { createClient } from "@/lib/supabase/client";
+import { useToast } from "../components/ToastProvider";
 
 export default function SocialSellingPage() {
+  const toast = useToast();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isEnabled, setIsEnabled] = useState(true);
   const [maxDiscount, setMaxDiscount] = useState(15);
   const [minMargin, setMinMargin] = useState(25);
@@ -15,11 +20,70 @@ export default function SocialSellingPage() {
 
   const sampleCheckoutLink = 'https://sellora.store/checkout/fast?bundle=silk_shirt&discount=HAGGLE12';
 
+  useEffect(() => {
+    const loadHaggleSettings = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+          .from('social_haggle_settings')
+          .select('*')
+          .limit(1)
+          .single();
+
+        if (data) {
+          setIsEnabled(data.is_enabled ?? true);
+          setMaxDiscount(data.max_discount_pct ?? 15);
+          setMinMargin(data.min_margin_pct ?? 25);
+          setPersonality(data.personality_style || 'friendly_negotiator');
+        }
+      } catch (err) {
+        console.log("No existing haggle settings found, using defaults");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadHaggleSettings();
+  }, []);
+
+  const handleSaveHaggleSettings = async (newEnabled, newMax, newMargin, newPersona) => {
+    try {
+      setSaving(true);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase.from('social_haggle_settings').upsert({
+        store_id: user.id,
+        is_enabled: newEnabled,
+        max_discount_pct: newMax,
+        min_margin_pct: newMargin,
+        personality_style: newPersona
+      });
+
+      toast?.info("Haggle settings updated live!");
+    } catch (err) {
+      console.error("Save error:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(sampleCheckoutLink);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Loader2 size={32} className="spin" style={{ color: "var(--accent-primary)" }} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ paddingBottom: "var(--space-2xl)" }}>
@@ -36,7 +100,11 @@ export default function SocialSellingPage() {
         </div>
         <div className="page-header-actions">
           <button 
-            onClick={() => setIsEnabled(!isEnabled)}
+            onClick={() => {
+              const nextVal = !isEnabled;
+              setIsEnabled(nextVal);
+              handleSaveHaggleSettings(nextVal, maxDiscount, minMargin, personality);
+            }}
             className={`btn ${isEnabled ? 'btn-primary' : 'btn-secondary'} btn-sm`}
             style={{ display: "flex", alignItems: "center", gap: 6 }}
           >
@@ -65,7 +133,11 @@ export default function SocialSellingPage() {
                 min="5" 
                 max="40" 
                 value={maxDiscount} 
-                onChange={(e) => setMaxDiscount(parseInt(e.target.value))}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  setMaxDiscount(val);
+                  handleSaveHaggleSettings(isEnabled, val, minMargin, personality);
+                }}
                 style={{ width: "100%", accentColor: "var(--accent-green)" }}
               />
               <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 4 }}>AI bot will never exceed this discount rate during WhatsApp / IG haggling.</p>
@@ -81,7 +153,11 @@ export default function SocialSellingPage() {
                 min="10" 
                 max="50" 
                 value={minMargin} 
-                onChange={(e) => setMinMargin(parseInt(e.target.value))}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  setMinMargin(val);
+                  handleSaveHaggleSettings(isEnabled, maxDiscount, val, personality);
+                }}
                 style={{ width: "100%", accentColor: "var(--accent-green)" }}
               />
             </div>
@@ -90,7 +166,11 @@ export default function SocialSellingPage() {
               <label className="form-label">Negotiation Persona &amp; Strategy</label>
               <select
                 value={personality}
-                onChange={(e) => setPersonality(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setPersonality(val);
+                  handleSaveHaggleSettings(isEnabled, maxDiscount, minMargin, val);
+                }}
                 className="form-input"
               >
                 <option value="strict">Strict (Firm Pricing, High Margin Defense)</option>
@@ -111,19 +191,19 @@ export default function SocialSellingPage() {
 
             <div style={{ background: "var(--bg-glass)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "var(--space-md)", display: "flex", flexDirection: "column", gap: "var(--space-md)", fontSize: 12 }}>
               <div style={{ background: "var(--bg-primary)", padding: "var(--space-md)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", maxWidth: "85%", color: "var(--text-secondary)" }}>
-                Buyer: "Hey! Love the Silk Shirt. Can you give me a discount if I buy 2 today?"
+                Buyer: "Hey! Love the items. Can you give me a discount if I buy 2 today?"
               </div>
               <div style={{ background: "rgba(0, 230, 118, 0.08)", border: "1px solid rgba(0, 230, 118, 0.2)", padding: "var(--space-md)", borderRadius: "var(--radius-md)", maxWidth: "90%", marginLeft: "auto", color: "var(--text-primary)" }}>
                 <div>
-                  AI Bot: "I can definitely help with that! If you bundle 2 Silk Shirts right now, I can unlock an exclusive <strong style={{ color: "var(--accent-green)" }}>12% discount</strong> for you!"
+                  AI Bot ({personality}): "I can definitely help with that! If you bundle 2 items right now, I can unlock an exclusive <strong style={{ color: "var(--accent-green)" }}>{Math.min(maxDiscount, 12)}% discount</strong> for you!"
                 </div>
                 {/* 1-Tap Checkout Card Preview */}
                 <div style={{ background: "var(--bg-primary)", border: "1px solid var(--border-subtle)", padding: "var(--space-md)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, gap: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <ShoppingBag size={18} style={{ color: "var(--accent-green)" }} />
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: "var(--text-primary)" }}>2x Silk Shirts Bundle</div>
-                      <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}><span style={{ textDecoration: "line-through" }}>$178.00</span> → <strong style={{ color: "var(--accent-green)" }}>$156.64</strong></div>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: "var(--text-primary)" }}>2x Store Bundle</div>
+                      <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}><span style={{ textDecoration: "line-through" }}>$178.00</span> → <strong style={{ color: "var(--accent-green)" }}>${(178 * (1 - Math.min(maxDiscount, 12) / 100)).toFixed(2)}</strong></div>
                     </div>
                   </div>
                   <button className="btn btn-primary btn-sm" style={{ fontSize: 11, padding: "4px 8px" }}>
@@ -154,4 +234,5 @@ export default function SocialSellingPage() {
     </div>
   );
 }
+
 

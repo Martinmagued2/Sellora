@@ -1,15 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sparkles, Palette, Send, Copy, Check, Eye, Wand2, RefreshCw } from 'lucide-react';
+import { createClient } from "@/lib/supabase/client";
 
 export default function CreativeStudioPage() {
-  const [productName, setProductName] = useState('Sellora Premium Silk Shirt');
-  const [targetAudience, setTargetAudience] = useState('Luxury Fashion Buyers');
+  const [products, setProducts] = useState([]);
+  const [productName, setProductName] = useState('');
+  const [targetAudience, setTargetAudience] = useState('Fashion & Lifestyle Buyers');
   const [campaignStyle, setCampaignStyle] = useState('Luxury');
   const [loading, setLoading] = useState(false);
   const [generatedAsset, setGeneratedAsset] = useState(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: dbProducts } = await supabase
+          .from('products')
+          .select('id, name, category, price')
+          .eq('account_id', user.id)
+          .limit(20);
+
+        if (dbProducts && dbProducts.length > 0) {
+          setProducts(dbProducts);
+          setProductName(dbProducts[0].name);
+        } else {
+          setProductName('My Store Product');
+        }
+      } catch (err) {
+        console.error("Error loading products:", err);
+      }
+    };
+    loadProducts();
+  }, []);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -61,13 +89,28 @@ export default function CreativeStudioPage() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-lg)" }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Product Name</label>
-              <input
-                type="text"
-                className="form-input"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-              />
+              <label className="form-label">Select Real Store Product</label>
+              {products.length > 0 ? (
+                <select
+                  className="form-input"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                >
+                  {products.map(p => (
+                    <option key={p.id} value={p.name}>
+                      {p.name} {p.price ? `($${p.price})` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  className="form-input"
+                  value={productName}
+                  placeholder="Enter product name..."
+                  onChange={(e) => setProductName(e.target.value)}
+                />
+              )}
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -171,7 +214,7 @@ export default function CreativeStudioPage() {
             ) : (
               <div style={{ border: "1px dashed var(--border-medium)", borderRadius: "var(--radius-md)", padding: "40px", textAlign: "center", color: "var(--text-tertiary)" }}>
                 <Palette size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
-                <p style={{ fontSize: 13 }}>Configure parameters and click generate to watch AI synthesize custom ad assets!</p>
+                <p style={{ fontSize: 13 }}>Select a product and click generate to watch AI synthesize custom ad assets!</p>
               </div>
             )}
           </div>
@@ -187,4 +230,5 @@ export default function CreativeStudioPage() {
     </div>
   );
 }
+
 
