@@ -1058,17 +1058,17 @@ export default function AnalyticsPage() {
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
               {/* Revenue Chart */}
-              {sales && (
+              {salesData && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Revenue Trend</div>
-                  <LineChart data={sales.dailyRevenue || []} color="#3BA55C" height={100} label="Revenue" />
+                  <LineChart data={salesData?.dailyRevenue || []} color="#3BA55C" height={100} label="Revenue" />
                 </div>
               )}
               {/* Channel Distribution */}
-              {sales && sales.channelData && (
+              {salesData && salesData?.channelData && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Channel Distribution</div>
-                  <DonutChart data={sales.channelData || []} />
+                  <DonutChart data={salesData?.channelData || []} />
                 </div>
               )}
               {customerData ? (
