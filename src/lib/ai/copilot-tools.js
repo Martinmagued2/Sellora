@@ -2231,5 +2231,82 @@ Write ONLY the translation, no preamble. Preserve the tone, intent, and any name
         }
       },
     }),
+
+    // ─── PAYMENT TOOLS ───
+
+    send_payment_link: tool({
+      description: "Generate and send a Paymob payment link for an order. Use when the seller says 'send payment link', 'charge customer', 'collect payment', or when a customer needs to pay for an order. The link is sent directly to the customer's chat (WhatsApp/Instagram/Facebook).",
+      inputSchema: z.object({
+        order_id: z.string().describe("The order ID to generate a payment link for"),
+        message: z.string().optional().describe("Optional custom message to include with the payment link"),
+      }),
+      execute: async ({ order_id, message }) => {
+        try {
+          if (!order_id) {
+            return { success: false, error: "order_id is required" };
+          }
+
+          // Fetch the order
+          const { data: order, error: orderErr } = await supabase
+            .from("orders")
+            .select("id, order_number, total, currency, status, payment_status, account_id, customer:customers(id, name)")
+            .eq("id", order_id)
+            .eq("account_id", accountId)
+            .maybeSingle();
+
+          if (orderErr || !order) {
+            return { success: false, error: `Order not found (id: ${order_id})` };
+          }
+
+          if (order.payment_status === "paid") {
+            return {
+              success: false,
+              error: `Order ${order.order_number} is already paid.`,
+            };
+          }
+
+          // Generate Paymob checkout link
+          const checkoutResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_APP_URL || "https://www.sellorachat.com"}/api/paymob/order-checkout`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ orderId: order_id }),
+            }
+          );
+
+          const checkoutData = await checkoutResponse.json();
+
+          if (!checkoutResponse.ok || !checkoutData.payment_link) {
+            return {
+              success: false,
+              error: `Failed to generate payment link: ${checkoutData.error || "Unknown error"}`,
+            };
+          }
+
+          // Update the order with the payment link
+          await supabase
+            .from("orders")
+            .update({ payment_link: checkoutData.payment_link })
+            .eq("id", order_id);
+
+          // If the seller wants to send the link to the customer, do it via message_customer
+          const defaultMessage = `Hi ${order.customer?.name || ""}! Your order ${order.order_number} is ready. Total: ${order.total} ${order.currency}. Pay here: ${checkoutData.payment_link}`;
+          const finalMessage = message || defaultMessage;
+
+          return {
+            success: true,
+            message: `✅ Payment link generated for order ${order.order_number} (${order.total} ${order.currency}).`,
+            payment_link: checkoutData.payment_link,
+            order_number: order.order_number,
+            customer_name: order.customer?.name,
+            suggested_message: finalMessage,
+            _action: { type: "navigate", path: "/dashboard/orders", label: "View Orders" },
+          };
+        } catch (e) {
+          return { success: false, error: "Failed to generate payment link: " + e.message };
+        }
+      },
+    }),
   };
 };
