@@ -40,6 +40,7 @@ import {
   Smartphone,
   Store,
   Truck,
+  CheckSquare,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
@@ -87,6 +88,7 @@ const sidebarLinks = [
       { href: "/dashboard/copilot", icon: Sparkles, label: "AI Copilot" },
       { href: "/dashboard/conversations", icon: MessageCircle, label: "Conversations", badgeKey: "conversations" },
       { href: "/dashboard/orders", icon: ShoppingBag, label: "Orders", badgeKey: "orders" },
+      { href: "/dashboard/tasks", icon: CheckSquare, label: "Tasks" },
       { href: "/dashboard/abandoned-carts", icon: ShoppingCart, label: "Abandoned Carts" },
       { href: "/dashboard/notifications", icon: Bell, label: "Notifications" },
       { href: "/dashboard/referrals", icon: Gift, label: "Referrals" },
@@ -128,6 +130,7 @@ const pageTitles = {
   "/dashboard/copilot": "AI Copilot",
   "/dashboard/conversations": "Conversations",
   "/dashboard/orders": "Orders",
+  "/dashboard/tasks": "Tasks",
   "/dashboard/notifications": "Notifications",
   "/dashboard/products": "Products",
   "/dashboard/customers": "Customers",
