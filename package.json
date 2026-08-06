@@ -29,6 +29,7 @@
     "@react-three/fiber": "^9.6.1",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.3",
+    "@xyflow/react": "^12.11.2",
     "ai": "^6.0.168",
     "docx": "^9.7.1",
     "framer-motion": "^12.40.0",

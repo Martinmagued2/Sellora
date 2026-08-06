@@ -121,6 +121,7 @@ const sidebarLinks = [
     section: "Settings",
     links: [
       { href: "/dashboard/settings", icon: Settings, label: "Settings" },
+      { href: "/dashboard/audit-logs", icon: Shield, label: "Audit Logs" },
       { href: "/dashboard/billing", icon: CreditCard, label: "Billing" },
     ],
   },
@@ -143,6 +144,7 @@ const pageTitles = {
   "/dashboard/subscriptions": "Subscriptions",
   "/dashboard/analytics": "Analytics",
   "/dashboard/settings": "Settings",
+  "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/billing": "Billing",
   "/dashboard/automation": "Automation",
   "/dashboard/abandoned-carts": "Abandoned Carts",

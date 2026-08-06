@@ -5,9 +5,11 @@ const config: CapacitorConfig = {
   appName: 'Sellora',
   webDir: 'out',
   server: {
-    // In production, remove this and use the deployed URL
-    // url: 'https://your-vercel-app.vercel.app',
-    // cleartext: true,
+    // Production: points to the live web app (Capacitor wraps it as a native app)
+    url: process.env.NODE_ENV === 'production'
+      ? 'https://www.sellorachat.com'
+      : 'http://localhost:3000',
+    cleartext: true,
     androidScheme: 'https',
   },
   plugins: {
@@ -25,12 +27,17 @@ const config: CapacitorConfig = {
     App: {
       launchUrl: '/',
     },
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
   },
   android: {
     backgroundColor: '#191A23',
+    allowMixedContent: true,
   },
   ios: {
     backgroundColor: '#191A23',
+    contentInset: "always",
   },
 };
 

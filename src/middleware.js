@@ -5,6 +5,40 @@ import { checkRateLimit, rateLimitResponse, createRateLimitKey } from "@/lib/rat
 export async function middleware(request) {
   let supabaseResponse = NextResponse.next({ request });
 
+  // ─── White-Label Custom Domain Routing ───
+  // If the request comes from a custom domain (not sellorachat.com),
+  // look up the account by custom_domain and inject the account ID
+  // as a header so downstream code can use it for branding.
+  const hostname = request.headers.get("host") || "";
+  const isMainDomain = hostname.includes("sellorachat.com") || hostname.includes("localhost") || hostname.includes("vercel.app");
+
+  if (!isMainDomain) {
+    // This is a custom domain — look up the account
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
+      const { data: account } = await supabase
+        .from("accounts")
+        .select("id, business_name, branding_primary_color, branding_logo_url, hide_sellora_branding, is_whitelabel")
+        .eq("custom_domain", hostname)
+        .maybeSingle();
+
+      if (account) {
+        // Inject branding info as headers for downstream use
+        supabaseResponse.headers.set("x-whitelabel-account-id", account.id);
+        supabaseResponse.headers.set("x-whitelabel-business-name", account.business_name || "");
+        supabaseResponse.headers.set("x-whitelabel-primary-color", account.branding_primary_color || "#6c5ce7");
+        supabaseResponse.headers.set("x-whitelabel-logo-url", account.branding_logo_url || "");
+        supabaseResponse.headers.set("x-whitelabel-hide-branding", String(account.hide_sellora_branding || false));
+      }
+    } catch (e) {
+      // Non-critical — continue without white-label headers
+    }
+  }
+
   // ─── Rate Limiting (applied to all matched routes) ───
   const pathname = request.nextUrl.pathname;
   const method = request.method;
