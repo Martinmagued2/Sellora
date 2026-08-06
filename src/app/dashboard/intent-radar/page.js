@@ -28,140 +28,153 @@ export default function IntentRadarPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+    <div style={{ paddingBottom: "var(--space-2xl)" }}>
+      {/* Page Header */}
+      <div className="page-header">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-indigo-400">
-              <Radar className="w-6 h-6 animate-spin-slow" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-indigo-400 bg-clip-text text-transparent">
-                Predictive Intent Radar
-              </h1>
-              <p className="text-slate-400 text-sm mt-1">
-                Real-Time Live Visitor Scoring & One-Click Autonomous Conversion Interventions
-              </p>
-            </div>
-          </div>
+          <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Radar size={28} style={{ color: "var(--accent-primary-light)" }} />
+            Predictive Intent Radar
+          </h1>
+          <p style={{ color: "var(--text-tertiary)", fontSize: 13, marginTop: 4 }}>
+            Real-Time Live Visitor Scoring &amp; One-Click Autonomous Conversion Interventions
+          </p>
         </div>
-
-        <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 p-2 rounded-xl">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            4 Active Live Streamers
-          </div>
+        <div className="page-header-actions">
+          <span className="badge badge-success" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent-green)" }}></span>
+            4 Active Streamers
+          </span>
         </div>
       </div>
 
       {activeNotification && (
-        <div className="p-4 bg-indigo-500/20 border border-indigo-500/40 text-indigo-200 rounded-xl flex items-center justify-between animate-fade-in">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-400" />
-            <span>{activeNotification}</span>
-          </div>
+        <div style={{
+          padding: "var(--space-md) var(--space-lg)",
+          background: "rgba(108, 92, 231, 0.15)",
+          border: "1px solid rgba(108, 92, 231, 0.3)",
+          borderRadius: "var(--radius-md)",
+          color: "var(--accent-primary-light)",
+          marginBottom: "var(--space-lg)",
+          display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 500
+        }}>
+          <Sparkles size={18} />
+          {activeNotification}
         </div>
       )}
 
       {/* Analytics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl">
-          <div className="text-slate-400 text-xs font-medium flex items-center justify-between">
+      <div className="stats-grid" style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: "var(--space-md)",
+        marginBottom: "var(--space-xl)"
+      }}>
+        <div className="dashboard-panel" style={{ padding: "var(--space-lg)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-tertiary)", fontSize: 12 }}>
             <span>High Intent Buyers</span>
-            <Zap className="w-4 h-4 text-emerald-400" />
+            <Zap size={16} style={{ color: "var(--accent-green)" }} />
           </div>
-          <div className="text-2xl font-bold text-slate-100 mt-2">2 Visitors</div>
-          <div className="text-xs text-emerald-400 mt-1 font-medium">90%+ Conversion Probability</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 8, color: "var(--text-primary)" }}>2 Visitors</div>
+          <div style={{ fontSize: 12, color: "var(--accent-green)", marginTop: 4 }}>90%+ Conversion Probability</div>
         </div>
 
-        <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl">
-          <div className="text-slate-400 text-xs font-medium flex items-center justify-between">
+        <div className="dashboard-panel" style={{ padding: "var(--space-lg)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-tertiary)", fontSize: 12 }}>
             <span>Hesitating at Checkout</span>
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <AlertTriangle size={16} style={{ color: "var(--accent-orange)" }} />
           </div>
-          <div className="text-2xl font-bold text-slate-100 mt-2">1 Visitor</div>
-          <div className="text-xs text-amber-400 mt-1 font-medium">Needs Shipping / Discount Push</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 8, color: "var(--text-primary)" }}>1 Visitor</div>
+          <div style={{ fontSize: 12, color: "var(--accent-orange)", marginTop: 4 }}>Needs Shipping / Discount Push</div>
         </div>
 
-        <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl">
-          <div className="text-slate-400 text-xs font-medium flex items-center justify-between">
+        <div className="dashboard-panel" style={{ padding: "var(--space-lg)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-tertiary)", fontSize: 12 }}>
             <span>High Cart Abandon Risk</span>
-            <ShieldAlert className="w-4 h-4 text-rose-400" />
+            <ShieldAlert size={16} style={{ color: "var(--accent-red)" }} />
           </div>
-          <div className="text-2xl font-bold text-slate-100 mt-2">$410.00 At Risk</div>
-          <div className="text-xs text-rose-400 mt-1 font-medium">1 Idle Cart Session</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 8, color: "var(--text-primary)" }}>$410.00 At Risk</div>
+          <div style={{ fontSize: 12, color: "var(--accent-red)", marginTop: 4 }}>1 Idle Cart Session</div>
         </div>
 
-        <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl">
-          <div className="text-slate-400 text-xs font-medium flex items-center justify-between">
+        <div className="dashboard-panel" style={{ padding: "var(--space-lg)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-tertiary)", fontSize: 12 }}>
             <span>Auto Interventions</span>
-            <Activity className="w-4 h-4 text-indigo-400" />
+            <Activity size={16} style={{ color: "var(--accent-primary-light)" }} />
           </div>
-          <div className="text-2xl font-bold text-slate-100 mt-2">94.2% Success</div>
-          <div className="text-xs text-indigo-400 mt-1 font-medium">+ $1,280 Recovered Today</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 8, color: "var(--text-primary)" }}>94.2% Success</div>
+          <div style={{ fontSize: 12, color: "var(--accent-primary-light)", marginTop: 4 }}>+ $1,280 Recovered Today</div>
         </div>
       </div>
 
-      {/* Live Stream Table */}
-      <div className="bg-slate-900/50 border border-slate-800/80 rounded-2xl overflow-hidden">
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-indigo-400" />
-            Live Visitor Intent Radar & Direct Actions
-          </h2>
-          <span className="text-xs text-slate-400">Auto-refreshing live telemetry</span>
+      {/* Live Stream Panel */}
+      <div className="dashboard-panel">
+        <div className="dashboard-panel-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Activity size={18} style={{ color: "var(--accent-primary-light)" }} />
+            Live Visitor Intent Radar &amp; Direct Actions
+          </h3>
+          <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>Auto-refreshing live telemetry</span>
         </div>
 
-        <div className="divide-y divide-slate-800/60">
+        <div className="dashboard-panel-body" style={{ padding: 0 }}>
           {sessions.map((session) => (
-            <div key={session.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-800/30 transition">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${
-                  session.score > 80 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' :
-                  session.score > 60 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
-                  'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-                }`}>
+            <div key={session.id} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "var(--space-lg)", borderBottom: "1px solid var(--border-subtle)",
+              gap: "var(--space-md)"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: "var(--radius-md)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontWeight: 700, fontSize: 16,
+                  background: session.score > 80 ? "rgba(0, 230, 118, 0.12)" : session.score > 60 ? "rgba(255, 145, 0, 0.12)" : "rgba(255, 82, 82, 0.12)",
+                  color: session.score > 80 ? "var(--accent-green)" : session.score > 60 ? "var(--accent-orange)" : "var(--accent-red)",
+                  border: `1px solid ${session.score > 80 ? "rgba(0, 230, 118, 0.3)" : session.score > 60 ? "rgba(255, 145, 0, 0.3)" : "rgba(255, 82, 82, 0.3)"}`
+                }}>
                   {session.score}%
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-100">{session.name}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <strong style={{ fontSize: 14, color: "var(--text-primary)" }}>{session.name}</strong>
+                    <span style={{
+                      fontSize: 11, padding: "2px 8px", borderRadius: 10,
+                      background: "var(--bg-glass)", border: "1px solid var(--border-subtle)", color: "var(--text-tertiary)"
+                    }}>
                       {session.page}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 mt-1 flex items-center gap-3">
-                    <span>Cart: <strong className="text-slate-200">{session.cartValue}</strong></span>
+                  <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 4, display: "flex", gap: 12 }}>
+                    <span>Cart: <strong style={{ color: "var(--text-secondary)" }}>{session.cartValue}</strong></span>
                     <span>•</span>
-                    <span className="text-indigo-400 font-medium">{session.issue}</span>
+                    <span style={{ color: "var(--accent-primary-light)", fontWeight: 500 }}>{session.issue}</span>
                     <span>•</span>
-                    <span className="text-slate-500">{session.time}</span>
+                    <span>{session.time}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2">
+              <div>
                 {session.status === 'converted' ? (
-                  <span className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-lg flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> Intervention Active
+                  <span className="badge badge-success" style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px" }}>
+                    <CheckCircle2 size={14} /> Intervention Active
                   </span>
                 ) : (
-                  <>
+                  <div style={{ display: "flex", gap: "var(--space-xs)" }}>
                     <button 
                       onClick={() => triggerIntervention(session.id, 'Free Shipping Popup')}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition"
+                      className="btn btn-primary btn-sm"
                     >
                       Offer Free Shipping
                     </button>
                     <button 
                       onClick={() => triggerIntervention(session.id, 'AI Dynamic Discount')}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium rounded-lg transition"
+                      className="btn btn-secondary btn-sm"
                     >
                       10% AI Coupon
                     </button>
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -171,3 +184,4 @@ export default function IntentRadarPage() {
     </div>
   );
 }
+

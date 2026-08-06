@@ -22,51 +22,43 @@ export default function SocialSellingPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
-            <MessageSquare className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-emerald-400 bg-clip-text text-transparent">
-              Social Selling & Dynamic Haggle Engine
-            </h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Automated Conversational Negotiation Guardrails & Instant WhatsApp / Instagram Checkout Cards
-            </p>
-          </div>
+    <div style={{ paddingBottom: "var(--space-2xl)" }}>
+      {/* Page Header */}
+      <div className="page-header">
+        <div>
+          <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <MessageSquare size={28} style={{ color: "var(--accent-green)" }} />
+            Social Selling &amp; Dynamic Haggle Engine
+          </h1>
+          <p style={{ color: "var(--text-tertiary)", fontSize: 13, marginTop: 4 }}>
+            Automated Conversational Negotiation Guardrails &amp; Instant WhatsApp / Instagram Checkout Cards
+          </p>
         </div>
-
-        <div className="flex items-center gap-3">
+        <div className="page-header-actions">
           <button 
             onClick={() => setIsEnabled(!isEnabled)}
-            className={`px-4 py-2 text-xs font-semibold rounded-xl border transition flex items-center gap-2 ${
-              isEnabled 
-                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' 
-                : 'bg-slate-900 border-slate-800 text-slate-500'
-            }`}
+            className={`btn ${isEnabled ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
           >
-            <Zap className="w-4 h-4" />
+            <Zap size={14} />
             Haggle Bot: {isEnabled ? 'ACTIVE' : 'PAUSED'}
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "var(--space-xl)" }}>
         {/* Guardrail Controls */}
-        <div className="lg:col-span-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 space-y-6">
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-emerald-400" />
+        <div className="dashboard-panel" style={{ padding: "var(--space-xl)" }}>
+          <h3 style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-lg)" }}>
+            <Sliders size={18} style={{ color: "var(--accent-green)" }} />
             Merchant Dynamic Haggling Thresholds
-          </h2>
+          </h3>
 
-          <div className="space-y-6">
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xl)" }}>
             <div>
-              <div className="flex justify-between text-xs font-semibold text-slate-300 mb-2">
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 600, marginBottom: 8, color: "var(--text-secondary)" }}>
                 <span>Maximum Allowed Dynamic Discount Cap</span>
-                <span className="text-emerald-400 font-mono text-sm">{maxDiscount}%</span>
+                <span style={{ color: "var(--accent-green)", fontFamily: "monospace", fontSize: 14 }}>{maxDiscount}%</span>
               </div>
               <input 
                 type="range" 
@@ -74,15 +66,15 @@ export default function SocialSellingPage() {
                 max="40" 
                 value={maxDiscount} 
                 onChange={(e) => setMaxDiscount(parseInt(e.target.value))}
-                className="w-full accent-emerald-500 h-2 bg-slate-950 rounded-lg cursor-pointer"
+                style={{ width: "100%", accentColor: "var(--accent-green)" }}
               />
-              <p className="text-xs text-slate-500 mt-1">AI bot will never exceed this discount rate during WhatsApp / IG haggling.</p>
+              <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 4 }}>AI bot will never exceed this discount rate during WhatsApp / IG haggling.</p>
             </div>
 
             <div>
-              <div className="flex justify-between text-xs font-semibold text-slate-300 mb-2">
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 600, marginBottom: 8, color: "var(--text-secondary)" }}>
                 <span>Minimum Required Profit Margin Guardrail</span>
-                <span className="text-emerald-400 font-mono text-sm">{minMargin}%</span>
+                <span style={{ color: "var(--accent-green)", fontFamily: "monospace", fontSize: 14 }}>{minMargin}%</span>
               </div>
               <input 
                 type="range" 
@@ -90,18 +82,16 @@ export default function SocialSellingPage() {
                 max="50" 
                 value={minMargin} 
                 onChange={(e) => setMinMargin(parseInt(e.target.value))}
-                className="w-full accent-emerald-500 h-2 bg-slate-950 rounded-lg cursor-pointer"
+                style={{ width: "100%", accentColor: "var(--accent-green)" }}
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Negotiation Persona & Strategy
-              </label>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Negotiation Persona &amp; Strategy</label>
               <select
                 value={personality}
                 onChange={(e) => setPersonality(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-emerald-500/50 text-sm"
+                className="form-input"
               >
                 <option value="strict">Strict (Firm Pricing, High Margin Defense)</option>
                 <option value="friendly_negotiator">Friendly Negotiator (Balanced Discount for Fast Closes)</option>
@@ -112,50 +102,50 @@ export default function SocialSellingPage() {
         </div>
 
         {/* Live Simulation Preview */}
-        <div className="lg:col-span-6 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 space-y-6 flex flex-col justify-between">
+        <div className="dashboard-panel" style={{ padding: "var(--space-xl)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
-            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2 mb-4">
-              <MessageSquare className="w-5 h-5 text-indigo-400" />
+            <h3 style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-lg)" }}>
+              <MessageSquare size={18} style={{ color: "var(--accent-primary-light)" }} />
               Live WhatsApp / DM Conversation Simulator
-            </h2>
+            </h3>
 
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 font-sans text-xs">
-              <div className="bg-slate-900 p-3 rounded-xl max-w-[80%] text-slate-300 border border-slate-800">
+            <div style={{ background: "var(--bg-glass)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "var(--space-md)", display: "flex", flexDirection: "column", gap: "var(--space-md)", fontSize: 12 }}>
+              <div style={{ background: "var(--bg-primary)", padding: "var(--space-md)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", maxWidth: "85%", color: "var(--text-secondary)" }}>
                 Buyer: "Hey! Love the Silk Shirt. Can you give me a discount if I buy 2 today?"
               </div>
-              <div className="bg-emerald-950/40 border border-emerald-500/30 p-3 rounded-xl max-w-[85%] ml-auto text-emerald-200 space-y-2">
+              <div style={{ background: "rgba(0, 230, 118, 0.08)", border: "1px solid rgba(0, 230, 118, 0.2)", padding: "var(--space-md)", borderRadius: "var(--radius-md)", maxWidth: "90%", marginLeft: "auto", color: "var(--text-primary)" }}>
                 <div>
-                  AI Bot: "I can definitely help with that! If you bundle 2 Silk Shirts right now, I can unlock an exclusive <strong>12% discount</strong> for you!"
+                  AI Bot: "I can definitely help with that! If you bundle 2 Silk Shirts right now, I can unlock an exclusive <strong style={{ color: "var(--accent-green)" }}>12% discount</strong> for you!"
                 </div>
                 {/* 1-Tap Checkout Card Preview */}
-                <div className="bg-slate-900/90 border border-slate-700/80 p-3 rounded-lg flex items-center justify-between gap-3 mt-2">
-                  <div className="flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-emerald-400" />
+                <div style={{ background: "var(--bg-primary)", border: "1px solid var(--border-subtle)", padding: "var(--space-md)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <ShoppingBag size={18} style={{ color: "var(--accent-green)" }} />
                     <div>
-                      <div className="font-semibold text-slate-100 text-[11px]">2x Silk Shirts Bundle</div>
-                      <div className="text-[10px] text-slate-400 line-through">$178.00 → <strong className="text-emerald-400">$156.64</strong></div>
+                      <div style={{ fontWeight: 600, fontSize: 12, color: "var(--text-primary)" }}>2x Silk Shirts Bundle</div>
+                      <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}><span style={{ textDecoration: "line-through" }}>$178.00</span> → <strong style={{ color: "var(--accent-green)" }}>$156.64</strong></div>
                     </div>
                   </div>
-                  <button className="px-3 py-1.5 bg-emerald-500 text-slate-950 font-bold rounded-md text-[10px] hover:bg-emerald-400 flex items-center gap-1">
-                    1-Tap Pay <ArrowUpRight className="w-3 h-3" />
+                  <button className="btn btn-primary btn-sm" style={{ fontSize: 11, padding: "4px 8px" }}>
+                    1-Tap Pay <ArrowUpRight size={12} />
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-800/80 space-y-3">
-            <div className="text-xs text-slate-400 flex items-center justify-between">
+          <div style={{ paddingTop: "var(--space-md)", borderTop: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--text-tertiary)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>Dynamic 1-Tap Checkout Link Generator:</span>
               <button 
                 onClick={handleCopyLink}
-                className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 text-xs"
+                style={{ background: "none", border: "none", color: "var(--accent-green)", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}
               >
-                {copiedLink ? <CheckCircle className="w-3.5 h-3.5" /> : <Link className="w-3.5 h-3.5" />}
+                {copiedLink ? <CheckCircle size={14} /> : <Link size={14} />}
                 {copiedLink ? 'Copied Link' : 'Copy Test Link'}
               </button>
             </div>
-            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-400 truncate">
+            <div style={{ background: "var(--bg-glass)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-subtle)", fontFamily: "monospace", fontSize: 11, color: "var(--text-tertiary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {sampleCheckoutLink}
             </div>
           </div>
@@ -164,3 +154,4 @@ export default function SocialSellingPage() {
     </div>
   );
 }
+

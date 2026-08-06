@@ -37,71 +37,58 @@ export default function CreativeStudioPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-pink-500/10 border border-pink-500/30 rounded-xl text-pink-400">
-            <Sparkles className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-pink-400 bg-clip-text text-transparent">
-              Autonomous Creative Studio
-            </h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Synthesize Multi-Style Ad Copy & Dynamic Lifestyle Visual Assets in Seconds
-            </p>
-          </div>
+    <div style={{ paddingBottom: "var(--space-2xl)" }}>
+      {/* Page Header */}
+      <div className="page-header">
+        <div>
+          <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Sparkles size={28} style={{ color: "var(--accent-orange)" }} />
+            Autonomous Creative Studio
+          </h1>
+          <p style={{ color: "var(--text-tertiary)", fontSize: 13, marginTop: 4 }}>
+            Synthesize Multi-Style Ad Copy &amp; Dynamic Lifestyle Visual Assets in Seconds
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "var(--space-xl)" }}>
         {/* Generator Controls */}
-        <div className="lg:col-span-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 space-y-6">
-          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-            <Wand2 className="w-5 h-5 text-pink-400" />
+        <div className="dashboard-panel" style={{ padding: "var(--space-xl)" }}>
+          <h3 style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-lg)" }}>
+            <Wand2 size={18} style={{ color: "var(--accent-orange)" }} />
             Campaign Parameters
-          </h2>
+          </h3>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Product Name
-              </label>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-lg)" }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Product Name</label>
               <input
                 type="text"
+                className="form-input"
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-pink-500/50"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Target Audience Profile
-              </label>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Target Audience Profile</label>
               <input
                 type="text"
+                className="form-input"
                 value={targetAudience}
                 onChange={(e) => setTargetAudience(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-pink-500/50"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Creative Tone / Style
-              </label>
-              <div className="grid grid-cols-3 gap-2">
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Creative Tone / Style</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--space-xs)" }}>
                 {['Luxury', 'FOMO / Urgent', 'Social Proof'].map((style) => (
                   <button
                     key={style}
                     onClick={() => setCampaignStyle(style)}
-                    className={`py-2 px-3 text-xs font-medium rounded-xl border transition ${
-                      campaignStyle === style
-                        ? 'bg-pink-500/20 border-pink-500 text-pink-300'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
+                    className={`btn ${campaignStyle === style ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                    style={{ fontSize: 11 }}
                   >
                     {style}
                   </button>
@@ -112,15 +99,16 @@ export default function CreativeStudioPage() {
             <button
               onClick={handleGenerate}
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition shadow-lg shadow-pink-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
+              className="btn btn-primary"
+              style={{ width: "100%", padding: "12px", justifyContent: "center" }}
             >
               {loading ? (
                 <>
-                  <RefreshCw className="w-5 h-5 animate-spin" /> Synthesizing Creative...
+                  <RefreshCw size={16} className="spin" /> Synthesizing Creative...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-5 h-5" /> Generate Campaign Studio Package
+                  <Sparkles size={16} /> Generate Campaign Studio Package
                 </>
               )}
             </button>
@@ -128,62 +116,70 @@ export default function CreativeStudioPage() {
         </div>
 
         {/* Live Asset Preview Canvas */}
-        <div className="lg:col-span-7 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 space-y-6 flex flex-col justify-between">
+        <div className="dashboard-panel" style={{ padding: "var(--space-xl)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
-            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2 mb-4">
-              <Eye className="w-5 h-5 text-indigo-400" />
+            <h3 style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--space-lg)" }}>
+              <Eye size={18} style={{ color: "var(--accent-primary-light)" }} />
               Generated Campaign Asset Canvas
-            </h2>
+            </h3>
 
             {generatedAsset ? (
-              <div className="space-y-6">
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-lg)" }}>
                 {/* Visual Banner Preview */}
-                <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 p-8 min-h-[220px] flex flex-col justify-end shadow-2xl">
-                  <div className="absolute top-4 right-4 bg-pink-500/20 border border-pink-500/40 text-pink-300 text-xs px-3 py-1 rounded-full font-semibold">
+                <div style={{
+                  position: "relative", borderRadius: "var(--radius-md)", overflow: "hidden",
+                  border: "1px solid var(--border-subtle)", background: "linear-gradient(135deg, rgba(108, 92, 231, 0.2) 0%, rgba(15, 23, 42, 0.9) 100%)",
+                  padding: "var(--space-xl)", minHeight: 200, display: "flex", flexDirection: "column", justifyContent: "flex-end"
+                }}>
+                  <div style={{
+                    position: "absolute", top: 12, right: 12, background: "rgba(255, 145, 0, 0.2)",
+                    border: "1px solid rgba(255, 145, 0, 0.4)", color: "var(--accent-orange)",
+                    fontSize: 10, padding: "2px 8px", borderRadius: 10, fontWeight: 700
+                  }}>
                     {generatedAsset.campaignStyle} Theme
                   </div>
-                  <h3 className="text-2xl font-bold text-white max-w-lg leading-snug">
+                  <h3 style={{ fontSize: 20, fontWeight: 700, color: "#fff", lineHeight: 1.3 }}>
                     {generatedAsset.headline}
                   </h3>
-                  <p className="text-slate-300 text-sm mt-2 max-w-md">
+                  <p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 8 }}>
                     {generatedAsset.body}
                   </p>
-                  <div className="mt-4">
-                    <button className="px-5 py-2.5 bg-white text-slate-950 font-bold rounded-xl text-xs hover:bg-slate-200 transition">
+                  <div style={{ marginTop: 16 }}>
+                    <button className="btn btn-primary btn-sm">
                       {generatedAsset.cta} →
                     </button>
                   </div>
                 </div>
 
                 {/* Asset Details & Copy Action */}
-                <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span className="font-semibold text-slate-300">Generated Ad Copy</span>
+                <div style={{ padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
+                    <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Generated Ad Copy</span>
                     <button
                       onClick={() => handleCopy(`${generatedAsset.headline}\n${generatedAsset.body}`)}
-                      className="text-pink-400 hover:text-pink-300 flex items-center gap-1 font-medium"
+                      style={{ background: "none", border: "none", color: "var(--accent-primary-light)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}
                     >
-                      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copied ? 'Copied' : 'Copy Copywriter Snippet'}
+                      {copied ? <Check size={12} /> : <Copy size={12} />}
+                      {copied ? 'Copied' : 'Copy Snippet'}
                     </button>
                   </div>
-                  <p className="text-xs text-slate-300 font-mono bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                  <p style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "monospace", margin: 0 }}>
                     {generatedAsset.headline} - {generatedAsset.body}
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="border border-dashed border-slate-800 rounded-2xl p-12 text-center text-slate-500 space-y-3">
-                <Palette className="w-10 h-10 mx-auto text-slate-600" />
-                <p className="text-sm">Configure parameters and hit generate to watch AI synthesize custom ad assets!</p>
+              <div style={{ border: "1px dashed var(--border-medium)", borderRadius: "var(--radius-md)", padding: "40px", textAlign: "center", color: "var(--text-tertiary)" }}>
+                <Palette size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+                <p style={{ fontSize: 13 }}>Configure parameters and click generate to watch AI synthesize custom ad assets!</p>
               </div>
             )}
           </div>
 
-          <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+          <div style={{ paddingTop: "var(--space-md)", borderTop: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: "var(--text-tertiary)" }}>
             <span>Ready to dispatch to Meta / WhatsApp / Klaviyo</span>
-            <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl transition flex items-center gap-2">
-              <Send className="w-4 h-4 text-pink-400" /> 1-Click Launch Campaign
+            <button className="btn btn-secondary btn-sm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Send size={14} style={{ color: "var(--accent-orange)" }} /> Launch Campaign
             </button>
           </div>
         </div>
@@ -191,3 +187,4 @@ export default function CreativeStudioPage() {
     </div>
   );
 }
+
