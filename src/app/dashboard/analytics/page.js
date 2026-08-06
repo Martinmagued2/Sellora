@@ -28,6 +28,7 @@ function TrendArrow({ value }) {
 
 export default function AnalyticsPage() {
   const toast = useToast();
+  const [renderError, setRenderError] = useState(null);
   const [stats, setStats] = useState(null);
   const [salesData, setSalesData] = useState(null);
   const [customerData, setCustomerData] = useState(null);
@@ -170,6 +171,19 @@ export default function AnalyticsPage() {
 
   if (loading || !stats) {
     return <PageSkeleton showStats={true} showTable={false} />;
+  }
+
+  if (renderError) {
+    return (
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <AlertTriangle size={48} color="var(--accent-red)" style={{ marginBottom: 16 }} />
+        <h2 style={{ marginBottom: 8 }}>Analytics Error</h2>
+        <p style={{ color: "var(--text-tertiary)", marginBottom: 20 }}>{renderError}</p>
+        <button onClick={() => { setRenderError(null); window.location.reload(); }} className="btn btn-primary">
+          Reload Page
+        </button>
+      </div>
+    );
   }
 
   const intentColors = {
@@ -590,7 +604,7 @@ export default function AnalyticsPage() {
             <div className="dashboard-panel-header">
               <h3>Conversion Funnel</h3>
               <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-                {funnelData ? `Overall: ${funnelData.conversion.overallConversion}% → Paid` : "Loading..."}
+                {funnelData ? `Overall: ${funnelData?.conversion?.overallConversion || 0}% → Paid` : "Loading..."}
               </span>
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
@@ -611,11 +625,11 @@ export default function AnalyticsPage() {
                   {/* Funnel Steps with Drop-off */}
                   <div style={{ display: "flex", alignItems: "stretch", gap: 0, marginBottom: "var(--space-xl)" }}>
                     {[
-                      { label: "Messages Received", value: funnelData.steps.messages, color: "var(--text-secondary)", icon: <MessageCircle size={16} /> },
-                      { label: "Conversations", value: funnelData.steps.conversations, color: "var(--accent-primary-light)", icon: <MessageCircle size={16} /> },
-                      { label: "Products Sent", value: funnelData.steps.productsSent, color: "var(--accent-secondary)", icon: <Package size={16} /> },
-                      { label: "Orders Created", value: funnelData.steps.ordersCreated, color: "var(--accent-orange)", icon: <ShoppingBag size={16} /> },
-                      { label: "Orders Paid", value: funnelData.steps.ordersPaid, color: "var(--accent-green)", icon: <CreditCard size={16} /> },
+                      { label: "Messages Received", value: funnelData?.steps?.messages, color: "var(--text-secondary)", icon: <MessageCircle size={16} /> },
+                      { label: "Conversations", value: funnelData?.steps?.conversations, color: "var(--accent-primary-light)", icon: <MessageCircle size={16} /> },
+                      { label: "Products Sent", value: funnelData?.steps?.productsSent, color: "var(--accent-secondary)", icon: <Package size={16} /> },
+                      { label: "Orders Created", value: funnelData?.steps?.ordersCreated, color: "var(--accent-orange)", icon: <ShoppingBag size={16} /> },
+                      { label: "Orders Paid", value: funnelData?.steps?.ordersPaid, color: "var(--accent-green)", icon: <CreditCard size={16} /> },
                     ].map((step, i, arr) => {
                       const maxWidth = arr[0].value > 0 ? Math.max(30, (step.value / arr[0].value) * 100) : 30;
                       const prevValue = i > 0 ? arr[i - 1].value : null;
@@ -647,7 +661,7 @@ export default function AnalyticsPage() {
                           </div>
                           {i > 0 && prevValue > 0 && (
                             <div style={{ fontSize: 9, color: "var(--accent-red)", marginTop: 2, fontWeight: 600 }}>
-                              ↓ {funnelData.dropoff[Object.keys(funnelData.dropoff)[i - 1]]}% drop-off
+                              ↓ {funnelData?.dropoff[Object.keys(funnelData?.dropoff)[i - 1]]}% drop-off
                             </div>
                           )}
                         </div>
@@ -663,9 +677,9 @@ export default function AnalyticsPage() {
                         Avg Time Between Steps
                       </div>
                       {[
-                        { label: "Message → Product", value: funnelData.avgTimeBetweenSteps.messageToProduct, icon: <Zap size={12} /> },
-                        { label: "Product → Order", value: funnelData.avgTimeBetweenSteps.productToOrder, icon: <ShoppingBag size={12} /> },
-                        { label: "Order → Paid", value: funnelData.avgTimeBetweenSteps.orderToPaid, icon: <CreditCard size={12} /> },
+                        { label: "Message → Product", value: funnelData?.avgTimeBetweenSteps?.messageToProduct, icon: <Zap size={12} /> },
+                        { label: "Product → Order", value: funnelData?.avgTimeBetweenSteps?.productToOrder, icon: <ShoppingBag size={12} /> },
+                        { label: "Order → Paid", value: funnelData?.avgTimeBetweenSteps?.orderToPaid, icon: <CreditCard size={12} /> },
                       ].map((item, i) => (
                         <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-sm) 0", borderBottom: i < 2 ? "1px solid var(--border-subtle)" : "none" }}>
                           <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
@@ -684,9 +698,9 @@ export default function AnalyticsPage() {
                         Funnel by Channel
                       </div>
                       {[
-                        { label: "Instagram", data: funnelData.funnelByChannel.instagram, color: "#E1306C" },
-                        { label: "Facebook", data: funnelData.funnelByChannel.facebook, color: "#1877F2" },
-                        { label: "WhatsApp", data: funnelData.funnelByChannel.whatsapp, color: "#25D366" },
+                        { label: "Instagram", data: funnelData?.funnelByChannel?.instagram, color: "#E1306C" },
+                        { label: "Facebook", data: funnelData?.funnelByChannel?.facebook, color: "#1877F2" },
+                        { label: "WhatsApp", data: funnelData?.funnelByChannel?.whatsapp, color: "#25D366" },
                       ].map((ch, i) => {
                         const chConvRate = ch.data?.conversations > 0
                           ? ((ch.data.ordersPaid / ch.data.conversations) * 100).toFixed(1)
@@ -732,7 +746,7 @@ export default function AnalyticsPage() {
           {/* ═══════════════════════════════════════════════════════════════
               Weekly Funnel Trends
               ═══════════════════════════════════════════════════════════════ */}
-          {funnelData && funnelData.funnelOverTime && funnelData.funnelOverTime.length > 0 && (
+          {funnelData && funnelData?.funnelOverTime && funnelData?.funnelOverTime.length > 0 && (
             <div className="dashboard-panel" style={{ marginBottom: "var(--space-lg)" }}>
               <div className="dashboard-panel-header">
                 <h3>Weekly Funnel Trends</h3>
@@ -742,8 +756,8 @@ export default function AnalyticsPage() {
               </div>
               <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
                 <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-md)", height: 140 }}>
-                  {funnelData.funnelOverTime.map((week, i) => {
-                    const maxConvs = Math.max(...funnelData.funnelOverTime.map(w => w.conversations), 1);
+                  {funnelData?.funnelOverTime.map((week, i) => {
+                    const maxConvs = Math.max(...funnelData?.funnelOverTime.map(w => w.conversations), 1);
                     const convPct = (week.conversations / maxConvs) * 100;
                     const orderPct = week.conversations > 0 ? (week.orders / week.conversations) * 100 : 0;
                     const paidPct = week.conversations > 0 ? (week.paid / week.conversations) * 100 : 0;
@@ -830,27 +844,27 @@ export default function AnalyticsPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
                     <div style={{ textAlign: "center", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                       <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: "var(--accent-green)" }}>
-                        {salesData.totalRevenue.toLocaleString()} EGP
+                        {salesData?.totalRevenue.toLocaleString()} EGP
                       </div>
                       <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 }}>Total Revenue</div>
-                      <TrendArrow value={salesData.revenueTrend} />
+                      <TrendArrow value={salesData?.revenueTrend} />
                     </div>
                     <div style={{ textAlign: "center", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                       <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: "var(--accent-primary-light)" }}>
-                        {salesData.totalPaidOrders}
+                        {salesData?.totalPaidOrders}
                       </div>
                       <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 }}>Paid Orders</div>
-                      <TrendArrow value={salesData.ordersTrend} />
+                      <TrendArrow value={salesData?.ordersTrend} />
                     </div>
                     <div style={{ textAlign: "center", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                       <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: "var(--accent-orange)" }}>
-                        {salesData.avgOrderValue.toLocaleString()} EGP
+                        {salesData?.avgOrderValue.toLocaleString()} EGP
                       </div>
                       <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 }}>Avg Order Value</div>
                     </div>
                     <div style={{ textAlign: "center", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
-                      <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: salesData.weeklyComparison.change >= 0 ? "var(--accent-green)" : "var(--accent-red)" }}>
-                        {salesData.weeklyComparison.change >= 0 ? "+" : ""}{salesData.weeklyComparison.change}%
+                      <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: salesData?.weeklyComparison?.change >= 0 ? "var(--accent-green)" : "var(--accent-red)" }}>
+                        {salesData?.weeklyComparison?.change >= 0 ? "+" : ""}{salesData?.weeklyComparison?.change}%
                       </div>
                       <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 }}>This Week vs Last</div>
                     </div>
@@ -861,22 +875,22 @@ export default function AnalyticsPage() {
                     <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                       Daily Revenue
                     </div>
-                    {salesData.dailyRevenue.length > 0 ? (
+                    {salesData?.dailyRevenue.length > 0 ? (
                       <div style={{ position: "relative", height: 160 }}>
                         {/* Y-axis labels */}
                         <div style={{ position: "absolute", left: 0, top: 0, bottom: 24, width: 50, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                           {[...Array(5)].map((_, i) => {
-                            const maxRev = Math.max(...salesData.dailyRevenue.map(d => d.revenue), 1);
+                            const maxRev = Math.max(...salesData?.dailyRevenue.map(d => d.revenue), 1);
                             const val = Math.round(maxRev * (1 - i / 4));
                             return <div key={i} style={{ fontSize: 9, color: "var(--text-tertiary)", textAlign: "right", paddingRight: 4 }}>{val.toLocaleString()}</div>;
                           })}
                         </div>
                         {/* Bars */}
                         <div style={{ marginLeft: 56, height: "100%", display: "flex", alignItems: "flex-end", gap: 1, paddingBottom: 24 }}>
-                          {salesData.dailyRevenue.map((day, i) => {
-                            const maxRev = Math.max(...salesData.dailyRevenue.map(d => d.revenue), 1);
+                          {salesData?.dailyRevenue.map((day, i) => {
+                            const maxRev = Math.max(...salesData?.dailyRevenue.map(d => d.revenue), 1);
                             const pct = maxRev > 0 ? (day.revenue / maxRev) * 100 : 0;
-                            const isToday = i === salesData.dailyRevenue.length - 1;
+                            const isToday = i === salesData?.dailyRevenue.length - 1;
                             return (
                               <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" }}>
                                 <div title={`${day.date}: ${day.revenue.toLocaleString()} EGP (${day.orders} orders)`} style={{
@@ -886,7 +900,7 @@ export default function AnalyticsPage() {
                                   borderRadius: "3px 3px 0 0", transition: "all 0.4s ease",
                                   cursor: "default",
                                 }} />
-                                {i % Math.max(1, Math.floor(salesData.dailyRevenue.length / 10)) === 0 && (
+                                {i % Math.max(1, Math.floor(salesData?.dailyRevenue.length / 10)) === 0 && (
                                   <div style={{ fontSize: 8, color: "var(--text-tertiary)", marginTop: 4, whiteSpace: "nowrap" }}>
                                     {day.date.slice(5)}
                                   </div>
@@ -909,9 +923,9 @@ export default function AnalyticsPage() {
                         Revenue by Channel
                       </div>
                       {[
-                        { label: "Instagram", value: salesData.channelRevenue.instagram, color: "#E1306C" },
-                        { label: "Facebook", value: salesData.channelRevenue.facebook, color: "#1877F2" },
-                        { label: "WhatsApp", value: salesData.channelRevenue.whatsapp, color: "#25D366" },
+                        { label: "Instagram", value: salesData?.channelRevenue?.instagram, color: "#E1306C" },
+                        { label: "Facebook", value: salesData?.channelRevenue?.facebook, color: "#1877F2" },
+                        { label: "WhatsApp", value: salesData?.channelRevenue?.whatsapp, color: "#25D366" },
                       ].map((ch, i) => {
                         const total = Object.values(salesData.channelRevenue).reduce((a, b) => a + b, 0);
                         const pct = total > 0 ? ((ch.value / total) * 100).toFixed(1) : 0;
@@ -934,10 +948,10 @@ export default function AnalyticsPage() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                         Revenue by Payment Method
                       </div>
-                      {Object.entries(salesData.paymentMethodRevenue).length > 0 ? Object.entries(salesData.paymentMethodRevenue)
+                      {Object.entries(salesData?.paymentMethodRevenue).length > 0 ? Object.entries(salesData?.paymentMethodRevenue)
                         .sort((a, b) => b[1] - a[1])
                         .map(([method, value], i) => {
-                          const total = Object.values(salesData.paymentMethodRevenue).reduce((a, b) => a + b, 0);
+                          const total = Object.values(salesData?.paymentMethodRevenue).reduce((a, b) => a + b, 0);
                           const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                           const methodColors = { cod: "#F8A532", paymob: "#5865F2", vodafone_cash: "#E1306C", instapay: "#3BA55C", card: "#00D2FF" };
                           const methodLabels = { cod: "Cash on Delivery", paymob: "Paymob", vodafone_cash: "Vodafone Cash", instapay: "InstaPay", card: "Card" };
@@ -1039,7 +1053,7 @@ export default function AnalyticsPage() {
             <div className="dashboard-panel-header">
               <h3>Customer Insights</h3>
               <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-                {customerData ? `${customerData.totalCustomers} total customers` : "Loading..."}
+                {customerData ? `${customerData?.totalCustomers} total customers` : "Loading..."}
               </span>
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
@@ -1062,12 +1076,12 @@ export default function AnalyticsPage() {
                   {/* Customer KPIs */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
                     {[
-                      { label: "Total Customers", value: customerData.totalCustomers, color: "var(--accent-primary-light)" },
-                      { label: "New This Month", value: customerData.newThisMonth, color: "var(--accent-secondary)" },
-                      { label: "Returning", value: customerData.returningCustomers, color: "var(--accent-green)" },
-                      { label: "Avg Lifetime Value", value: `${customerData.avgLifetimeValue.toLocaleString()} EGP`, color: "var(--accent-orange)" },
-                      { label: "Avg Order Value", value: `${customerData.avgOrderValue.toLocaleString()} EGP`, color: "var(--accent-primary-light)" },
-                      { label: "Retention Rate", value: `${customerData.retentionRate}%`, color: customerData.retentionRate > 30 ? "var(--accent-green)" : "var(--accent-orange)" },
+                      { label: "Total Customers", value: customerData?.totalCustomers, color: "var(--accent-primary-light)" },
+                      { label: "New This Month", value: customerData?.newThisMonth, color: "var(--accent-secondary)" },
+                      { label: "Returning", value: customerData?.returningCustomers, color: "var(--accent-green)" },
+                      { label: "Avg Lifetime Value", value: `${customerData?.avgLifetimeValue.toLocaleString()} EGP`, color: "var(--accent-orange)" },
+                      { label: "Avg Order Value", value: `${customerData?.avgOrderValue.toLocaleString()} EGP`, color: "var(--accent-primary-light)" },
+                      { label: "Retention Rate", value: `${customerData?.retentionRate}%`, color: customerData?.retentionRate > 30 ? "var(--accent-green)" : "var(--accent-orange)" },
                     ].map((kpi, i) => (
                       <div key={i} style={{ textAlign: "center", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                         <div style={{ fontSize: "var(--font-size-xl)", fontWeight: 800, color: kpi.color }}>{kpi.value}</div>
@@ -1084,30 +1098,30 @@ export default function AnalyticsPage() {
                       </div>
                       <div style={{ display: "flex", height: 40, borderRadius: 12, overflow: "hidden", marginBottom: "var(--space-md)" }}>
                         <div style={{
-                          width: `${customerData.newVsReturning.newPct}%`,
+                          width: `${customerData?.newVsReturning.newPct}%`,
                           background: "var(--accent-secondary)", display: "flex", alignItems: "center",
                           justifyContent: "center", color: "white", fontSize: 11, fontWeight: 700, minWidth: 40,
                           transition: "width 0.8s ease",
                         }}>
-                          {customerData.newVsReturning.newPct}%
+                          {customerData?.newVsReturning.newPct}%
                         </div>
                         <div style={{
-                          width: `${customerData.newVsReturning.returningPct}%`,
+                          width: `${customerData?.newVsReturning.returningPct}%`,
                           background: "var(--accent-green)", display: "flex", alignItems: "center",
                           justifyContent: "center", color: "white", fontSize: 11, fontWeight: 700, minWidth: 40,
                           transition: "width 0.8s ease",
                         }}>
-                          {customerData.newVsReturning.returningPct}%
+                          {customerData?.newVsReturning.returningPct}%
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: "var(--space-xl)" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <div style={{ width: 10, height: 10, borderRadius: 3, background: "var(--accent-secondary)" }} />
-                          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>New ({customerData.newVsReturning.new})</span>
+                          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>New ({customerData?.newVsReturning.new})</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <div style={{ width: 10, height: 10, borderRadius: 3, background: "var(--accent-green)" }} />
-                          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>Returning ({customerData.newVsReturning.returning})</span>
+                          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>Returning ({customerData?.newVsReturning.returning})</span>
                         </div>
                       </div>
 
@@ -1116,8 +1130,8 @@ export default function AnalyticsPage() {
                         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                           Customer Segments
                         </div>
-                        {Object.entries(customerData.segments).map(([segment, count], i) => {
-                          const total = Object.values(customerData.segments).reduce((a, b) => a + b, 0);
+                        {Object.entries(customerData?.segments).map(([segment, count], i) => {
+                          const total = Object.values(customerData?.segments).reduce((a, b) => a + b, 0);
                           const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
                           const segColors = ["var(--accent-green)", "var(--accent-primary-light)", "var(--accent-orange)", "var(--text-tertiary)"];
                           return (
@@ -1143,8 +1157,8 @@ export default function AnalyticsPage() {
                           Customer Growth (Last 30 Days)
                         </div>
                         <div style={{ height: 60, display: "flex", alignItems: "flex-end", gap: 1 }}>
-                          {customerData.customerGrowth.map((day, i) => {
-                            const maxCount = Math.max(...customerData.customerGrowth.map(d => d.count), 1);
+                          {customerData?.customerGrowth.map((day, i) => {
+                            const maxCount = Math.max(...customerData?.customerGrowth.map(d => d.count), 1);
                             const pct = (day.count / maxCount) * 100;
                             return (
                               <div key={i} title={`${day.date}: ${day.count} new customers`} style={{
@@ -1163,10 +1177,10 @@ export default function AnalyticsPage() {
                         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                           Most Active Customers
                         </div>
-                        {customerData.mostActive.length === 0 ? (
+                        {customerData?.mostActive.length === 0 ? (
                           <p style={{ textAlign: "center", color: "var(--text-tertiary)", padding: "var(--space-md)", fontSize: "var(--font-size-sm)" }}>No active customers yet</p>
                         ) : (
-                          customerData.mostActive.slice(0, 5).map((c, i) => (
+                          customerData?.mostActive.slice(0, 5).map((c, i) => (
                             <div key={i} style={{
                               display: "flex", alignItems: "center", gap: "var(--space-sm)",
                               padding: "6px var(--space-md)", borderRadius: 10, marginBottom: 4,
@@ -1209,14 +1223,14 @@ export default function AnalyticsPage() {
             <div className="dashboard-panel-header">
               <h3>AI Performance</h3>
               <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-                {aiData ? `${aiData.aiPct}% AI-assisted` : "Loading..."}
+                {aiData ? `${aiData?.aiPct}% AI-assisted` : "Loading..."}
               </span>
             </div>
             <div className="dashboard-panel-body" style={{ padding: "var(--space-xl)" }}>
               {/* AI Deflection Gauge */}
               {aiData && (
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
-                  <GaugeChart value={Math.round(parseFloat(aiData.aiPct || 0))} label="AI Resolution Rate" color="#00D2FF" />
+                  <GaugeChart value={Math.round(parseFloat(aiData?.aiPct || 0))} label="AI Resolution Rate" color="#00D2FF" />
                 </div>
               )}
               {aiData ? (
@@ -1229,11 +1243,11 @@ export default function AnalyticsPage() {
                         <Bot size={24} style={{ color: "var(--accent-secondary)" }} />
                       </div>
                       <div style={{ fontSize: "var(--font-size-3xl)", fontWeight: 800, color: "var(--accent-secondary)" }}>
-                        {aiData.aiResolutionRate}%
+                        {aiData?.aiResolutionRate}%
                       </div>
                       <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 }}>AI Resolution Rate</div>
                       <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 4 }}>
-                        {aiData.aiOnlyConvsCount} of {aiData.closedConvsCount} closed convs
+                        {aiData?.aiOnlyConvsCount} of {aiData?.closedConvsCount} closed convs
                       </div>
                     </div>
 
@@ -1242,7 +1256,7 @@ export default function AnalyticsPage() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-tertiary)", marginBottom: "var(--space-md)" }}>Messages Sent</div>
                       <div style={{ display: "flex", height: 32, borderRadius: 10, overflow: "hidden", marginBottom: "var(--space-sm)" }}>
                         <div style={{
-                          width: `${parseFloat(aiData.aiPct)}%`,
+                          width: `${parseFloat(aiData?.aiPct)}%`,
                           background: "var(--accent-secondary)", display: "flex", alignItems: "center",
                           justifyContent: "center", color: "white", fontSize: 10, fontWeight: 700,
                           transition: "width 0.8s ease", minWidth: 30,
@@ -1259,10 +1273,10 @@ export default function AnalyticsPage() {
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span style={{ fontSize: "var(--font-size-xs)", color: "var(--accent-secondary)", fontWeight: 600 }}>
-                          🤖 {aiData.totalAiMessages} AI
+                          🤖 {aiData?.totalAiMessages} AI
                         </span>
                         <span style={{ fontSize: "var(--font-size-xs)", color: "var(--accent-primary-light)", fontWeight: 600 }}>
-                          👤 {aiData.totalHumanMessages} Human
+                          👤 {aiData?.totalHumanMessages} Human
                         </span>
                       </div>
                     </div>
@@ -1274,12 +1288,12 @@ export default function AnalyticsPage() {
                         <div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
                             <span style={{ fontSize: "var(--font-size-xs)", color: "var(--accent-secondary)", fontWeight: 600 }}>🤖 AI</span>
-                            <span style={{ fontSize: "var(--font-size-xs)", fontWeight: 700 }}>{formatTime(aiData.avgAiResponseTime)}</span>
+                            <span style={{ fontSize: "var(--font-size-xs)", fontWeight: 700 }}>{formatTime(aiData?.avgAiResponseTime)}</span>
                           </div>
                           <div style={{ height: 8, borderRadius: 4, background: "var(--bg-glass)" }}>
                             <div style={{
                               height: "100%", borderRadius: 4,
-                              width: `${Math.min(100, aiData.avgAiResponseTime > 0 ? Math.max(5, (aiData.avgAiResponseTime / Math.max(aiData.avgHumanResponseTime, aiData.avgAiResponseTime, 1)) * 100) : 5)}%`,
+                              width: `${Math.min(100, aiData?.avgAiResponseTime > 0 ? Math.max(5, (aiData?.avgAiResponseTime / Math.max(aiData?.avgHumanResponseTime, aiData?.avgAiResponseTime, 1)) * 100) : 5)}%`,
                               background: "var(--accent-secondary)", transition: "width 0.8s ease",
                             }} />
                           </div>
@@ -1287,34 +1301,34 @@ export default function AnalyticsPage() {
                         <div>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
                             <span style={{ fontSize: "var(--font-size-xs)", color: "var(--accent-primary-light)", fontWeight: 600 }}>👤 Human</span>
-                            <span style={{ fontSize: "var(--font-size-xs)", fontWeight: 700 }}>{formatTime(aiData.avgHumanResponseTime)}</span>
+                            <span style={{ fontSize: "var(--font-size-xs)", fontWeight: 700 }}>{formatTime(aiData?.avgHumanResponseTime)}</span>
                           </div>
                           <div style={{ height: 8, borderRadius: 4, background: "var(--bg-glass)" }}>
                             <div style={{
                               height: "100%", borderRadius: 4,
-                              width: `${Math.min(100, aiData.avgHumanResponseTime > 0 ? Math.max(5, (aiData.avgHumanResponseTime / Math.max(aiData.avgHumanResponseTime, aiData.avgAiResponseTime, 1)) * 100) : 5)}%`,
+                              width: `${Math.min(100, aiData?.avgHumanResponseTime > 0 ? Math.max(5, (aiData?.avgHumanResponseTime / Math.max(aiData?.avgHumanResponseTime, aiData?.avgAiResponseTime, 1)) * 100) : 5)}%`,
                               background: "var(--accent-primary-light)", transition: "width 0.8s ease",
                             }} />
                           </div>
                         </div>
                       </div>
-                      {aiData.avgAiResponseTime > 0 && aiData.avgHumanResponseTime > 0 && (
+                      {aiData?.avgAiResponseTime > 0 && aiData?.avgHumanResponseTime > 0 && (
                         <div style={{ fontSize: 10, color: "var(--accent-green)", marginTop: "var(--space-sm)", fontWeight: 600 }}>
-                          {Math.round((1 - aiData.avgAiResponseTime / aiData.avgHumanResponseTime) * 100)}% faster with AI
+                          {Math.round((1 - aiData?.avgAiResponseTime / aiData?.avgHumanResponseTime) * 100)}% faster with AI
                         </div>
                       )}
                     </div>
 
                     {/* Handoff Rate */}
                     <div style={{ textAlign: "center", padding: "var(--space-lg)", background: "var(--bg-glass)", borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                      <div style={{ width: 42, height: 42, borderRadius: 14, background: aiData.handoffRate > 30 ? "rgba(255, 82, 82, 0.12)" : "rgba(0, 230, 118, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto var(--space-sm)" }}>
-                        {aiData.handoffRate > 30 ? <AlertTriangle size={18} style={{ color: "var(--accent-red)" }} /> : <Zap size={18} style={{ color: "var(--accent-green)" }} />}
+                      <div style={{ width: 42, height: 42, borderRadius: 14, background: aiData?.handoffRate > 30 ? "rgba(255, 82, 82, 0.12)" : "rgba(0, 230, 118, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto var(--space-sm)" }}>
+                        {aiData?.handoffRate > 30 ? <AlertTriangle size={18} style={{ color: "var(--accent-red)" }} /> : <Zap size={18} style={{ color: "var(--accent-green)" }} />}
                       </div>
-                      <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: aiData.handoffRate > 30 ? "var(--accent-red)" : "var(--accent-green)" }}>
-                        {aiData.handoffRate}%
+                      <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: aiData?.handoffRate > 30 ? "var(--accent-red)" : "var(--accent-green)" }}>
+                        {aiData?.handoffRate}%
                       </div>
                       <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 2 }}>AI → Human Handoff</div>
-                      <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 4 }}>{aiData.convsWithHandoff} conversations escalated</div>
+                      <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 4 }}>{aiData?.convsWithHandoff} conversations escalated</div>
                     </div>
                   </div>
 
@@ -1325,14 +1339,14 @@ export default function AnalyticsPage() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                         Customer Sentiment
                       </div>
-                      {aiData.sentiment.total > 0 ? (
+                      {aiData?.sentiment.total > 0 ? (
                         <>
                           <div style={{ display: "flex", height: 32, borderRadius: 12, overflow: "hidden", marginBottom: "var(--space-md)" }}>
                             {[
-                              { pct: aiData.sentiment.positivePct, color: "var(--accent-green)", label: "Positive" },
-                              { pct: aiData.sentiment.neutralPct, color: "var(--accent-secondary)", label: "Neutral" },
-                              { pct: aiData.sentiment.negativePct, color: "var(--accent-orange)", label: "Negative" },
-                              { pct: aiData.sentiment.urgentPct, color: "var(--accent-red)", label: "Urgent" },
+                              { pct: aiData?.sentiment.positivePct, color: "var(--accent-green)", label: "Positive" },
+                              { pct: aiData?.sentiment.neutralPct, color: "var(--accent-secondary)", label: "Neutral" },
+                              { pct: aiData?.sentiment.negativePct, color: "var(--accent-orange)", label: "Negative" },
+                              { pct: aiData?.sentiment.urgentPct, color: "var(--accent-red)", label: "Urgent" },
                             ].filter(s => s.pct > 0).map((seg, i) => (
                               <div key={i} style={{
                                 width: `${seg.pct}%`, background: seg.color, display: "flex",
@@ -1346,10 +1360,10 @@ export default function AnalyticsPage() {
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-sm)" }}>
                             {[
-                              { label: "Positive", count: aiData.sentiment.counts.positive, pct: aiData.sentiment.positivePct, color: "var(--accent-green)", icon: <Heart size={12} /> },
-                              { label: "Neutral", count: aiData.sentiment.counts.neutral, pct: aiData.sentiment.neutralPct, color: "var(--accent-secondary)", icon: <Meh size={12} /> },
-                              { label: "Negative", count: aiData.sentiment.counts.negative, pct: aiData.sentiment.negativePct, color: "var(--accent-orange)", icon: <Frown size={12} /> },
-                              { label: "Urgent", count: aiData.sentiment.counts.urgent, pct: aiData.sentiment.urgentPct, color: "var(--accent-red)", icon: <AlertTriangle size={12} /> },
+                              { label: "Positive", count: aiData?.sentiment.counts.positive, pct: aiData?.sentiment.positivePct, color: "var(--accent-green)", icon: <Heart size={12} /> },
+                              { label: "Neutral", count: aiData?.sentiment.counts.neutral, pct: aiData?.sentiment.neutralPct, color: "var(--accent-secondary)", icon: <Meh size={12} /> },
+                              { label: "Negative", count: aiData?.sentiment.counts.negative, pct: aiData?.sentiment.negativePct, color: "var(--accent-orange)", icon: <Frown size={12} /> },
+                              { label: "Urgent", count: aiData?.sentiment.counts.urgent, pct: aiData?.sentiment.urgentPct, color: "var(--accent-red)", icon: <AlertTriangle size={12} /> },
                             ].map((s, i) => (
                               <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 8, background: "var(--bg-glass)" }}>
                                 <div style={{ color: s.color }}>{s.icon}</div>
@@ -1371,13 +1385,13 @@ export default function AnalyticsPage() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                         AI Tool Usage
                       </div>
-                      {aiData.commonToolCalls.length > 0 ? (
-                        aiData.commonToolCalls.map((tool, i) => {
-                          const maxCount = aiData.commonToolCalls[0]?.count || 1;
+                      {aiData?.commonToolCalls.length > 0 ? (
+                        aiData?.commonToolCalls.map((tool, i) => {
+                          const maxCount = aiData?.commonToolCalls[0]?.count || 1;
                           const pct = (tool.count / maxCount) * 100;
                           const toolColors = ["var(--accent-primary-light)", "var(--accent-secondary)", "var(--accent-green)", "var(--accent-orange)", "var(--accent-red)"];
                           return (
-                            <div key={i} style={{ marginBottom: i < aiData.commonToolCalls.length - 1 ? "var(--space-sm)" : 0 }}>
+                            <div key={i} style={{ marginBottom: i < aiData?.commonToolCalls.length - 1 ? "var(--space-sm)" : 0 }}>
                               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                                 <span style={{ fontWeight: 600, fontSize: "var(--font-size-xs)", textTransform: "capitalize", color: toolColors[i % toolColors.length] }}>
                                   {tool.tool.replace(/_/g, " ")}
@@ -1407,15 +1421,15 @@ export default function AnalyticsPage() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                         AI Intent Detection
                       </div>
-                      {aiData.intentDistribution && aiData.intentDistribution.length > 0 ? (
-                        aiData.intentDistribution.map((item, i) => {
-                          const total = aiData.intentDistribution.reduce((s, x) => s + x.count, 0);
+                      {aiData?.intentDistribution && aiData?.intentDistribution.length > 0 ? (
+                        aiData?.intentDistribution.map((item, i) => {
+                          const total = aiData?.intentDistribution.reduce((s, x) => s + x.count, 0);
                           const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
-                          const maxCount = aiData.intentDistribution[0]?.count || 1;
+                          const maxCount = aiData?.intentDistribution[0]?.count || 1;
                           const barPct = (item.count / maxCount) * 100;
                           const aiIntentColors = ["#00D2FF", "#3BA55C", "#F8A532", "#ED4245", "#5865F2", "#EB459E", "#9B59B6", "#1ABC9C"];
                           return (
-                            <div key={i} style={{ marginBottom: i < aiData.intentDistribution.length - 1 ? "var(--space-sm)" : 0 }}>
+                            <div key={i} style={{ marginBottom: i < aiData?.intentDistribution.length - 1 ? "var(--space-sm)" : 0 }}>
                               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                                 <span style={{ fontWeight: 600, fontSize: "var(--font-size-xs)", textTransform: "capitalize", color: aiIntentColors[i % aiIntentColors.length] }}>
                                   {item.intent.replace(/_/g, " ")}
@@ -1442,11 +1456,11 @@ export default function AnalyticsPage() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: "var(--space-md)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                         AI Activity by Hour
                       </div>
-                      {aiData.aiPerformanceByHour ? (
+                      {aiData?.aiPerformanceByHour ? (
                         <>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 3 }}>
-                            {aiData.aiPerformanceByHour.map((h, i) => {
-                              const maxMsgs = Math.max(...aiData.aiPerformanceByHour.map(x => x.messages), 1);
+                            {aiData?.aiPerformanceByHour.map((h, i) => {
+                              const maxMsgs = Math.max(...aiData?.aiPerformanceByHour.map(x => x.messages), 1);
                               const intensity = h.messages / maxMsgs;
                               return (
                                 <div key={i} title={`${h.hour}:00 — ${h.messages} AI msgs, avg ${formatTime(h.avgResponseTime)} response`} style={{
@@ -1501,7 +1515,7 @@ export default function AnalyticsPage() {
                   <div style={{ width: 60, textAlign: "right", fontSize: 10, fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5 }}>Qty</div>
                   <div style={{ width: 90, textAlign: "right", fontSize: 10, fontWeight: 600, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5 }}>Revenue</div>
                 </div>
-                {salesData && salesData.topProducts.length > 0 ? salesData.topProducts.map((p, i) => (
+                {salesData && salesData?.topProducts.length > 0 ? salesData?.topProducts.map((p, i) => (
                   <div key={i} style={{
                     display: "flex", alignItems: "center", gap: "var(--space-md)", padding: "var(--space-sm) var(--space-md)",
                     borderRadius: 12, marginBottom: 4,
