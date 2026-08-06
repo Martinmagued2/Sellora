@@ -45,6 +45,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 import { StoreProvider } from "@/lib/store-context";
+import { EffectiveAccountProvider } from "@/lib/account-context";
 import { useDevice } from "@/lib/use-device";
 import PageTransition from "@/components/PageTransition";
 import DashboardAnimations from "@/components/DashboardAnimations";
@@ -286,6 +287,7 @@ export default function DashboardLayout({ children }) {
 
   return (
     <StoreProvider>
+    <EffectiveAccountProvider>
     <ToastProvider>
     <ConfirmProvider>
     <ServiceWorkerRegistration />
@@ -643,6 +645,7 @@ export default function DashboardLayout({ children }) {
     </div>
     </ConfirmProvider>
     </ToastProvider>
+    </EffectiveAccountProvider>
     </StoreProvider>
   );
 }
