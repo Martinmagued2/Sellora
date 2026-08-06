@@ -158,6 +158,9 @@ const pageTitles = {
   "/dashboard/ab-tests": "A/B Tests",
   "/dashboard/whatsapp-catalog": "WA Catalog",
   "/dashboard/referrals": "Referrals",
+  "/dashboard/intent-radar": "Intent Radar",
+  "/dashboard/creative-studio": "Creative Studio",
+  "/dashboard/social-selling": "Social Selling",
   "/dashboard/stores": "Stores",
   "/dashboard/shipping": "Shipping",
 };
