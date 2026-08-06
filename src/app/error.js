@@ -34,12 +34,32 @@ export default function Error({ error, reset }) {
       <p style={{
         fontSize: "15px",
         color: "var(--text-tertiary, #888)",
-        maxWidth: "400px",
+        maxWidth: "500px",
         lineHeight: 1.6,
-        marginBottom: "32px",
+        marginBottom: "12px",
       }}>
         An unexpected error occurred. Please try again or contact support if the problem persists.
       </p>
+      {error?.message && (
+        <details style={{
+          marginBottom: 24,
+          maxWidth: 600,
+          background: "rgba(255,255,255,0.05)",
+          borderRadius: 8,
+          padding: "12px 16px",
+          fontSize: 13,
+          color: "var(--accent-red, #ff5252)",
+          textAlign: "left",
+          fontFamily: "monospace",
+          wordBreak: "break-word",
+        }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: 8 }}>Error details</summary>
+          <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{error.message}</pre>
+          {error.stack && (
+            <pre style={{ whiteSpace: "pre-wrap", margin: "8px 0 0 0", fontSize: 11, opacity: 0.7 }}>{error.stack.slice(0, 500)}</pre>
+          )}
+        </details>
+      )}
       <button
         onClick={reset}
         style={{
