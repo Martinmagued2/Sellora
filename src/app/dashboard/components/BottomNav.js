@@ -30,6 +30,9 @@ import {
   LogOut,
   Shield,
   Star,
+  CheckSquare,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
@@ -37,6 +40,7 @@ import { useAdminAuth } from "@/lib/use-admin-auth";
 /* Bottom nav shows 5 items: 4 main + "More" */
 const mainNavItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
+  { href: "/dashboard/copilot", icon: Sparkles, label: "AI" },
   { href: "/dashboard/conversations", icon: MessageCircle, label: "Chats", badgeKey: "conversations" },
   { href: "/dashboard/orders", icon: ShoppingBag, label: "Orders", badgeKey: "orders" },
   { href: "/dashboard/products", icon: Package, label: "Products" },
@@ -44,6 +48,7 @@ const mainNavItems = [
 
 const moreNavItems = [
   { section: "Main", items: [
+    { href: "/dashboard/tasks", icon: CheckSquare, label: "Tasks" },
     { href: "/dashboard/abandoned-carts", icon: ShoppingCart, label: "Abandoned Carts" },
     { href: "/dashboard/notifications", icon: Bell, label: "Notifications" },
     { href: "/dashboard/referrals", icon: Gift, label: "Referrals" },
@@ -53,7 +58,9 @@ const moreNavItems = [
     { href: "/dashboard/campaigns", icon: Megaphone, label: "Campaigns" },
     { href: "/dashboard/segments", icon: Target, label: "Segments" },
     { href: "/dashboard/coupons", icon: Tag, label: "Coupons" },
+    { href: "/dashboard/subscriptions", icon: RefreshCw, label: "Subscriptions" },
     { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
+    { href: "/dashboard/flows", icon: Zap, label: "Flow Builder" },
     { href: "/dashboard/webhooks", icon: Webhook, label: "Webhooks" },
     { href: "/dashboard/automation", icon: Bot, label: "Automation" },
     { href: "/dashboard/ai-personality", icon: Sparkles, label: "AI Personality" },
@@ -65,6 +72,7 @@ const moreNavItems = [
   ]},
   { section: "Settings", items: [
     { href: "/dashboard/settings", icon: Settings, label: "Settings" },
+    { href: "/dashboard/audit-logs", icon: Shield, label: "Audit Logs" },
     { href: "/dashboard/billing", icon: CreditCard, label: "Billing" },
   ]},
 ];

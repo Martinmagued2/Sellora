@@ -312,7 +312,7 @@ export default function DashboardHome() {
         <div className="dashboard-panel">
           <div className="dashboard-panel-header"><h3>Order Pipeline</h3></div>
           <div className="dashboard-panel-body" style={{ padding: "var(--space-lg)" }}>
-            <div style={{ display: "flex", gap: "var(--space-md)" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-md)" }}>
               {Object.entries(stats.ordersByStatus).map(([status, count]) => (
                 <div key={status} style={{ flex: 1, textAlign: "center", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                   <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: statusColors[status] }}>{count}</div>

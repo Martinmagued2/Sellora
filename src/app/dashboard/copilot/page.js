@@ -11,6 +11,7 @@ import {
   PanelLeftOpen, Copy, ThumbsUp, ThumbsDown, RefreshCw, ExternalLink,
   Zap, TrendingUp, Package, Users, ShoppingBag, Bot as BotIcon
 } from "lucide-react";
+import { useDevice } from "@/lib/use-device";
 import MentionInput from "../components/MentionInput";
 import VoiceRecorder from "../components/VoiceRecorder";
 
@@ -78,12 +79,13 @@ const PROMPT_TEMPLATES = [
 // ─── Main Component ───
 export default function CopilotPage() {
   const router = useRouter();
+  const { isMobile } = useDevice();
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);  // persisted messages for active chat
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);  // Closed by default (mobile-friendly)
   const [searchQuery, setSearchQuery] = useState("");
   const [editingChatId, setEditingChatId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
@@ -383,15 +385,39 @@ export default function CopilotPage() {
   const regularChats = filteredChats.filter(c => !c.pinned);
 
   // ─── Render ───
+  const mobileHeight = isMobile ? "calc(100vh - 56px - 64px)" : "calc(100vh - 64px)";
+  const sidebarWidth = isMobile ? "85vw" : 280;
+  const sidebarMaxWidth = isMobile ? 320 : 280;
+  const inputPaddingBottom = isMobile ? "calc(12px + 64px + env(safe-area-inset-bottom))" : "20px";
+
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 64px)", overflow: "hidden" }}>
+    <div style={{ display: "flex", height: mobileHeight, overflow: "hidden", position: "relative" }}>
       {/* ─── Chat History Sidebar ─── */}
+      {/* On mobile: overlay drawer. On desktop: static sidebar. */}
       {sidebarOpen && (
-        <div style={{
-          width: 280, flexShrink: 0, background: "var(--bg-secondary)",
-          borderRight: "1px solid var(--border-subtle)", display: "flex",
-          flexDirection: "column", overflow: "hidden",
-        }}>
+        <>
+          {/* Mobile backdrop */}
+          {isMobile && (
+            <div
+              onClick={() => setSidebarOpen(false)}
+              style={{
+                position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+                zIndex: 200,
+              }}
+            />
+          )}
+          <div style={{
+            width: sidebarWidth, maxWidth: sidebarMaxWidth, flexShrink: 0,
+            background: "var(--bg-secondary)",
+            borderRight: "1px solid var(--border-subtle)", display: "flex",
+            flexDirection: "column", overflow: "hidden",
+            position: isMobile ? "fixed" : "relative",
+            left: isMobile ? 0 : "auto",
+            top: isMobile ? 56 : "auto",
+            bottom: isMobile ? 0 : "auto",
+            zIndex: isMobile ? 201 : "auto",
+            height: isMobile ? "calc(100vh - 56px)" : "auto",
+          }}>
           {/* New Chat button */}
           <div style={{ padding: "12px 12px 8px" }}>
             <button
@@ -487,6 +513,7 @@ export default function CopilotPage() {
             )}
           </div>
         </div>
+        </>
       )}
 
       {/* ─── Main Chat Area ─── */}
@@ -793,7 +820,7 @@ export default function CopilotPage() {
 
         {/* Input area */}
         <div style={{
-          padding: "12px 24px 20px", borderTop: "1px solid var(--border-subtle)",
+          padding: `12px 16px ${inputPaddingBottom}`, borderTop: "1px solid var(--border-subtle)",
           background: "var(--bg-card)",
         }}>
           <form

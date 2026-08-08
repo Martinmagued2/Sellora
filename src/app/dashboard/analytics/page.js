@@ -841,7 +841,7 @@ export default function AnalyticsPage() {
               {salesData ? (
                 <>
                   {/* Revenue KPI Row */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
                     <div style={{ textAlign: "center", padding: "var(--space-md)", background: "var(--bg-glass)", borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                       <div style={{ fontSize: "var(--font-size-2xl)", fontWeight: 800, color: "var(--accent-green)" }}>
                         {salesData?.totalRevenue.toLocaleString()} EGP
@@ -990,7 +990,7 @@ export default function AnalyticsPage() {
                 <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>Busiest: {stats.peakHour}:00 on {stats.peakDay}</span>
               </div>
               <div className="dashboard-panel-body" style={{ padding: "var(--space-lg)" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 3 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(40px, 1fr))", gap: 3 }}>
                   {stats.hourCounts.map((count, hour) => {
                     const intensity = count / maxHourCount;
                     return (
@@ -1074,7 +1074,7 @@ export default function AnalyticsPage() {
               {customerData ? (
                 <>
                   {/* Customer KPIs */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
                     {[
                       { label: "Total Customers", value: customerData?.totalCustomers, color: "var(--accent-primary-light)" },
                       { label: "New This Month", value: customerData?.newThisMonth, color: "var(--accent-secondary)" },
@@ -1236,7 +1236,7 @@ export default function AnalyticsPage() {
               {aiData ? (
                 <>
                   {/* AI Performance KPIs */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-md)", marginBottom: "var(--space-xl)" }}>
                     {/* AI Resolution Rate - Prominent */}
                     <div style={{ textAlign: "center", padding: "var(--space-lg)", background: "linear-gradient(135deg, rgba(0, 210, 255, 0.08), rgba(108, 92, 231, 0.08))", borderRadius: 20, border: "1px solid rgba(0, 210, 255, 0.2)" }}>
                       <div style={{ width: 56, height: 56, borderRadius: 20, background: "rgba(0, 210, 255, 0.15)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto var(--space-sm)" }}>
@@ -1458,7 +1458,7 @@ export default function AnalyticsPage() {
                       </div>
                       {aiData?.aiPerformanceByHour ? (
                         <>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 3 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(40px, 1fr))", gap: 3 }}>
                             {aiData?.aiPerformanceByHour.map((h, i) => {
                               const maxMsgs = Math.max(...aiData?.aiPerformanceByHour.map(x => x.messages), 1);
                               const intensity = h.messages / maxMsgs;
@@ -1601,7 +1601,7 @@ export default function AnalyticsPage() {
           {/* ═══ Channel Performance Comparison ═══ */}
           <div className="dashboard-panel" style={{ marginTop: "var(--space-lg)" }}>
             <div className="dashboard-panel-header"><h3>Channel Performance</h3></div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderTop: "1px solid var(--border-subtle)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", borderTop: "1px solid var(--border-subtle)" }}>
               {[
                 { label: "Instagram", count: stats.igConvs, color: "#E1306C" },
                 { label: "Facebook", count: stats.fbConvs, color: "#1877F2" },
