@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://ai-sdk.dev/providers/openai-compatible-providers/nim",
+    "name": "NVIDIA NIM - OpenAI Compatible Providers - AI SDK",
+    "snippet": "NVIDIA NIM provides optimized inference microservices for deploying foundation models. It offers an OpenAI-compatible API that you can use with the AI SDK.",
+    "host_name": "ai-sdk.dev",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.nvidia.com/nim/large-language-models/latest/api-reference.html",
+    "name": "API Reference — NVIDIA NIM for Large Language Models",
+    "snippet": "NIM LLM exposes an OpenAI-compatible inference API backed by vLLM, along with NIM-specific management endpoints. Inference Endpoints#. These ...",
+    "host_name": "docs.nvidia.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.promptfoo.dev/docs/providers/nvidia",
+    "name": "NVIDIA NIM | Promptfoo",
+    "snippet": "Tool calling and JSON-mode responses follow the same configuration as the OpenAI provider because the API surface is OpenAI-compatible.",
+    "host_name": "www.promptfoo.dev",
+    "rank": 2,
+    "date": "May 28, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.facebook.com/NVIDIAAI/videos/how-to-build-a-simple-ai-agent-with-openais-gpt-oss-20b-our-video-walkthrough-sh/1279855819928175",
+    "name": "How to build a simple AI agent with OpenAI's gpt-oss-20b? Our",
+    "snippet": "How to build a simple AI agent with OpenAI's gpt-oss- 20b? Our video walkthrough shows how it is as simple as generating an API key or ...",
+    "host_name": "www.facebook.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/openclaw/openclaw/issues/50898",
+    "name": "Add native support for NVIDIA API keys / NVIDIA NIM provider #50898",
+    "snippet": "Add a dedicated NVIDIA provider/module with documented configuration for: API key handling; base URL / endpoint configuration; model selection ...",
+    "host_name": "github.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/open-ai-api-compatible/327077",
+    "name": "Open AI API Compatible - Models - NVIDIA Developer Forums",
+    "snippet": "OAI API gets updated frequently and NIM continues to update API to be as compatible as possible with OAI. Are there specific params of interest?",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://x.com/aisdk/status/1886822161471684639",
+    "name": "You can use the AI SDK with @nvidia NIM.",
+    "snippet": "You can use the AI SDK with @nvidia NIM. // AI SDK Provider - NVIDIA NIM import { createOpenAICompatible } from \"@ai.",
+    "host_name": "x.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.answeroverflow.com/m/1481858215279984650",
+    "name": "Adding NVIDIA NIM provider to OpenClaw 2026.3.8 — Kimi K2.5 via",
+    "snippet": "How do I add NVIDIA NIM as a custom model provider in OpenClaw 2026.3.8, specifically for the Kimi K2.5 model? NIM uses an OpenAI-compatible API ...",
+    "host_name": "www.answeroverflow.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://ai-sdk.dev/v4/providers/openai-compatible-providers/nim",
+    "name": "NVIDIA NIM - OpenAI Compatible Providers - AI SDK",
+    "snippet": "NVIDIA NIM provides optimized inference microservices for deploying foundation models. It offers an OpenAI-compatible API that you can use with the AI SDK.",
+    "host_name": "ai-sdk.dev",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=xc3-699UMoo",
+    "name": "Instantly Deploy Generative AI Models With NVIDIA NIM - YouTube",
+    "snippet": "Instantly Deploy Generative AI With NVIDIA NIM Explore the latest community-built AI models with an API optimized and accelerated by NVIDIA, ...",
+    "host_name": "www.youtube.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

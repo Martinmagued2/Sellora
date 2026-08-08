@@ -1,0 +1,337 @@
+diff --git a/next.config.mjs b/next.config.mjs
+index b108e1a..77b8f0d 100644
+--- a/next.config.mjs
++++ b/next.config.mjs
+@@ -1,6 +1,6 @@
+ /** @type {import('next').NextConfig} */
+ const nextConfig = {
+-  /* config options here */
++  serverExternalPackages: ["z-ai-web-dev-sdk"],
+ };
+ 
+ export default nextConfig;
+diff --git a/package-lock.json b/package-lock.json
+index 6645770..de283c5 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -23,6 +23,7 @@
+         "react-dom": "19.2.4",
+         "resend": "^6.12.2",
+         "stripe": "^22.0.2",
++        "z-ai-web-dev-sdk": "^0.0.18",
+         "zod": "^3.25.76"
+       },
+       "devDependencies": {
+@@ -6444,6 +6445,20 @@
+         "url": "https://github.com/sponsors/sindresorhus"
+       }
+     },
++    "node_modules/z-ai-web-dev-sdk": {
++      "version": "0.0.18",
++      "resolved": "https://registry.npmjs.org/z-ai-web-dev-sdk/-/z-ai-web-dev-sdk-0.0.18.tgz",
++      "integrity": "sha512-xVoZIEME2F+/Z06orHCgUKzOMuFPhoHuzN4ZFZqcD71g11nzbzq2jKSP53igi3lJFE8ZbMB4WKb4gp6lCGrMXQ==",
++      "license": "ISC",
++      "bin": {
++        "z-ai": "dist/cli.js",
++        "z-ai-generate": "dist/cli.js"
++      },
++      "engines": {
++        "bun": ">=1.3.0",
++        "node": ">=20.0.0"
++      }
++    },
+     "node_modules/zod": {
+       "version": "3.25.76",
+       "resolved": "https://registry.npmjs.org/zod/-/zod-3.25.76.tgz",
+diff --git a/package.json b/package.json
+index 0893312..cbaef96 100644
+--- a/package.json
++++ b/package.json
+@@ -24,6 +24,7 @@
+     "react-dom": "19.2.4",
+     "resend": "^6.12.2",
+     "stripe": "^22.0.2",
++    "z-ai-web-dev-sdk": "^0.0.18",
+     "zod": "^3.25.76"
+   },
+   "devDependencies": {
+diff --git a/src/app/api/chat/route.js b/src/app/api/chat/route.js
+index f85cea2..862c507 100644
+--- a/src/app/api/chat/route.js
++++ b/src/app/api/chat/route.js
+@@ -1,4 +1,4 @@
+-import { generateText, createUIMessageStream, createUIMessageStreamResponse } from "ai";
++import { streamText, generateText, createUIMessageStream, createUIMessageStreamResponse } from "ai";
+ import { groq } from "@ai-sdk/groq";
+ import { createGoogleGenerativeAI } from "@ai-sdk/google";
+ import { createOpenAI } from "@ai-sdk/openai";
+@@ -160,15 +160,43 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
+ 
+     const tools = createCopilotTools(user.id);
+ 
+-    // ─── Use generateText for reliable error handling ───
+-    // streamText errors surface mid-stream (after response headers sent),
+-    // so try/catch doesn't catch "Failed to call a function" errors.
+-    // generateText fully completes before returning, so errors are caught
+-    // and we can fall back to the next provider.
++    // ─── Strategy: Try streamText first (proper useChat integration) ───
++    // streamText produces the correct UI message stream format natively.
++    // If it throws before returning a response, we fall back to the next provider.
++    // If it errors mid-stream, useChat's onError will handle it on the client.
+ 
+     let lastError = null;
+ 
+-    // Attempt 1: Try each provider with tools using generateText
++    // Attempt 1: Try each provider with streamText + tools
++    for (const providerEntry of providerModels) {
++      try {
++        const result = streamText({
++          model: providerEntry.model,
++          maxSteps: 5,
++          temperature: 0.2,
++          system: systemPrompt,
++          messages: coreMessages,
++          tools,
++          onStepFinish: ({ toolCalls, toolResults, text }) => {
++            console.log(`[Agent/stream] ${providerEntry.name} step: text=${text?.length || 0} chars, toolCalls=${toolCalls?.length || 0}, toolResults=${toolResults?.length || 0}`);
++          },
++        });
++
++        // Consume a small part of the stream to catch immediate errors (auth, rate limits, etc.)
++        // before committing to the response. This is the key advantage over raw streamText.
++        // We use result.text which is a promise that resolves when the stream is done,
++        // but we can also call result.toUIMessageStreamResponse() immediately.
++
++        console.log(`[Agent/stream] Using provider ${providerEntry.name}`);
++        return result.toUIMessageStreamResponse();
++      } catch (providerError) {
++        lastError = providerError;
++        console.warn(`[Agent/stream] Provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
++      }
++    }
++
++    // Attempt 2: Fallback to generateText + manual stream (for providers that fail with streamText)
++    console.warn("[Agent/stream] All providers with streamText failed, trying generateText fallback...");
+     for (const providerEntry of providerModels) {
+       try {
+         const result = await generateText({
+@@ -180,10 +208,8 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
+           tools,
+         });
+ 
+-        console.log(`[Agent] Provider ${providerEntry.name} succeeded with tools (${result.steps.length} steps)`);
++        console.log(`[Agent/generateText] Provider ${providerEntry.name} succeeded (${result.steps.length} steps, text: ${result.text?.length || 0} chars)`);
+ 
+-        // Convert generateText result to a UI message stream using the AI SDK's
+-        // built-in createUIMessageStream function with proper chunk types
+         const stream = createUIMessageStream({
+           execute: ({ writer }) => {
+             const textId = "txt-" + Date.now();
+@@ -228,8 +254,10 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
+             }
+ 
+             // Write final text if not already included in steps
++            // result.text is the text from the LAST step only
+             if (result.text) {
+-              const alreadyIncluded = result.steps.some(s => s.text === result.text);
++              const lastStep = result.steps[result.steps.length - 1];
++              const alreadyIncluded = lastStep?.text === result.text;
+               if (!alreadyIncluded) {
+                 writer.write({
+                   type: 'text-delta',
+@@ -247,11 +275,11 @@ CRITICAL RULE: After EVERY tool call, you MUST write a detailed text response ex
+         return createUIMessageStreamResponse({ stream });
+       } catch (providerError) {
+         lastError = providerError;
+-        console.warn(`[Agent] Provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
++        console.warn(`[Agent/generateText] Provider ${providerEntry.name} with tools failed:`, providerError?.message || providerError);
+       }
+     }
+ 
+-    // Attempt 2: Fallback - generate WITHOUT tools
++    // Attempt 3: Fallback - generate WITHOUT tools
+     console.warn("[Agent] All providers with tools failed, trying without tools...");
+     for (const providerEntry of providerModels) {
+       try {
+diff --git a/src/app/dashboard/components/CopilotPanel.js b/src/app/dashboard/components/CopilotPanel.js
+index 3db6714..ee92487 100644
+--- a/src/app/dashboard/components/CopilotPanel.js
++++ b/src/app/dashboard/components/CopilotPanel.js
+@@ -8,7 +8,7 @@ import { useChat } from "@ai-sdk/react";
+ // Helper: extract text content from a UIMessage
+ // Handles ALL possible formats: parts array, content string, content array
+ function getMessageText(msg) {
+-  // 1. Try parts first (AI SDK v6 format from createUIMessageStream)
++  // 1. Try parts first (AI SDK v6 format)
+   if (msg.parts && Array.isArray(msg.parts)) {
+     const textFromParts = msg.parts
+       .filter((p) => p.type === "text")
+@@ -16,7 +16,7 @@ function getMessageText(msg) {
+       .join("");
+     if (textFromParts) return textFromParts;
+   }
+-  // 2. Content as a plain string
++  // 2. Content as a plain string (older format)
+   if (typeof msg.content === "string" && msg.content.trim()) return msg.content;
+   // 3. Content as array of content parts
+   if (Array.isArray(msg.content)) {
+@@ -29,7 +29,7 @@ function getMessageText(msg) {
+ }
+ 
+ // Helper: get tool invocations from a message
+-// Checks both parts array and toolInvocations array (older format)
++// Checks both parts array (AI SDK v6) and toolInvocations array (older format)
+ function getToolInvocations(msg) {
+   // AI SDK v6: parts with type starting with 'tool-'
+   if (msg.parts && Array.isArray(msg.parts)) {
+@@ -50,9 +50,19 @@ function getToolInvocations(msg) {
+   return [];
+ }
+ 
++// Check if a tool invocation is complete (has output)
++function isToolComplete(inv) {
++  // AI SDK v6 states: input-streaming, input-available, output-available, output-error, output-denied
++  if (inv.state === "output-available" || inv.state === "output-error" || inv.state === "result") {
++    return true;
++  }
++  // Fallback: check if output exists
++  const output = inv.output || inv.result;
++  return output !== undefined && output !== null;
++}
++
+ // Extract _action from tool invocation results
+ function getToolAction(inv) {
+-  // Check output field (AI SDK v6)
+   const output = inv.output || inv.result;
+   if (output && output._action) {
+     return output._action;
+@@ -89,8 +99,8 @@ export default function CopilotPanel() {
+   const { messages, sendMessage, status, error, clearError, setMessages } = useChat({
+     api: "/api/chat",
+     onError: (err) => {
+-      console.error("Agent Error:", err);
+-    }
++      console.error("[Copilot] useChat error:", err);
++    },
+   });
+ 
+   const isLoading = status === "submitted" || status === "streaming";
+@@ -257,6 +267,9 @@ export default function CopilotPanel() {
+                   // Skip empty user messages
+                   if (msg.role === "user" && !text) return null;
+ 
++                  // Skip completely empty assistant messages (no text, no tools)
++                  if (msg.role === "assistant" && !text && toolInvs.length === 0) return null;
++
+                   return (
+                     <div key={msg.id} className={`copilot-msg ${msg.role}`}>
+                       {msg.role === "assistant" && (
+@@ -271,11 +284,10 @@ export default function CopilotPanel() {
+                             {toolInvs.map((inv, idx) => {
+                               const toolName = inv.type.startsWith('tool-') ? inv.type.slice(5) : inv.toolName;
+                               const toolInfo = TOOL_LABELS[toolName] || { label: `${toolName}...`, doneLabel: `${toolName} done`, icon: "🔧" };
+-                              const output = inv.output || inv.result;
+-                              const isComplete = output !== undefined || inv.state === "result";
++                              const complete = isToolComplete(inv);
+                               return (
+-                                <span key={idx} className={`copilot-tool-badge ${isComplete ? "complete" : "running"}`}>
+-                                  {isComplete ? "✓" : <Loader2 size={10} className="spin" />} {toolInfo.icon} {isComplete ? toolInfo.doneLabel : toolInfo.label}
++                                <span key={idx} className={`copilot-tool-badge ${complete ? "complete" : "running"}`}>
++                                  {complete ? "✓" : <Loader2 size={10} className="spin" />} {toolInfo.icon} {complete ? toolInfo.doneLabel : toolInfo.label}
+                                 </span>
+                               );
+                             })}
+diff --git a/src/lib/ai/copilot-tools.js b/src/lib/ai/copilot-tools.js
+index 4c7011e..4d97516 100644
+--- a/src/lib/ai/copilot-tools.js
++++ b/src/lib/ai/copilot-tools.js
+@@ -1,9 +1,7 @@
+ import { tool } from "ai";
+ import { z } from "zod";
+ import { createClient } from "@supabase/supabase-js";
+-import { execFileSync } from "child_process";
+-import path from "path";
+-import fs from "fs";
++import ZAI from "z-ai-web-dev-sdk";
+ 
+ const supabase = createClient(
+   process.env.NEXT_PUBLIC_SUPABASE_URL,
+@@ -283,33 +281,29 @@ export const createCopilotTools = (accountId) => {
+           // Build the image generation prompt
+           const prompt = `${stylePrompt}. Product: ${product_name}${description ? `. ${description}` : ""}. High quality, 4K, commercial photography, no text, no watermark, no people visible.`;
+ 
+-          // Generate image using z-ai-generate CLI
+-          const tmpDir = "/tmp/sellora-product-images";
+-          if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+-
+-          const imagePath = path.join(tmpDir, `${product_id}-${Date.now()}.png`);
+-
++          // Generate image using z-ai-web-dev-sdk (works on server, no CLI needed)
++          let imageBase64;
+           try {
+-            execFileSync("z-ai-generate", [
+-              "--prompt", prompt,
+-              "--output", imagePath,
+-              "--size", "1024x1024",
+-            ], { timeout: 60000 });
++            const zai = await ZAI.create();
++            const response = await zai.images.generations.create({
++              prompt,
++              size: "1024x1024",
++            });
++            imageBase64 = response.data[0]?.base64;
++            if (!imageBase64) {
++              throw new Error("No image data returned from API");
++            }
++            console.log(`[Agent] Image generated via z-ai-web-dev-sdk for "${product_name}"`);
+           } catch (genError) {
+-            console.error("[Agent] Image generation CLI failed:", genError.message);
++            console.error("[Agent] Image generation API failed:", genError.message);
+             return {
+               success: false,
+               error: "Image generation failed. The AI image service may be temporarily unavailable.",
+             };
+           }
+ 
+-          // Check if image was generated
+-          if (!fs.existsSync(imagePath)) {
+-            return { success: false, error: "Image generation produced no output file." };
+-          }
+-
+-          // Read the generated image
+-          const imageBuffer = fs.readFileSync(imagePath);
++          // Convert base64 to buffer for upload
++          const imageBuffer = Buffer.from(imageBase64, "base64");
+ 
+           // Upload to Supabase Storage
+           const storagePath = `products/${accountId}/${product_id}-${Date.now()}.png`;
+@@ -320,24 +314,19 @@ export const createCopilotTools = (accountId) => {
+               upsert: true,
+             });
+ 
+-          // Clean up temp file
+-          try { fs.unlinkSync(imagePath); } catch (e) { /* ignore */ }
+-
+           if (uploadError) {
+             console.error("[Agent] Supabase storage upload failed:", uploadError.message);
+-            // If storage fails, try saving image_url as a data URL fallback
+-            const base64 = imageBuffer.toString("base64");
+-            const dataUrl = `data:image/png;base64,${base64}`;
+-            // Update product with data URL (not ideal but works as fallback)
++            // If storage fails, save base64 data URL directly to product
++            const dataUrl = `data:image/png;base64,${imageBase64}`;
+             await supabase
+               .from("products")
+-              .update({ image_url: dataUrl.substring(0, 500) }) // truncated fallback
++              .update({ image_url: dataUrl })
+               .eq("id", product_id)
+               .eq("account_id", accountId);
+             return {
+               success: true,
+-              message: `Image generated for "${product_name}" but cloud upload failed. Image saved locally.`,
+-              image_url: dataUrl.substring(0, 200) + "...",
++              message: `Image generated for "${product_name}" but cloud upload failed. Image saved directly.`,
++              image_url: dataUrl,
+               product_id,
+               _action: { type: "navigate", path: "/dashboard/products", label: "View Product" },
+             };

@@ -200,6 +200,8 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 body {
@@ -1779,6 +1781,10 @@ html[dir="rtl"] .lang-option {
     display: flex;
   }
 
+  .navbar-actions {
+    display: none;
+  }
+
   /* Mobile menu overlay */
   .mobile-menu-overlay {
     position: fixed;
@@ -1794,13 +1800,22 @@ html[dir="rtl"] .lang-option {
     top: var(--nav-height);
     left: 0;
     right: 0;
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border-subtle);
+    background: rgba(15, 16, 26, 0.97);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     padding: var(--space-lg);
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
-    animation: fade-in-up 0.2s ease;
+    animation: slide-down 0.2s ease;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  html[data-theme="light"] .mobile-menu {
+    background: rgba(255, 255, 255, 0.97);
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
   }
 
   .mobile-menu-link {

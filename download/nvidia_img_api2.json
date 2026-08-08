@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://build.nvidia.com/models",
+    "name": "Models - NVIDIA Build",
+    "snippet": "Models. Deploy and scale models on your GPU infrastructure of choice with NVIDIA NIM inference microservices ... qwen-image. Qwen-Image is a text-to-image ...\nDeploy and scale models on your GPU infrastructure of choice with NVIDIA NIM inference microservices.",
+    "host_name": "build.nvidia.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.nvidia.com/nim/visual-genai/latest/api/qwen-image-edit.html",
+    "name": "Qwen-Image-Edit API Reference — NVIDIA NIM for Visual",
+    "snippet": "Visual Generative AI NIM API Reference · Qwen-Image-Edit API Reference.\nStable Diffusion 3.5 Large · TRELLIS · Qwen-Image; Qwen-Image-Edit; OpenAI-Compatible Image Generation · OpenAI-Compatible Image Editing.",
+    "host_name": "docs.nvidia.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://build.nvidia.com/qwen",
+    "name": "AI Models by Qwen | Try NVIDIA NIM APIs",
+    "snippet": "Qwen-Image-Edit is an image editing model with multilingual text editing and strong subject consistency. Model · Text-to-Image.\nQwen-Image is a text-to-image foundation model with advanced multilingual text rendering. ... Next-gen Qwen 3.5 VLM (400B MoE) brings advanced vision, chat ...",
+    "host_name": "build.nvidia.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/how-to-use-tool-calling-with-the-nim-api-in-the-cloud/364319",
+    "name": "How to use tool calling with the NIM api in the cloud",
+    "snippet": "I am coming from groq due to some technical issues with my projects but till now I have not been able to find a way to use tool calling in ...",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://build.nvidia.com/qwen/qwen-image",
+    "name": "qwen-image Model by Qwen | NVIDIA NIM",
+    "snippet": "Qwen-Image is an image-generation foundation model in the Qwen series. It achieves significant advances in complex text rendering (supporting alphabetic scripts ...",
+    "host_name": "build.nvidia.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/qwen3-6-35b-a3b-unable-to-send-images-as-base64/368076",
+    "name": "Qwen3.6-35b-a3b: unable to send images as base64 - Models",
+    "snippet": "I am trying to run a NIM container with Qwen3.6 to describe images. See: Query the Qwen3.6 API — NVIDIA NIM for Vision Language Models (VLMs).",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://stability.ai/news-updates/stability-ai-and-nvidia-bring-faster-performance-and-simplified-enterprise-deployment-with-the-stable-diffusion-35-nim",
+    "name": "Stability AI and NVIDIA Bring Faster Performance and Simplified",
+    "snippet": "Stability AI is launching a new NVIDIA NIM microservice for Stable Diffusion 3.5, making it faster and simpler for enterprises to deploy our ...",
+    "host_name": "stability.ai",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.instagram.com/reel/DXKDnGeFXRw",
+    "name": "NVIDIA Build free API credits let you test AI models online without",
+    "snippet": "Minimax, DeepSeek, Kimi, all hosted through Nvidia's API, all completely free to use. You can generate images, videos, run coding tasks all free ...",
+    "host_name": "www.instagram.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.pipecat.ai/api-reference/server/services/llm/nvidia",
+    "name": "NVIDIA NIM - Pipecat",
+    "snippet": "API Key (cloud endpoint only): Generate an NVIDIA API key for NIM cloud services; Model Selection: Choose from available NIM-hosted models; Local NIM Setup ( ...",
+    "host_name": "docs.pipecat.ai",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dev.writer.com/providers/nvidia-nim",
+    "name": "NVIDIA NIM - Writer AI Studio",
+    "snippet": "This guide shows you how to configure NVIDIA NIM as an external model provider in AI Studio. After setting up this provider, you can use foundation models ...",
+    "host_name": "dev.writer.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

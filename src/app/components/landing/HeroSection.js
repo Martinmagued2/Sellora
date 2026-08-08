@@ -55,7 +55,7 @@ export default function HeroSection() {
       <div className="landing-container" style={{ position: "relative", zIndex: 2 }}>
         
         {/* 2-Column Desktop Grid */}
-        <div className="hero-split-grid" style={{ display: "grid", gridTemplateColumns: "0.95fr 1.35fr", gap: "40px", alignItems: "center", marginBottom: "20px" }}>
+        <div className="hero-split-grid">
           
           {/* Left Column: Copy & CTAs */}
           <div style={{ textAlign: dir === "rtl" ? "right" : "left" }}>

@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://build.nvidia.com",
+    "name": "Try NVIDIA NIM APIs",
+    "snippet": "Build Your AI Application with a Blueprint. Get started with workflows and code samples to build AI applications from the ground up.",
+    "host_name": "build.nvidia.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://build.nvidia.com/models",
+    "name": "Models - NVIDIA Build",
+    "snippet": "Models. Deploy and scale models on your GPU infrastructure of choice with NVIDIA NIM inference microservices. Optimized by NVIDIALaunch from Hugging FaceBeta.",
+    "host_name": "build.nvidia.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://medium.com/coding-nexus/nvidia-is-offering-80-ai-models-for-free-via-apis-fc64b38276b8",
+    "name": "NVIDIA Is Offering 80+ AI Models for Free via APIs - Medium",
+    "snippet": "Go to build.nvidia.com/models, sign in with a free Nvidia account, and grab your API key from the dashboard. · Install the OpenAI Python SDK — ...",
+    "host_name": "medium.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.developer.nvidia.com/t/open-ai-api-compatible/327077",
+    "name": "Open AI API Compatible - Models - NVIDIA Developer Forums",
+    "snippet": "Hi everyone, I have been testing your API with some frameworks, like Genkit and I realized that your API is not 100% compatible with OpenAI.",
+    "host_name": "forums.developer.nvidia.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/SillyTavernAI/comments/1lxivmv/nvidia_nim_free_deepseek_r10528_and_more",
+    "name": "NVIDIA NIM - Free DeepSeek R1(0528) and more : r/SillyTavernAI",
+    "snippet": "In the API settings, select: Custom (OpenAI-compatible). Fill in the fields: Custom Endpoint (Base URL): https://integrate.api.nvidia.com/v1.",
+    "host_name": "www.reddit.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://share.tenten.co/moltbot-clawdbot-deployment-guide-leveraging-free-nvidia-apis-to-build-your-24-7-ai-assistant-e871387248e3",
+    "name": "Moltbot (Clawdbot) Deployment Guide: Leveraging Free NVIDIA",
+    "snippet": "NVIDIA uses OpenAI-compatible endpoints, meaning most frameworks supporting OpenAI's API work seamlessly. The 40 requests-per-minute limit may ...",
+    "host_name": "share.tenten.co",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.facebook.com/groups/techtitansgroup/posts/1587315689262410",
+    "name": "Nvidia offers free api keys for models - Facebook",
+    "snippet": "NVIDIA just opened the gates to 80 frontier models including DeepSeek 3.2, Kimi 2.5, and GPT-OSS-120B. Setup: – Grab API key: https:/ /build.",
+    "host_name": "www.facebook.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://ai-sdk.dev/providers/openai-compatible-providers/nim",
+    "name": "NVIDIA NIM - OpenAI Compatible Providers - AI SDK",
+    "snippet": "NVIDIA NIM provides optimized inference microservices for deploying foundation models. It offers an OpenAI-compatible API that you can use with the AI SDK.",
+    "host_name": "ai-sdk.dev",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/opencodeCLI/comments/1rb65ak/i_made_a_tui_tool_to_use_opencode_basically_for",
+    "name": "I made a TUI tool to use OpenCode basically for free using NVIDIA's",
+    "snippet": "it's basically free OpenCode. Just sign up at build.nvidia.com, grab a free API key, and run: npm i -g free-coding-models. The tool guides ...",
+    "host_name": "www.reddit.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pasqualepillitteri.it/en/news/1621/nvidia-build-free-api-100-ai-models-2026",
+    "name": "NVIDIA Build Free API: 100+ AI Models on DGX Cloud (2026 Guide)",
+    "snippet": "NVIDIA offers 100+ free AI models on build.nvidia.com via OpenAI-compatible API. Verified news, Python code samples, real free tier limits.",
+    "host_name": "pasqualepillitteri.it",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

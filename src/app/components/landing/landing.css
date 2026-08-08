@@ -400,6 +400,14 @@ html[data-theme="light"] .slider-input {
   background: rgba(0, 0, 0, 0.1);
 }
 
+.hero-split-grid {
+  display: grid;
+  grid-template-columns: 0.95fr 1.35fr;
+  gap: 40px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 /* --- Hero Split Grid Responsive & New Components Light Mode --- */
 @media (max-width: 1024px) {
   .hero-split-grid {
@@ -423,7 +431,7 @@ html[data-theme="light"] .hero-dash-mockup-wrapper {
 }
 
 /* ==========================================================================
-   COMPREHENSIVE MOBILE RESPONSIVE DESIGN (< 1024px, < 900px, < 600px)
+   COMPREHENSIVE MOBILE RESPONSIVE DESIGN (< 1024px, < 768px, < 480px)
    ========================================================================== */
 .dash-body-grid {
   display: grid;
@@ -488,16 +496,6 @@ html[data-theme="light"] .hero-dash-mockup-wrapper {
   gap: 20px;
 }
 
-@media (max-width: 1024px) {
-  .hero-dash-mockup-wrapper {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-  .dash-body-grid {
-    min-width: 780px;
-  }
-}
-
 @media (max-width: 900px) {
   .roi-grid,
   .trust-skeleton-grid,
@@ -521,12 +519,13 @@ html[data-theme="light"] .hero-dash-mockup-wrapper {
   }
   
   .scrubber-wrapper {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden !important;
     width: 100% !important;
   }
   .scrubber-container {
-    min-width: 720px !important;
+    min-width: 100% !important;
+    width: 100% !important;
+    height: 520px !important;
   }
   
   .designer-title {
@@ -537,6 +536,31 @@ html[data-theme="light"] .hero-dash-mockup-wrapper {
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 16px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .landing-container {
+    padding: 0 16px !important;
+  }
+  
+  .dash-body-grid {
+    grid-template-columns: 1fr !important;
+    min-height: auto !important;
+  }
+
+  .dash-kpi-grid,
+  .dash-mid-grid,
+  .dash-bot-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .scrubber-container {
+    height: 560px !important;
+  }
+
+  .designer-card {
+    padding: 18px !important;
   }
 }
 
@@ -551,6 +575,15 @@ html[data-theme="light"] .hero-dash-mockup-wrapper {
     justify-content: center !important;
   }
   .designer-card {
-    padding: 20px !important;
+    padding: 16px !important;
+  }
+
+  .designer-title {
+    font-size: 1.85rem !important;
+  }
+
+  .designer-subtitle {
+    font-size: 0.95rem !important;
   }
 }
+

@@ -10,7 +10,7 @@ import {
   Menu, X, Clock, AlertTriangle, Copy, Megaphone, Globe, Shield, Sun,
   Moon, Calculator, Timer, DollarSign, Smile, LayoutDashboard, MessageSquare,
   ShoppingCart, BarChart2, Sparkles, Play, Headphones, Bell, Calendar,
-  Target, Radio, Camera,
+  Target, Radio, Camera, Wand2, Layers, ShieldCheck, Eye, Compass,
 } from "lucide-react";
 import { motion, AnimatePresence, useInView, useScroll, useTransform } from "framer-motion";
 import { useTheme } from "@/lib/theme/ThemeProvider";
@@ -432,9 +432,17 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [cursorGlow, setCursorGlow] = useState({ x: 0, y: 0, visible: false });
+  const [windowWidth, setWindowWidth] = useState(1200);
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { lang, setLang, t } = useLanguage();
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => { const h = () => setIsScrolled(window.scrollY > 50); window.addEventListener("scroll", h); return () => window.removeEventListener("scroll", h); }, []);
 
@@ -537,10 +545,38 @@ export default function Home() {
       {mobileMenuOpen && (
         <div className="mobile-menu-overlay" onClick={() => setMobileMenuOpen(false)}>
           <div className="mobile-menu" onClick={(e) => e.stopPropagation()}>
+            {/* Mobile menu header with logo & close */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", paddingBottom: "16px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <span style={{ fontWeight: 800, fontSize: "18px" }}>Sell<span className="text-gradient-static">ora</span></span>
+              <button style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", padding: 4 }} onClick={() => setMobileMenuOpen(false)}><X size={22} /></button>
+            </div>
             <a href="#features" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_features")}</a>
             <a href="#automated-lifecycle" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_how")}</a>
             <a href="#pricing" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_pricing")}</a>
             <a href="#faq" className="mobile-menu-link" onClick={() => setMobileMenuOpen(false)}>{t("nav_faq")}</a>
+            {/* Divider */}
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", margin: "8px 0" }} />
+            {/* Theme & Language toggles */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <button
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+                onClick={toggleTheme}
+              >
+                {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                {theme === "dark" ? "Light Mode" : "Dark Mode"}
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {[{ code: "en", label: "English" }, { code: "ar", label: "العربية" }, { code: "fr", label: "Français" }].map((l) => (
+                <button
+                  key={l.code}
+                  style={{ flex: 1, padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 600, background: lang === l.code ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)", border: lang === l.code ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.08)", color: lang === l.code ? "#818cf8" : "var(--text-secondary)", cursor: "pointer" }}
+                  onClick={() => { setLang(l.code); setMobileMenuOpen(false); }}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
             <div className="mobile-menu-actions">
               <button className="btn btn-secondary" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setMobileMenuOpen(false); router.push("/login"); }}>{t("nav_login")}</button>
               <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => { setMobileMenuOpen(false); router.push("/signup"); }}>{t("nav_get_started")} <ArrowRight size={14} /></button>
@@ -562,10 +598,10 @@ export default function Home() {
       </section>
 
       {/* ===== THE PROBLEM & INTERACTIVE SCRUBBER ===== */}
-      <section className="section problem" id="problem" style={{ position: "relative", overflow: "hidden", padding: "80px 0" }}>
-        <div className="section-inner" style={{ textAlign: "center", marginBottom: "40px" }}>
+      <section className="section problem" id="problem" style={{ position: "relative", overflow: "hidden", padding: windowWidth < 768 ? "48px 0" : "80px 0" }}>
+        <div className="section-inner" style={{ textAlign: "center", marginBottom: windowWidth < 768 ? "24px" : "40px", padding: windowWidth < 768 ? "0 16px" : undefined }}>
           <span className="designer-badge" style={{ marginBottom: "16px" }}><span className="dot" /> The Problem vs. Solution</span>
-          <h2 className="designer-title" style={{ fontSize: "2.8rem" }}>Why You&apos;re Losing Sales in Your <span style={{ color: "#818cf8" }}>DMs</span> Today</h2>
+          <h2 className="designer-title" style={{ fontSize: windowWidth < 600 ? "1.8rem" : windowWidth < 900 ? "2.2rem" : "2.8rem" }}>Why You&apos;re Losing Sales in Your <span style={{ color: "#818cf8" }}>DMs</span> Today</h2>
           <p className="designer-subtitle">Every unanswered message after 10 PM is a lost customer. Drag the slider below to see how Sellora transforms social commerce chaos into automated revenue.</p>
         </div>
         <BeforeAfterScrubber />
@@ -580,7 +616,7 @@ export default function Home() {
             <p>Your customers are everywhere. Sellora&apos;s AI replies on all 5 — instantly, 24/7.</p>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300, padding: "20px 0" }}>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: windowWidth < 600 ? 200 : 300, padding: "20px 0" }}>
             <BounceCards
               images={[
                 "/channels/whatsapp.svg",
@@ -589,12 +625,24 @@ export default function Home() {
                 "/channels/telegram.svg",
                 "/channels/email.svg",
               ]}
-              containerWidth={500}
-              containerHeight={280}
+              containerWidth={windowWidth < 480 ? Math.min(windowWidth - 32, 320) : windowWidth < 768 ? Math.min(windowWidth - 48, 400) : 500}
+              containerHeight={windowWidth < 600 ? 200 : 280}
               animationDelay={0.3}
               animationStagger={0.1}
               easeType="elastic.out(1, 0.5)"
-              transformStyles={[
+              transformStyles={windowWidth < 480 ? [
+                "rotate(8deg) translate(-90px)",
+                "rotate(-3deg) translate(-45px)",
+                "rotate(2deg)",
+                "rotate(-5deg) translate(45px)",
+                "rotate(6deg) translate(90px)",
+              ] : windowWidth < 768 ? [
+                "rotate(8deg) translate(-120px)",
+                "rotate(-3deg) translate(-60px)",
+                "rotate(2deg)",
+                "rotate(-5deg) translate(60px)",
+                "rotate(6deg) translate(120px)",
+              ] : [
                 "rotate(8deg) translate(-150px)",
                 "rotate(-3deg) translate(-75px)",
                 "rotate(2deg)",
@@ -638,31 +686,152 @@ export default function Home() {
         </div>
 
         <ScrollCardSwap
-          width={450}
-          height={350}
-          cardDistance={50}
-          verticalDistance={60}
-          skewAmount={5}
+          width={windowWidth < 480 ? Math.min(windowWidth - 32, 340) : windowWidth < 768 ? Math.min(windowWidth - 48, 420) : 450}
+          height={windowWidth < 480 ? 300 : 350}
+          cardDistance={windowWidth < 768 ? 35 : 50}
+          verticalDistance={windowWidth < 768 ? 40 : 60}
+          skewAmount={windowWidth < 768 ? 3 : 5}
           easing="elastic"
         >
           {aiCapabilities.map((cap, i) => (
             <ScrollCard key={i}>
-              <div style={{ padding: "40px", display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", color: "white" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg, rgba(108,92,231,0.2), rgba(168,85,247,0.1))", display: "flex", alignItems: "center", justifyContent: "center", color: "#a855f7" }}>
+              <div style={{ padding: windowWidth < 480 ? "24px" : "40px", display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", color: "white" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: windowWidth < 480 ? "16px" : "24px" }}>
+                  <div style={{ width: windowWidth < 480 ? 44 : 56, height: windowWidth < 480 ? 44 : 56, borderRadius: 16, background: "linear-gradient(135deg, rgba(108,92,231,0.2), rgba(168,85,247,0.1))", display: "flex", alignItems: "center", justifyContent: "center", color: "#a855f7", flexShrink: 0 }}>
                     {cap.icon}
                   </div>
-                  <h3 style={{ fontSize: "24px", fontWeight: 800, margin: 0 }}>{cap.title}</h3>
+                  <h3 style={{ fontSize: windowWidth < 480 ? "18px" : "24px", fontWeight: 800, margin: 0 }}>{cap.title}</h3>
                 </div>
-                <p style={{ fontSize: "17px", lineHeight: 1.6, color: "rgba(255,255,255,0.8)", margin: 0 }}>{cap.desc}</p>
-                <div style={{ marginTop: "auto", paddingTop: "24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "14px", color: "rgba(255,255,255,0.4)" }}>Capability {i + 1} of {aiCapabilities.length}</span>
-                  <span style={{ fontSize: "40px", fontWeight: 800, color: "rgba(108,92,231,0.1)" }}>0{i + 1}</span>
+                <p style={{ fontSize: windowWidth < 480 ? "14px" : "17px", lineHeight: 1.6, color: "rgba(255,255,255,0.8)", margin: 0 }}>{cap.desc}</p>
+                <div style={{ marginTop: "auto", paddingTop: windowWidth < 480 ? "16px" : "24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>Capability {i + 1} of {aiCapabilities.length}</span>
+                  <span style={{ fontSize: windowWidth < 480 ? "28px" : "40px", fontWeight: 800, color: "rgba(108,92,231,0.1)" }}>0{i + 1}</span>
                 </div>
               </div>
             </ScrollCard>
           ))}
         </ScrollCardSwap>
+      </section>
+
+      {/* ===== FLAGSHIP PLATFORM SUITE ===== */}
+      <section className="section" id="platform-suite" style={{ background: "var(--bg-secondary)", padding: windowWidth < 768 ? "50px 0" : "80px 0" }}>
+        <div className="section-inner" style={{ padding: windowWidth < 768 ? "0 16px" : undefined }}>
+          <div className="section-header animate-on-scroll" style={{ textAlign: "center", marginBottom: "48px" }}>
+            <span className="badge badge-primary" style={{ marginBottom: 16 }}><Sparkles size={12} /> Sellora AI Suite</span>
+            <h2 className="section-title-reveal" style={{ fontSize: windowWidth < 600 ? "1.8rem" : windowWidth < 900 ? "2.3rem" : "2.8rem" }}>
+              Next-Gen Tools Built to <span className="text-gradient-static">Scale Your Revenue</span>
+            </h2>
+            <p style={{ color: "var(--text-secondary)", maxWidth: "680px", margin: "0 auto" }}>
+              Sellora is not just an auto-responder — it is a complete AI operating system for modern e-commerce.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: windowWidth < 768 ? "1fr" : "repeat(2, 1fr)", gap: "24px" }}>
+            {[
+              {
+                icon: <Wand2 size={26} color="#a855f7" />,
+                badge: "AI Creative Studio",
+                badgeColor: "rgba(168,85,247,0.15)",
+                badgeTextColor: "#c084fc",
+                title: "AI Ad Creatives & Copywriting",
+                desc: "Generate high-converting social media ad visuals, promo banners, and multi-dialect copy (Egyptian, Gulf, Levantine, English) in 1 click.",
+                features: ["Dialect-Tailored Copy", "Instant Visual Assets", "Campaign Integration"]
+              },
+              {
+                icon: <Layers size={26} color="#6366f1" />,
+                badge: "Visual Flow Builder",
+                badgeColor: "rgba(99,102,241,0.15)",
+                badgeTextColor: "#818cf8",
+                title: "Drag & Drop Journeys",
+                desc: "Design custom automated buyer funnels, conditional payment branches, and post-purchase follow-up flows visually.",
+                features: ["Node-Based Editor", "Conditional Logic", "Zero Code Needed"]
+              },
+              {
+                icon: <Eye size={26} color="#00d2ff" />,
+                badge: "Intent Radar & Co-Shopper",
+                badgeColor: "rgba(0,210,255,0.15)",
+                badgeTextColor: "#38bdf8",
+                title: "Live Buyer Intelligence",
+                desc: "Real-time customer intent scoring combined with an embedded AI Co-Shopper widget that guides website visitors to checkout.",
+                features: ["Real-time Intent Score", "Live Storefront Widget", "Cart Hesitation Saver"]
+              },
+              {
+                icon: <ShieldCheck size={26} color="#10b981" />,
+                badge: "AI Safety Shield",
+                badgeColor: "rgba(16,185,129,0.15)",
+                badgeTextColor: "#34d399",
+                title: "Zero-Hallucination Guardrails",
+                desc: "Enterprise row-level security and strict inventory/price validation rules to ensure AI never misquotes price or stock.",
+                features: ["Strict Price Sync", "Anti-Hallucination Layer", "Row-Level Security"]
+              }
+            ].map((suite, i) => (
+              <motion.div
+                key={i}
+                className="designer-card"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "16px",
+                  position: "relative",
+                  overflow: "hidden"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: suite.badgeColor,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    {suite.icon}
+                  </div>
+                  <span style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    padding: "4px 12px",
+                    borderRadius: "20px",
+                    background: suite.badgeColor,
+                    color: suite.badgeTextColor,
+                    border: `1px solid ${suite.badgeTextColor}33`
+                  }}>
+                    {suite.badge}
+                  </span>
+                </div>
+
+                <h3 style={{ fontSize: "20px", fontWeight: 800, margin: 0, color: "#fff" }}>
+                  {suite.title}
+                </h3>
+
+                <p style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--text-secondary)", margin: 0 }}>
+                  {suite.desc}
+                </p>
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "auto", paddingTop: "12px" }}>
+                  {suite.features.map((feat, j) => (
+                    <span key={j} style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      padding: "3px 10px",
+                      borderRadius: "6px",
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      color: "#cbd5e1"
+                    }}>
+                      ✓ {feat}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* ===== ROI CALCULATOR ===== */}
