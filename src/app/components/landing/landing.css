@@ -579,11 +579,66 @@ html[data-theme="light"] .hero-dash-mockup-wrapper {
   }
 
   .designer-title {
-    font-size: 1.85rem !important;
+    font-size: 1.65rem !important;
+    line-height: 1.2 !important;
   }
 
   .designer-subtitle {
-    font-size: 0.95rem !important;
+    font-size: 0.9rem !important;
+  }
+
+  .hero-designer-bg {
+    padding-top: 80px !important;
+    padding-bottom: 40px !important;
+  }
+
+  .designer-badge {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+  }
+
+  .landing-container {
+    padding: 0 12px !important;
+  }
+
+  .hero-split-grid {
+    gap: 20px !important;
+  }
+}
+
+/* Extra small mobile fixes */
+@media (max-width: 480px) {
+  .designer-title {
+    font-size: 1.5rem !important;
+  }
+
+  .designer-subtitle {
+    font-size: 0.85rem !important;
+  }
+
+  .hero-designer-bg {
+    padding-top: 70px !important;
+  }
+
+  .section {
+    padding: 32px 12px !important;
+  }
+
+  .hero-dash-mockup-wrapper {
+    border-radius: 12px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* Prevent horizontal scroll on the entire landing page */
+@media (max-width: 768px) {
+  .hero-dash-mockup-wrapper {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+
+  .dash-body-grid {
+    overflow-x: auto !important;
   }
 }
 

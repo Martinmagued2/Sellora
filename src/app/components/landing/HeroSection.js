@@ -49,10 +49,10 @@ export default function HeroSection() {
   const d = DICT[lang] || DICT.en;
 
   return (
-    <section className="hero-designer-bg" style={{ paddingTop: "120px", paddingBottom: "80px", direction: dir }}>
+    <section className="hero-designer-bg" style={{ paddingTop: "100px", paddingBottom: "60px", direction: dir, width: "100%", overflow: "hidden" }}>
       <div className="hero-grid-pattern" />
 
-      <div className="landing-container" style={{ position: "relative", zIndex: 2 }}>
+      <div className="landing-container" style={{ position: "relative", zIndex: 2, width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
         
         {/* 2-Column Desktop Grid */}
         <div className="hero-split-grid">

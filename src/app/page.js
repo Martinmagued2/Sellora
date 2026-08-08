@@ -598,10 +598,10 @@ export default function Home() {
       </section>
 
       {/* ===== THE PROBLEM & INTERACTIVE SCRUBBER ===== */}
-      <section className="section problem" id="problem" style={{ position: "relative", overflow: "hidden", padding: windowWidth < 768 ? "48px 0" : "80px 0" }}>
-        <div className="section-inner" style={{ textAlign: "center", marginBottom: windowWidth < 768 ? "24px" : "40px", padding: windowWidth < 768 ? "0 16px" : undefined }}>
+      <section className="section problem" id="problem" style={{ position: "relative", overflow: "hidden", padding: "60px 0" }}>
+        <div className="section-inner" style={{ textAlign: "center", marginBottom: "32px", padding: "0 16px" }}>
           <span className="designer-badge" style={{ marginBottom: "16px" }}><span className="dot" /> The Problem vs. Solution</span>
-          <h2 className="designer-title" style={{ fontSize: windowWidth < 600 ? "1.8rem" : windowWidth < 900 ? "2.2rem" : "2.8rem" }}>Why You&apos;re Losing Sales in Your <span style={{ color: "#818cf8" }}>DMs</span> Today</h2>
+          <h2 className="designer-title" style={{ fontSize: "clamp(1.8rem, 5vw, 2.8rem)" }}>Why You&apos;re Losing Sales in Your <span style={{ color: "#818cf8" }}>DMs</span> Today</h2>
           <p className="designer-subtitle">Every unanswered message after 10 PM is a lost customer. Drag the slider below to see how Sellora transforms social commerce chaos into automated revenue.</p>
         </div>
         <BeforeAfterScrubber />
@@ -616,7 +616,7 @@ export default function Home() {
             <p>Your customers are everywhere. Sellora&apos;s AI replies on all 5 — instantly, 24/7.</p>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: windowWidth < 600 ? 200 : 300, padding: "20px 0" }}>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 280, padding: "20px 0" }}>
             <BounceCards
               images={[
                 "/channels/whatsapp.svg",
@@ -625,24 +625,12 @@ export default function Home() {
                 "/channels/telegram.svg",
                 "/channels/email.svg",
               ]}
-              containerWidth={windowWidth < 480 ? Math.min(windowWidth - 32, 320) : windowWidth < 768 ? Math.min(windowWidth - 48, 400) : 500}
-              containerHeight={windowWidth < 600 ? 200 : 280}
+              containerWidth={500}
+              containerHeight={280}
               animationDelay={0.3}
               animationStagger={0.1}
               easeType="elastic.out(1, 0.5)"
-              transformStyles={windowWidth < 480 ? [
-                "rotate(8deg) translate(-90px)",
-                "rotate(-3deg) translate(-45px)",
-                "rotate(2deg)",
-                "rotate(-5deg) translate(45px)",
-                "rotate(6deg) translate(90px)",
-              ] : windowWidth < 768 ? [
-                "rotate(8deg) translate(-120px)",
-                "rotate(-3deg) translate(-60px)",
-                "rotate(2deg)",
-                "rotate(-5deg) translate(60px)",
-                "rotate(6deg) translate(120px)",
-              ] : [
+              transformStyles={[
                 "rotate(8deg) translate(-150px)",
                 "rotate(-3deg) translate(-75px)",
                 "rotate(2deg)",
