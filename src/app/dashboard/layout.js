@@ -42,8 +42,8 @@ import {
   Truck,
   CheckSquare,
   RefreshCw,
-  Radar,
-  Wand2,
+  Instagram,
+  Facebook,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
@@ -111,9 +111,6 @@ const sidebarLinks = [
       { href: "/dashboard/webhooks", icon: Webhook, label: "Webhooks" },
       { href: "/dashboard/automation", icon: Bot, label: "Automation" },
       { href: "/dashboard/flows", icon: Zap, label: "Flow Builder" },
-      { href: "/dashboard/intent-radar", icon: Radar, label: "Intent Radar" },
-      { href: "/dashboard/creative-studio", icon: Wand2, label: "Creative Studio" },
-      { href: "/dashboard/social-selling", icon: MessageCircle, label: "Social Selling" },
       { href: "/dashboard/ai-personality", icon: Sparkles, label: "AI Personality" },
       { href: "/dashboard/ab-tests", icon: FlaskConical, label: "A/B Tests" },
       { href: "/dashboard/reviews", icon: Star, label: "Reviews" },
@@ -126,7 +123,6 @@ const sidebarLinks = [
     section: "Settings",
     links: [
       { href: "/dashboard/settings", icon: Settings, label: "Settings" },
-      { href: "/dashboard/audit-logs", icon: Shield, label: "Audit Logs" },
       { href: "/dashboard/billing", icon: CreditCard, label: "Billing" },
     ],
   },
@@ -149,7 +145,6 @@ const pageTitles = {
   "/dashboard/subscriptions": "Subscriptions",
   "/dashboard/analytics": "Analytics",
   "/dashboard/settings": "Settings",
-  "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/billing": "Billing",
   "/dashboard/automation": "Automation",
   "/dashboard/abandoned-carts": "Abandoned Carts",
@@ -158,9 +153,6 @@ const pageTitles = {
   "/dashboard/ab-tests": "A/B Tests",
   "/dashboard/whatsapp-catalog": "WA Catalog",
   "/dashboard/referrals": "Referrals",
-  "/dashboard/intent-radar": "Intent Radar",
-  "/dashboard/creative-studio": "Creative Studio",
-  "/dashboard/social-selling": "Social Selling",
   "/dashboard/stores": "Stores",
   "/dashboard/shipping": "Shipping",
 };
@@ -424,6 +416,28 @@ export default function DashboardLayout({ children }) {
               <span className="sidebar-link-icon"><LogOut size={18} /></span>
               Log Out
             </button>
+
+            {/* Social Media Links */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 12, paddingTop: "var(--space-md)", borderTop: "1px solid var(--border-subtle)" }}>
+              <a
+                href="https://www.instagram.com/shop__sellora"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Follow @shop__sellora on Instagram"
+                style={{ color: "var(--text-tertiary)", transition: "color 0.2s", padding: 4 }}
+              >
+                <Instagram size={16} />
+              </a>
+              <a
+                href="https://www.facebook.com/share/18t7DvEseA/"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Follow Sellora on Facebook"
+                style={{ color: "var(--text-tertiary)", transition: "color 0.2s", padding: 4 }}
+              >
+                <Facebook size={16} />
+              </a>
+            </div>
           </div>
         </aside>
       )}
