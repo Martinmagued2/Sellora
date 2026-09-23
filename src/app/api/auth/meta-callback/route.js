@@ -589,6 +589,19 @@ export async function GET(request) {
       console.log(`[META-CALLBACK] Facebook connected: ${pageName}`);
     }
 
+    // ─── Step 5b: Subscribe the Page to Meta Webhooks (CRITICAL for live DMs) ───
+    try {
+      console.log(`[META-CALLBACK] Subscribing page ${pageId} to Meta Webhooks...`);
+      const subRes = await fetch(
+        `${META_API_URL}/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_deliveries,message_reads&access_token=${pageAccessToken}`,
+        { method: "POST" }
+      );
+      const subData = await subRes.json();
+      console.log("[META-CALLBACK] Subscribed apps response:", JSON.stringify(subData));
+    } catch (subErr) {
+      console.warn("[META-CALLBACK] Failed to subscribe page to webhooks:", subErr.message);
+    }
+
     // ─── Step 6: Try to connect Instagram via the Page's IG Business Account ───
     let instagramConnected = false;
     try {
