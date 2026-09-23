@@ -42,9 +42,8 @@ import {
   Truck,
   CheckSquare,
   RefreshCw,
-  Instagram,
-  Facebook,
 } from "lucide-react";
+import { Instagram, Facebook } from "@/lib/brandicons";
 import { createClient } from "@/lib/supabase/client";
 import { useAdminAuth } from "@/lib/use-admin-auth";
 import { StoreProvider } from "@/lib/store-context";
