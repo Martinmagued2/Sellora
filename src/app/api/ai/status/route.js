@@ -23,8 +23,8 @@ export async function GET() {
     // OpenRouter (PRIMARY — most likely to be configured)
     OPENROUTER_API_KEY: boolStr(process.env.OPENROUTER_API_KEY),
     OPENROUTER_API_KEYS: boolStr(process.env.OPENROUTER_API_KEYS),
-    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "(default: openai/gpt-oss-20b:free)",
-    OPENROUTER_FAST_MODEL: process.env.OPENROUTER_FAST_MODEL || "(default: openai/gpt-oss-20b:free)",
+    OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "(default: dots-studio/dots-3-note-preview:free)",
+    OPENROUTER_FAST_MODEL: process.env.OPENROUTER_FAST_MODEL || "(default: dots-studio/dots-3-note-preview:free)",
 
     // Groq
     GROQ_API_KEY: boolStr(process.env.GROQ_API_KEY),
@@ -67,7 +67,7 @@ export async function GET() {
     openrouter: {
       totalKeys: openrouterKeys.length,
       previews: openrouterKeys.map(k => maskKey(k)),
-      model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
+      model: process.env.OPENROUTER_MODEL || "dots-studio/dots-3-note-preview:free",
     },
     groq: { totalKeys: groqKeys.length, previews: groqKeys.map(k => maskKey(k)) },
     nvidia: { totalKeys: nvidiaKeys.length, previews: nvidiaKeys.map(k => maskKey(k)) },

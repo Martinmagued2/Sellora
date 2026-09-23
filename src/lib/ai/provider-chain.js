@@ -401,7 +401,7 @@ export function buildVectorEngineProviders() {
  *
  * Env vars:
  *   OPENROUTER_API_KEY or OPENROUTER_API_KEYS (comma-separated)
- *   OPENROUTER_MODEL (optional — default: "openai/gpt-oss-20b:free")
+ *   OPENROUTER_MODEL (optional — default: "dots-studio/dots-3-note-preview:free")
  *   OPENROUTER_BASE_URL (optional — default: "https://openrouter.ai/api/v1")
  *
  * Model examples:
@@ -410,7 +410,7 @@ export function buildVectorEngineProviders() {
  *   - "openai/gpt-4o" (premium, smart)
  *   - "meta-llama/llama-3.3-70b-instruct" (open source)
  *   - "google/gemini-flash-1.5" (cheap, fast)
- *   - "meta-llama/llama-3.3-70b-instruct:free" (FREE tier — rate limited)
+ *   - "dots-studio/dots-3-note-preview:free" (FREE tier — rate limited)
  *
  * OpenRouter also requires these optional headers (passed via createOpenAI's
  * `headers` option):
@@ -423,14 +423,14 @@ export function buildOpenRouterProviders() {
 
   if (keys.length === 0) return providers;
 
-  // Default to gpt-oss-20b:free (free tier — no cost, good quality)
+  // Default to dots-studio/dots-3-note-preview:free (free tier — no cost, good quality)
   // Users can override with OPENROUTER_MODEL env var
-  const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free";
+  const model = process.env.OPENROUTER_MODEL || "dots-studio/dots-3-note-preview:free";
   const baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
 
   // Optional: configure a fast/cheap model for lightweight tasks
   // Defaults to the same free model to avoid extra costs
-  const fastModel = process.env.OPENROUTER_FAST_MODEL || "openai/gpt-oss-20b:free";
+  const fastModel = process.env.OPENROUTER_FAST_MODEL || "dots-studio/dots-3-note-preview:free";
 
   keys.forEach((key, keyIndex) => {
     if (isKeyUnhealthy("openrouter", keyIndex)) {
@@ -536,16 +536,16 @@ export function buildRoutingProviderChain() {
 /**
  * Build the streaming provider chain for Copilot/Agent.
  * Order optimized for the user's configured providers:
- *   OpenRouter first (gpt-oss-20b:free — user's primary, supports tool calling) →
+ *   OpenRouter first (dots-studio/dots-3-note-preview:free — user's primary, supports tool calling) →
  *   Groq (if configured) → Google → NVIDIA → VectorEngine → OpenAI
  *
  * OpenRouter is first because it's the user's primary provider. The default
- * model (openai/gpt-oss-20b:free) is free tier and supports tool calling.
+ * model (dots-studio/dots-3-note-preview:free) is free tier and supports tool calling.
  */
 export function buildStreamingProviderChain() {
   const providers = [];
 
-  // OpenRouter first (user's primary — gpt-oss-20b:free supports tool calling)
+  // OpenRouter first (user's primary — dots-studio/dots-3-note-preview:free supports tool calling)
   providers.push(...buildOpenRouterProviders());
 
   // Groq (if configured — fast streaming + tool support)
@@ -581,8 +581,8 @@ export function getProviderChainSummary() {
     openrouter: {
       keys: openrouterKeys.length,
       keysPreview: openrouterKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)),
-      model: process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
-      fastModel: process.env.OPENROUTER_FAST_MODEL || "openai/gpt-oss-20b:free",
+      model: process.env.OPENROUTER_MODEL || "dots-studio/dots-3-note-preview:free",
+      fastModel: process.env.OPENROUTER_FAST_MODEL || "dots-studio/dots-3-note-preview:free",
     },
     groq: { keys: groqKeys.length, keysPreview: groqKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },
     nvidia: { keys: nvidiaKeys.length, keysPreview: nvidiaKeys.map(k => k.substring(0, 6) + "..." + k.slice(-4)) },

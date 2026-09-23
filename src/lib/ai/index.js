@@ -684,7 +684,7 @@ export async function generateAIReply({
       // Skip this for OpenRouter free models — they often don't support tool calling
       // and the error wastes time + rate limit budget.
       const isFreeModel = provider._provider === "openrouter" &&
-        (process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free").includes(":free");
+        (process.env.OPENROUTER_MODEL || "dots-studio/dots-3-note-preview:free").includes(":free");
       const skipTools = isFreeModel;
 
       if (!skipTools) {
@@ -743,7 +743,7 @@ export async function generateAIReply({
     if ((!text || !text.trim()) && process.env.OPENROUTER_API_KEY) {
       try {
         console.log("[generateAIReply] All SDK providers failed — trying direct OpenRouter fetch()");
-        const model = process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free";
+        const model = process.env.OPENROUTER_MODEL || "dots-studio/dots-3-note-preview:free";
         const baseURL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
 
         const messages = [
