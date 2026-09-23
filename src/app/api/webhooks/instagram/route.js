@@ -113,29 +113,27 @@ export async function POST(request) {
     }
 
     try {
-      // Look up the account that this page belongs to
-      // Handle duplicate page_ids gracefully
+      // Look up the account that this page/IG ID belongs to
       const { data: accounts } = await getSupabase()
         .from("accounts")
-        .select("id, instagram_access_token")
-        .eq("instagram_page_id", event.pageId);
+        .select("id, instagram_access_token, facebook_access_token")
+        .or(`instagram_page_id.eq.${event.pageId},facebook_page_id.eq.${event.pageId}`);
 
       if (!accounts || accounts.length === 0) {
-        console.error("[IG-WEBHOOK] No account found for instagram_page_id:", event.pageId);
+        console.error("[IG-WEBHOOK] No account found for page/IG ID:", event.pageId);
         continue;
       }
 
       if (accounts.length > 1) {
-        console.warn(`[IG-WEBHOOK] Multiple accounts (${accounts.length}) share instagram_page_id: ${event.pageId}. Picking the one with a valid access token.`);
+        console.warn(`[IG-WEBHOOK] Multiple accounts (${accounts.length}) share ID: ${event.pageId}. Picking the one with a valid access token.`);
       }
 
       // Prefer the account that has a valid access token
-      const account = accounts.find(a => a.instagram_access_token) || accounts[0];
+      const account = accounts.find(a => a.instagram_access_token || a.facebook_access_token) || accounts[0];
+      const rawToken = account?.instagram_access_token || account?.facebook_access_token;
 
       // Decrypt the token (no-op if plaintext — backward compatible)
-      const igAccessToken = account?.instagram_access_token
-        ? decryptToken(account.instagram_access_token)
-        : null;
+      const igAccessToken = rawToken ? decryptToken(rawToken) : null;
 
       if (!igAccessToken) {
         console.warn("[IG-WEBHOOK] No Instagram token found for page:", event.pageId);

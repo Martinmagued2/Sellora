@@ -644,7 +644,7 @@ export async function GET(request) {
         const { error: igUpdateError } = await supabase
           .from("accounts")
           .update({
-            instagram_page_id: pageId,
+            instagram_page_id: igAccount.id || pageId,
             instagram_access_token: encryptToken(pageAccessToken),
             instagram_connected: true,
           })

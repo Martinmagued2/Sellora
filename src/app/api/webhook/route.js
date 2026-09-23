@@ -172,35 +172,34 @@ async function handleInstagramEvent(body) {
     try {
       console.log(`[WEBHOOK-IG] Message from ${event.senderId}: "${event.text?.substring(0, 50)}..." (pageId: ${event.pageId})`);
 
-      // Look up the account that this page belongs to
-      // Use .limit(1) instead of .single() to handle duplicate page_ids gracefully
+      // Look up the account that this page/IG ID belongs to
       const { data: accounts, error: accountError } = await getSupabase()
         .from("accounts")
-        .select("id, instagram_access_token")
-        .eq("instagram_page_id", event.pageId);
+        .select("id, instagram_access_token, facebook_access_token")
+        .or(`instagram_page_id.eq.${event.pageId},facebook_page_id.eq.${event.pageId}`);
 
       if (accountError) {
-        console.error(`[WEBHOOK-IG] Account lookup error for pageId ${event.pageId}:`, accountError.message);
+        console.error(`[WEBHOOK-IG] Account lookup error for ID ${event.pageId}:`, accountError.message);
         errorCount++;
         continue;
       }
 
       if (!accounts || accounts.length === 0) {
-        console.error(`[WEBHOOK-IG] No account found for instagram_page_id: ${event.pageId}`);
-        console.error(`[WEBHOOK-IG] HINT: Make sure instagram_page_id in the accounts table matches the Facebook Page ID: ${event.pageId}`);
+        console.error(`[WEBHOOK-IG] No account found for ID: ${event.pageId}`);
         errorCount++;
         continue;
       }
 
       if (accounts.length > 1) {
-        console.warn(`[WEBHOOK-IG] Multiple accounts (${accounts.length}) share instagram_page_id: ${event.pageId}. Picking the one with a valid access token.`);
+        console.warn(`[WEBHOOK-IG] Multiple accounts (${accounts.length}) share ID: ${event.pageId}. Picking the one with a valid access token.`);
       }
 
       // Prefer the account that has a valid access token
-      const account = accounts.find(a => a.instagram_access_token) || accounts[0];
+      const account = accounts.find(a => a.instagram_access_token || a.facebook_access_token) || accounts[0];
+      const accessTokenToUse = account?.instagram_access_token || account?.facebook_access_token;
 
-      if (!account?.instagram_access_token) {
-        console.warn(`[WEBHOOK-IG] No Instagram access token for page: ${event.pageId}`);
+      if (!accessTokenToUse) {
+        console.warn(`[WEBHOOK-IG] No access token for page/IG ID: ${event.pageId}`);
         console.warn(`[WEBHOOK-IG] Message will still be processed & stored, but replies cannot be delivered to IG`);
         console.warn(`[WEBHOOK-IG] HINT: Re-connect Instagram in Settings to refresh the token`);
         // DON'T skip — still process the message so it's stored and AI can generate a reply
