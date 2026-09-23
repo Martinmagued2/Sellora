@@ -65,7 +65,6 @@ export async function GET(req) {
 
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "https://sellorachat.com"}/api/auth/meta-callback`;
 
-  // Permissions needed for FB + IG messaging
   const scopes = [
     "pages_show_list",
     "pages_messaging",
@@ -73,6 +72,7 @@ export async function GET(req) {
     "instagram_basic",
     "instagram_manage_messages",
     "pages_read_engagement",
+    "business_management",
   ].join(",");
 
   // State format the callback parser expects: "{platform}_{accountId}"
