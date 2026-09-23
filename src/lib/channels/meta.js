@@ -7,6 +7,29 @@
 const META_API_URL = "https://graph.facebook.com/v21.0";
 
 /**
+ * Take thread control from secondary receiver or Meta Inbox (Handover Protocol)
+ */
+export async function takeThreadControl({ recipientId, accessToken }) {
+  try {
+    const res = await fetch(`${META_API_URL}/me/take_thread_control`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        metadata: "Sellora AI thread control takeover",
+      }),
+    });
+    return await res.json();
+  } catch (e) {
+    console.warn("takeThreadControl failed:", e.message);
+    return null;
+  }
+}
+
+/**
  * Send a text message to Instagram or Facebook Messenger
  * @param {Object} params
  * @param {string} params.recipientId - IGSID or PSID of the recipient
@@ -15,7 +38,7 @@ const META_API_URL = "https://graph.facebook.com/v21.0";
  * @param {string} params.accessToken - Page access token
  */
 export async function sendMessage({ recipientId, message, pageId, accessToken }) {
-  const response = await fetch(
+  let response = await fetch(
     `${META_API_URL}/${pageId}/messages`,
     {
       method: "POST",
@@ -31,7 +54,31 @@ export async function sendMessage({ recipientId, message, pageId, accessToken })
     }
   );
 
-  const data = await response.json();
+  let data = await response.json();
+
+  // If send failed due to Handover Protocol (e.g. app does not have thread control)
+  if (!response.ok && (data.error?.code === 10 || data.error?.code === 2018028 || data.error?.message?.includes("control"))) {
+    console.log(`[META] Handover Protocol triggered for ${recipientId} — attempting to take thread control...`);
+    await takeThreadControl({ recipientId, accessToken });
+    
+    // Retry message send after acquiring control
+    response = await fetch(
+      `${META_API_URL}/${pageId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          recipient: { id: recipientId },
+          message: { text: message },
+          messaging_type: "RESPONSE",
+        }),
+      }
+    );
+    data = await response.json();
+  }
 
   if (!response.ok) {
     console.error("Meta Messaging API error:", data);
@@ -125,9 +172,10 @@ export function parseInstagramWebhook(body) {
   const entries = body?.entry || [];
 
   for (const entry of entries) {
-    if (!entry?.messaging) continue;
+    const messagingEvents = [...(entry?.messaging || []), ...(entry?.standby || [])];
+    if (messagingEvents.length === 0) continue;
 
-    for (const event of entry.messaging) {
+    for (const event of messagingEvents) {
       const pageId = entry.id;
 
       // Skip echo messages (messages sent by the page itself)
@@ -176,9 +224,10 @@ export function parseFacebookWebhook(body) {
   const entries = body?.entry || [];
 
   for (const entry of entries) {
-    if (!entry?.messaging) continue;
+    const messagingEvents = [...(entry?.messaging || []), ...(entry?.standby || [])];
+    if (messagingEvents.length === 0) continue;
 
-    for (const event of entry.messaging) {
+    for (const event of messagingEvents) {
       const pageId = entry.id;
 
       // Skip echo messages

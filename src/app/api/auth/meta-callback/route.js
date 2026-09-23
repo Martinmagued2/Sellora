@@ -628,6 +628,19 @@ export async function GET(request) {
       const igAccount = igAccountData.instagram_business_account || igAccountData.connected_instagram_account;
 
       if (igAccount) {
+        // Explicitly subscribe the Instagram Business Account ID to webhooks
+        try {
+          console.log(`[META-CALLBACK] Subscribing IG Account ${igAccount.id} to Meta Webhooks...`);
+          const igSubRes = await fetch(
+            `${META_API_URL}/${igAccount.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_deliveries,message_reads&access_token=${pageAccessToken}`,
+            { method: "POST" }
+          );
+          const igSubData = await igSubRes.json();
+          console.log("[META-CALLBACK] IG Subscribed apps response:", JSON.stringify(igSubData));
+        } catch (igSubErr) {
+          console.warn("[META-CALLBACK] Failed to subscribe IG account to webhooks:", igSubErr.message);
+        }
+
         const { error: igUpdateError } = await supabase
           .from("accounts")
           .update({
