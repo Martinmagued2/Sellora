@@ -79,7 +79,7 @@ export async function GET(req) {
   // (Supabase UUIDs contain no underscores, so split("_") works cleanly.)
   const state = `${platform}_${accountId}`;
 
-  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
+  const authUrl = `https://www.facebook.com/v25.0/dialog/oauth?` +
     `client_id=${appId}` +
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&scope=${encodeURIComponent(scopes)}` +

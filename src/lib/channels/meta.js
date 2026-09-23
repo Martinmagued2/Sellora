@@ -1,10 +1,10 @@
 /**
  * Meta Platform Messaging Library
  * Handles sending messages to Instagram DMs and Facebook Messenger
- * via the Meta Graph API v21.0
+ * via the Meta Graph API v25.0
  */
 
-const META_API_URL = "https://graph.facebook.com/v21.0";
+const META_API_URL = "https://graph.facebook.com/v25.0";
 
 /**
  * Take thread control from secondary receiver or Meta Inbox (Handover Protocol)

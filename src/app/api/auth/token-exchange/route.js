@@ -25,7 +25,7 @@ export async function POST(req) {
 
     // Exchange short-lived → long-lived
     const res = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?` +
+      `https://graph.facebook.com/v25.0/oauth/access_token?` +
       `grant_type=fb_exchange_token&` +
       `client_id=${appId}&` +
       `client_secret=${appSecret}&` +

@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
 import crypto from "crypto";
 import { canAccessAccount } from "@/lib/team-auth";
 
-const META_API_URL = "https://graph.facebook.com/v21.0";
+const META_API_URL = "https://graph.facebook.com/v25.0";
 
 // Server-side admin client (bypasses RLS)
 let _supabase = null;

@@ -66,7 +66,7 @@ export async function POST(request) {
     }
 
     // Verify the token works by fetching page info from Meta
-    const META_API_URL = "https://graph.facebook.com/v21.0";
+    const META_API_URL = "https://graph.facebook.com/v25.0";
     const verifyResponse = await fetch(
       `${META_API_URL}/${pageId}?fields=id,name&access_token=${accessToken}`,
       { method: "GET" }

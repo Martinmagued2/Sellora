@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { encryptToken } from "@/lib/token-encryption";
 
-const META_API_URL = "https://graph.facebook.com/v21.0";
+const META_API_URL = "https://graph.facebook.com/v25.0";
 
 // Lazy Supabase admin client (server-side only)
 let _supabase = null;
