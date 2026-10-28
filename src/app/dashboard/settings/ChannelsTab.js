@@ -288,11 +288,7 @@ export default function ChannelsTab({
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {process.env.NEXT_PUBLIC_META_APP_ID && (
                   <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
-                    // Use the production URL (not window.location.origin) to ensure
-                    // the redirect URI always matches what's whitelisted in Meta dashboard.
-                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sellorachat.com';
-                    const redirectUri = `${baseUrl}/api/auth/meta-callback`;
-                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata,instagram_manage_messages,business_management&response_type=code&auth_type=rerequest&state=instagram_${activeAccountId}`;
+                    window.location.href = `/api/auth/meta-connect?platform=instagram`;
                   }}>
                     Connect with Meta
                   </button>
@@ -322,7 +318,7 @@ export default function ChannelsTab({
                         });
                         const data = await res.json();
                         if (!res.ok) throw new Error(data.error || 'Connection failed');
-                        setAccount(prev => ({ ...prev, instagram_connected: true, instagram_page_id: manualIG.pageId, instagram_access_token: manualIG.accessToken }));
+                        setAccount(prev => ({ ...prev, instagram_connected: true, instagram_page_id: manualIG.pageId }));
                         setMetaStatus({ type: 'success', platform: 'instagram', message: data.message || 'Instagram connected successfully!' });
                         setShowManualIG(false);
                       } catch (err) { toast.error('Failed: ' + err.message); }
@@ -368,9 +364,7 @@ export default function ChannelsTab({
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {process.env.NEXT_PUBLIC_META_APP_ID && (
                   <button className="btn btn-secondary" style={{ width: "100%" }} onClick={() => {
-                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.sellorachat.com';
-                    const redirectUri = `${baseUrl}/api/auth/meta-callback`;
-                    window.location.href = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${process.env.NEXT_PUBLIC_META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_show_list,pages_messaging,pages_read_engagement,pages_manage_metadata,instagram_manage_messages,business_management&response_type=code&auth_type=rerequest&state=facebook_${activeAccountId}`;
+                    window.location.href = `/api/auth/meta-connect?platform=facebook`;
                   }}>
                     Connect with Meta
                   </button>
@@ -400,7 +394,7 @@ export default function ChannelsTab({
                         });
                         const data = await res.json();
                         if (!res.ok) throw new Error(data.error || 'Connection failed');
-                        setAccount(prev => ({ ...prev, facebook_connected: true, facebook_page_id: manualFB.pageId, facebook_access_token: manualFB.accessToken }));
+                        setAccount(prev => ({ ...prev, facebook_connected: true, facebook_page_id: manualFB.pageId }));
                         setMetaStatus({ type: 'success', platform: 'facebook', message: data.message || 'Facebook connected successfully!' });
                         setShowManualFB(false);
                       } catch (err) { toast.error('Failed: ' + err.message); }

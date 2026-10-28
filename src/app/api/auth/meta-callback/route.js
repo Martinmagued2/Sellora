@@ -667,12 +667,12 @@ export async function GET(request) {
         if (allPagesData.data) {
           for (const p of allPagesData.data) {
             const pageIg = p.instagram_business_account || p.connected_instagram_account;
-            if (pageIg) {
+            if (pageIg && pageIg.id) {
               console.log(`[META-CALLBACK] ✅ Found IG on page: ${p.name}`);
               const { error: igUpdateError } = await supabase
                 .from("accounts")
                 .update({
-                  instagram_page_id: p.id,
+                  instagram_page_id: pageIg.id,
                   instagram_access_token: encryptToken(p.access_token),
                   instagram_connected: true,
                 })
@@ -684,24 +684,6 @@ export async function GET(request) {
                 break;
               }
             }
-          }
-        }
-
-        // Fallback: If user explicitly clicked "Connect Instagram", connect this page for Instagram regardless
-        if (!instagramConnected && platform === "instagram" && pageId && pageAccessToken) {
-          console.log("[META-CALLBACK] ℹ️ Connecting page ID as Instagram fallback for platform=instagram...");
-          const { error: igFallbackError } = await supabase
-            .from("accounts")
-            .update({
-              instagram_page_id: pageId,
-              instagram_access_token: encryptToken(pageAccessToken),
-              instagram_connected: true,
-            })
-            .eq("id", accountId);
-
-          if (!igFallbackError) {
-            instagramConnected = true;
-            console.log(`[META-CALLBACK] Instagram connected via platform fallback (Page: ${pageId})`);
           }
         }
 

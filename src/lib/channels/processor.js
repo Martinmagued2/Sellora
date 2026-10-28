@@ -824,7 +824,8 @@ export async function processIncomingMessage({
             const gracefulMsg = "Thank you for your message! Our team is currently experiencing high volume. We've received your message and will get back to you as soon as possible. 🙏";
             // Deliver via the appropriate channel
             if (channel === "whatsapp") {
-              await sendWhatsAppMessage({ to: senderId, message: gracefulMsg, phoneNumberId: account.whatsapp_phone_number_id, accessToken: account.whatsapp_access_token });
+              const waToken = account.whatsapp_access_token ? decryptToken(account.whatsapp_access_token) : null;
+              await sendWhatsAppMessage({ to: senderId, message: gracefulMsg, phoneNumberId: account.whatsapp_phone_number_id, accessToken: waToken });
             } else if (channel === "telegram" || channel === "email") {
               await deliverToTelegramOrEmail(channel, account.id, senderId, gracefulMsg);
             } else {
@@ -1098,9 +1099,9 @@ export async function processIncomingMessage({
                     .eq("id", account.id)
                     .single();
                   if (tokenData?.[tokenColumn]) {
-                    effectiveAccessToken = tokenData[tokenColumn];
+                    effectiveAccessToken = decryptToken(tokenData[tokenColumn]);
                     effectivePageId = tokenData[pageIdColumn] || pageId;
-                    console.log(`[PROCESSOR] Found ${channel} access token in accounts table, will attempt delivery`);
+                    console.log(`[PROCESSOR] Found and decrypted ${channel} access token in accounts table, will attempt delivery`);
                   } else {
                     console.warn(`[PROCESSOR] No ${channel} access token found in accounts table for account ${account.id}`);
                   }

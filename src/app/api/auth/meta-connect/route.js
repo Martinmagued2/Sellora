@@ -84,6 +84,7 @@ export async function GET(req) {
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&scope=${encodeURIComponent(scopes)}` +
     `&response_type=code` +
+    `&auth_type=rerequest` +
     `&state=${encodeURIComponent(state)}`;
 
   return NextResponse.redirect(authUrl);

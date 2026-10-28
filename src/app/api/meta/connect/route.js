@@ -76,8 +76,9 @@ export async function POST(request) {
 
     if (verifyData.error) {
       console.warn("[META-CONNECT] Token verification failed:", verifyData.error);
-      // Still save — the token might work for messaging even if verification fails
-      // (e.g., limited permissions)
+      return NextResponse.json({
+        error: `Meta verification failed: ${verifyData.error.message || "Invalid Page ID or Access Token"}`
+      }, { status: 400 });
     }
 
     const pageName = verifyData.name || null;
@@ -117,25 +118,41 @@ export async function POST(request) {
     const updates = {};
 
     if (platform === "instagram") {
-      updates.instagram_page_id = pageId;
+      // Resolve the Instagram Business Account ID
+      let igAccount = null;
+      try {
+        const igResponse = await fetch(
+          `${META_API_URL}/${pageId}?fields=instagram_business_account{id,username}&access_token=${accessToken}`,
+          { method: "GET" }
+        );
+        const igData = await igResponse.json();
+        if (igData.instagram_business_account) {
+          igAccount = igData.instagram_business_account;
+          console.log(`[META-CONNECT] Found Instagram account: @${igAccount.username} (${igAccount.id}) for page ${pageId}`);
+        }
+      } catch (e) {
+        console.warn("[META-CONNECT] Could not resolve Instagram Business Account:", e.message);
+      }
+
+      if (!igAccount?.id) {
+        return NextResponse.json({
+          error: "No Instagram Professional / Business account found linked to this Facebook Page. Please link your Instagram account to this Page in Meta Business Suite first."
+        }, { status: 400 });
+      }
+
+      // Also subscribe the page to webhooks with this token
+      try {
+        await fetch(
+          `${META_API_URL}/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,message_deliveries,message_reads&access_token=${accessToken}`,
+          { method: "POST" }
+        );
+      } catch (subErr) {
+        console.warn("[META-CONNECT] Webhook subscription attempt failed:", subErr.message);
+      }
+
+      updates.instagram_page_id = igAccount.id;
       updates.instagram_access_token = encryptToken(accessToken);
       updates.instagram_connected = true;
-
-      // Try to resolve the Instagram Business Account ID
-      if (verifyData.id) {
-        try {
-          const igResponse = await fetch(
-            `${META_API_URL}/${pageId}?fields=instagram_business_account{id,username}&access_token=${accessToken}`,
-            { method: "GET" }
-          );
-          const igData = await igResponse.json();
-          if (igData.instagram_business_account) {
-            console.log(`[META-CONNECT] Found Instagram account: @${igData.instagram_business_account.username} for page ${pageId}`);
-          }
-        } catch (e) {
-          console.warn("[META-CONNECT] Could not resolve Instagram Business Account:", e.message);
-        }
-      }
     } else if (platform === "facebook") {
       updates.facebook_page_id = pageId;
       updates.facebook_access_token = encryptToken(accessToken);

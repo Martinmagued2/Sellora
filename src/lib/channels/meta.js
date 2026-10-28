@@ -38,8 +38,9 @@ export async function takeThreadControl({ recipientId, accessToken }) {
  * @param {string} params.accessToken - Page access token
  */
 export async function sendMessage({ recipientId, message, pageId, accessToken }) {
+  const targetEndpoint = pageId ? `${META_API_URL}/${pageId}/messages` : `${META_API_URL}/me/messages`;
   let response = await fetch(
-    `${META_API_URL}/${pageId}/messages`,
+    targetEndpoint,
     {
       method: "POST",
       headers: {
@@ -63,7 +64,7 @@ export async function sendMessage({ recipientId, message, pageId, accessToken })
     
     // Retry message send after acquiring control
     response = await fetch(
-      `${META_API_URL}/${pageId}/messages`,
+      targetEndpoint,
       {
         method: "POST",
         headers: {

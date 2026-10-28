@@ -25,6 +25,7 @@ import { processIncomingMessage } from "@/lib/channels/processor";
 import { createClient } from "@supabase/supabase-js";
 import { verifyMetaSignature } from "@/lib/channels/verify";
 import { logSecurityEvent } from "@/lib/security-logger";
+import { decryptToken } from "@/lib/token-encryption";
 import crypto from 'crypto';
 
 let _supabase = null;
@@ -196,7 +197,8 @@ async function handleInstagramEvent(body) {
 
       // Prefer the account that has a valid access token
       const account = accounts.find(a => a.instagram_access_token || a.facebook_access_token) || accounts[0];
-      const accessTokenToUse = account?.instagram_access_token || account?.facebook_access_token;
+      const rawToken = account?.instagram_access_token || account?.facebook_access_token;
+      const accessTokenToUse = rawToken ? decryptToken(rawToken) : null;
 
       if (!accessTokenToUse) {
         console.warn(`[WEBHOOK-IG] No access token for page/IG ID: ${event.pageId}`);
@@ -208,11 +210,11 @@ async function handleInstagramEvent(body) {
 
       // Try to get the sender's profile (name + pic) — only if we have a token
       let profile = null;
-      if (account?.instagram_access_token) {
+      if (accessTokenToUse) {
         try {
           profile = await getUserProfile({
             userId: event.senderId,
-            accessToken: account.instagram_access_token,
+            accessToken: accessTokenToUse,
           });
         } catch (profileErr) {
           console.warn(`[WEBHOOK-IG] Could not fetch profile for ${event.senderId}:`, profileErr.message);
@@ -240,7 +242,7 @@ async function handleInstagramEvent(body) {
         channel: "instagram",
         pageId: event.pageId,
         platformMessageId: event.messageId,
-        accessToken: account.instagram_access_token || null,
+        accessToken: accessTokenToUse || null,
         accountId: account.id,
       });
 
@@ -308,8 +310,10 @@ async function handleFacebookEvent(body) {
 
       // Prefer the account that has a valid access token
       const account = accounts.find(a => a.facebook_access_token) || accounts[0];
+      const rawFbToken = account?.facebook_access_token;
+      const fbAccessToken = rawFbToken ? decryptToken(rawFbToken) : null;
 
-      if (!account?.facebook_access_token) {
+      if (!fbAccessToken) {
         console.warn(`[WEBHOOK-FB] No Facebook access token for page: ${event.pageId}`);
         console.warn(`[WEBHOOK-FB] Message will still be processed & stored, but replies cannot be delivered to FB`);
         console.warn(`[WEBHOOK-FB] HINT: Re-connect Facebook in Settings to refresh the token`);
@@ -319,11 +323,11 @@ async function handleFacebookEvent(body) {
 
       // Try to get the sender's profile (only if we have a token)
       let profile = null;
-      if (account?.facebook_access_token) {
+      if (fbAccessToken) {
         try {
           profile = await getUserProfile({
             userId: event.senderId,
-            accessToken: account.facebook_access_token,
+            accessToken: fbAccessToken,
           });
         } catch (profileErr) {
           console.warn(`[WEBHOOK-FB] Could not fetch profile for ${event.senderId}:`, profileErr.message);
@@ -351,7 +355,7 @@ async function handleFacebookEvent(body) {
         channel: "facebook",
         pageId: event.pageId,
         platformMessageId: event.messageId,
-        accessToken: account.facebook_access_token || null,
+        accessToken: fbAccessToken || null,
         accountId: account.id,
       });
 

@@ -16,5 +16,14 @@ export function verifyMetaSignature(reqText, signatureHeader, appSecret) {
     .update(reqText)
     .digest('hex');
 
-  return crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expectedHash, 'hex'));
+  try {
+    const sigBuf = Buffer.from(signature, 'hex');
+    const expBuf = Buffer.from(expectedHash, 'hex');
+    if (sigBuf.length !== expBuf.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(sigBuf, expBuf);
+  } catch (err) {
+    return false;
+  }
 }
